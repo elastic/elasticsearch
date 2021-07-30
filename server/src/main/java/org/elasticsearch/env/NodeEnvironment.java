@@ -365,6 +365,13 @@ public final class NodeEnvironment  implements Closeable {
                 SNAPSHOT_CACHE_FOLDER
             ));
 
+            final Set<String> ignoredFileNames = new HashSet<>(Arrays.asList(
+                NODE_LOCK_FILENAME,
+                TEMP_FILE_NAME,
+                TEMP_FILE_NAME + ".tmp",
+                TEMP_FILE_NAME + ".final"
+            ));
+
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(legacyNodePath.path)) {
                 for (Path subFolderPath : stream) {
                     final String fileName = subFolderPath.getFileName().toString();
@@ -381,8 +388,7 @@ public final class NodeEnvironment  implements Closeable {
                                 targetSubFolderPath);
                         }
                         folderNames.add(fileName);
-                    } else if (fileName.equals(NODE_LOCK_FILENAME) == false &&
-                               fileName.equals(TEMP_FILE_NAME) == false) {
+                    } else if (ignoredFileNames.contains(fileName) == false) {
                         throw new IllegalStateException("unexpected file/folder encountered during data folder upgrade: " +
                             subFolderPath);
                     }

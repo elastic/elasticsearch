@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -21,8 +22,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xpack.core.DataTier;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -67,7 +69,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
             SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING);
 
         public static String getDefaultTierPreference(Settings settings) {
-            if (SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(settings)) {
+            if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(settings)) {
                 return DATA_FROZEN;
             } else {
                 return "";

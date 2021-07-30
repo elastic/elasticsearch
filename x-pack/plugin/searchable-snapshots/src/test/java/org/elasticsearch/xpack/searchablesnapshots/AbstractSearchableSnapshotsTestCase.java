@@ -23,13 +23,13 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -71,6 +71,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.pageAligned;
 
 public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTestCase {
@@ -211,25 +212,20 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      * @return a random {@link ByteSizeValue} that can be used to set {@link CacheService#SNAPSHOT_CACHE_RANGE_SIZE_SETTING}
      */
     protected static ByteSizeValue randomCacheRangeSize() {
-        return pageAligned(
-            new ByteSizeValue(
-                randomLongBetween(
-                    CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(),
-                    CacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes()
-                )
-            )
-        );
+        return pageAlignedBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE, CacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE);
     }
 
     protected static ByteSizeValue randomFrozenCacheRangeSize() {
-        return pageAligned(
-            new ByteSizeValue(
-                randomLongBetween(
-                    FrozenCacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(),
-                    FrozenCacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes()
-                )
-            )
-        );
+        return pageAlignedBetween(FrozenCacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE, FrozenCacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE);
+    }
+
+    private static ByteSizeValue pageAlignedBetween(ByteSizeValue min, ByteSizeValue max) {
+        ByteSizeValue aligned = pageAligned(new ByteSizeValue(randomLongBetween(min.getBytes(), max.getBytes())));
+        if (aligned.compareTo(max) > 0) {
+            // minus one page in case page alignment moved us past the max setting value
+            return new ByteSizeValue(aligned.getBytes() - PAGE_SIZE);
+        }
+        return aligned;
     }
 
     protected static SearchableSnapshotRecoveryState createRecoveryState(boolean finalizedDone) {

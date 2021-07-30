@@ -10,12 +10,14 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -202,7 +204,17 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(
             recoveryId, requestSeqNo, shardId, fileMetadata, position, content, lastChunk, totalTranslogOps, throttleTimeInNanos);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
-        executeRetryableAction(action, request, fileChunkRequestOptions, listener.map(r -> null), reader);
+
+        // Fork the actual sending onto a separate thread so we can send them concurrently even if CPU-bound (e.g. using compression).
+        // The AsyncIOProcessor and MultiFileWriter both concentrate their work onto fewer threads if possible, but once we have
+        // chunks to send we want to increase parallelism again.
+        threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
+            executeRetryableAction(
+                action,
+                request,
+                fileChunkRequestOptions,
+                ActionListener.runBefore(l.map(r -> null), request::decRef),
+                reader)));
     }
 
     @Override
@@ -232,8 +244,19 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
             @Override
             public void tryAction(ActionListener<T> listener) {
-                transportService.sendRequest(targetNode, action, request, options,
-                    new ActionListenerResponseHandler<>(listener, reader, ThreadPool.Names.GENERIC));
+                if (request.tryIncRef()) {
+                    transportService.sendRequest(
+                        targetNode,
+                        action,
+                        request,
+                        options,
+                        new ActionListenerResponseHandler<>(
+                            ActionListener.runBefore(listener, request::decRef),
+                            reader,
+                            ThreadPool.Names.GENERIC));
+                } else {
+                    listener.onFailure(new AlreadyClosedException("already closed"));
+                }
             }
 
             @Override

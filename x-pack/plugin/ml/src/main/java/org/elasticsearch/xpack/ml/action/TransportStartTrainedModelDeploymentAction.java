@@ -22,11 +22,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -54,16 +53,15 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
+import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
 import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 public class TransportStartTrainedModelDeploymentAction
@@ -75,13 +73,14 @@ public class TransportStartTrainedModelDeploymentAction
     private final Client client;
     private final PersistentTasksService persistentTasksService;
     private final NamedXContentRegistry xContentRegistry;
+    private final MlMemoryTracker memoryTracker;
 
     @Inject
     public TransportStartTrainedModelDeploymentAction(TransportService transportService, Client client, ClusterService clusterService,
                                                       ThreadPool threadPool, ActionFilters actionFilters, XPackLicenseState licenseState,
                                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                                       PersistentTasksService persistentTasksService,
-                                                      NamedXContentRegistry xContentRegistry) {
+                                                      NamedXContentRegistry xContentRegistry, MlMemoryTracker memoryTracker) {
         super(StartTrainedModelDeploymentAction.NAME, transportService, clusterService, threadPool, actionFilters,
             StartTrainedModelDeploymentAction.Request::new, indexNameExpressionResolver, NodeAcknowledgedResponse::new,
             ThreadPool.Names.SAME);
@@ -89,6 +88,7 @@ public class TransportStartTrainedModelDeploymentAction
         this.client = Objects.requireNonNull(client);
         this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
+        this.memoryTracker = Objects.requireNonNull(memoryTracker);
     }
 
     @Override
@@ -140,18 +140,55 @@ public class TransportStartTrainedModelDeploymentAction
                     return;
                 }
 
-                persistentTasksService.sendStartRequest(
-                    MlTasks.trainedModelDeploymentTaskId(request.getModelId()),
-                    MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME,
-                    new TaskParams(trainedModelConfig.getLocation().getModelId(), trainedModelConfig.getLocation().getResourceName()),
-                    waitForDeploymentToStart
-                );
+                getModelBytes(trainedModelConfig, ActionListener.wrap(
+                    modelBytes -> {
+                        TaskParams taskParams = new TaskParams(
+                            trainedModelConfig.getLocation().getModelId(),
+                            trainedModelConfig.getLocation().getResourceName(),
+                            modelBytes
+                        );
+                        PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(
+                            PersistentTasksCustomMetadata.TYPE);
+                        memoryTracker.refresh(persistentTasks, ActionListener.wrap(
+                                aVoid -> persistentTasksService.sendStartRequest(
+                                    MlTasks.trainedModelDeploymentTaskId(request.getModelId()),
+                                    MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME,
+                                    taskParams,
+                                    waitForDeploymentToStart
+                                ),
+                                listener::onFailure
+                            )
+                        );
+                    },
+                    listener::onFailure
+                ));
             },
             listener::onFailure
         );
 
         GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(request.getModelId());
         client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
+    }
+
+    private void getModelBytes(TrainedModelConfig trainedModelConfig, ActionListener<Long> listener) {
+        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(trainedModelConfig.getLocation().getModelId(),
+            client, threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME), xContentRegistry);
+        restorer.setSearchIndex(trainedModelConfig.getLocation().getResourceName());
+        restorer.setSearchSize(1);
+        restorer.restoreModelDefinition(
+            doc -> {
+                // The in-memory size of the model was found to be approximately equal
+                // to the size of the model on disk in experiments for BERT models. However,
+                // this might not always be the case.
+                // TODO Improve heuristic for in-memory model size.
+                listener.onResponse(doc.getTotalDefinitionLength());
+
+                // Return false to stop the restorer as we only need the first doc
+                return false;
+            },
+            success -> { /* nothing to do */ },
+            listener::onFailure
+        );
     }
 
     private void waitForDeploymentStarted(PersistentTasksCustomMetadata.PersistentTask<TaskParams> task,
@@ -162,7 +199,7 @@ public class TransportStartTrainedModelDeploymentAction
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask) {
                     if (predicate.exception != null) {
-                        cancelDeploymentStart(task, predicate.exception, listener);
+                        cancelFailedDeployment(task, predicate.exception, listener);
                     } else {
                         listener.onResponse(new NodeAcknowledgedResponse(true, predicate.node));
                     }
@@ -175,14 +212,14 @@ public class TransportStartTrainedModelDeploymentAction
             });
     }
 
-    private void cancelDeploymentStart(
+    private void cancelFailedDeployment(
         PersistentTasksCustomMetadata.PersistentTask<TaskParams> persistentTask, Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener) {
         persistentTasksService.sendRemoveRequest(persistentTask.getId(), ActionListener.wrap(
             pTask -> listener.onFailure(exception),
             e -> {
                 logger.error(
-                    new ParameterizedMessage("[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
+                    new ParameterizedMessage("[{}] Failed to cancel persistent task that had failed with the reason [{}]",
                         persistentTask.getParams().getModelId(), exception.getMessage()),
                     e
                 );
@@ -238,6 +275,9 @@ public class TransportStartTrainedModelDeploymentAction
                 case STOPPING:
                 case STOPPED:
                     return false;
+                case FAILED:
+                    exception = ExceptionsHelper.serverError("Deployment failed with reason: {}", reason);
+                    return true;
                 default:
                     exception = ExceptionsHelper.serverError("Unexpected task state [{}] with reason [{}] while waiting to be started",
                         taskState.getState(), reason);
@@ -274,53 +314,34 @@ public class TransportStartTrainedModelDeploymentAction
                                                                       Collection<DiscoveryNode> candidateNodes,
                                                                       ClusterState clusterState) {
 
-            // This procedure chooses the first available ml node
-            // that is a high enough version.
-            // TODO assign models by memory this a a blocker on releasing the feature
-            // NORELEASE assign pytorch models to nodes by memory
-            DiscoveryNode chosenOne = null;
-            List<String> reasons = new LinkedList<>();
-            for (DiscoveryNode node : candidateNodes) {
-                if (MachineLearning.isMlNode(node) == false) {
-                    reasons.add(createReason(params.getModelId(), nodeNameOrId(node), "This node isn't a machine learning node."));
-                    continue;
-                }
-
-                String filter = nodeFilter(node, params);
-                if (filter != null) {
-                    reasons.add(filter);
-                    continue;
-                }
-
-                chosenOne = node;
-                break;
+            boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
+            Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment =
+                getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
+            // NOTE: this will return here if isMemoryTrackerRecentlyRefreshed is false, we don't allow assignment with stale memory
+            if (optionalAssignment.isPresent()) {
+                return optionalAssignment.get();
             }
 
-            if (chosenOne == null) {
-                String explanation = "No suitable node found to deploy model [" + params.getModelId() + "]. Reasons: " +
-                    String.join("|", reasons);
-                logger.info(explanation);
-                return new PersistentTasksCustomMetadata.Assignment(null, explanation);
-            }
+            JobNodeSelector jobNodeSelector =
+                new JobNodeSelector(
+                    clusterState,
+                    candidateNodes,
+                    params.getModelId(),
+                    MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME,
+                    memoryTracker,
+                    maxLazyMLNodes,
+                    node -> nodeFilter(node, params)
+                );
 
-            return new PersistentTasksCustomMetadata.Assignment(chosenOne.getId(), "");
-        }
-
-        private static String createReason(String job, String node, String msg, Object... params) {
-            String preamble =  String.format(
-                Locale.ROOT,
-                "Not opening job [%s] on node [%s]. Reason: ",
-                job,
-                node);
-            return preamble + ParameterizedMessage.format(msg, params);
-        }
-
-        private static String nodeNameOrId(DiscoveryNode node) {
-            String nodeNameOrID = node.getName();
-            if (Strings.isNullOrEmpty(nodeNameOrID)) {
-                nodeNameOrID = node.getId();
-            }
-            return nodeNameOrID;
+            PersistentTasksCustomMetadata.Assignment assignment = jobNodeSelector.selectNode(
+                params.estimateMemoryUsageBytes(),
+                maxOpenJobs,
+                Integer.MAX_VALUE,
+                maxMachineMemoryPercent,
+                maxNodeMemory,
+                useAutoMemoryPercentage
+            );
+            return assignment;
         }
 
         public static String nodeFilter(DiscoveryNode node, TaskParams params) {

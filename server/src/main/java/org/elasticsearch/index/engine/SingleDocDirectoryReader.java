@@ -12,7 +12,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -24,6 +23,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.TopDocs;
@@ -218,8 +218,8 @@ final class SingleDocDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, float[] target, int k, int fanout) throws IOException {
-            return getDelegate().searchNearestVectors(field, target, k, fanout);
+        public TopDocs searchNearestVectors(String field, float[] target, int k) throws IOException {
+            return getDelegate().searchNearestVectors(field, target, k);
         }
 
         @Override
@@ -247,8 +247,8 @@ final class SingleDocDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public Fields getTermVectors(int docID) throws IOException {
-            return getDelegate().getTermVectors(docID);
+        public TermVectors getTermVectorsReader() {
+            return getDelegate().getTermVectorsReader();
         }
 
         @Override

@@ -204,16 +204,16 @@ public class IndexingSlowLogTests extends ESTestCase {
         // Turning off document logging doesn't log source[]
         ESLogMessage p =  IndexingSlowLogMessage.of(index, pd, 10, true, 0);
 
-        assertThat(p.get("message"),equalTo("[foo/123]"));
-        assertThat(p.get("took"),equalTo("10nanos"));
-        assertThat(p.get("took_millis"),equalTo("0"));
-        assertThat(p.get("id"),equalTo("id"));
-        assertThat(p.get("routing"),equalTo("routingValue"));
-        assertThat(p.get("source"), is(emptyOrNullString()));
+        assertThat(p.get("elasticsearch.slowlog.message"),equalTo("[foo/123]"));
+        assertThat(p.get("elasticsearch.slowlog.took"),equalTo("10nanos"));
+        assertThat(p.get("elasticsearch.slowlog.took_millis"),equalTo("0"));
+        assertThat(p.get("elasticsearch.slowlog.id"),equalTo("id"));
+        assertThat(p.get("elasticsearch.slowlog.routing"),equalTo("routingValue"));
+        assertThat(p.get("elasticsearch.slowlog.source"), is(emptyOrNullString()));
 
         // Turning on document logging logs the whole thing
         p =  IndexingSlowLogMessage.of(index, pd, 10, true, Integer.MAX_VALUE);
-        assertThat(p.get("source"), containsString("{\\\"foo\\\":\\\"bar\\\"}"));
+        assertThat(p.get("elasticsearch.slowlog.source"), containsString("{\\\"foo\\\":\\\"bar\\\"}"));
     }
 
     public void testEmptyRoutingField() throws IOException {
@@ -240,17 +240,17 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         // Turning on document logging logs the whole thing
         p = IndexingSlowLogMessage.of(index, pd, 10, true, Integer.MAX_VALUE);
-        assertThat(p.get("source"), equalTo("{\\\"foo\\\":\\\"bar\\\"}"));
+        assertThat(p.get("elasticsearch.slowlog.source"), equalTo("{\\\"foo\\\":\\\"bar\\\"}"));
 
         // And you can truncate the source
         p = IndexingSlowLogMessage.of(index, pd, 10, true, 3);
-        assertThat(p.get("source"), equalTo("{\\\"f"));
+        assertThat(p.get("elasticsearch.slowlog.source"), equalTo("{\\\"f"));
 
         // And you can truncate the source
         p = IndexingSlowLogMessage.of(index, pd, 10, true, 3);
-        assertThat(p.get("source"), containsString("{\\\"f"));
-        assertThat(p.get("message"), startsWith("[foo/123]"));
-        assertThat(p.get("took"), containsString("10nanos"));
+        assertThat(p.get("elasticsearch.slowlog.source"), containsString("{\\\"f"));
+        assertThat(p.get("elasticsearch.slowlog.message"), startsWith("[foo/123]"));
+        assertThat(p.get("elasticsearch.slowlog.took"), containsString("10nanos"));
 
         // Throwing a error if source cannot be converted
         source = new BytesArray("invalid");

@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile.EvictionListener;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.FSyncTrackingFileSystemProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile.EvictionListener;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.FSyncTrackingFileSystemProvider;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -35,9 +35,7 @@ import java.util.SortedSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -184,10 +182,7 @@ public class CacheFileTests extends ESTestCase {
         final TestEvictionListener evictionListener = new TestEvictionListener();
         cacheFile.acquire(evictionListener);
         final long length = cacheFile.getLength();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
-            builder().put(NODE_NAME_SETTING.getKey(), getTestName()).build(),
-            random()
-        );
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
         final Future<Integer> populateAndReadFuture;
         final Future<Integer> readIfAvailableFuture;

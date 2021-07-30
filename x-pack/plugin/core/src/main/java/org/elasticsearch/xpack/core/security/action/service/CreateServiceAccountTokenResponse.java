@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.action.service;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
@@ -20,12 +19,10 @@ import java.util.Objects;
 
 public class CreateServiceAccountTokenResponse extends ActionResponse implements ToXContentObject {
 
-    @Nullable
     private final String name;
-    @Nullable
     private final SecureString value;
 
-    private CreateServiceAccountTokenResponse(boolean created, String name, SecureString value) {
+    private CreateServiceAccountTokenResponse(String name, SecureString value) {
         this.name = name;
         this.value = value;
     }
@@ -79,6 +76,6 @@ public class CreateServiceAccountTokenResponse extends ActionResponse implements
     }
 
     public static CreateServiceAccountTokenResponse created(String name, SecureString value) {
-        return new CreateServiceAccountTokenResponse(true, name, value);
+        return new CreateServiceAccountTokenResponse(name, value);
     }
 }

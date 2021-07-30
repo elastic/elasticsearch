@@ -26,8 +26,6 @@ operations, but you can still explore and navigate results.
 
 * Requires the `manage_ml` cluster privilege. This privilege is included in the 
 `machine_learning_admin` built-in role.
-* Before you can close an {anomaly-job}, you must stop its {dfeed}. See
-<<ml-stop-datafeed>>.
 
 [[ml-close-job-desc]]
 == {api-description-title}
@@ -35,6 +33,10 @@ operations, but you can still explore and navigate results.
 You can close multiple {anomaly-jobs} in a single API request by using a group
 name, a comma-separated list of jobs, or a wildcard expression. You can close
 all jobs by using `_all` or by specifying `*` as the `<job_id>`.
+
+If you close an {anomaly-job} whose {dfeed} is running, the request will first
+attempt to stop the {dfeed}, as though <<ml-stop-datafeed>> was called with
+the same `timeout` and `force` parameters as the close request.
 
 When you close a job, it runs housekeeping tasks such as pruning the model history,
 flushing buffers, calculating final results and persisting the model snapshots.
@@ -46,7 +48,7 @@ maintaining its meta data. Therefore it is a best practice to close jobs that
 are no longer required to process data.
 
 When a {dfeed} that has a specified end date stops, it automatically closes
-the job.
+its associated job.
 
 NOTE: If you use the `force` query parameter, the request returns without performing
 the associated actions such as flushing buffers and persisting the model snapshots.

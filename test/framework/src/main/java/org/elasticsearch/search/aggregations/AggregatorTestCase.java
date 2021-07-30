@@ -41,14 +41,11 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -56,6 +53,9 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -80,6 +80,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -434,6 +435,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      *          for each leaf as though it were a separate index. If false this aggregates
      *          all leaves together, like we do in production.
      */
+    @SuppressWarnings("unchecked")
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSettings indexSettings,
                                                                                       IndexSearcher searcher,
                                                                                       Query query,
@@ -603,7 +605,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MappedFieldType... fieldTypes
     ) throws IOException {
         // Don't use searchAndReduce because we only want a single aggregator.
-        IndexReaderContext ctx = searcher.getTopReaderContext();
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
         AggregationContext context = createAggregationContext(
             searcher,
@@ -638,7 +639,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private void collectDebugInfo(String prefix, Aggregator aggregator, Map<String, Map<String, Object>> allDebug) {
         Map<String, Object> debug = new HashMap<>();
-        aggregator.collectDebugInfo(debug::put);
+        aggregator.collectDebugInfo((key, value) -> {
+            Object old = debug.put(key, value);
+            assertNull("debug info duplicate key [" + key + "] was [" + old + "] is [" + value + "]", old);
+        });
         allDebug.put(prefix + aggregator.name(), debug);
         for (Aggregator sub : aggregator.subAggregators()) {
             collectDebugInfo(aggregator.name() + ".", sub, allDebug);
@@ -990,7 +994,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         iw.addDocument(doc);
     }
 
-    private static class MockParserContext extends Mapper.TypeParser.ParserContext {
+    private static class MockParserContext extends MappingParserContext {
         MockParserContext() {
             super(null, null, null, null, null, null, ScriptCompiler.NONE, null, null, null);
         }

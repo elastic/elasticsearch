@@ -8,12 +8,12 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,6 +31,7 @@ public class SnapshotFeatureInfo implements Writeable, ToXContentObject {
         true,
         (a, name) -> {
             String pluginName = (String) a[0];
+            @SuppressWarnings("unchecked")
             List<String> indices = (List<String>) a[1];
             return new SnapshotFeatureInfo(pluginName, indices);
         }

@@ -10,6 +10,7 @@ package org.elasticsearch.common.settings;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.core.PathUtilsForTesting;

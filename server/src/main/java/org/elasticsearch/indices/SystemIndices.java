@@ -68,6 +68,7 @@ public class SystemIndices {
 
     private final CharacterRunAutomaton systemIndexAutomaton;
     private final CharacterRunAutomaton systemDataStreamIndicesAutomaton;
+    private final CharacterRunAutomaton netNewSystemIndexAutomaton;
     private final Predicate<String> systemDataStreamAutomaton;
     private final Map<String, Feature> featureDescriptors;
     private final Map<String, CharacterRunAutomaton> productToSystemIndicesMatcher;
@@ -83,6 +84,7 @@ public class SystemIndices {
         checkForOverlappingPatterns(featureDescriptors);
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
         this.systemIndexAutomaton = buildIndexCharacterRunAutomaton(featureDescriptors);
+        this.netNewSystemIndexAutomaton = buildNetNewIndexCharacterRunAutomaton(featureDescriptors);
         this.systemDataStreamIndicesAutomaton = buildDataStreamBackingIndicesAutomaton(featureDescriptors);
         this.systemDataStreamAutomaton = buildDataStreamNamePredicate(featureDescriptors);
         this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(featureDescriptors);
@@ -183,6 +185,10 @@ public class SystemIndices {
      */
     public boolean isSystemIndexBackingDataStream(String name) {
         return systemDataStreamIndicesAutomaton.run(name);
+    }
+
+    public boolean isNetNewSystemIndex(String indexName) {
+        return netNewSystemIndexAutomaton.run(indexName);
     }
 
     /**
@@ -294,6 +300,15 @@ public class SystemIndices {
         return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE));
     }
 
+    private static CharacterRunAutomaton buildNetNewIndexCharacterRunAutomaton(Map<String, Feature> featureDescriptors) {
+        Optional<Automaton> automaton = featureDescriptors.values().stream()
+            .flatMap(feature -> feature.getIndexDescriptors().stream())
+            .filter(SystemIndexDescriptor::isNetNew)
+            .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
+            .reduce(Operations::union);
+        return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE));
+    }
+
     private static Automaton featureToIndexAutomaton(Feature feature) {
         Optional<Automaton> systemIndexAutomaton = feature.getIndexDescriptors().stream()
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
@@ -336,6 +351,7 @@ public class SystemIndices {
                 .orElseThrow(() -> new IllegalStateException("system data stream descriptor not found for [" + dataStreamName + "]"));
             if (dataStreamDescriptor.isExternal()) {
                 final SystemIndexAccessLevel accessLevel = getSystemIndexAccessLevel(threadContext);
+                assert accessLevel != SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY : "BACKWARDS_COMPATIBLE access level is leaking";
                 if (accessLevel == SystemIndexAccessLevel.NONE) {
                     throw dataStreamAccessException(null, dataStreamName);
                 } else if (accessLevel == SystemIndexAccessLevel.RESTRICTED) {
@@ -347,7 +363,7 @@ public class SystemIndices {
                         return dataStreamDescriptor;
                     }
                 } else {
-                    assert accessLevel == SystemIndexAccessLevel.ALL;
+                    assert accessLevel == SystemIndexAccessLevel.ALL || accessLevel == SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY;
                     return dataStreamDescriptor;
                 }
             } else {
@@ -363,6 +379,17 @@ public class SystemIndices {
             threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY),
             names.toArray(Strings.EMPTY_ARRAY)
         );
+    }
+
+    public IllegalArgumentException netNewSystemIndexAccessException(ThreadContext threadContext, Collection<String> names) {
+        final String product = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
+        if (product == null) {
+            return new IllegalArgumentException("Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) +
+                " use and access is reserved for system operations");
+        } else {
+            return new IllegalArgumentException("Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) +
+                " use and access is reserved for system operations");
+        }
     }
 
     IllegalArgumentException dataStreamAccessException(@Nullable String product, String... dataStreamNames) {
@@ -383,6 +410,8 @@ public class SystemIndices {
      * {@link SystemIndexAccessLevel#NONE} if no system index access should be allowed.
      */
     public SystemIndexAccessLevel getSystemIndexAccessLevel(ThreadContext threadContext) {
+        // This method intentionally cannot return BACKWARDS_COMPATIBLE_ONLY - that access level should only be used manually
+        // in known special cases.
         final String headerValue = threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
         final String productHeaderValue = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
 
@@ -401,7 +430,15 @@ public class SystemIndices {
     public enum SystemIndexAccessLevel {
         ALL,
         NONE,
-        RESTRICTED
+        RESTRICTED,
+        /**
+         * This value exists because there was a desire for "net-new" system indices to opt in to the post-8.0 behavior of having
+         * access blocked in most cases, but this caused problems with certain APIs
+         * (see https://github.com/elastic/elasticsearch/issues/74687), so this access level was added as a workaround. Once we no longer
+         * have to support accessing existing system indices, this can and should be removed, along with the net-new property of
+         * system indices in general.
+         */
+        BACKWARDS_COMPATIBLE_ONLY
     }
 
     /**

@@ -20,7 +20,7 @@ See <<ingest-enriching-data,enrich data>> section for more information about how
 | `ignore_missing`   | no        | false                | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 | `override`         | no        | true                 | If processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
 | `max_matches`      | no        | 1                    | The maximum number of matched documents to include under the configured target field. The `target_field` will be turned into a json array if `max_matches` is higher than 1, otherwise `target_field` will become a json object. In order to avoid documents getting too large, the maximum allowed value is 128.
-| `shape_relation`   | no        | `INTERSECTS`         | A spatial relation operator used to match the <<geo-shape,geo_shape>> of incoming documents to documents in the enrich index. This option is only used for `geo_match` enrich policy types. The <<spatial-strategy, geo_shape strategy>> mapping parameter determines which spatial relation operators are available. See <<_spatial_relations>> for operators and more information.
+| `shape_relation`   | no        | `INTERSECTS`         | A spatial relation operator used to match the <<geo-shape,geo_shape>> of incoming documents to documents in the enrich index. This option is only used for `geo_match` enrich policy types. See <<_spatial_relations>> for operators and more information.
 
 include::common-options.asciidoc[]
 |======

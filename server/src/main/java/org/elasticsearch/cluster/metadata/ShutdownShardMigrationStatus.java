@@ -14,32 +14,39 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject {
 
     private final SingleNodeShutdownMetadata.Status status;
+    private final long shardsRemaining;
+    @Nullable private final String explanation;
 
-    public ShutdownShardMigrationStatus() {
-        this.status = SingleNodeShutdownMetadata.Status.COMPLETE;
+    public ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status status, long shardsRemaining) {
+        this(status, shardsRemaining, null);
+    }
+
+    public ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status status, long shardsRemaining, @Nullable String explanation) {
+        this.status = Objects.requireNonNull(status, "status must not be null");
+        this.shardsRemaining = shardsRemaining;
+        this.explanation = explanation;
     }
 
     public ShutdownShardMigrationStatus(StreamInput in) throws IOException {
-        this.status = SingleNodeShutdownMetadata.Status.COMPLETE;
+        this.status = in.readEnum(SingleNodeShutdownMetadata.Status.class);
+        this.shardsRemaining = in.readLong();
+        this.explanation = in.readOptionalString();
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("status", status);
-        builder.endObject();
-        return builder;
+    public long getShardsRemaining() {
+        return shardsRemaining;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-
+    public String getExplanation() {
+        return explanation;
     }
 
     public SingleNodeShutdownMetadata.Status getStatus() {
@@ -47,20 +54,35 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
     }
 
     @Override
-    public int hashCode() {
-        return status.hashCode();
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("status", status);
+        builder.field("shard_migrations_remaining", shardsRemaining);
+        if (Objects.nonNull(explanation)) {
+            builder.field("explanation", explanation);
+        }
+        builder.endObject();
+        return builder;
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        ShutdownShardMigrationStatus other = (ShutdownShardMigrationStatus) obj;
-        return status.equals(other.status);
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeEnum(status);
+        out.writeLong(shardsRemaining);
+        out.writeOptionalString(explanation);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if ((o instanceof ShutdownShardMigrationStatus) == false) return false;
+        ShutdownShardMigrationStatus that = (ShutdownShardMigrationStatus) o;
+        return shardsRemaining == that.shardsRemaining && status == that.status && Objects.equals(explanation, that.explanation);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(status, shardsRemaining, explanation);
     }
 
     @Override

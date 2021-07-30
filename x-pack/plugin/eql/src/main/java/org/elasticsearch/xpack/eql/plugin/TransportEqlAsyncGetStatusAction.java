@@ -6,39 +6,21 @@
  */
 package org.elasticsearch.xpack.eql.plugin;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
-import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
-import org.elasticsearch.xpack.eql.action.EqlStatusResponse;
-import org.elasticsearch.xpack.eql.async.StoredAsyncResponse;
-
-import java.util.Objects;
-
-import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+import org.elasticsearch.xpack.ql.plugin.AbstractTransportQlAsyncGetStatusAction;
 
 
-public class TransportEqlAsyncGetStatusAction extends HandledTransportAction<GetAsyncStatusRequest, EqlStatusResponse> {
-    private final TransportService transportService;
-    private final ClusterService clusterService;
-    private final AsyncTaskIndexService<StoredAsyncResponse<EqlSearchResponse>> store;
-
+public class TransportEqlAsyncGetStatusAction extends AbstractTransportQlAsyncGetStatusAction<EqlSearchResponse, EqlSearchTask> {
     @Inject
     public TransportEqlAsyncGetStatusAction(TransportService transportService,
                                             ActionFilters actionFilters,
@@ -47,31 +29,12 @@ public class TransportEqlAsyncGetStatusAction extends HandledTransportAction<Get
                                             Client client,
                                             ThreadPool threadPool,
                                             BigArrays bigArrays) {
-        super(EqlAsyncGetStatusAction.NAME, transportService, actionFilters, GetAsyncStatusRequest::new);
-        this.transportService = transportService;
-        this.clusterService = clusterService;
-        Writeable.Reader<StoredAsyncResponse<EqlSearchResponse>> reader = in -> new StoredAsyncResponse<>(EqlSearchResponse::new, in);
-        this.store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService,
-            threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, reader, registry, bigArrays);
+        super(EqlAsyncGetStatusAction.NAME, transportService, actionFilters, clusterService, registry, client, threadPool, bigArrays,
+            EqlSearchTask.class);
     }
 
     @Override
-    protected void doExecute(Task task, GetAsyncStatusRequest request, ActionListener<EqlStatusResponse> listener) {
-        AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
-        DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
-        DiscoveryNode localNode = clusterService.state().getNodes().getLocalNode();
-        if (node == null || Objects.equals(node, localNode)) {
-            store.retrieveStatus(
-                request,
-                taskManager,
-                EqlSearchTask.class,
-                EqlSearchTask::getStatusResponse,
-                EqlStatusResponse::getStatusFromStoredSearch,
-                listener
-            );
-        } else {
-            transportService.sendRequest(node, EqlAsyncGetStatusAction.NAME, request,
-                new ActionListenerResponseHandler<>(listener, EqlStatusResponse::new, ThreadPool.Names.SAME));
-        }
+    protected Writeable.Reader<EqlSearchResponse> responseReader() {
+        return EqlSearchResponse::new;
     }
 }

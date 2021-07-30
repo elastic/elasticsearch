@@ -249,16 +249,20 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     if (logger.isTraceEnabled()) {
                         logger.trace("retrieved snapshots: {}",
                             repositories.stream()
-                                .flatMap(repo -> resp.getSnapshots(repo).stream().map(si -> si.snapshotId().getName()))
-                                .collect(Collectors.toList()));
+                                .flatMap(repo ->
+                                    resp.getSnapshots()
+                                        .stream()
+                                        .filter(info -> repo.equals(info.repository()))
+                                        .map(si -> si.snapshotId().getName())
+                                ).collect(Collectors.toList()));
                     }
                     Map<String, List<SnapshotInfo>> snapshots = new HashMap<>();
                     final Set<SnapshotState> retainableStates = Set.of(SnapshotState.SUCCESS, SnapshotState.FAILED, SnapshotState.PARTIAL);
                     repositories.forEach(repo -> {
                         snapshots.put(repo,
                             // Only return snapshots in the SUCCESS state
-                            resp.getSnapshots(repo).stream()
-                                .filter(info -> retainableStates.contains(info.state()))
+                            resp.getSnapshots().stream()
+                                .filter(info -> repo.equals(info.repository()) && retainableStates.contains(info.state()))
                                 .collect(Collectors.toList()));
                     });
                     listener.onResponse(snapshots);

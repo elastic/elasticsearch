@@ -3,17 +3,11 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-voting-only-node'
   description 'Elasticsearch Expanded Pack Plugin - Voting-only node'
-  classname 'org.elasticsearch.cluster.coordination.VotingOnlyNodePlugin'
+  classname 'org.elasticsearch.cluster.coordination.votingonly.VotingOnlyNodePlugin'
   extendedPlugins = ['x-pack-core']
 }
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
-}
-
-tasks.named('splitPackagesAudit').configure {
-  // o.e.cluster is owned by server, rename these
-  ignoreClasses 'org.elasticsearch.cluster.coordination.VotingOnlyNodeFeatureSet',
-    'org.elasticsearch.cluster.coordination.VotingOnlyNodePlugin'
 }

@@ -60,7 +60,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
             return;
         }
 
-        deleteSourceIndexAndTransferAliases(getClient(), indexMetadata, getMasterTimeout(currentClusterState), targetIndexName, listener);
+        deleteSourceIndexAndTransferAliases(getClient(), indexMetadata, targetIndexName, listener);
     }
 
     /**
@@ -69,11 +69,11 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
      * <p>
      * The is_write_index will *not* be set on the target index as this operation is currently executed on read-only indices.
      */
-    static void deleteSourceIndexAndTransferAliases(Client client, IndexMetadata sourceIndex, TimeValue masterTimeoutValue,
-                                                    String targetIndex, ActionListener<Boolean> listener) {
+    static void deleteSourceIndexAndTransferAliases(Client client, IndexMetadata sourceIndex, String targetIndex,
+                                                    ActionListener<Boolean> listener) {
         String sourceIndexName = sourceIndex.getIndex().getName();
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest()
-            .masterNodeTimeout(masterTimeoutValue)
+            .masterNodeTimeout(TimeValue.MAX_VALUE)
             .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(sourceIndexName))
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(targetIndex).alias(sourceIndexName));
         // copy over other aliases from source index

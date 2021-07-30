@@ -13,12 +13,12 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -594,6 +594,13 @@ public final class RepositoryData {
             resolvedIndices.put(indexId.getName(), indexId);
         }
         return Collections.unmodifiableMap(resolvedIndices);
+    }
+
+    /**
+     * Checks if any snapshot in this repository contains the specified index in {@code indexName}
+     */
+    public boolean hasIndex(String indexName) {
+        return indices.containsKey(indexName);
     }
 
     /**

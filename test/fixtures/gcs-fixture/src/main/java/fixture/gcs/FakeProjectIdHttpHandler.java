@@ -10,6 +10,7 @@ package fixture.gcs;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
@@ -25,7 +26,8 @@ public class FakeProjectIdHttpHandler implements HttpHandler {
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         try {
-            while (exchange.getRequestBody().read(BUFFER) >= 0) ;
+            while (exchange.getRequestBody().read(BUFFER) >= 0) {
+            }
             byte[] response = ("some-project-id").getBytes(UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.getResponseHeaders().add("Metadata-Flavor", "Google");

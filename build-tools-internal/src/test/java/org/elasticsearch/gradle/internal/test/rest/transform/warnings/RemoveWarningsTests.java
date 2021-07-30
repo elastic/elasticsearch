@@ -50,6 +50,23 @@ public class RemoveWarningsTests extends TransformTests {
         validateBodyHasWarnings(WARNINGS, tests, Set.of("b"));
     }
 
+    @Test
+    public void testRemoveWarningWithPreExistingFromSingleTest() throws Exception {
+        String testName = "/rest/transform/warnings/with_existing_warnings.yml";
+        List<ObjectNode> tests = getTests(testName);
+        validateSetupExist(tests);
+        validateBodyHasWarnings(WARNINGS, tests, Set.of("a", "b"));
+        List<ObjectNode> transformedTests = transformTests(tests, getTransformationsForTest("Test warnings"));
+        printTest(testName, transformedTests);
+        validateSetupAndTearDown(transformedTests);
+        validateBodyHasWarnings(WARNINGS, "Test warnings", tests, Set.of("b"));
+        validateBodyHasWarnings(WARNINGS, "Not the test to change", tests, Set.of("a", "b"));
+    }
+
+    private List<RestTestTransform<?>> getTransformationsForTest(String testName) {
+        return Collections.singletonList(new RemoveWarnings(Set.of("a"), testName));
+    }
+
     /**
      * test file has preexisting single warning
      */

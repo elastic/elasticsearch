@@ -14,6 +14,8 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.StepListener;
@@ -95,8 +97,6 @@ import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.coordination.CoordinatorTests;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
@@ -120,8 +120,6 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -130,8 +128,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -170,7 +170,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -225,20 +224,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     private Path tempDir;
 
-    /**
-     * Context shared by all the node's {@link Repository} instances if the eventually consistent blobstore is to be used.
-     * {@code null} if not using the eventually consistent blobstore.
-     */
-    @Nullable
-    private MockEventuallyConsistentRepository.Context blobStoreContext;
-
     @Before
     public void createServices() {
         tempDir = createTempDir();
-        if (randomBoolean()) {
-            blobStoreContext = new MockEventuallyConsistentRepository.Context();
-        }
-        deterministicTaskQueue = new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "shared").build(), random());
+        deterministicTaskQueue = new DeterministicTaskQueue();
     }
 
     @After
@@ -269,13 +258,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             runUntil(cleanedUp::get, TimeUnit.MINUTES.toMillis(1L));
 
-            if (blobStoreContext != null) {
-                blobStoreContext.forceConsistent();
-            }
-            BlobStoreTestUtil.assertConsistency(
-                (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo"),
-                Runnable::run
+            final PlainActionFuture<AssertionError> future = BlobStoreTestUtil.assertConsistencyAsync(
+                (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo")
             );
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertNull(future.actionGet(0));
         } finally {
             testClusterNodes.nodes.values().forEach(TestClusterNodes.TestClusterNode::stop);
         }
@@ -362,11 +349,18 @@ public class SnapshotResiliencyTests extends ESTestCase {
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
 
-        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        final SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshotIds.iterator().next());
         assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
         assertEquals(shards, snapshotInfo.successfulShards());
         assertEquals(0, snapshotInfo.failedShards());
+    }
+
+    private SnapshotInfo getSnapshotInfo(Repository repository, SnapshotId snapshotId) {
+        final StepListener<SnapshotInfo> listener = new StepListener<>();
+        repository.getSnapshotInfo(snapshotId, listener);
+        deterministicTaskQueue.runAllRunnableTasks();
+        return listener.result();
     }
 
     public void testSnapshotWithNodeDisconnects() {
@@ -560,7 +554,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
 
-        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        final SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshotIds.iterator().next());
         assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
         assertEquals(shards, snapshotInfo.successfulShards());
@@ -634,7 +628,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, hasSize(2));
 
         for (SnapshotId snapshotId : snapshotIds) {
-            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+            final SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshotId);
             assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
             assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
             assertEquals(shards, snapshotInfo.successfulShards());
@@ -784,7 +778,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, contains(createOtherSnapshotResponseStepListener.result().getSnapshotInfo().snapshotId()));
 
         for (SnapshotId snapshotId : snapshotIds) {
-            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+            final SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshotId);
             assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
             assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
             assertEquals(shards, snapshotInfo.successfulShards());
@@ -879,7 +873,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
 
-        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        final SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshotIds.iterator().next());
         if (partialSnapshot) {
             assertThat(snapshotInfo.state(), either(is(SnapshotState.SUCCESS)).or(is(SnapshotState.PARTIAL)));
             // Single shard for each index so we either get all indices or all except for the deleted index
@@ -1157,7 +1151,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
 
-        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        final SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshotIds.iterator().next());
         assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
         assertEquals(shards, snapshotInfo.successfulShards());
@@ -1225,7 +1219,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, hasSize(snapshotNames.size()));
 
         for (SnapshotId snapshotId : snapshotIds) {
-            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+            final SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshotId);
             assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
             assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
             assertEquals(shards, snapshotInfo.successfulShards());
@@ -1629,7 +1623,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             TestClusterNode(DiscoveryNode node) throws IOException {
                 this.node = node;
                 final Environment environment = createEnvironment(node.getName());
-                threadPool = deterministicTaskQueue.getThreadPool(runnable -> CoordinatorTests.onNodeLog(node, runnable));
+                threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(node, runnable));
                 masterService = new FakeThreadPoolMasterService(node.getName(), "test", threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -1676,7 +1670,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
                     @Override
                     protected void execute(Runnable runnable) {
-                        scheduleNow(CoordinatorTests.onNodeLog(getLocalNode(), runnable));
+                        scheduleNow(DeterministicTaskQueue.onNodeLog(getLocalNode(), runnable));
                     }
 
                     @Override
@@ -1693,11 +1687,27 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     emptySet()
                 );
                 final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+                bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 repositoriesService = new RepositoriesService(
                     settings,
                     clusterService,
                     transportService,
-                    Collections.singletonMap(FsRepository.TYPE, getRepoFactory(environment)),
+                    Collections.singletonMap(
+                        FsRepository.TYPE,
+                        metadata -> new FsRepository(
+                            metadata,
+                            environment,
+                            xContentRegistry(),
+                            clusterService,
+                            bigArrays,
+                            recoverySettings
+                        ) {
+                            @Override
+                            protected void assertSnapshotOrGenericThread() {
+                                // eliminate thread name check as we create repo in the test thread
+                            }
+                        }
+                    ),
                     emptyMap(),
                     threadPool
                 );
@@ -1729,7 +1739,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     settings,
                     IndexScopedSettings.BUILT_IN_INDEX_SETTINGS
                 );
-                bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
                 indicesService = new IndicesService(
                     settings,
@@ -1764,7 +1773,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     null,
                     emptyMap(),
                     List.of(),
-                    emptyMap()
+                    emptyMap(),
+                    null
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
@@ -1782,8 +1792,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool
                 );
                 nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
-                @SuppressWarnings("rawtypes")
-                Map<ActionType, TransportAction> actions = new HashMap<>();
+                Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
+                    new HashMap<>();
                 actions.put(
                     GlobalCheckpointSyncAction.TYPE,
                     new GlobalCheckpointSyncAction(
@@ -2086,34 +2096,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     transportService.getRemoteClusterService(),
                     new NamedWriteableRegistry(List.of())
                 );
-            }
-
-            private Repository.Factory getRepoFactory(Environment environment) {
-                // Run half the tests with the eventually consistent repository
-                if (blobStoreContext == null) {
-                    return metadata -> new FsRepository(
-                        metadata,
-                        environment,
-                        xContentRegistry(),
-                        clusterService,
-                        bigArrays,
-                        recoverySettings
-                    ) {
-                        @Override
-                        protected void assertSnapshotOrGenericThread() {
-                            // eliminate thread name check as we create repo in the test thread
-                        }
-                    };
-                } else {
-                    return metadata -> new MockEventuallyConsistentRepository(
-                        metadata,
-                        xContentRegistry(),
-                        clusterService,
-                        recoverySettings,
-                        blobStoreContext,
-                        random()
-                    );
-                }
             }
 
             public void restart() {

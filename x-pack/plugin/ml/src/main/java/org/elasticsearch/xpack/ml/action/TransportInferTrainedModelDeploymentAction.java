@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -71,8 +70,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
     @Override
     protected void taskOperation(InferTrainedModelDeploymentAction.Request request, TrainedModelDeploymentTask task,
                                  ActionListener<InferTrainedModelDeploymentAction.Response> listener) {
-        TimeValue timeout = request.getTimeout() == null ? TimeValue.timeValueSeconds(10) : request.getTimeout();
-        task.infer(request.getInput(), timeout,
+        task.infer(request.getInput(), request.getTimeout(),
             ActionListener.wrap(
                 pyTorchResult -> listener.onResponse(new InferTrainedModelDeploymentAction.Response(pyTorchResult)),
                 listener::onFailure)

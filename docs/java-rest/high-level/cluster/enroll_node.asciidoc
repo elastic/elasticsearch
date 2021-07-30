@@ -37,8 +37,7 @@ for the HTTP layer, as a Base64 encoded string of the ASN.1 DER encoding of the 
 encoded string of the ASN.1 DER encoding of the key.
 <4> The certificate that the node can use for  TLS for its transport layer, as a Base64
 encoded string of the ASN.1 DER encoding of the certificate.
-<5> The name of the cluster the new node is joining
-<6> A list of transport addresses in the form of `host:port` for the nodes that are already
+<5> A list of transport addresses in the form of `host:port` for the nodes that are already
 members of the cluster.
 
 

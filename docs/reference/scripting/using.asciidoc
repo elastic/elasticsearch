@@ -406,8 +406,8 @@ small.
 
 All scripts are cached by default so that they only need to be recompiled
 when updates occur. By default, scripts do not have a time-based expiration.
-You can change this behavior by using the `script.cache.expire` setting.
-Use the `script.cache.max_size` setting to configure the size of the cache.
+You can change this behavior by using the `script.context.$CONTEXT.cache_expire` setting.
+Use the `script.context.$CONTEXT.cache_max_size` setting to configure the size of the cache.
 
 NOTE: The size of scripts is limited to 65,535 bytes. Set the value of `script.max_size_in_bytes` to increase that soft limit. If your scripts are
 really large, then consider using a

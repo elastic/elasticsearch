@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 
@@ -39,17 +41,25 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
-        public static final String DEPLOYMENT_ID = "deployment_id";
+        public static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");
         public static final ParseField INPUT = new ParseField("input");
+        public static final ParseField TIMEOUT = new ParseField("timeout");
 
-        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
+        public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
+
+        static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
+            PARSER.declareString(Request::setDeploymentId, DEPLOYMENT_ID);
             PARSER.declareString((request, inputs) -> request.input = inputs, INPUT);
+            PARSER.declareString((r, value) -> r.setTimeout(TimeValue.parseTimeValue(value, TIMEOUT.getPreferredName())),
+                TIMEOUT);
         }
 
         public static Request parseRequest(String deploymentId, XContentParser parser) {
             Request r = PARSER.apply(parser, null);
-            r.deploymentId = deploymentId;
+            if (deploymentId != null) {
+                r.deploymentId = deploymentId;
+            }
             return r;
         }
 
@@ -59,7 +69,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         private Request() {
         }
 
-        public Request(String deploymentId, String input) {
+        Request(String deploymentId, String input) {
             this.deploymentId = Objects.requireNonNull(deploymentId);
             this.input = Objects.requireNonNull(input);
         }
@@ -74,8 +84,21 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return deploymentId;
         }
 
+        private void setDeploymentId(String deploymentId) {
+            this.deploymentId = deploymentId;
+        }
+
         public String getInput() {
             return input;
+        }
+
+        @Override
+        public TimeValue getTimeout() {
+            TimeValue tv = super.getTimeout();
+            if (tv == null) {
+                return DEFAULT_TIMEOUT;
+            }
+            return tv;
         }
 
         @Override
@@ -88,8 +111,9 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field(DEPLOYMENT_ID, deploymentId);
+            builder.field(DEPLOYMENT_ID.getPreferredName(), deploymentId);
             builder.field(INPUT.getPreferredName(), input);
+            builder.field(TIMEOUT.getPreferredName(), getTimeout().getStringRep());
             builder.endObject();
             return builder;
         }
@@ -105,12 +129,18 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (o == null || getClass() != o.getClass()) return false;
             InferTrainedModelDeploymentAction.Request that = (InferTrainedModelDeploymentAction.Request) o;
             return Objects.equals(deploymentId, that.deploymentId)
-                && Objects.equals(input, that.input);
+                && Objects.equals(input, that.input)
+                && Objects.equals(getTimeout(), that.getTimeout());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, input);
+            return Objects.hash(deploymentId, input, getTimeout());
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 

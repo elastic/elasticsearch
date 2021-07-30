@@ -187,14 +187,14 @@ public class ClusterFormationFailureHelper {
 
             final VoteCollection voteCollection = new VoteCollection();
             foundPeers.forEach(voteCollection::addVote);
-            final String isQuorumOrNot
+            final String haveDiscoveredQuorum
                 = electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), currentTerm, clusterState.term(),
                     clusterState.version(), clusterState.getLastCommittedConfiguration(), clusterState.getLastAcceptedConfiguration(),
-                    voteCollection) ? "is a quorum" : "is not a quorum";
+                    voteCollection) ? "have discovered possible quorum" : "have only discovered non-quorum";
 
             return String.format(Locale.ROOT,
-                "master not discovered or elected yet, an election requires %s, have discovered [%s] which %s; %s",
-                quorumDescription, foundPeersDescription, isQuorumOrNot, discoveryWillContinueDescription);
+                "master not discovered or elected yet, an election requires %s, %s [%s]; %s",
+                quorumDescription, haveDiscoveredQuorum, foundPeersDescription, discoveryWillContinueDescription);
         }
 
         private String describeQuorum(VotingConfiguration votingConfiguration) {

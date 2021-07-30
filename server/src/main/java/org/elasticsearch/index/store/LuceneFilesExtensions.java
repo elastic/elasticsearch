@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
@@ -72,6 +73,16 @@ public enum LuceneFilesExtensions {
     VEM("vem","Vector Metadata", true, false);
 
     /**
+     * Allow plugin developers of custom codecs to opt out of the assertion in {@link #fromExtension}
+     * that checks that all encountered file extensions are known to this class.
+     * In the future, we would like to add a proper plugin extension point for this.
+     */
+    private static boolean allowUnknownLuceneFileExtensions() {
+        return Boolean.parseBoolean(
+            System.getProperty("es.allow_unknown_lucene_file_extensions", "false"));
+    }
+
+    /**
      * Lucene file's extension.
      */
     private final String extension;
@@ -128,9 +139,14 @@ public enum LuceneFilesExtensions {
     public static LuceneFilesExtensions fromExtension(String ext) {
         if (ext != null && ext.isEmpty() == false) {
             final LuceneFilesExtensions extension = extensions.get(ext);
-            assert extension != null: "unknown Lucene file extension [" + ext + ']';
+            assert allowUnknownLuceneFileExtensions() || extension != null: "unknown Lucene file extension [" + ext + ']';
             return extension;
         }
         return null;
+    }
+
+    @Nullable
+    public static LuceneFilesExtensions fromFile(String fileName) {
+        return fromExtension(IndexFileNames.getExtension(fileName));
     }
 }

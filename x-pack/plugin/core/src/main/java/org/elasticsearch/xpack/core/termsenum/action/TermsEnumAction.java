@@ -45,6 +45,6 @@ public class TermsEnumAction extends ActionType<TermsEnumResponse> {
         PARSER.declareField(TermsEnumRequest::timeout,
             (p, c) -> TimeValue.parseTimeValue(p.text(), TIMEOUT.getPreferredName()),
             TIMEOUT, ObjectParser.ValueType.STRING);
-        PARSER.declareObject(TermsEnumRequest::indexFilter, (p, context) -> parseInnerQueryBuilder(p),INDEX_FILTER);
+        PARSER.declareObject(TermsEnumRequest::indexFilter, (p, context) -> parseInnerQueryBuilder(p), INDEX_FILTER);
     }
 }

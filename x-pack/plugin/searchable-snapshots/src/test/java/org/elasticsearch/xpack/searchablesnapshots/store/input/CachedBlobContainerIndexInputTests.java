@@ -12,22 +12,22 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
-import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.NoopBlobStoreCacheService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.NoopBlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.EOFException;
 import java.io.FilterInputStream;
@@ -42,10 +42,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 
-import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.singleBlobContainer;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.singleSplitBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.singleBlobContainer;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.singleSplitBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService.resolveSnapshotCache;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -70,7 +70,12 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 final byte[] input = bytes.v2();
                 final String checksum = bytes.v1();
                 final String blobName = randomUnicodeOfLength(10);
-                final StoreFileMetadata metadata = new StoreFileMetadata(fileName, input.length, checksum, Version.CURRENT.luceneVersion);
+                final StoreFileMetadata metadata = new StoreFileMetadata(
+                    fileName,
+                    input.length,
+                    checksum,
+                    Version.CURRENT.luceneVersion.toString()
+                );
 
                 final int partSize = randomBoolean() ? input.length : randomIntBetween(1, input.length);
 
@@ -185,7 +190,12 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             final byte[] input = bytes.v2();
             final String checksum = bytes.v1();
             final String blobName = randomUnicodeOfLength(10);
-            final StoreFileMetadata metadata = new StoreFileMetadata(fileName, input.length, checksum, Version.CURRENT.luceneVersion);
+            final StoreFileMetadata metadata = new StoreFileMetadata(
+                fileName,
+                input.length,
+                checksum,
+                Version.CURRENT.luceneVersion.toString()
+            );
 
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                 snapshotId.getName(),

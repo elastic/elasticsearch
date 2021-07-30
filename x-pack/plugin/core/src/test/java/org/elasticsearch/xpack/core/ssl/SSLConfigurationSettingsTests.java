@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.test.ESTestCase;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -21,7 +22,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class SSLConfigurationSettingsTests extends ESTestCase {
 
     public void testParseCipherSettingsWithoutPrefix() {
-        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withoutPrefix();
+        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withoutPrefix(true);
         assertThat(ssl.ciphers.match("cipher_suites"), is(true));
         assertThat(ssl.ciphers.match("ssl.cipher_suites"), is(false));
         assertThat(ssl.ciphers.match("xpack.transport.security.ssl.cipher_suites"), is(false));
@@ -37,18 +38,18 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
     }
 
     public void testParseClientAuthWithPrefix() {
-        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withPrefix("xpack.security.http.ssl.");
+        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withPrefix("xpack.security.http.ssl.", true);
         assertThat(ssl.clientAuth.match("xpack.security.http.ssl.client_authentication"), is(true));
         assertThat(ssl.clientAuth.match("client_authentication"), is(false));
 
         final Settings settings = Settings.builder()
-                .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.OPTIONAL.name())
+                .put("xpack.security.http.ssl.client_authentication", SslClientAuthenticationMode.OPTIONAL.name())
                 .build();
         assertThat(ssl.clientAuth.get(settings).get(), is(SSLClientAuth.OPTIONAL));
     }
 
     public void testParseKeystoreAlgorithmWithPrefix() {
-        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withPrefix("xpack.security.authc.realms.ldap1.ssl.");
+        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withPrefix("xpack.security.authc.realms.ldap1.ssl.", true);
         assertThat(ssl.x509KeyPair.keystoreAlgorithm.match("xpack.security.authc.realms.ldap1.ssl.keystore.algorithm"), is(true));
 
         final String algo = randomAlphaOfLength(16);
@@ -59,7 +60,7 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
     }
 
     public void testParseProtocolsListWithPrefix() {
-        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withPrefix("ssl.");
+        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withPrefix("ssl.", true);
         assertThat(ssl.supportedProtocols.match("ssl.supported_protocols"), is(true));
 
         final Settings settings = Settings.builder()
@@ -69,7 +70,7 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
     }
 
     public void testEmptySettingsParsesToDefaults() {
-        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withoutPrefix();
+        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withoutPrefix(true);
         final Settings settings = Settings.EMPTY;
         assertThat(ssl.caPaths.get(settings).size(), is(0));
         assertThat(ssl.x509KeyPair.certificatePath.get(settings).isPresent(), is(false));
@@ -89,9 +90,6 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.truststorePath.get(settings).isPresent(), is(false));
         assertThat(ssl.trustRestrictionsPath.get(settings).isPresent(), is(false));
         assertThat(ssl.verificationMode.get(settings).isPresent(), is(false));
-
-        assertThat(SSLConfigurationSettings.getKeyStoreType(ssl.x509KeyPair.keystoreType, settings, null), is("jks"));
-        assertThat(SSLConfigurationSettings.getKeyStoreType(ssl.truststoreType, settings, null), is("jks"));
     }
 
     public void testRealmSettingPrefixes() {

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
 
@@ -83,7 +84,7 @@ public class ShrinkStep extends AsyncActionStep {
         Settings relevantTargetSettings = builder.build();
 
         ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetadata.getIndex().getName())
-            .masterNodeTimeout(getMasterTimeout(currentState));
+            .masterNodeTimeout(TimeValue.MAX_VALUE);
         resizeRequest.setMaxPrimaryShardSize(maxPrimaryShardSize);
         resizeRequest.getTargetIndexRequest().settings(relevantTargetSettings);
 

@@ -79,11 +79,7 @@ public final class Grok {
         this.namedCaptures = namedCaptures;
         this.matcherWatchdog = matcherWatchdog;
 
-        for (Map.Entry<String, String> entry : patternBank.entrySet()) {
-            String name = entry.getKey();
-            String pattern = entry.getValue();
-            forbidCircularReferences(name, new ArrayList<>(), pattern);
-        }
+        forbidCircularReferences();
 
         String expression = toRegex(grokPattern);
         byte[] expressionBytes = expression.getBytes(StandardCharsets.UTF_8);
@@ -104,8 +100,27 @@ public final class Grok {
      * a reference to another named pattern. This method will navigate to all these named patterns and
      * check for a circular reference.
      */
-    private void forbidCircularReferences(String patternName, List<String> path, String pattern) {
-        if (pattern.contains("%{" + patternName + "}") || pattern.contains("%{" + patternName + ":")) {
+    private void forbidCircularReferences() {
+
+        // first ensure that the pattern bank contains no simple circular references (i.e., any pattern
+        // containing an immediate reference to itself) as those can cause the remainder of this algorithm
+        // to recurse infinitely
+        for (Map.Entry<String, String> entry : patternBank.entrySet()) {
+            if (patternReferencesItself(entry.getValue(), entry.getKey())) {
+                throw new IllegalArgumentException("circular reference in pattern [" + entry.getKey() + "][" + entry.getValue() + "]");
+            }
+        }
+
+        // next, recursively check any other pattern names referenced in each pattern
+        for (Map.Entry<String, String> entry : patternBank.entrySet()) {
+            String name = entry.getKey();
+            String pattern = entry.getValue();
+            innerForbidCircularReferences(name, new ArrayList<>(), pattern);
+        }
+    }
+
+    private void innerForbidCircularReferences(String patternName, List<String> path, String pattern) {
+        if (patternReferencesItself(pattern, patternName)) {
             String message;
             if (path.isEmpty()) {
                 message = "circular reference in pattern [" + patternName + "][" + pattern + "]";
@@ -120,24 +135,29 @@ public final class Grok {
             throw new IllegalArgumentException(message);
         }
 
+        // next check any other pattern names found in the pattern
         for (int i = pattern.indexOf("%{"); i != -1; i = pattern.indexOf("%{", i + 1)) {
             int begin = i + 2;
-            int brackedIndex = pattern.indexOf('}', begin);
+            int bracketIndex = pattern.indexOf('}', begin);
             int columnIndex = pattern.indexOf(':', begin);
             int end;
-            if (brackedIndex != -1 && columnIndex == -1) {
-                end = brackedIndex;
-            } else if (columnIndex != -1 && brackedIndex == -1) {
+            if (bracketIndex != -1 && columnIndex == -1) {
+                end = bracketIndex;
+            } else if (columnIndex != -1 && bracketIndex == -1) {
                 end = columnIndex;
-            } else if (brackedIndex != -1 && columnIndex != -1) {
-                end = Math.min(brackedIndex, columnIndex);
+            } else if (bracketIndex != -1 && columnIndex != -1) {
+                end = Math.min(bracketIndex, columnIndex);
             } else {
                 throw new IllegalArgumentException("pattern [" + pattern + "] has circular references to other pattern definitions");
             }
             String otherPatternName = pattern.substring(begin, end);
             path.add(otherPatternName);
-            forbidCircularReferences(patternName, path, patternBank.get(otherPatternName));
+            innerForbidCircularReferences(patternName, path, patternBank.get(otherPatternName));
         }
+    }
+
+    private static boolean patternReferencesItself(String pattern, String patternName) {
+        return pattern.contains("%{" + patternName + "}") || pattern.contains("%{" + patternName + ":");
     }
 
     private String groupMatch(String name, Region region, String pattern) {

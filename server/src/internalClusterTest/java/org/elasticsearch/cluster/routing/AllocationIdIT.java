@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -126,7 +125,7 @@ public class AllocationIdIT extends ESIntegTestCase {
         });
 
         internalCluster().stopNode(node1);
-        try(Store store = new Store(shardId, indexSettings, new NIOFSDirectory(indexPath), new DummyShardLock(shardId))) {
+        try(Store store = new Store(shardId, indexSettings, newFSDirectory(indexPath), new DummyShardLock(shardId))) {
             store.removeCorruptionMarker();
         }
         node1 = internalCluster().startNode(node1DataPathSettings);
@@ -204,7 +203,7 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     private void putFakeCorruptionMarker(IndexSettings indexSettings, ShardId shardId, Path indexPath) throws IOException {
-        try(Store store = new Store(shardId, indexSettings, new NIOFSDirectory(indexPath), new DummyShardLock(shardId))) {
+        try(Store store = new Store(shardId, indexSettings, newFSDirectory(indexPath), new DummyShardLock(shardId))) {
             store.markStoreCorrupted(new IOException("fake ioexception"));
         }
     }

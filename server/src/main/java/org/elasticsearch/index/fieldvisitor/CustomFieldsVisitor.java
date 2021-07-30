@@ -9,6 +9,7 @@ package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
 
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -24,6 +25,13 @@ public class CustomFieldsVisitor extends FieldsVisitor {
     public CustomFieldsVisitor(Set<String> fields, boolean loadSource) {
         super(loadSource);
         this.fields = fields;
+    }
+
+    @Override
+    public Set<String> getFieldNames() {
+        Set<String> fields = new HashSet<>(super.getFieldNames());
+        fields.addAll(this.fields);
+        return fields;
     }
 
     @Override

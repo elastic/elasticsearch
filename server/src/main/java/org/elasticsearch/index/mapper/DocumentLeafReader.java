@@ -52,11 +52,11 @@ import java.util.stream.Collectors;
  */
 class DocumentLeafReader extends LeafReader {
 
-    private final ParseContext.Document document;
+    private final LuceneDocument document;
     private final Map<String, Consumer<LeafReaderContext>> calculatedFields;
     private final Set<String> fieldPath = new LinkedHashSet<>();
 
-    DocumentLeafReader(ParseContext.Document document, Map<String, Consumer<LeafReaderContext>> calculatedFields) {
+    DocumentLeafReader(LuceneDocument document, Map<String, Consumer<LeafReaderContext>> calculatedFields) {
         this.document = document;
         this.calculatedFields = calculatedFields;
     }

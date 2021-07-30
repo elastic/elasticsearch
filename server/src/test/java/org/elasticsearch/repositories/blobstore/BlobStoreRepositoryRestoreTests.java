@@ -177,7 +177,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                     RepositoryData.EMPTY_REPO_GEN,
                     Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
                     new SnapshotInfo(
-                        snapshot.getSnapshotId(),
+                        snapshot,
                         shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
                         Collections.emptyList(),
                         Collections.emptyList(),

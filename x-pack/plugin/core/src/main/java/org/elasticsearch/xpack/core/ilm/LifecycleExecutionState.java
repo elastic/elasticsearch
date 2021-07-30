@@ -98,6 +98,17 @@ public class LifecycleExecutionState {
     }
 
     /**
+     * Return true if this index is in the frozen phase, false if not controlled by ILM or not in frozen.
+     * @param indexMetadata the metadata of the index to retrieve phase from.
+     * @return true if frozen phase, false otherwise.
+     */
+    public static boolean isFrozenPhase(IndexMetadata indexMetadata) {
+        Map<String, String> customData = indexMetadata.getCustomData(ILM_CUSTOM_METADATA_KEY);
+        // deliberately do not parse out the entire `LifeCycleExecutionState` to avoid the extra work involved since this method is
+        // used heavily by autoscaling.
+        return customData != null && TimeseriesLifecycleType.FROZEN_PHASE.equals(customData.get(PHASE));
+    }
+    /**
      * Retrieves the current {@link Step.StepKey} from the lifecycle state. Note that
      * it is illegal for the step to be set with the phase and/or action unset,
      * or for the step to be unset with the phase and/or action set. All three

@@ -423,6 +423,44 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         assertThat(fields.size(), equalTo(new HashSet<>(fields).size()));
     }
 
+    public void testRecursiveIncludeInParent() throws IOException {
+
+        // if we have a nested hierarchy, and all nested mappers have 'include_in_parent'
+        // set to 'true', then values from the grandchild nodes should be copied all the
+        // way up the hierarchy and into the root document, even if 'include_in_root' has
+        // explicitly been set to 'false'.
+
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("nested1");
+            b.field("type", "nested");
+            b.field("include_in_parent", true);
+            b.field("include_in_root", false);
+            b.startObject("properties");
+            b.startObject("nested1_id").field("type", "keyword").endObject();
+            b.startObject("nested2");
+            b.field("type", "nested");
+            b.field("include_in_parent", true);
+            b.field("include_in_root", false);
+            b.startObject("properties");
+            b.startObject("nested2_id").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("nested1");
+            b.field("nested1_id", "1");
+            b.startObject("nested2");
+            b.field("nested2_id", "2");
+            b.endObject();
+            b.endObject();
+        }));
+
+        assertNotNull(doc.rootDoc().getField("nested1.nested2.nested2_id"));
+    }
+
     /**
      * Same as {@link NestedObjectMapperTests#testMultipleLevelsIncludeRoot1()} but tests for the
      * case where the transitive {@code include_in_parent} and redundant {@code include_in_root}
@@ -842,5 +880,81 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals("the [include_in_root] parameter can't be updated on a nested object mapping", e2.getMessage());
+    }
+
+    public void testEnabled() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("nested");
+            b.field("type", "nested");
+            b.field("enabled", "false");
+            b.endObject();
+        }));
+        {
+            NestedObjectMapper nom = (NestedObjectMapper) mapperService.mappingLookup().objectMappers().get("nested");
+            assertFalse(nom.isEnabled());
+        }
+
+        merge(mapperService, mapping(b -> {
+            b.startObject("nested");
+            b.field("type", "nested");
+            b.field("enabled", "false");
+            b.endObject();
+        }));
+        {
+            NestedObjectMapper nom = (NestedObjectMapper) mapperService.mappingLookup().objectMappers().get("nested");
+            assertFalse(nom.isEnabled());
+        }
+
+        // merging for index templates allows override of 'enabled' param
+        merge(mapperService, MergeReason.INDEX_TEMPLATE, mapping(b -> {
+            b.startObject("nested");
+            b.field("type", "nested");
+            b.field("enabled", "true");
+            b.endObject();
+        }));
+        {
+            NestedObjectMapper nom = (NestedObjectMapper) mapperService.mappingLookup().objectMappers().get("nested");
+            assertTrue(nom.isEnabled());
+        }
+
+        // but a normal merge does not permit 'enabled' overrides
+        Exception e = expectThrows(MapperException.class, () -> merge(mapperService, mapping(b -> {
+            b.startObject("nested");
+            b.field("type", "nested");
+            b.field("enabled", "false");
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("the [enabled] parameter can't be updated for the object mapping [nested]"));
+    }
+
+    public void testMergeNestedMappingsFromDynamicUpdate() throws IOException {
+
+        // Check that dynamic mappings have redundant includes removed
+
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            b.startObject();
+            b.startObject("object_fields");
+            b.field("match_mapping_type", "object");
+            b.startObject("mapping");
+            b.field("type", "nested");
+            b.field("include_in_parent", true);
+            b.field("include_in_root", true);
+            b.endObject();
+            b.field("match", "*");
+            b.endObject();
+            b.endObject();
+            b.endArray();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.startObject("object").endObject()));
+
+        merge(mapperService, Strings.toString(doc.dynamicMappingsUpdate()));
+        merge(mapperService, Strings.toString(doc.dynamicMappingsUpdate()));
+
+        assertThat(
+            Strings.toString(mapperService.documentMapper().mapping()),
+            containsString("\"properties\":{\"object\":{\"type\":\"nested\",\"include_in_parent\":true}}")
+        );
     }
 }

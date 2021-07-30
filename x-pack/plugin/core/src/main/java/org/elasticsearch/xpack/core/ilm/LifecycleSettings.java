@@ -49,7 +49,7 @@ public class LifecycleSettings {
         true, Setting.Property.NodeScope);
     public static final Setting<TimeValue> LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING =
         Setting.positiveTimeSetting(LIFECYCLE_STEP_MASTER_TIMEOUT, TimeValue.timeValueSeconds(30), Setting.Property.Dynamic,
-            Setting.Property.NodeScope);
+            Setting.Property.NodeScope, Setting.Property.Deprecated);
     // This setting configures how much time since step_time should ILM wait for a condition to be met. After the threshold wait time has
     // elapsed ILM will likely stop waiting and go to the next step.
     // Also see {@link org.elasticsearch.xpack.core.ilm.ClusterStateWaitUntilThresholdStep}

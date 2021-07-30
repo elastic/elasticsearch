@@ -101,7 +101,7 @@ public final class Mapping implements ToXContentFragment {
 
     /** Get the metadata mapper with the given class. */
     @SuppressWarnings("unchecked")
-    <T extends MetadataFieldMapper> T getMetadataMapperByClass(Class<T> clazz) {
+    public <T extends MetadataFieldMapper> T getMetadataMapperByClass(Class<T> clazz) {
         return (T) metadataMappersMap.get(clazz);
     }
 

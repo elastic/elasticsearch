@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.graph.rest.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
@@ -38,6 +40,11 @@ import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTA
  */
 public class RestGraphAction extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGraphAction.class);
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+        " Specifying types in graph requests is deprecated.";
+    private static final String URI_BASE = "/_xpack";
+
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField SIGNIFICANCE_FIELD = new ParseField("use_significance");
     public static final ParseField RETURN_DETAILED_INFO = new ParseField("return_detailed_stats");
@@ -60,8 +67,19 @@ public class RestGraphAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/{index}/_graph/explore"),
-            new Route(POST, "/{index}/_graph/explore"));
+            Route.builder(GET, "/{index}/_graph/explore")
+                .replaces(GET, "/{index}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/_graph/explore")
+                .replaces(POST, "/{index}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/{type}/_graph/explore")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/{type}" + URI_BASE + "/graph/_explore")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/{type}/_graph/explore")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/{type}" + URI_BASE + "/graph/_explore")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -71,6 +89,11 @@ public class RestGraphAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
+            deprecationLogger.compatibleApiWarning("graph_with_types", TYPES_DEPRECATION_MESSAGE);
+            request.param("type");
+        }
+
         GraphExploreRequest graphRequest = new GraphExploreRequest(Strings.splitStringByCommaToArray(request.param("index")));
         graphRequest.indicesOptions(IndicesOptions.fromRequest(request, graphRequest.indicesOptions()));
         graphRequest.routing(request.param("routing"));

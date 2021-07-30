@@ -189,7 +189,7 @@ class IndexLifecycleRunner {
                 public void onFailure(Exception e) {
                     moveToErrorStep(indexMetadata.getIndex(), policy, currentStep.getKey(), e);
                 }
-            }, AsyncActionStep.getMasterTimeout(clusterService.state()));
+            }, TimeValue.MAX_VALUE);
         } else {
             logger.trace("[{}] ignoring non periodic step execution from step transition [{}]", index, currentStep.getKey());
         }
@@ -220,8 +220,7 @@ class IndexLifecycleRunner {
             // to move it back into the failed step, so we'll try again
             clusterService.submitStateUpdateTask(
                 String.format(Locale.ROOT, "ilm-retry-failed-step {policy [%s], index [%s], failedStep [%s]}", policy, index,
-                    failedStep.getKey()), new ClusterStateUpdateTask(
-                            LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.get(clusterService.state().metadata().settings())) {
+                    failedStep.getKey()), new ClusterStateUpdateTask(TimeValue.MAX_VALUE) {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {

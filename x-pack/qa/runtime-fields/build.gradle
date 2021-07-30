@@ -70,6 +70,7 @@ subprojects {
           /////// NOT SUPPORTED ///////
           'search.highlight/40_keyword_ignore/Plain Highligher should skip highlighting ignored keyword values', // The plain highlighter is incompatible with the prefix queries that we make for runtime fields, use unified highlighter instead.
           'search.aggregation/280_rare_terms/*', // Requires an index and we won't have it
+          'search.aggregation/22_terms_disable_opt/*', // Optimization requires an index and runtime fields don't have one
           // Runtime fields don't support sub-fields
           'search.aggregation/10_histogram/*',
           'suggest/50_completion_with_multi_fields/Search by suggestion on geofield-hash on sub field should work',
@@ -77,7 +78,6 @@ subprojects {
           'search.aggregation/20_terms/string profiler via global ordinals filters implementation',
           'search.aggregation/20_terms/string profiler via global ordinals native implementation',
           'search.aggregation/20_terms/Global ordinals are loaded with the global_ordinals execution hint',
-          'search.aggregation/22_terms_disable_opt/does not use optimization',
           'search.aggregation/170_cardinality_metric/profiler string',
           'search.aggregation/235_composite_sorted/*',
           /////// NOT SUPPORTED ///////

@@ -57,11 +57,12 @@ You can use the following _expert_ setting to manage resources for peer
 recoveries.
 
 `indices.recovery.max_concurrent_file_chunks`::
-(<<cluster-update-settings,Dynamic>>, Expert) Number of file chunk requests
-sent in parallel for each recovery. Defaults to `2`.
+(<<cluster-update-settings,Dynamic>>, Expert) Number of file chunks sent in
+parallel for each recovery. Defaults to `2`.
 +
 You can increase the value of this setting when the recovery of a single shard
-is not reaching the traffic limit set by `indices.recovery.max_bytes_per_sec`.
+is not reaching the traffic limit set by `indices.recovery.max_bytes_per_sec`,
+up to a maximum of `8`.
 
 `indices.recovery.max_concurrent_operations`::
 (<<cluster-update-settings,Dynamic>>, Expert) Number of operations sent

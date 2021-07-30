@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.eql.action;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.eql.async.StoredAsyncTask;
+import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 
 import java.util.Map;
 
@@ -26,20 +26,5 @@ public class EqlSearchTask extends StoredAsyncTask<EqlSearchResponse> {
         // we kill the task on final response, so if the task is still present, it means the search is still running
         return new EqlSearchResponse(EqlSearchResponse.Hits.EMPTY, System.currentTimeMillis() - getStartTime(), false,
             getExecutionId().getEncoded(), true, true);
-    }
-
-
-    /**
-     * Returns the status from {@link EqlSearchTask}
-     */
-    public static EqlStatusResponse getStatusResponse(EqlSearchTask asyncTask) {
-        return new EqlStatusResponse(
-            asyncTask.getExecutionId().getEncoded(),
-            true,
-            true,
-            asyncTask.getStartTime(),
-            asyncTask.getExpirationTimeMillis(),
-            null
-        );
     }
 }

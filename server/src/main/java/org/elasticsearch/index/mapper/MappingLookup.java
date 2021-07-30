@@ -204,6 +204,7 @@ public final class MappingLookup {
         checkObjectDepthLimit(settings.getMappingDepthLimit());
         checkFieldNameLengthLimit(settings.getMappingFieldNameLengthLimit());
         checkNestedLimit(settings.getMappingNestedFieldsLimit());
+        checkDimensionFieldLimit(settings.getMappingDimensionFieldsLimit());
     }
 
     private void checkFieldLimit(long limit) {
@@ -214,6 +215,16 @@ public final class MappingLookup {
         if (fieldMappers.size() + objectMappers.size() + additionalFieldsToAdd - mapping.getSortedMetadataMappers().length > limit) {
             throw new IllegalArgumentException("Limit of total fields [" + limit + "] has been exceeded" +
                 (additionalFieldsToAdd > 0 ? " while adding new fields [" + additionalFieldsToAdd + "]" : ""));
+        }
+    }
+
+    private void checkDimensionFieldLimit(long limit) {
+        long dimensionFieldCount = fieldMappers.values()
+            .stream()
+            .filter(m -> m instanceof FieldMapper && ((FieldMapper) m).fieldType().isDimension())
+            .count();
+        if (dimensionFieldCount > limit) {
+            throw new IllegalArgumentException("Limit of total dimension fields [" + limit + "] has been exceeded");
         }
     }
 

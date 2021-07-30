@@ -12,6 +12,6 @@ dependencies {
 
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
-  api 'org.apache.commons:commons-math3:3.2'
+  api 'org.apache.commons:commons-math3:3.6.1'
 }
 

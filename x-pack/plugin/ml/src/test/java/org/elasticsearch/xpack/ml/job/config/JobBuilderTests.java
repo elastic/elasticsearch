@@ -8,8 +8,7 @@ package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfigTests;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimitsTests;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -21,7 +20,7 @@ import java.util.Date;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.randomValidJobId;
 
-public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
+public class JobBuilderTests extends AbstractWireSerializingTestCase<Job.Builder> {
     @Override
     protected Job.Builder createTestInstance() {
         Job.Builder builder = new Job.Builder();
@@ -45,7 +44,6 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
         }
         if (randomBoolean()) {
             DataDescription.Builder dataDescription = new DataDescription.Builder();
-            dataDescription.setFormat(randomFrom(DataDescription.DataFormat.values()));
             builder.setDataDescription(dataDescription);
         }
         if (randomBoolean()) {
@@ -67,6 +65,9 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
             builder.setResultsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
+            builder.setSystemAnnotationsRetentionDays(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
             builder.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10),
                     randomAlphaOfLength(10)));
         }
@@ -84,8 +85,4 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
         return Job.Builder::new;
     }
 
-    @Override
-    protected Job.Builder doParseInstance(XContentParser parser) {
-        return Job.STRICT_PARSER.apply(parser, null);
-    }
 }

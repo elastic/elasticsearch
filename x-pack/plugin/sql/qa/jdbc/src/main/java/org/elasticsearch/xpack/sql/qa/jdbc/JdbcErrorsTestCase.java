@@ -40,18 +40,6 @@ public abstract class JdbcErrorsTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    public void testSelectFromEmptyIndex() throws IOException, SQLException {
-        // Create an index without any types
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity("{}");
-        client().performRequest(request);
-
-        try (Connection c = esJdbc()) {
-            SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * FROM test").executeQuery());
-            assertEquals("Found 1 problem\nline 1:8: Cannot determine columns for [*]", e.getMessage());
-        }
-    }
-
     public void testSelectColumnFromEmptyIndex() throws IOException, SQLException {
         Request request = new Request("PUT", "/test");
         request.setJsonEntity("{}");

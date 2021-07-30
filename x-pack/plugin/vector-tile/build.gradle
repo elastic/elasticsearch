@@ -1,0 +1,70 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.java-rest-test'
+
+esplugin {
+  name 'vector-tile'
+  description 'A plugin for mapbox vector tile features'
+  classname 'org.elasticsearch.xpack.vectortile.VectorTilePlugin'
+  extendedPlugins = ['spatial']
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('spatial'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  api "com.wdtinc:mapbox-vector-tile:3.1.0"
+  api "com.google.protobuf:protobuf-java:3.14.0"
+  javaRestTestImplementation("com.wdtinc:mapbox-vector-tile:3.1.0")
+  javaRestTestImplementation("com.google.protobuf:protobuf-java:3.14.0")
+}
+
+testClusters.all {
+  setting 'xpack.license.self_generated.type', 'trial'
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.vector_tile_feature_flag_registered', 'true'
+  }
+}
+
+tasks.named("test").configure {
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.vector_tile_feature_flag_registered', 'true'
+  }
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.protobuf.UnsafeUtil',
+    'com.google.protobuf.MessageSchema',
+    'com.google.protobuf.UnsafeUtil$1',
+    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$MemoryAccessor'
+  )
+
+  ignoreMissingClasses(
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory'
+  )
+}
+

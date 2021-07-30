@@ -523,7 +523,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         assertBusy(() -> {
             DataCounts dataCounts = getJobStats(jobId).getDataCounts();
-            assertThat(dataCounts.getProcessedRecordCount(), greaterThanOrEqualTo(numDocs));
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
         });
 

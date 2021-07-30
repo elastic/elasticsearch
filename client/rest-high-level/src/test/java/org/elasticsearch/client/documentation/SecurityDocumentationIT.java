@@ -27,9 +27,12 @@ import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
 import org.elasticsearch.client.security.ClearSecurityCacheResponse;
+import org.elasticsearch.client.security.ClearServiceAccountTokenCacheRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequestTests;
 import org.elasticsearch.client.security.CreateApiKeyResponse;
+import org.elasticsearch.client.security.CreateServiceAccountTokenRequest;
+import org.elasticsearch.client.security.CreateServiceAccountTokenResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
@@ -40,6 +43,8 @@ import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
+import org.elasticsearch.client.security.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.client.security.DeleteServiceAccountTokenResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
@@ -54,6 +59,10 @@ import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetRolesResponse;
+import org.elasticsearch.client.security.GetServiceAccountCredentialsRequest;
+import org.elasticsearch.client.security.GetServiceAccountCredentialsResponse;
+import org.elasticsearch.client.security.GetServiceAccountsRequest;
+import org.elasticsearch.client.security.GetServiceAccountsResponse;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
 import org.elasticsearch.client.security.GetUserPrivilegesResponse;
 import org.elasticsearch.client.security.GetUsersRequest;
@@ -78,6 +87,8 @@ import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.TemplateRoleName;
 import org.elasticsearch.client.security.support.ApiKey;
 import org.elasticsearch.client.security.support.CertificateInfo;
+import org.elasticsearch.client.security.support.ServiceAccountInfo;
+import org.elasticsearch.client.security.support.ServiceTokenInfo;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
@@ -89,6 +100,7 @@ import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
+import org.elasticsearch.client.security.KibanaEnrollmentResponse;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -119,6 +131,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -745,6 +758,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final String lookupRealmName = response.getLookupRealm().getName(); // <5>
             final String lookupRealmType = response.getLookupRealm().getType(); // <6>
             final String authenticationType = response.getAuthenticationType(); // <7>
+            final Map<String, Object> tokenInfo = response.getToken(); // <8>
             //end::authenticate-response
 
             assertThat(user.getUsername(), is("test_user"));
@@ -758,6 +772,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(lookupRealmName, is("default_file"));
             assertThat(lookupRealmType, is("file"));
             assertThat(authenticationType, is("realm"));
+            assertThat(tokenInfo, nullValue());
         }
 
         {
@@ -1068,8 +1083,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            //tag::clear-api-key-cache-execute-listener
             ClearApiKeyCacheRequest request = ClearApiKeyCacheRequest.clearById("yVGMr3QByxdh1MSaicYx");
+            //tag::clear-api-key-cache-execute-listener
             ActionListener<ClearSecurityCacheResponse> listener = new ActionListener<>() {
                 @Override
                 public void onResponse(ClearSecurityCacheResponse clearSecurityCacheResponse) {
@@ -1090,6 +1105,57 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::clear-api-key-cache-execute-async
             client.security().clearApiKeyCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::clear-api-key-cache-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testClearServiceAccountTokenCache() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::clear-service-account-token-cache-request
+            ClearServiceAccountTokenCacheRequest request = new ClearServiceAccountTokenCacheRequest(
+                "elastic", // <1>
+                "fleet-server", // <2>
+                "token1" // <3>
+            );
+            //end::clear-service-account-token-cache-request
+            //tag::clear-service-account-token-cache-execute
+            ClearSecurityCacheResponse response = client.security().clearServiceAccountTokenCache(request, RequestOptions.DEFAULT);
+            //end::clear-service-account-token-cache-execute
+
+            assertNotNull(response);
+            assertThat(response.getNodes(), not(empty()));
+
+            //tag::clear-service-account-token-cache-response
+            List<ClearSecurityCacheResponse.Node> nodes = response.getNodes(); // <1>
+            //end::clear-service-account-token-cache-response
+        }
+
+        {
+            ClearServiceAccountTokenCacheRequest request = new ClearServiceAccountTokenCacheRequest("elastic", "fleet-server",
+                "token1", "token2");
+            //tag::clear-service-account-token-cache-execute-listener
+            ActionListener<ClearSecurityCacheResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(ClearSecurityCacheResponse clearSecurityCacheResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::clear-service-account-token-cache-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::clear-service-account-token-cache-execute-async
+            client.security().clearServiceAccountTokenCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::clear-service-account-token-cache-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -2489,6 +2555,244 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     }
 
+    public void testGetServiceAccounts() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::get-service-accounts-request
+            final GetServiceAccountsRequest getServiceAccountsRequest = new GetServiceAccountsRequest("elastic", "fleet-server");
+            // end::get-service-accounts-request
+
+            // tag::get-service-accounts-execute
+            final GetServiceAccountsResponse getServiceAccountsResponse =
+                client.security().getServiceAccounts(getServiceAccountsRequest, RequestOptions.DEFAULT);
+            // end::get-service-accounts-execute
+
+            // tag::get-service-accounts-response
+            final ServiceAccountInfo serviceAccountInfo = getServiceAccountsResponse.getServiceAccountInfos().get(0); // <1>
+            // end::get-service-accounts-response
+            assertThat(serviceAccountInfo.getPrincipal(), equalTo("elastic/fleet-server"));
+        }
+
+        {
+            // tag::get-service-accounts-request-namespace
+            final GetServiceAccountsRequest getServiceAccountsRequest = new GetServiceAccountsRequest("elastic");
+            // end::get-service-accounts-request-namespace
+        }
+
+        {
+            // tag::get-service-accounts-request-all
+            final GetServiceAccountsRequest getServiceAccountsRequest = new GetServiceAccountsRequest();
+            // end::get-service-accounts-request-all
+        }
+
+        {
+            final GetServiceAccountsRequest getServiceAccountsRequest = new GetServiceAccountsRequest("elastic", "fleet-server");
+
+            ActionListener<GetServiceAccountsResponse> listener;
+            // tag::get-service-accounts-execute-listener
+            listener = new ActionListener<GetServiceAccountsResponse>() {
+                @Override
+                public void onResponse(GetServiceAccountsResponse getServiceAccountsResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-service-accounts-execute-listener
+
+            final PlainActionFuture<GetServiceAccountsResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::get-service-accounts-execute-async
+            client.security().getServiceAccountsAsync(getServiceAccountsRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-service-accounts-execute-async
+
+            assertNotNull(future.actionGet());
+            assertThat(future.actionGet().getServiceAccountInfos().size(), equalTo(1));
+            assertThat(future.actionGet().getServiceAccountInfos().get(0).getPrincipal(), equalTo("elastic/fleet-server"));
+        }
+    }
+
+    public void testCreateServiceAccountToken() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::create-service-account-token-request
+            CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "my_token_1");
+            // end::create-service-account-token-request
+
+            // tag::create-service-account-token-execute
+            CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
+                client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
+            // end::create-service-account-token-execute
+
+            // tag::create-service-account-token-response
+            final String tokenName = createServiceAccountTokenResponse.getName(); // <1>
+            final SecureString tokenValue = createServiceAccountTokenResponse.getValue(); // <2>
+            // end::create-service-account-token-response
+            assertThat(createServiceAccountTokenResponse.getName(), equalTo("my_token_1"));
+            assertNotNull(tokenValue);
+        }
+
+        {
+            // tag::create-service-account-token-request-auto-name
+            CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+                new CreateServiceAccountTokenRequest("elastic", "fleet-server");
+            // end::create-service-account-token-request-auto-name
+
+            ActionListener<CreateServiceAccountTokenResponse> listener;
+            // tag::create-service-account-token-execute-listener
+            listener = new ActionListener<CreateServiceAccountTokenResponse>() {
+                @Override
+                public void onResponse(CreateServiceAccountTokenResponse createServiceAccountTokenResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::create-service-account-token-execute-listener
+
+            final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::create-service-account-token-execute-async
+            client.security().createServiceAccountTokenAsync(createServiceAccountTokenRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::create-service-account-token-execute-async
+
+            assertNotNull(future.actionGet());
+            assertNotNull(future.actionGet().getName());
+            assertNotNull(future.actionGet().getValue());
+        }
+    }
+
+    public void testDeleteServiceAccountToken() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+            new CreateServiceAccountTokenRequest("elastic", "fleet-server", "test-token");
+        client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
+        {
+            // tag::delete-service-account-token-request
+            DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest =
+                new DeleteServiceAccountTokenRequest("elastic", "fleet-server", "test-token");
+            // end::delete-service-account-token-request
+
+            // tag::delete-service-account-token-execute
+            DeleteServiceAccountTokenResponse deleteServiceAccountTokenResponse =
+                client.security().deleteServiceAccountToken(deleteServiceAccountTokenRequest, RequestOptions.DEFAULT);
+            // end::delete-service-account-token-execute
+
+            // tag::delete-service-account-token-response
+            final boolean found = deleteServiceAccountTokenResponse.isAcknowledged(); // <1>
+            // end::delete-service-account-token-response
+            assertTrue(deleteServiceAccountTokenResponse.isAcknowledged());
+        }
+
+        client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
+        {
+            DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest =
+                new DeleteServiceAccountTokenRequest("elastic", "fleet-server", "test-token");
+            ActionListener<DeleteServiceAccountTokenResponse> listener;
+            // tag::delete-service-account-token-execute-listener
+            listener = new ActionListener<DeleteServiceAccountTokenResponse>() {
+                @Override
+                public void onResponse(DeleteServiceAccountTokenResponse deleteServiceAccountTokenResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-service-account-token-execute-listener
+
+            final PlainActionFuture<DeleteServiceAccountTokenResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::delete-service-account-token-execute-async
+            client.security().deleteServiceAccountTokenAsync(deleteServiceAccountTokenRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-service-account-token-execute-async
+
+            assertNotNull(future.actionGet());
+            assertTrue(future.actionGet().isAcknowledged());
+        }
+    }
+
+    public void testGetServiceAccountCredentials() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+            new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token2");
+        final CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
+            client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
+        assertThat(createServiceAccountTokenResponse.getName(), equalTo("token2"));
+
+        {
+            // tag::get-service-account-credentials-request
+            final GetServiceAccountCredentialsRequest getServiceAccountCredentialsRequest =
+                new GetServiceAccountCredentialsRequest("elastic", "fleet-server");
+            // end::get-service-account-credentials-request
+
+            // tag::get-service-account-credentials-execute
+            final GetServiceAccountCredentialsResponse getServiceAccountCredentialsResponse =
+                client.security().getServiceAccountCredentials(getServiceAccountCredentialsRequest, RequestOptions.DEFAULT);
+            // end::get-service-account-credentials-execute
+
+            // tag::get-service-account-credentials-response
+            final String principal = getServiceAccountCredentialsResponse.getPrincipal(); // <1>
+            final String nodeName = getServiceAccountCredentialsResponse.getNodeName(); // <2>
+            final List<ServiceTokenInfo> serviceTokenInfos = getServiceAccountCredentialsResponse.getServiceTokenInfos(); // <3>
+            final String tokenName = serviceTokenInfos.get(0).getName(); // <4>
+            final String tokenSource = serviceTokenInfos.get(0).getSource(); // <5>
+            // end::get-service-account-credentials-response
+            assertThat(principal, equalTo("elastic/fleet-server"));
+            // Cannot assert exactly one token because there are rare occasions where tests overlap and it will see
+            // token created from other tests
+            assertThat(serviceTokenInfos.size(), greaterThanOrEqualTo(1));
+            assertThat(serviceTokenInfos.stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()), hasItem("token2"));
+            assertThat(serviceTokenInfos.stream().map(ServiceTokenInfo::getSource).collect(Collectors.toSet()), hasItem("index"));
+        }
+
+        {
+            final GetServiceAccountCredentialsRequest getServiceAccountCredentialsRequest =
+                new GetServiceAccountCredentialsRequest("elastic", "fleet-server");
+
+            ActionListener<GetServiceAccountCredentialsResponse> listener;
+            // tag::get-service-account-credentials-execute-listener
+            listener = new ActionListener<GetServiceAccountCredentialsResponse>() {
+                @Override
+                public void onResponse(GetServiceAccountCredentialsResponse getServiceAccountCredentialsResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-service-account-credentials-execute-listener
+
+            final PlainActionFuture<GetServiceAccountCredentialsResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::get-service-account-credentials-execute-async
+            client.security().getServiceAccountCredentialsAsync(
+                getServiceAccountCredentialsRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-service-account-credentials-execute-async
+
+            assertNotNull(future.actionGet());
+            assertThat(future.actionGet().getPrincipal(), equalTo("elastic/fleet-server"));
+            assertThat(future.actionGet().getServiceTokenInfos().size(), greaterThanOrEqualTo(1));
+            assertThat(future.actionGet().getServiceTokenInfos().stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()),
+                hasItem("token2"));
+        }
+    }
+
     public void testDelegatePkiAuthentication() throws Exception {
         final RestHighLevelClient client = highLevelClient();
         X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");
@@ -2577,8 +2881,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             String httpCaCert = response.getHttpCaCert(); // <2>
             String transportKey = response.getTransportKey(); // <3>
             String transportCert = response.getTransportCert(); // <4>
-            String clusterName = response.getClusterName(); // <5>
-            List<String> nodesAddresses = response.getNodesAddresses();  // <6>
+            List<String> nodesAddresses = response.getNodesAddresses();  // <5>
             // end::node-enrollment-response
         }
 
@@ -2590,7 +2893,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                     public void onResponse(NodeEnrollmentResponse response) {
                         // <1>
                     }
-
 
                     @Override
                     public void onFailure(Exception e) {
@@ -2604,6 +2906,47 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::node-enrollment-execute-async
             client.security().enrollNodeAsync(RequestOptions.DEFAULT, listener);
             // end::node-enrollment-execute-async
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
+    public void testKibanaEnrollment() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::kibana-enrollment-execute
+            KibanaEnrollmentResponse response = client.security().enrollKibana(RequestOptions.DEFAULT);
+            // end::kibana-enrollment-execute
+
+            // tag::kibana-enrollment-response
+            SecureString password = response.getPassword(); // <1>
+            String httoCa = response.getHttpCa(); // <2>
+            // end::kibana-enrollment-response
+            assertThat(password.length(), equalTo(14));
+        }
+
+        {
+            // tag::kibana-enrollment-execute-listener
+            ActionListener<KibanaEnrollmentResponse> listener =
+                new ActionListener<KibanaEnrollmentResponse>() {
+                    @Override
+                    public void onResponse(KibanaEnrollmentResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }};
+            // end::kibana-enrollment-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::kibana-enrollment-execute-async
+            client.security().enrollKibanaAsync(RequestOptions.DEFAULT, listener);
+            // end::kibana-enrollment-execute-async
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }

@@ -22,11 +22,11 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -70,6 +70,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     private final Client client;
     private final HttpClient httpClient;
+    private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final String endpoint;
 
@@ -84,6 +85,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         super(id, type, action, description, parentTask, headers);
         this.httpClient = httpClient;
         this.client = new OriginSettingClient(client, IngestService.INGEST_ORIGIN);
+        this.clusterService = clusterService;
         this.threadPool = threadPool;
         endpoint = ENDPOINT_SETTING.get(settings);
         pollInterval = POLL_INTERVAL_SETTING.get(settings);
@@ -139,7 +141,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             int firstChunk = state.contains(name) ? state.get(name).getLastChunk() + 1 : 0;
             int lastChunk = indexChunks(name, is, firstChunk, md5, start);
             if (lastChunk > firstChunk) {
-                state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5));
+                state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start));
                 updateTaskState();
                 stats = stats.successfulDownload(System.currentTimeMillis() - start).count(state.getDatabases().size());
                 logger.info("updated geoip database [" + name + "]");
@@ -166,7 +168,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     //visible for testing
     protected void updateTimestamp(String name, Metadata old) {
         logger.info("geoip database [" + name + "] is up to date, updated timestamp");
-        state = state.put(name, new Metadata(System.currentTimeMillis(), old.getFirstChunk(), old.getLastChunk(), old.getMd5()));
+        state = state.put(name, new Metadata(old.getLastUpdate(), old.getFirstChunk(), old.getLastChunk(), old.getMd5(),
+            System.currentTimeMillis()));
         stats = stats.skippedDownload();
         updateTaskState();
     }
@@ -235,7 +238,26 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         } catch (Exception e) {
             logger.error("exception during geoip databases update", e);
         }
+        try {
+            cleanDatabases();
+        } catch (Exception e) {
+            logger.error("exception during geoip databases cleanup", e);
+        }
         scheduleNextRun(pollInterval);
+    }
+
+    private void cleanDatabases() {
+        long expiredDatabases = state.getDatabases().entrySet().stream()
+            .filter(e -> e.getValue().isValid(clusterService.state().metadata().settings()) == false)
+            .peek(e -> {
+                String name = e.getKey();
+                Metadata meta = e.getValue();
+                deleteOldChunks(name, meta.getLastChunk() + 1);
+                state = state.put(name, new Metadata(meta.getLastUpdate(), meta.getFirstChunk(), meta.getLastChunk(), meta.getMd5(),
+                    meta.getLastCheck() - 1));
+                updateTaskState();
+            }).count();
+        stats = stats.expiredDatabases((int) expiredDatabases);
     }
 
     @Override
@@ -251,6 +273,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     private void scheduleNextRun(TimeValue time) {
-        scheduled = threadPool.schedule(this::runDownloader, time, ThreadPool.Names.GENERIC);
+        if (threadPool.scheduler().isShutdown() == false) {
+            scheduled = threadPool.schedule(this::runDownloader, time, ThreadPool.Names.GENERIC);
+        }
     }
 }

@@ -18,7 +18,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotA
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.LocalStateSearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.junit.After;
 
 import java.io.FilterInputStream;
@@ -96,10 +95,10 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         return Settings.builder()
             .put(super.nodeSettings())
             .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
-            .put(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_SETTING + ".max", randomIntBetween(1, 32))
-            .put(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_SETTING + ".keep_alive", "1s")
-            .put(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_SETTING + ".max", randomIntBetween(1, 32))
-            .put(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_SETTING + ".keep_alive", "1s")
+            .put(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_SETTING + ".max", randomIntBetween(1, 32))
+            .put(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_SETTING + ".keep_alive", "1s")
+            .put(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_SETTING + ".max", randomIntBetween(1, 32))
+            .put(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_SETTING + ".keep_alive", "1s")
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), MAX_NUMBER_OF_INDICES)
             .build();
     }
@@ -256,8 +255,8 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         logger.debug("--> waiting for background cache prewarming to");
         assertBusy(() -> {
             final ThreadPool threadPool = getInstanceFromNode(ThreadPool.class);
-            assertThat(threadPool.info(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME).getQueueSize(), nullValue());
-            assertThat(threadPool.info(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME).getQueueSize(), nullValue());
+            assertThat(threadPool.info(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME).getQueueSize(), nullValue());
+            assertThat(threadPool.info(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME).getQueueSize(), nullValue());
         });
 
         logger.debug("--> loading snapshot metadata");

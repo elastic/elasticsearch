@@ -8,40 +8,38 @@
 package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
+import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
-
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
-import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoryShardId;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-
-import java.nio.file.Path;
-
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -497,6 +495,75 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    public void testSnapshotQueuedAfterCloneFromBrokenSourceSnapshot() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final String testIndex = "index-test";
+        createIndexWithContent(testIndex);
+
+        final String sourceSnapshot = "source-snapshot";
+        blockDataNode(repoName, dataNode);
+        final Client masterClient = internalCluster().masterClient();
+        final ActionFuture<CreateSnapshotResponse> sourceSnapshotFuture = masterClient.admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, sourceSnapshot)
+            .setWaitForCompletion(true)
+            .execute();
+        awaitNumberOfSnapshotsInProgress(1);
+        waitForBlock(dataNode, repoName);
+        internalCluster().restartNode(dataNode);
+        ensureGreen();
+        assertThat(sourceSnapshotFuture.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+        final String sourceSnapshotHealthy = "source-snapshot-healthy";
+        createFullSnapshot(repoName, "source-snapshot-healthy");
+
+        final ActionFuture<CreateSnapshotResponse> sn1 = startFullSnapshot(repoName, "concurrent-snapshot-1");
+        final ActionFuture<AcknowledgedResponse> clone1 = startClone(
+            masterClient,
+            repoName,
+            sourceSnapshotHealthy,
+            "target-snapshot-1",
+            testIndex
+        );
+        final ActionFuture<CreateSnapshotResponse> sn2 = startFullSnapshot(repoName, "concurrent-snapshot-2");
+        final ActionFuture<AcknowledgedResponse> clone2 = startClone(
+            masterClient,
+            repoName,
+            sourceSnapshotHealthy,
+            "target-snapshot-2",
+            testIndex
+        );
+        final ActionFuture<CreateSnapshotResponse> sn3 = startFullSnapshot(repoName, "concurrent-snapshot-3");
+        final ActionFuture<AcknowledgedResponse> clone3 = startClone(
+            masterClient,
+            repoName,
+            sourceSnapshotHealthy,
+            "target-snapshot-3",
+            testIndex
+        );
+        final SnapshotException sne = expectThrows(
+            SnapshotException.class,
+            () -> startClone(masterClient, repoName, sourceSnapshot, "target-snapshot", testIndex).actionGet(
+                TimeValue.timeValueSeconds(30L)
+            )
+        );
+        assertThat(
+            sne.getMessage(),
+            containsString(
+                "Can't clone index [" + getRepositoryData(repoName).resolveIndexId(testIndex) + "] because its snapshot was not successful."
+            )
+        );
+
+        assertSuccessful(sn1);
+        assertSuccessful(sn2);
+        assertSuccessful(sn3);
+        assertAcked(clone1.get());
+        assertAcked(clone2.get());
+        assertAcked(clone3.get());
+    }
+
     public void testStartSnapshotWithSuccessfulShardClonePendingFinalization() throws Exception {
         final String masterName = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         final String dataNode = internalCluster().startDataOnlyNode();
@@ -728,6 +795,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
                     ActionRunnable.supply(
                         f,
                         () -> BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT.read(
+                            repository.getMetadata().name(),
                             repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
                             generation,
                             NamedXContentRegistry.EMPTY

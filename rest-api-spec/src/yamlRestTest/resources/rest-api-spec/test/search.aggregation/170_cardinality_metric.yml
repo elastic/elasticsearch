@@ -216,8 +216,8 @@ setup:
 ---
 "profiler int":
   - skip:
-      version: " - 7.99.99"
-      reason:  new info added in 8.0.0 to be backported to 7.10.0
+      version: " - 7.9.99"
+      reason: introduced in 7.10.0
   - do:
       search:
         body:
@@ -242,8 +242,8 @@ setup:
 ---
 "profiler double":
   - skip:
-      version: " - 7.99.99"
-      reason:  new info added in 8.0.0 to be backported to 7.10.0
+      version: " - 7.9.99"
+      reason: introduced in 7.10.0
   - do:
       search:
         body:
@@ -268,8 +268,8 @@ setup:
 ---
 "profiler string":
   - skip:
-      version: " - 7.99.99"
-      reason:  new info added in 8.0.0 to be backported to 7.10.0
+      version: " - 7.9.99"
+      reason: introduced in 7.10.0
   - do:
       search:
         body:

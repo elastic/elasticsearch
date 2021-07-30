@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,7 +42,7 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class EqlSearchResponse extends ActionResponse implements ToXContentObject {
+public class EqlSearchResponse extends ActionResponse implements ToXContentObject, QlStatusResponse.AsyncStatus {
 
     private final Hits hits;
     private final long tookInMillis;
@@ -150,14 +151,17 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         return hits;
     }
 
+    @Override
     public String id() {
         return asyncExecutionId;
     }
 
+    @Override
     public boolean isRunning() {
         return isRunning;
     }
 
+    @Override
     public boolean isPartial() {
         return isPartial;
     }

@@ -12,6 +12,8 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -47,6 +49,7 @@ import java.util.stream.StreamSupport;
 public class Realms implements Iterable<Realm> {
 
     private static final Logger logger = LogManager.getLogger(Realms.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     private final Settings settings;
     private final Environment env;
@@ -167,9 +170,13 @@ public class Realms implements Iterable<Realm> {
         List<Realm> realms = new ArrayList<>();
         Map<String, Set<String>> nameToRealmIdentifier = new HashMap<>();
         Map<Integer, Set<String>> orderToRealmName = new HashMap<>();
+        List<RealmConfig.RealmIdentifier> reservedPrefixedRealmIdentifiers = new ArrayList<>();
         for (RealmConfig config: realmConfigs) {
             Realm.Factory factory = factories.get(config.identifier().getType());
             assert factory != null : "unknown realm type [" + config.identifier().getType() + "]";
+            if (config.identifier().getName().startsWith(RealmSettings.RESERVED_REALM_NAME_PREFIX)) {
+                reservedPrefixedRealmIdentifiers.add(config.identifier());
+            }
             if (config.enabled() == false) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("realm [{}] is disabled", config.identifier());
@@ -197,9 +204,11 @@ public class Realms implements Iterable<Realm> {
         if (Strings.hasText(duplicateRealms)) {
             throw new IllegalArgumentException("Found multiple realms configured with the same name: " + duplicateRealms + "");
         }
+        logDeprecationForReservedPrefixedRealmNames(reservedPrefixedRealmIdentifiers);
         return Collections.unmodifiableList(realms);
     }
 
+    @SuppressWarnings("unchecked")
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
         Map<String, Object> realmMap = new HashMap<>();
@@ -223,6 +232,7 @@ public class Realms implements Iterable<Realm> {
                         }
 
                         assert value instanceof Map;
+                        @SuppressWarnings("unchecked")
                         Map<String, Object> realmTypeUsage = (Map<String, Object>) value;
                         realmTypeUsage.put("enabled", true);
                         realmTypeUsage.put("available", true);
@@ -337,6 +347,20 @@ public class Realms implements Iterable<Realm> {
             .collect(Collectors.toUnmodifiableSet());
     }
 
+    private void logDeprecationForReservedPrefixedRealmNames(List<RealmConfig.RealmIdentifier> realmIdentifiers) {
+        if (false == realmIdentifiers.isEmpty()) {
+            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "realm_name_with_reserved_prefix",
+                "Found realm " + (realmIdentifiers.size() == 1 ? "name" : "names") + " with reserved prefix [{}]: [{}]. " +
+                    "In a future major release, node will fail to start if any realm names start with reserved prefix.",
+                RealmSettings.RESERVED_REALM_NAME_PREFIX,
+                realmIdentifiers.stream()
+                    .map(rid -> RealmSettings.PREFIX + rid.getType() + "." + rid.getName())
+                    .sorted()
+                    .collect(Collectors.joining("; ")));
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private static void combineMaps(Map<String, Object> mapA, Map<String, Object> mapB) {
         for (Entry<String, Object> entry : mapB.entrySet()) {
             mapA.compute(entry.getKey(), (key, value) -> {

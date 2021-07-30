@@ -22,8 +22,3 @@ tasks.named("internalClusterTest").configure {
   // Reduce the buffer size per cache-fetch thread to keep direct memory usage under control.
   systemProperty 'es.searchable.snapshot.shared_cache.write_buffer.size', '256k'
 }
-
-tasks.named('splitPackagesAudit').configure {
-  // xpack core needs to not split packages, the xpack info classes need to be moved
-  ignoreClasses 'org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots'
-}

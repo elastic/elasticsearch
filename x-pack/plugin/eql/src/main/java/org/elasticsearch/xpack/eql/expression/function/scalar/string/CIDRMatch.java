@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -29,6 +28,8 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatchFunctionProcessor.doProcess;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.fromIndex;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isIPAndExact;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
@@ -64,19 +65,19 @@ public class CIDRMatch extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isIPAndExact(input, sourceText(), Expressions.ParamOrdinal.FIRST);
+        TypeResolution resolution = isIPAndExact(input, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
 
         int index = 1;
         for (Expression addr : addresses) {
-            resolution = isFoldable(addr, sourceText(), ParamOrdinal.fromIndex(index));
+            resolution = isFoldable(addr, sourceText(), fromIndex(index));
             if (resolution.unresolved()) {
                 break;
             }
 
-            resolution = isStringAndExact(addr, sourceText(), ParamOrdinal.fromIndex(index));
+            resolution = isStringAndExact(addr, sourceText(), fromIndex(index));
             if (resolution.unresolved()) {
                 break;
             }

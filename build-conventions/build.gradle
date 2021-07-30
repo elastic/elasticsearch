@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-import org.gradle.plugins.ide.eclipse.model.SourceFolder;
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
 plugins {
     id 'java-gradle-plugin'
@@ -41,9 +41,9 @@ gradlePlugin {
             id = 'elasticsearch.licensing'
             implementationClass = 'org.elasticsearch.gradle.internal.conventions.LicensingPlugin'
         }
-        basics {
-            id = 'elasticsearch.basic-build-tool-conventions'
-            implementationClass = 'org.elasticsearch.gradle.internal.conventions.BasicBuildToolConventionsPlugin'
+        buildTools {
+            id = 'elasticsearch.build-tools'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.BuildToolsConventionsPlugin'
         }
     }
 }
@@ -57,9 +57,10 @@ dependencies {
     api 'org.apache.maven:maven-model:3.6.2'
     api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
     api 'org.apache.rat:apache-rat:0.11'
+    compileOnly "com.puppycrawl.tools:checkstyle:8.42"
 }
 
-project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
+project.getPlugins().withType(JavaBasePlugin.class) {
     java.getModularity().getInferModulePath().set(false);
     eclipse.getClasspath().getFile().whenMerged { classpath ->
         /*
@@ -68,9 +69,8 @@ project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
          * in the usual build folder because eclipse becomes *very* sad
          * if we delete it. Which `gradlew clean` does all the time.
          */
-        int i = 0;
-        classpath.getEntries().stream().filter(e -> e instanceof SourceFolder).forEachOrdered(s ->
-                s.setOutput("out/eclipse"+i++)
-        )
+        classpath.getEntries().findAll{ s -> s instanceof SourceFolder }.eachWithIndex { s, i ->
+            s.setOutput("out/eclipse" + i)
+        }
     }
-})
+}

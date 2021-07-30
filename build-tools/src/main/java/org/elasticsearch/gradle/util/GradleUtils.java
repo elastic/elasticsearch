@@ -19,6 +19,7 @@ import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceRegistration;
@@ -46,26 +47,11 @@ public abstract class GradleUtils {
     }
 
     public static SourceSetContainer getJavaSourceSets(Project project) {
-        return project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
-    }
-
-    public static <T extends Task> TaskProvider<T> maybeRegister(TaskContainer tasks, String name, Class<T> clazz, Action<T> action) {
-        try {
-            return tasks.named(name, clazz);
-        } catch (UnknownTaskException e) {
-            return tasks.register(name, clazz, action);
-        }
+        return project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
     }
 
     public static void maybeConfigure(TaskContainer tasks, String name, Action<? super Task> config) {
-        TaskProvider<?> task;
-        try {
-            task = tasks.named(name);
-        } catch (UnknownTaskException e) {
-            return;
-        }
-
-        task.configure(config);
+        tasks.matching(t -> t.getName().equals(name)).configureEach( t-> config.execute(t));
     }
 
     public static <T extends Task> void maybeConfigure(

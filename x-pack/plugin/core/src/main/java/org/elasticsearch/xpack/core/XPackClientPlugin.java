@@ -33,6 +33,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.ccr.CCRInfoTransportAction;
+import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsage;
@@ -40,7 +41,6 @@ import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
-import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
@@ -218,7 +218,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConf
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
-import org.elasticsearch.xpack.core.vectors.VectorsFeatureSetUsage;
 import org.elasticsearch.xpack.core.votingonly.VotingOnlyNodeFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
@@ -268,8 +267,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
     @Override
     public List<ActionType<? extends ActionResponse>> getClientActions() {
         List<ActionType<? extends ActionResponse>> actions = new ArrayList<>(Arrays.asList(
-            // deprecation
-            DeprecationInfoAction.INSTANCE,
             // graph
             GraphExploreAction.INSTANCE,
             // ML
@@ -399,6 +396,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             DeleteSnapshotLifecycleAction.INSTANCE,
             ExecuteSnapshotLifecycleAction.INSTANCE,
             GetSnapshotLifecycleStatsAction.INSTANCE,
+            MigrateToDataTiersAction.INSTANCE,
+
             // Freeze
             FreezeIndexAction.INSTANCE,
             // Data Frame
@@ -516,8 +515,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 TransformField.TIME.getPreferredName(),
                 TimeRetentionPolicyConfig::new
             ),
-            // Vectors
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VECTORS, VectorsFeatureSetUsage::new),
             // Voting Only Node
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VOTING_ONLY, VotingOnlyNodeFeatureSetUsage::new),
             // Frozen indices

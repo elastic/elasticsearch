@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
@@ -21,12 +22,15 @@ import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
+
 
 /**
  * A request to gather terms for a given field matching a string prefix
  */
 public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> implements ToXContentObject {
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
     public static int DEFAULT_SIZE = 10;
     public static TimeValue DEFAULT_TIMEOUT = new TimeValue(1000);
 
@@ -47,7 +51,7 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
      */
     public TermsEnumRequest(String... indices) {
         super(indices);
-        indicesOptions(IndicesOptions.fromOptions(false, false, true, false));
+        indicesOptions(DEFAULT_INDICES_OPTIONS);
         timeout(DEFAULT_TIMEOUT);
     }
 
@@ -86,6 +90,25 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     }
 
     @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("field", field);
+        if (string != null) {
+            builder.field("string", string);
+        }
+        if (searchAfter != null) {
+            builder.field("search_after", searchAfter);
+        }
+        builder.field("size", size);
+        builder.field("timeout", timeout());
+        builder.field("case_insensitive", caseInsensitive);
+        if (indexFilter != null) {
+            builder.field("index_filter", indexFilter);
+        }
+        return builder.endObject();
+    }
+
+    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if (field == null) {
@@ -100,6 +123,16 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
             }
         }
         return validationException;
+    }
+
+    @Override
+    public boolean allowsRemoteIndices() {
+        return true;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     /**
@@ -200,21 +233,26 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("field", field);
-        if (string != null) {
-            builder.field("string", string);
-        }
-        if (searchAfter != null) {
-            builder.field("search_after", searchAfter);
-        }
-        builder.field("size", size);
-        builder.field("timeout", timeout().getMillis());
-        builder.field("case_insensitive", caseInsensitive);
-        if (indexFilter != null) {
-            builder.field("index_filter", indexFilter);
-        }
-        return builder.endObject();
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TermsEnumRequest that = (TermsEnumRequest) o;
+        return size == that.size
+            && caseInsensitive == that.caseInsensitive
+            && Objects.equals(field, that.field)
+            && Objects.equals(string, that.string)
+            && Objects.equals(searchAfter, that.searchAfter)
+            && Objects.equals(indexFilter, that.indexFilter)
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(indicesOptions(), that.indicesOptions())
+            && Objects.equals(timeout(), that.timeout());
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(field, string, searchAfter, size, caseInsensitive,
+            indexFilter, indicesOptions(), timeout());
+        result = 31 * result + Arrays.hashCode(indices);
+        return result;
     }
 }

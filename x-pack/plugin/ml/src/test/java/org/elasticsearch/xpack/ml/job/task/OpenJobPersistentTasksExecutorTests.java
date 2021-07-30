@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -115,7 +116,15 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         jobBuilder.setDeleting(true);
         Exception e = expectThrows(ElasticsearchStatusException.class,
             () -> validateJobAndId("job_id", jobBuilder.build()));
-        assertEquals("Cannot open job [job_id] because it is being deleted", e.getMessage());
+        assertEquals("Cannot open job [job_id] because it is executing [delete]", e.getMessage());
+    }
+
+    public void testValidate_blockedReset() {
+        Job.Builder jobBuilder = buildJobBuilder("job_id");
+        jobBuilder.setBlocked(new Blocked(Blocked.Reason.REVERT, null));
+        Exception e = expectThrows(ElasticsearchStatusException.class,
+            () -> validateJobAndId("job_id", jobBuilder.build()));
+        assertEquals("Cannot open job [job_id] because it is executing [revert]", e.getMessage());
     }
 
     public void testValidate_jobWithoutVersion() {

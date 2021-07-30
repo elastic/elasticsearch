@@ -35,7 +35,9 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -165,8 +167,9 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         if (job == null) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
-        if (job.isDeleting()) {
-            throw ExceptionsHelper.conflictStatusException("Cannot open job [{}] because it is being deleted", jobId);
+        if (job.getBlocked().getReason() != Blocked.Reason.NONE) {
+            throw ExceptionsHelper.conflictStatusException("Cannot open job [{}] because it is executing [{}]", jobId,
+                job.getBlocked().getReason());
         }
         if (job.getJobVersion() == null) {
             throw ExceptionsHelper.badRequestException(
@@ -239,8 +242,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
 
         ActionListener<Boolean> hasRunningDatafeedTaskListener = ActionListener.wrap(
             hasRunningDatafeed -> {
-                if (hasRunningDatafeed && clusterState.nodes().getMasterNode().getVersion().onOrAfter(
-                    MIN_MASTER_NODE_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT)) {
+                if (hasRunningDatafeed && isMasterNodeVersionOnOrAfter(MIN_MASTER_NODE_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT)) {
 
                     // This job has a running datafeed attached to it.
                     // In order to prevent gaps in the model we revert to the current snapshot deleting intervening results.
@@ -253,6 +255,10 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         );
 
         hasRunningDatafeedTask(jobTask.getJobId(), hasRunningDatafeedTaskListener);
+    }
+
+    private boolean isMasterNodeVersionOnOrAfter(Version version) {
+        return clusterState.nodes().getMasterNode().getVersion().onOrAfter(version);
     }
 
     private void hasRunningDatafeedTask(String jobId, ActionListener<Boolean> listener) {
@@ -272,12 +278,10 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             listener::onFailure
         );
 
-        datafeedConfigProvider.findDatafeedsForJobIds(Collections.singleton(jobId), datafeedListener);
+        datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singleton(jobId), datafeedListener);
     }
 
-    private void revertToCurrentSnapshot(String jobId, ActionListener<RevertModelSnapshotAction.Response> listener) {
-        logger.info("[{}] job has running datafeed task; reverting to current snapshot", jobId);
-
+    private void revertToCurrentSnapshot(String jobId, ActionListener<Boolean> listener) {
         ActionListener<GetJobsAction.Response> jobListener = ActionListener.wrap(
             jobResponse -> {
                 List<Job> jobPage = jobResponse.getResponse().results();
@@ -285,12 +289,28 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                 assert jobPage.size() == 1;
 
                 String jobSnapshotId = jobPage.get(0).getModelSnapshotId();
-                RevertModelSnapshotAction.Request request = new RevertModelSnapshotAction.Request(jobId,
-                    jobSnapshotId == null ? ModelSnapshot.EMPTY_SNAPSHOT_ID : jobSnapshotId);
-                request.setForce(true);
-                request.setDeleteInterveningResults(true);
-                request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
-                executeAsyncWithOrigin(client, ML_ORIGIN, RevertModelSnapshotAction.INSTANCE, request, listener);
+                if (jobSnapshotId == null && isMasterNodeVersionOnOrAfter(ResetJobAction.VERSION_INTRODUCED)) {
+                    logger.info("[{}] job has running datafeed task; resetting as no snapshot exists", jobId);
+                    ResetJobAction.Request request = new ResetJobAction.Request(jobId);
+                    request.setSkipJobStateValidation(true);
+                    request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+                    request.timeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+                    executeAsyncWithOrigin(client, ML_ORIGIN, ResetJobAction.INSTANCE, request, ActionListener.wrap(
+                        response -> listener.onResponse(true),
+                        listener::onFailure
+                    ));
+                } else {
+                    logger.info("[{}] job has running datafeed task; reverting to current snapshot", jobId);
+                    RevertModelSnapshotAction.Request request = new RevertModelSnapshotAction.Request(jobId,
+                        jobSnapshotId == null ? ModelSnapshot.EMPTY_SNAPSHOT_ID : jobSnapshotId);
+                    request.setForce(true);
+                    request.setDeleteInterveningResults(true);
+                    request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+                    executeAsyncWithOrigin(client, ML_ORIGIN, RevertModelSnapshotAction.INSTANCE, request, ActionListener.wrap(
+                        response -> listener.onResponse(true),
+                        listener::onFailure
+                    ));
+                }
             },
             error -> listener.onFailure(ExceptionsHelper.serverError("[{}] error getting job", error, jobId))
         );
@@ -306,7 +326,11 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         String jobId = jobTask.getJobId();
         autodetectProcessManager.openJob(jobTask, clusterState, PERSISTENT_TASK_MASTER_NODE_TIMEOUT, (e2, shouldFinalizeJob) -> {
             if (e2 == null) {
-                if (shouldFinalizeJob) {
+                // Beyond this point it's too late to change our minds about whether we're closing or vacating
+                if (jobTask.isVacating()) {
+                    jobTask.markAsLocallyAborted(
+                        "previously assigned node [" + clusterState.nodes().getLocalNode().getName() + "] is shutting down");
+                } else if (shouldFinalizeJob) {
                     FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(new String[]{jobId});
                     finalizeRequest.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
                     executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,

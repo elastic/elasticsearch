@@ -75,7 +75,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(ParseContext context) {
+    public void postParse(DocumentParserContext context) {
         for (String field : context.getIgnoredFields()) {
             context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
         }

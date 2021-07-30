@@ -104,10 +104,41 @@ public class RootObjectMapper extends ObjectMapper {
         }
     }
 
+    /**
+     * Removes redundant root includes in {@link NestedObjectMapper} trees to avoid duplicate
+     * fields on the root mapper when {@code isIncludeInRoot} is {@code true} for a node that is
+     * itself included into a parent node, for which either {@code isIncludeInRoot} is
+     * {@code true} or which is transitively included in root by a chain of nodes with
+     * {@code isIncludeInParent} returning {@code true}.
+     */
+    // TODO it would be really nice to make this an implementation detail of NestedObjectMapper
+    // and run it as part of the builder, but this does not yet work because of the way that
+    // index templates are merged together. If merge() was run on Builder objects rather than
+    // on Mappers then we could move this.
+    public void fixRedundantIncludes() {
+        fixRedundantIncludes(this, true);
+    }
+
+    private static void fixRedundantIncludes(ObjectMapper objectMapper, boolean parentIncluded) {
+        for (Mapper mapper : objectMapper) {
+            if (mapper instanceof NestedObjectMapper) {
+                NestedObjectMapper child = (NestedObjectMapper) mapper;
+                boolean isNested = child.isNested();
+                boolean includeInRootViaParent = parentIncluded && isNested && child.isIncludeInParent();
+                boolean includedInRoot = isNested && child.isIncludeInRoot();
+                if (includeInRootViaParent && includedInRoot) {
+                    child.setIncludeInParent(true);
+                    child.setIncludeInRoot(false);
+                }
+                fixRedundantIncludes(child, includeInRootViaParent || includedInRoot);
+            }
+        }
+    }
+
     static final class TypeParser extends ObjectMapper.TypeParser {
 
         @Override
-        public RootObjectMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
             RootObjectMapper.Builder builder = new Builder(name);
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
@@ -124,7 +155,10 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @SuppressWarnings("unchecked")
-        private boolean processField(RootObjectMapper.Builder builder, String fieldName, Object fieldNode, ParserContext parserContext) {
+        private boolean processField(RootObjectMapper.Builder builder,
+                                     String fieldName,
+                                     Object fieldNode,
+                                     MappingParserContext parserContext) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 if (fieldNode instanceof List) {
                     List<DateFormatter> formatters = new ArrayList<>();
@@ -347,7 +381,7 @@ public class RootObjectMapper extends ObjectMapper {
         }
     }
 
-    private static void validateDynamicTemplate(Mapper.TypeParser.ParserContext parserContext,
+    private static void validateDynamicTemplate(MappingParserContext parserContext,
                                                 DynamicTemplate template) {
 
         if (containsSnippet(template.getMapping(), "{name}")) {

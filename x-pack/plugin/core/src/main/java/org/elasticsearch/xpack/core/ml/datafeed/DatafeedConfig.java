@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
@@ -37,7 +38,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
@@ -109,6 +109,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
      */
     public static final String DOC_COUNT = "doc_count";
 
+    // Accessing `Job.ID` here causes an NPE in tests as a DatafeedConfig parser is referenced in the Job parser
+    public static final ParseField JOB_ID = new ParseField("job_id");
     public static final ParseField ID = new ParseField("datafeed_id");
     public static final ParseField CONFIG_TYPE = new ParseField("config_type");
     public static final ParseField QUERY_DELAY = new ParseField("query_delay");
@@ -158,7 +160,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
         parser.declareString(Builder::setId, ID);
         parser.declareString((c, s) -> {}, CONFIG_TYPE);
-        parser.declareString(Builder::setJobId, Job.ID);
+        parser.declareString(Builder::setJobId, JOB_ID);
         parser.declareStringArray(Builder::setIndices, INDEXES);
         parser.declareStringArray(Builder::setIndices, INDICES);
         parser.declareString((builder, val) ->
@@ -522,7 +524,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
-        builder.field(Job.ID.getPreferredName(), jobId);
+        builder.field(JOB_ID.getPreferredName(), jobId);
         if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
                 builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
@@ -697,7 +699,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         return TimeValue.timeValueHours(1);
     }
 
-    public static class Builder {
+    public static class Builder implements Writeable {
 
         private String id;
         private String jobId;
@@ -720,7 +722,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         public Builder(String id, String jobId) {
             this();
             this.id = ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
-            this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
+            this.jobId = ExceptionsHelper.requireNonNull(jobId, JOB_ID.getPreferredName());
         }
 
         public Builder(DatafeedConfig config) {
@@ -741,6 +743,116 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.runtimeMappings = new HashMap<>(config.runtimeMappings);
         }
 
+        public Builder(StreamInput in) throws IOException {
+            this.id = in.readOptionalString();
+            this.jobId = in.readOptionalString();
+            this.queryDelay = in.readOptionalTimeValue();
+            this.frequency = in.readOptionalTimeValue();
+            if (in.readBoolean()) {
+                this.indices = Collections.unmodifiableList(in.readStringList());
+            } else {
+                this.indices = null;
+            }
+            // each of these writables are version aware
+            this.queryProvider = QueryProvider.fromStream(in);
+            // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
+            this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
+
+            if (in.readBoolean()) {
+                this.scriptFields = Collections.unmodifiableList(in.readList(SearchSourceBuilder.ScriptField::new));
+            } else {
+                this.scriptFields = null;
+            }
+            this.scrollSize = in.readOptionalVInt();
+            this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
+            this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
+            delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
+            maxEmptySearches = in.readOptionalVInt();
+            if (in.readBoolean()) {
+                indicesOptions = IndicesOptions.readIndicesOptions(in);
+            }
+            runtimeMappings = in.readMap();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(id);
+            out.writeOptionalString(jobId);
+            out.writeOptionalTimeValue(queryDelay);
+            out.writeOptionalTimeValue(frequency);
+            if (indices != null) {
+                out.writeBoolean(true);
+                out.writeStringCollection(indices);
+            } else {
+                out.writeBoolean(false);
+            }
+
+            // Each of these writables are version aware
+            queryProvider.writeTo(out); // never null
+            // This writes a boolean to the stream, if true, it sends the stream to the `writeTo` method
+            out.writeOptionalWriteable(aggProvider);
+
+            if (scriptFields != null) {
+                out.writeBoolean(true);
+                out.writeList(scriptFields);
+            } else {
+                out.writeBoolean(false);
+            }
+            out.writeOptionalVInt(scrollSize);
+            out.writeOptionalWriteable(chunkingConfig);
+            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeOptionalWriteable(delayedDataCheckConfig);
+            out.writeOptionalVInt(maxEmptySearches);
+            out.writeBoolean(indicesOptions != null);
+            if (indicesOptions != null) {
+                indicesOptions.writeIndicesOptions(out);
+            }
+            out.writeMap(runtimeMappings);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Builder builder = (Builder) o;
+            return Objects.equals(id, builder.id)
+                && Objects.equals(jobId, builder.jobId)
+                && Objects.equals(queryDelay, builder.queryDelay)
+                && Objects.equals(frequency, builder.frequency)
+                && Objects.equals(indices, builder.indices)
+                && Objects.equals(queryProvider, builder.queryProvider)
+                && Objects.equals(aggProvider, builder.aggProvider)
+                && Objects.equals(scriptFields, builder.scriptFields)
+                && Objects.equals(scrollSize, builder.scrollSize)
+                && Objects.equals(chunkingConfig, builder.chunkingConfig)
+                && Objects.equals(headers, builder.headers)
+                && Objects.equals(delayedDataCheckConfig, builder.delayedDataCheckConfig)
+                && Objects.equals(maxEmptySearches, builder.maxEmptySearches)
+                && Objects.equals(indicesOptions, builder.indicesOptions)
+                && Objects.equals(runtimeMappings, builder.runtimeMappings);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                id,
+                jobId,
+                queryDelay,
+                frequency,
+                indices,
+                queryProvider,
+                aggProvider,
+                scriptFields,
+                scrollSize,
+                chunkingConfig,
+                headers,
+                delayedDataCheckConfig,
+                maxEmptySearches,
+                indicesOptions,
+                runtimeMappings
+            );
+        }
+
         public Builder setId(String datafeedId) {
             id = ExceptionsHelper.requireNonNull(datafeedId, ID.getPreferredName());
             return this;
@@ -751,7 +863,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
 
         public Builder setJobId(String jobId) {
-            this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
+            this.jobId = ExceptionsHelper.requireNonNull(jobId, JOB_ID.getPreferredName());
             return this;
         }
 
@@ -880,7 +992,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
         public DatafeedConfig build() {
             ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
-            ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
+            ExceptionsHelper.requireNonNull(jobId, JOB_ID.getPreferredName());
             if (MlStrings.isValidId(id) == false) {
                 throw ExceptionsHelper.badRequestException(getMessage(INVALID_ID, ID.getPreferredName(), id));
             }
@@ -1019,6 +1131,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 checkNoMoreCompositeAggregations(agg.getSubAggregations());
             }
         }
+
         private void setDefaultChunkingConfig() {
             if (chunkingConfig == null) {
                 chunkingConfig = defaultChunkingConfig(aggProvider);

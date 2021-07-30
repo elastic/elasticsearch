@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -18,14 +19,35 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
 
 public class SentimentAnalysisProcessor implements NlpTask.Processor {
 
     private final BertTokenizer tokenizer;
+    private final List<String> classLabels;
 
-    SentimentAnalysisProcessor(BertTokenizer tokenizer) {
+    SentimentAnalysisProcessor(BertTokenizer tokenizer, NlpTaskConfig config) {
         this.tokenizer = tokenizer;
+        List<String> classLabels = config.getClassificationLabels();
+        if (classLabels == null || classLabels.isEmpty()) {
+            this.classLabels = List.of("negative", "positive");
+        } else {
+            this.classLabels = classLabels;
+        }
+
+        validate();
     }
+
+    private void validate() {
+        if (classLabels.size() != 2) {
+            throw new ValidationException().addValidationError(
+                String.format(Locale.ROOT, "Sentiment analysis requires exactly 2 [%s]. Invalid labels %s",
+                    NlpTaskConfig.CLASSIFICATION_LABELS, classLabels)
+            );
+        }
+    }
+
     @Override
     public void validateInputs(String inputs) {
         // nothing to validate
@@ -56,7 +78,10 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
         }
 
         double[] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0]);
-        return new SentimentAnalysisResults(normalizedScores[1], normalizedScores[0]);
+        // the second score is usually the positive score so put that first
+        // so it comes first in the results doc
+        return new SentimentAnalysisResults(classLabels.get(1), normalizedScores[1],
+            classLabels.get(0), normalizedScores[0]);
     }
 
     static BytesReference jsonRequest(int[] tokens, String requestId) throws IOException {

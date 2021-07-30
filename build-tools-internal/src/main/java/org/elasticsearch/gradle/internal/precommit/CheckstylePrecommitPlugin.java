@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.precommit;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -19,6 +18,7 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.plugins.quality.Checkstyle;
 import org.gradle.api.plugins.quality.CheckstyleExtension;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
@@ -88,12 +88,13 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin implements Intern
 
         DependencyHandler dependencies = project.getDependencies();
         String checkstyleVersion = VersionProperties.getVersions().get("checkstyle");
+        Provider<String> dependencyProvider = project.provider(() -> "org.elasticsearch:build-conventions:" + project.getVersion());
         dependencies.add("checkstyle", "com.puppycrawl.tools:checkstyle:" + checkstyleVersion);
-        dependencies.add("checkstyle", project.files(getBuildSrcCodeSource()));
+        dependencies.addProvider("checkstyle", dependencyProvider, dep -> dep.setTransitive(false));
 
         project.getTasks().withType(Checkstyle.class).configureEach(t -> {
             t.dependsOn(copyCheckstyleConf);
-            t.reports(r -> r.getHtml().setEnabled(false));
+            t.reports(r -> r.getHtml().getRequired().set(false));
         });
 
         return checkstyleTask;

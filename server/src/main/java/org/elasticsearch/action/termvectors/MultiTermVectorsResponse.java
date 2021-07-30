@@ -16,6 +16,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -112,6 +114,9 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
                 builder.startObject();
                 Failure failure = response.getFailure();
                 builder.field(Fields._INDEX, failure.getIndex());
+                if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+                    builder.field(Fields._TYPE, MapperService.SINGLE_MAPPING_NAME);
+                }
                 builder.field(Fields._ID, failure.getId());
                 ElasticsearchException.generateFailureXContent(builder, params, failure.getCause(), true);
                 builder.endObject();

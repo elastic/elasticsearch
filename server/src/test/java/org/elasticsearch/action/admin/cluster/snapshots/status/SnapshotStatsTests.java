@@ -8,10 +8,10 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import java.io.IOException;
-
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+
+import java.io.IOException;
 
 public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> {
 

@@ -24,6 +24,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -204,6 +205,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             boolean inorder = (mpq.getSlop() == 0);
             return Collections.singletonList(new SpanNearQuery(positionSpanQueries,
                 mpq.getSlop() + positionGaps, inorder));
+        } else if (query instanceof ESToParentBlockJoinQuery) {
+            return Collections.singletonList(((ESToParentBlockJoinQuery) query).getChildQuery());
         } else {
             return null;
         }

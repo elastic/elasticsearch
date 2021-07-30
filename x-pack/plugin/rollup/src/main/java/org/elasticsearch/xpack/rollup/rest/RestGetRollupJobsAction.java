@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -24,7 +25,10 @@ public class RestGetRollupJobsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_rollup/job/{id}"));
+        return List.of(
+            Route.builder(GET, "/_rollup/job/{id}")
+                .replaces(GET, "/_xpack/rollup/job/{id}/", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

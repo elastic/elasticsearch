@@ -15,29 +15,29 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.fs.FsProbe;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.SparseFileTracker;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.SparseFileTracker;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -73,6 +73,14 @@ public class FrozenCacheService implements Releasable {
         ByteSizeValue.ofMb(16).getStringRep(),
         s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "range_size"),
         getPageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "range_size"),
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING = new Setting<>(
+        SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size",
+        ByteSizeValue.ofKb(128L).getStringRep(),
+        s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size"),
+        getPageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size"),
         Setting.Property.NodeScope
     );
 
@@ -179,14 +187,6 @@ public class FrozenCacheService implements Releasable {
                 }
             }
         },
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<ByteSizeValue> FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
-        SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size",
-        new ByteSizeValue(128, ByteSizeUnit.KB),                // default
-        MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
-        MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
         Setting.Property.NodeScope
     );
 

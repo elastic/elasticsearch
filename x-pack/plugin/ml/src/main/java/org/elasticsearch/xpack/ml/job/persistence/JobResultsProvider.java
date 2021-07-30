@@ -1065,8 +1065,10 @@ public class JobResultsProvider {
                 .order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
         // `min_version` might not be present in very early snapshots.
         // Consequently, we should treat it as being at least from 6.3.0 or before
+        // Also, if no jobs have been opened since the previous versions, the .ml-anomalies-* index may not have
+        // the `min_version`.
         if (sortField.equals(ModelSnapshot.MIN_VERSION.getPreferredName())) {
-            sb.missing(Version.fromString("6.3.0"));
+            sb.missing(Version.fromString("6.3.0")).unmappedType("keyword");
         }
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);

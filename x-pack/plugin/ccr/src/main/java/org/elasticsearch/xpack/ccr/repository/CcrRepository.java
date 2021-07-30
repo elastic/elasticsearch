@@ -62,15 +62,17 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.MultiChunkTransfer;
 import org.elasticsearch.indices.recovery.MultiFileWriter;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -172,8 +174,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
-        assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
+    public void getSnapshotInfo(GetSnapshotInfoContext context) {
+        final List<SnapshotId> snapshotIds = context.snapshotIds();
+        assert snapshotIds.size() == 1 && SNAPSHOT_ID.equals(snapshotIds.iterator().next())
+                : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId but saw " + snapshotIds;
         Client remoteClient = getRemoteClusterClient();
         ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetadata(true).setNodes(true)
             .get(ccrSettings.getRecoveryActionTimeout());
@@ -182,9 +186,17 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         ArrayList<String> indices = new ArrayList<>(indicesMap.size());
         indicesMap.keysIt().forEachRemaining(indices::add);
 
-        return new SnapshotInfo(snapshotId, indices, new ArrayList<>(metadata.dataStreams().keySet()), Collections.emptyList(),
-            response.getState().getNodes().getMaxNodeVersion(), SnapshotState.SUCCESS
-        );
+        // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
+        threadPool.executor(ThreadPool.Names.SNAPSHOT_META).execute(() -> context.onResponse(
+            new SnapshotInfo(
+                new Snapshot(this.metadata.name(), SNAPSHOT_ID),
+                indices,
+                new ArrayList<>(metadata.dataStreams().keySet()),
+                Collections.emptyList(),
+                response.getState().getNodes().getMaxNodeVersion(),
+                SnapshotState.SUCCESS
+            )
+        ));
     }
 
     @Override

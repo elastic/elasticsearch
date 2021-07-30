@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -214,12 +215,20 @@ public class IndexingStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.INDEXING);
         totalStats.toXContent(builder, params);
+        if(builder.getRestApiVersion() == RestApiVersion.V_7 && params.param("types") != null){
+            builder.startObject(Fields.TYPES);
+            builder.startObject(MapperService.SINGLE_MAPPING_NAME);
+            totalStats.toXContent(builder, params);
+            builder.endObject();
+            builder.endObject();
+        }
         builder.endObject();
         return builder;
     }
 
     static final class Fields {
         static final String INDEXING = "indexing";
+        static final String TYPES = "types";
         static final String INDEX_TOTAL = "index_total";
         static final String INDEX_TIME = "index_time";
         static final String INDEX_TIME_IN_MILLIS = "index_time_in_millis";

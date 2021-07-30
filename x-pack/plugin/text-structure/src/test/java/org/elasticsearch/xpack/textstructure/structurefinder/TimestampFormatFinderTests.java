@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Tuple;
 
 import java.time.Instant;
 import java.time.ZoneId;

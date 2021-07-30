@@ -158,7 +158,9 @@ cluster and remove nodes from the old one.
   faster reindexing.
 
 .. Use the <<docs-reindex,`reindex` API>> to pull documents from the
-  remote index into the new {version} index:
+remote index into the new {version} index.
++
+include::{es-ref-dir}/docs/reindex.asciidoc[tag=remote-reindex-slicing]
 +
 --
 [source,console]

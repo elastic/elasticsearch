@@ -1,7 +1,7 @@
 ---
 - job:
-    name: "elastic+elasticsearch+%BRANCH%+pull-request/elastic+elasticsearch+%BRANCH%+pull-request+packaging-tests-unix"
-    display-name: "elastic / elasticsearch # %BRANCH% - pull request packaging-tests-unix"
+    name: "elastic+elasticsearch+pull-request+packaging-tests-unix"
+    display-name: "elastic / elasticsearch - pull request packaging-tests-unix"
     description: "Testing of Elasticsearch pull requests - packaging-tests-unix"
     project-type: matrix
     node: master
@@ -19,9 +19,8 @@
           github-hooks: true
           status-context: elasticsearch-ci/packaging-tests-unix
           cancel-builds-on-update: true
-          white-list-target-branches:
-            - %BRANCH%
-            - ^feat(ure)?/.*
+          black-list-target-branches:
+            - 6.8
           excluded-regions:
             - ^docs/.*
           white-list-labels:
@@ -33,16 +32,19 @@
           type: label-expression
           name: os
           values:
+            - centos-6-packaging
             - centos-7-packaging
             - centos-8-packaging
+            - debian-8-packaging
             - debian-9-packaging
             - debian-10-packaging
-            - fedora-32-packaging
             - opensuse-15-1-packaging
+            - oraclelinux-6-packaging
             - oraclelinux-7-packaging
             - oraclelinux-8-packaging
             - sles-12-packaging
             - sles-15-packaging
+            - ubuntu-16.04-packaging
             - ubuntu-18.04-packaging
             - ubuntu-20.04-packaging
       - axis:

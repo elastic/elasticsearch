@@ -11,7 +11,6 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
@@ -21,7 +20,9 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
@@ -45,13 +46,13 @@ public final class TranslogLeafReader extends LeafReader {
     private final Translog.Index operation;
     private static final FieldInfo FAKE_SOURCE_FIELD
         = new FieldInfo(SourceFieldMapper.NAME, 1, false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(),
-        0, 0, 0, 0, VectorValues.SimilarityFunction.NONE, false);
+        0, 0, 0, 0, VectorSimilarityFunction.EUCLIDEAN, false);
     private static final FieldInfo FAKE_ROUTING_FIELD
         = new FieldInfo(RoutingFieldMapper.NAME, 2, false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(),
-        0, 0, 0, 0, VectorValues.SimilarityFunction.NONE, false);
+        0, 0, 0, 0, VectorSimilarityFunction.EUCLIDEAN, false);
     private static final FieldInfo FAKE_ID_FIELD
         = new FieldInfo(IdFieldMapper.NAME, 3, false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(),
-        0, 0, 0, 0, VectorValues.SimilarityFunction.NONE, false);
+        0, 0, 0, 0, VectorSimilarityFunction.EUCLIDEAN, false);
     public static Set<String> ALL_FIELD_NAMES = Sets.newHashSet(FAKE_SOURCE_FIELD.name, FAKE_ROUTING_FIELD.name, FAKE_ID_FIELD.name);
 
     TranslogLeafReader(Translog.Index operation) {
@@ -103,7 +104,7 @@ public final class TranslogLeafReader extends LeafReader {
     }
 
     @Override
-    public TopDocs searchNearestVectors(String field, float[] target, int k, int fanout) throws IOException {
+    public TopDocs searchNearestVectors(String field, float[] target, int k) throws IOException {
         throw new UnsupportedOperationException();
     }
 
@@ -133,7 +134,7 @@ public final class TranslogLeafReader extends LeafReader {
     }
 
     @Override
-    public Fields getTermVectors(int docID) {
+    public TermVectors getTermVectorsReader() {
         throw new UnsupportedOperationException();
     }
 

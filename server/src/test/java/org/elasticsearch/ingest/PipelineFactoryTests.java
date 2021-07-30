@@ -9,7 +9,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 

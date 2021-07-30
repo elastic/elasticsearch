@@ -68,7 +68,7 @@ public class IndexDeprecationChecks {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-store.html",
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
                     "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
-                    "as it offers superior or equivalent performance to [simplefs].", null);
+                    "as it offers superior or equivalent performance to [simplefs].", false, null);
         }
         return null;
     }

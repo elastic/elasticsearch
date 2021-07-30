@@ -127,6 +127,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
+import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -1318,6 +1319,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 connection.sendRequest(requestId, action, request, options);
             });
         }
+        assertGlobalCheckpointIsStableAndSyncedInAllNodes(indexName, 0);
+
         IndexShard shard = internalCluster().getInstance(IndicesService.class, failingNode)
             .getShardOrNull(new ShardId(resolveIndex(indexName), 0));
         final long lastSyncedGlobalCheckpoint = shard.getLastSyncedGlobalCheckpoint();
@@ -1667,9 +1670,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         internalCluster().startDataOnlyNode(randomNodeDataPathSettings);
         ensureGreen();
         for (ShardStats shardStats : client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()) {
-            assertThat(shardStats.getSeqNoStats().getMaxSeqNo(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
-            assertThat(shardStats.getSeqNoStats().getLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
-            assertThat(shardStats.getSeqNoStats().getGlobalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+            assertThat(shardStats.getSeqNoStats().getMaxSeqNo(), equalTo(NO_OPS_PERFORMED));
+            assertThat(shardStats.getSeqNoStats().getLocalCheckpoint(), equalTo(NO_OPS_PERFORMED));
+            assertThat(shardStats.getSeqNoStats().getGlobalCheckpoint(), equalTo(NO_OPS_PERFORMED));
         }
     }
 
@@ -1795,4 +1798,17 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             .mapToLong(n -> n.getIndices().getStore().getReservedSize().getBytes()).sum(), equalTo(0L));
     }
 
+    private void assertGlobalCheckpointIsStableAndSyncedInAllNodes(String indexName, int shardId) throws Exception {
+        long maxSeqNo = NO_OPS_PERFORMED;
+        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            IndexShard shard = indicesService.getShardOrNull(new ShardId(resolveIndex(indexName), shardId));
+            maxSeqNo = Math.max(maxSeqNo, shard.seqNoStats().getMaxSeqNo());
+        }
+
+        final long maxSeqNoAcrossNodes = maxSeqNo;
+        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            IndexShard shard = indicesService.getShardOrNull(new ShardId(resolveIndex(indexName), shardId));
+            assertBusy(() -> assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(maxSeqNoAcrossNodes)));
+        }
+    }
 }

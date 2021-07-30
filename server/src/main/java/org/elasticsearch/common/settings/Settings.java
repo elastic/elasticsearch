@@ -386,7 +386,9 @@ public final class Settings implements ToXContentFragment {
         final Object valueFromPrefix = settings.get(key);
         if (valueFromPrefix != null) {
             if (valueFromPrefix instanceof List) {
-                return Collections.unmodifiableList((List<String>) valueFromPrefix);
+                @SuppressWarnings("unchecked")
+                final List<String> valuesAsList = (List<String>) valueFromPrefix;
+                return Collections.unmodifiableList(valuesAsList);
             } else if (commaDelimited) {
                 String[] strings = Strings.splitStringByCommaToArray(get(key));
                 if (strings.length > 0) {
@@ -524,7 +526,9 @@ public final class Settings implements ToXContentFragment {
             if (value == null) {
                 builder.putNull(key);
             } else if (value instanceof List) {
-                builder.putList(key, (List<String>) value);
+                @SuppressWarnings("unchecked")
+                List<String> stringList = (List<String>) value;
+                builder.putList(key, stringList);
             } else {
                 builder.put(key, value.toString());
             }
@@ -832,7 +836,9 @@ public final class Settings implements ToXContentFragment {
             }
             final Object value = source.settings.get(sourceKey);
             if (value instanceof List) {
-                return putList(key, (List)value);
+                @SuppressWarnings("unchecked")
+                final List<String> stringList = (List<String>) value;
+                return putList(key, stringList);
             } else if (value == null) {
                 return putNull(key);
             } else {
@@ -1124,6 +1130,7 @@ public final class Settings implements ToXContentFragment {
                     continue;
                 }
                 if (entry.getValue() instanceof List) {
+                    @SuppressWarnings("unchecked")
                     final ListIterator<String> li = ((List<String>) entry.getValue()).listIterator();
                     while (li.hasNext()) {
                         final String settingValueRaw = li.next();

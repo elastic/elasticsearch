@@ -379,6 +379,7 @@
             "model_snapshot_retention_days": 3,
             "daily_model_snapshot_retention_after_days": 2,
             "results_retention_days": 4,
+            "system_annotations_retention_days": 5,
             "custom_settings": {
               "setting1": "custom1",
               "setting2": "custom2"
@@ -434,6 +435,7 @@
             "background_persist_interval": "3h",
             "model_snapshot_retention_days": 30,
             "results_retention_days": 40,
+            "system_annotations_retention_days": 50,
             "custom_settings": {
               "setting3": "custom3"
             }
@@ -456,6 +458,7 @@
   - match: { results_retention_days: 40 }
   - match: { analysis_config.bucket_span: "5m" }
   - match: { analysis_config.model_prune_window: "60d" }
+  - match: { system_annotations_retention_days: 50 }
 
   - do:
       catch: "/Cannot update analysis_limits while the job is open/"

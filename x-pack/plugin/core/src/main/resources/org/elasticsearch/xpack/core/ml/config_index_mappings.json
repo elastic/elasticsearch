@@ -291,6 +291,9 @@
         "type" : "object",
         "enabled" : false
       },
+      "system_annotations_retention_days" : {
+        "type" : "long"
+      },
       "background_persist_interval" : {
         "type" : "keyword"
       },

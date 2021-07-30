@@ -42,8 +42,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.getKeyStoreType;
-
 public class CertParsingUtils {
 
     private CertParsingUtils() {
@@ -208,7 +206,7 @@ public class CertParsingUtils {
     static KeyConfig createKeyConfig(X509KeyPairSettings keyPair, Settings settings, String trustStoreAlgorithm) {
         String keyPath = keyPair.keyPath.get(settings).orElse(null);
         String keyStorePath = keyPair.keystorePath.get(settings).orElse(null);
-        String keyStoreType = getKeyStoreType(keyPair.keystoreType, settings, keyStorePath);
+        String keyStoreType = SSLConfigurationSettings.getKeyStoreType(keyPair.keystoreType, settings, keyStorePath);
 
         if (keyPath != null && keyStorePath != null) {
             throw new IllegalArgumentException("you cannot specify a keystore and key file");

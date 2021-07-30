@@ -1,41 +1,84 @@
 [[cluster-nodes-reload-secure-settings]]
-== Nodes Reload Secure Settings
+=== Nodes reload secure settings API
+++++
+<titleabbrev>Nodes reload secure settings</titleabbrev>
+++++
 
-The cluster nodes reload secure settings API is used to re-read the
-local node's encrypted keystore. Specifically, it will prompt the keystore
-decryption and reading accross the cluster. The keystore's plain content is
-used to reinitialize all compatible plugins. A compatible plugin can be
-reinitilized without restarting the node. The operation is
-complete when all compatible plugins have finished reinitilizing. Subsequently,
-the keystore is closed and any changes to it will not be reflected on the node.
+Reloads the keystore on nodes in the cluster.
 
-[source,js]
+[[cluster-nodes-reload-secure-settings-api-request]]
+==== {api-request-title}
+
+`POST /_nodes/reload_secure_settings` +
+`POST /_nodes/<node_id>/reload_secure_settings`
+
+[[cluster-nodes-reload-secure-settings-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cluster-nodes-reload-secure-settings-api-desc]]
+==== {api-description-title}
+
+<<secure-settings,Secure settings>> are stored in an on-disk keystore. Certain
+of these settings are <<reloadable-secure-settings,reloadable>>. That is, you
+can change them on disk and reload them without restarting any nodes in the
+cluster. When you have updated reloadable secure settings in your keystore, you
+can use this API to reload those settings on each node.
+
+When the {es} keystore is password protected and not simply obfuscated, you must
+provide the password for the keystore when you reload the secure settings.
+Reloading the settings for the whole cluster assumes that all nodes' keystores
+are protected with the same password; this method is allowed only when
+<<tls-transport,inter-node communications are encrypted>>. Alternatively, you can
+reload the secure settings on each node by locally accessing the API and passing
+the node-specific {es} keystore password.
+
+[[cluster-nodes-reload-secure-settings-path-params]]
+==== {api-path-parms-title}
+
+`<node_id>`::
+    (Optional, string) The names of particular nodes in the cluster to target.
+    For example, `nodeId1,nodeId2`. For node selection options, see
+    <<cluster-nodes>>.
+
+NOTE: {es} requires consistent secure settings across the cluster nodes, but
+this consistency is not enforced. Hence, reloading specific nodes is not
+standard. It is justifiable only when retrying failed reload operations.
+
+[[cluster-nodes-reload-secure-settings-api-request-body]]
+==== {api-request-body-title}
+
+`secure_settings_password`::
+  (Optional, string) The password for the {es} keystore.
+
+[[cluster-nodes-reload-secure-settings-api-example]]
+==== {api-examples-title}
+
+The following examples assume a common password for the {es} keystore on every
+node of the cluster:
+
+[source,console]
 --------------------------------------------------
 POST _nodes/reload_secure_settings
+{
+  "secure_settings_password":"keystore-password"
+}
 POST _nodes/nodeId1,nodeId2/reload_secure_settings
+{
+  "secure_settings_password":"keystore-password"
+}
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:node]
 // TEST[s/nodeId1,nodeId2/*/]
-
-The first command reloads the keystore on each node. The seconds allows
-to selectively target `nodeId1` and `nodeId2`. The node selection options are
-detailed <<cluster-nodes,here>>.
-
-Note: It is an error if secure settings are inconsistent across the cluster
-nodes, yet this consistency is not enforced whatsoever. Hence, reloading specific
-nodes is not standard. It is only justifiable when retrying failed reload operations.
-
-[float]
-[[rest-reload-secure-settings]]
-==== REST Reload Secure Settings Response
 
 The response contains the `nodes` object, which is a map, keyed by the
 node id. Each value has the node `name` and an optional `reload_exception`
 field. The `reload_exception` field is a serialization of the exception
 that was thrown during the reload process, if any.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_nodes": {

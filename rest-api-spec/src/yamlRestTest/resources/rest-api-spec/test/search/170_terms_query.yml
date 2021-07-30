@@ -1,0 +1,55 @@
+---
+"Terms Query with No.of terms exceeding index.max_terms_count should FAIL":
+  - do:
+      indices.create:
+          index: test_index
+          body:
+              settings:
+                  number_of_shards: 1
+                  index.max_terms_count: 2
+              mappings:
+                  properties:
+                      user:
+                          type: keyword
+                      followers:
+                          type: keyword
+  - do:
+      bulk:
+          refresh: true
+          body:
+              - '{"index": {"_index": "test_index", "_id": "u1"}}'
+              - '{"user": "u1", "followers": ["u2", "u3"]}'
+              - '{"index": {"_index": "test_index", "_id": "u2"}}'
+              - '{"user": "u2", "followers": ["u1", "u3", "u4"]}'
+              - '{"index": {"_index": "test_index", "_id": "u3"}}'
+              - '{"user": "u3", "followers": ["u1"]}'
+              - '{"index": {"_index": "test_index", "_id": "u4"}}'
+              - '{"user": "u4", "followers": ["u3"]}'
+
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test_index
+          body: {"query" : {"terms" : {"user" : ["u1", "u2"]}}}
+  - match: { hits.total: 2 }
+
+  - do:
+      catch: bad_request
+      search:
+          rest_total_hits_as_int: true
+          index: test_index
+          body: {"query" : {"terms" : {"user" : ["u1", "u2", "u3"]}}}
+
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test_index
+          body: {"query" : {"terms" : {"user" : {"index" : "test_index", "id" : "u1", "path" : "followers"}}}}
+  - match: { hits.total: 2 }
+
+  - do:
+      catch: bad_request
+      search:
+          rest_total_hits_as_int: true
+          index: test_index
+          body: {"query" : {"terms" : {"user" : {"index" : "test_index", "id" : "u2", "path" : "followers"}}}}

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
@@ -13,36 +14,34 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.joda.time.DateTime;
-import org.joda.time.chrono.ISOChronology;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Removes up to {@link #MAX_FORECASTS} forecasts (stats + forecasts docs) that have expired.
@@ -59,21 +58,23 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     private static final int MAX_FORECASTS = 10000;
     private static final String RESULTS_INDEX_PATTERN =  AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*";
 
-    private final Client client;
+    private final OriginSettingClient client;
     private final ThreadPool threadPool;
     private final long cutoffEpochMs;
+    private final TaskId parentTaskId;
 
-    public ExpiredForecastsRemover(Client client, ThreadPool threadPool) {
+    public ExpiredForecastsRemover(OriginSettingClient client, ThreadPool threadPool, TaskId parentTaskId) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
-        this.cutoffEpochMs = DateTime.now(ISOChronology.getInstance()).getMillis();
+        this.cutoffEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
+        this.parentTaskId = parentTaskId;
     }
 
     @Override
-    public void remove(ActionListener<Boolean> listener) {
+    public void remove(float requestsPerSec, ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
         LOGGER.debug("Removing forecasts that expire before [{}]", cutoffEpochMs);
         ActionListener<SearchResponse> forecastStatsHandler = ActionListener.wrap(
-                searchResponse -> deleteForecasts(searchResponse, listener),
+                searchResponse -> deleteForecasts(searchResponse, requestsPerSec, listener, isTimedOutSupplier),
                 e -> listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e)));
 
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -82,24 +83,44 @@ public class ExpiredForecastsRemover implements MlDataRemover {
                 .filter(QueryBuilders.existsQuery(ForecastRequestStats.EXPIRY_TIME.getPreferredName())));
         source.size(MAX_FORECASTS);
         source.trackTotalHits(true);
+        source.fetchSource(false);
+        source.docValueField(Job.ID.getPreferredName(), null);
+        source.docValueField(ForecastRequestStats.FORECAST_ID.getPreferredName(), null);
+        source.docValueField(ForecastRequestStats.EXPIRY_TIME.getPreferredName(), "epoch_millis");
+
+
+        // _doc is the most efficient sort order and will also disable scoring
+        source.sort(ElasticsearchMappings.ES_DOC);
 
         SearchRequest searchRequest = new SearchRequest(RESULTS_INDEX_PATTERN);
         searchRequest.source(source);
+        searchRequest.setParentTask(parentTaskId);
         client.execute(SearchAction.INSTANCE, searchRequest, new ThreadedActionListener<>(LOGGER, threadPool,
                 MachineLearning.UTILITY_THREAD_POOL_NAME, forecastStatsHandler, false));
     }
 
-    private void deleteForecasts(SearchResponse searchResponse, ActionListener<Boolean> listener) {
-        List<ForecastRequestStats> forecastsToDelete;
-        try {
-            forecastsToDelete = findForecastsToDelete(searchResponse);
-        } catch (IOException e) {
-            listener.onFailure(e);
+    private void deleteForecasts(
+        SearchResponse searchResponse,
+        float requestsPerSec,
+        ActionListener<Boolean> listener,
+        Supplier<Boolean> isTimedOutSupplier
+    ) {
+        List<JobForecastId> forecastsToDelete = findForecastsToDelete(searchResponse);
+        if (forecastsToDelete.isEmpty()) {
+            listener.onResponse(true);
             return;
         }
 
-        DeleteByQueryRequest request = buildDeleteByQuery(forecastsToDelete);
-        client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<BulkByScrollResponse>() {
+        if (isTimedOutSupplier.get()) {
+            listener.onResponse(false);
+            return;
+        }
+
+        DeleteByQueryRequest request = buildDeleteByQuery(forecastsToDelete)
+            .setRequestsPerSecond(requestsPerSec)
+            .setAbortOnVersionConflict(false);
+        request.setParentTask(parentTaskId);
+        client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 try {
@@ -120,8 +141,8 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         });
     }
 
-    private List<ForecastRequestStats> findForecastsToDelete(SearchResponse searchResponse) throws IOException {
-        List<ForecastRequestStats> forecastsToDelete = new ArrayList<>();
+    private List<JobForecastId> findForecastsToDelete(SearchResponse searchResponse) {
+        List<JobForecastId> forecastsToDelete = new ArrayList<>();
 
         SearchHits hits = searchResponse.getHits();
         if (hits.getTotalHits().value > MAX_FORECASTS) {
@@ -129,33 +150,64 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         }
 
         for (SearchHit hit : hits.getHits()) {
-            try (InputStream stream = hit.getSourceRef().streamInput();
-                 XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
-                         NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-                ForecastRequestStats forecastRequestStats = ForecastRequestStats.LENIENT_PARSER.apply(parser, null);
-                if (forecastRequestStats.getExpiryTime().toEpochMilli() < cutoffEpochMs) {
-                    forecastsToDelete.add(forecastRequestStats);
-                }
+            String expiryTime = stringFieldValueOrNull(hit, ForecastRequestStats.EXPIRY_TIME.getPreferredName());
+            if (expiryTime == null) {
+                LOGGER.warn("Forecast request stats document [{}] has a null [{}] field", hit.getId(),
+                    ForecastRequestStats.EXPIRY_TIME.getPreferredName());
+                continue;
             }
+            long expiryMs = TimeUtils.parseToEpochMs(expiryTime);
+            if (expiryMs < cutoffEpochMs) {
+                JobForecastId idPair = new JobForecastId(
+                    stringFieldValueOrNull(hit, Job.ID.getPreferredName()),
+                    stringFieldValueOrNull(hit, Forecast.FORECAST_ID.getPreferredName()));
+
+                if (idPair.hasNullValue() == false) {
+                    forecastsToDelete.add(idPair);
+                }
+
+            }
+
         }
         return forecastsToDelete;
     }
 
-    private DeleteByQueryRequest buildDeleteByQuery(List<ForecastRequestStats> forecastsToDelete) {
+    private DeleteByQueryRequest buildDeleteByQuery(List<JobForecastId> ids) {
         DeleteByQueryRequest request = new DeleteByQueryRequest();
-        request.setSlices(5);
+        request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        request.setTimeout(DEFAULT_MAX_DURATION);
 
         request.indices(RESULTS_INDEX_PATTERN);
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().minimumShouldMatch(1);
         boolQuery.must(QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),
                 ForecastRequestStats.RESULT_TYPE_VALUE, Forecast.RESULT_TYPE_VALUE));
-        for (ForecastRequestStats forecastToDelete : forecastsToDelete) {
-            boolQuery.should(QueryBuilders.boolQuery()
-                    .must(QueryBuilders.termQuery(Job.ID.getPreferredName(), forecastToDelete.getJobId()))
-                    .must(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastToDelete.getForecastId())));
+        for (JobForecastId jobForecastId : ids) {
+            if (jobForecastId.hasNullValue() == false) {
+                boolQuery.should(QueryBuilders.boolQuery()
+                    .must(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobForecastId.jobId))
+                    .must(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), jobForecastId.forecastId)));
+            }
         }
         QueryBuilder query = QueryBuilders.boolQuery().filter(boolQuery);
         request.setQuery(query);
+
+        // _doc is the most efficient sort order and will also disable scoring
+        request.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
+
         return request;
+    }
+
+    private static class JobForecastId {
+        private final String jobId;
+        private final String forecastId;
+
+        private JobForecastId(String jobId, String forecastId) {
+            this.jobId = jobId;
+            this.forecastId = forecastId;
+        }
+
+        boolean hasNullValue() {
+            return jobId == null || forecastId == null;
+        }
     }
 }

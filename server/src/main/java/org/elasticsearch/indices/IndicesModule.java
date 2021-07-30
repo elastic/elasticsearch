@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
@@ -22,57 +11,61 @@ package org.elasticsearch.indices;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.ShapesAvailability;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.flush.SyncedFlushService;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.index.mapper.BooleanScriptFieldType;
+import org.elasticsearch.index.mapper.DateScriptFieldType;
+import org.elasticsearch.index.mapper.DoubleScriptFieldType;
+import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
+import org.elasticsearch.index.mapper.IpScriptFieldType;
+import org.elasticsearch.index.mapper.KeywordScriptFieldType;
+import org.elasticsearch.index.mapper.LongScriptFieldType;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -81,61 +74,62 @@ import java.util.function.Predicate;
  * Configures classes and services that are shared by indices on each node.
  */
 public class IndicesModule extends AbstractModule {
-    private final List<Entry> namedWritables = new ArrayList<>();
     private final MapperRegistry mapperRegistry;
 
     public IndicesModule(List<MapperPlugin> mapperPlugins) {
-        this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getMetadataMappers(mapperPlugins),
-                getFieldFilter(mapperPlugins));
-        registerBuiltinWritables();
+        this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getRuntimeFields(mapperPlugins),
+            getMetadataMappers(mapperPlugins), getFieldFilter(mapperPlugins));
     }
 
-    private void registerBuiltinWritables() {
-        namedWritables.add(new NamedWriteableRegistry.Entry(Condition.class, MaxAgeCondition.NAME, MaxAgeCondition::new));
-        namedWritables.add(new NamedWriteableRegistry.Entry(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new));
-        namedWritables.add(new NamedWriteableRegistry.Entry(Condition.class, MaxSizeCondition.NAME, MaxSizeCondition::new));
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Arrays.asList(
+            new NamedWriteableRegistry.Entry(Condition.class, MaxAgeCondition.NAME, MaxAgeCondition::new),
+            new NamedWriteableRegistry.Entry(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new),
+            new NamedWriteableRegistry.Entry(Condition.class, MaxSizeCondition.NAME, MaxSizeCondition::new),
+            new NamedWriteableRegistry.Entry(Condition.class, MaxPrimaryShardSizeCondition.NAME, MaxPrimaryShardSizeCondition::new)
+        );
     }
 
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return namedWritables;
-    }
-
-    public List<NamedXContentRegistry.Entry> getNamedXContents() {
+    public static List<NamedXContentRegistry.Entry> getNamedXContents() {
         return Arrays.asList(
             new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxAgeCondition.NAME), (p, c) ->
                 MaxAgeCondition.fromXContent(p)),
             new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxDocsCondition.NAME), (p, c) ->
                 MaxDocsCondition.fromXContent(p)),
             new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxSizeCondition.NAME), (p, c) ->
-                MaxSizeCondition.fromXContent(p))
+                MaxSizeCondition.fromXContent(p)),
+            new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxPrimaryShardSizeCondition.NAME), (p, c) ->
+                MaxPrimaryShardSizeCondition.fromXContent(p))
         );
     }
 
-    private Map<String, Mapper.TypeParser> getMappers(List<MapperPlugin> mapperPlugins) {
+    public static Map<String, Mapper.TypeParser> getMappers(List<MapperPlugin> mapperPlugins) {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
 
         // builtin mappers
         for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
-            mappers.put(type.typeName(), new NumberFieldMapper.TypeParser(type));
+            mappers.put(type.typeName(), type.parser());
         }
-        for (RangeFieldMapper.RangeType type : RangeFieldMapper.RangeType.values()) {
-            mappers.put(type.typeName(), new RangeFieldMapper.TypeParser(type));
+        for (RangeType type : RangeType.values()) {
+            mappers.put(type.typeName(), type.parser());
         }
-        mappers.put(BooleanFieldMapper.CONTENT_TYPE, new BooleanFieldMapper.TypeParser());
-        mappers.put(BinaryFieldMapper.CONTENT_TYPE, new BinaryFieldMapper.TypeParser());
-        mappers.put(DateFieldMapper.CONTENT_TYPE, new DateFieldMapper.TypeParser());
-        mappers.put(IpFieldMapper.CONTENT_TYPE, new IpFieldMapper.TypeParser());
-        mappers.put(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
-        mappers.put(KeywordFieldMapper.CONTENT_TYPE, new KeywordFieldMapper.TypeParser());
-        mappers.put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser());
-        mappers.put(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser());
-        mappers.put(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser());
-        mappers.put(FieldAliasMapper.CONTENT_TYPE, new FieldAliasMapper.TypeParser());
-        mappers.put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
+        mappers.put(BooleanFieldMapper.CONTENT_TYPE, BooleanFieldMapper.PARSER);
+        mappers.put(BinaryFieldMapper.CONTENT_TYPE, BinaryFieldMapper.PARSER);
+        mappers.put(CompletionFieldMapper.CONTENT_TYPE, CompletionFieldMapper.PARSER);
 
-        if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
-            mappers.put(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
-        }
+        DateFieldMapper.Resolution milliseconds = DateFieldMapper.Resolution.MILLISECONDS;
+        mappers.put(milliseconds.type(), DateFieldMapper.MILLIS_PARSER);
+        DateFieldMapper.Resolution nanoseconds = DateFieldMapper.Resolution.NANOSECONDS;
+        mappers.put(nanoseconds.type(), DateFieldMapper.NANOS_PARSER);
+
+        mappers.put(FieldAliasMapper.CONTENT_TYPE, new FieldAliasMapper.TypeParser());
+        mappers.put(FlattenedFieldMapper.CONTENT_TYPE, FlattenedFieldMapper.PARSER);
+        mappers.put(GeoPointFieldMapper.CONTENT_TYPE, GeoPointFieldMapper.PARSER);
+        mappers.put(IpFieldMapper.CONTENT_TYPE, IpFieldMapper.PARSER);
+        mappers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordFieldMapper.PARSER);
+        mappers.put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser());
+        mappers.put(NestedObjectMapper.CONTENT_TYPE, new NestedObjectMapper.TypeParser());
+        mappers.put(TextFieldMapper.CONTENT_TYPE, TextFieldMapper.PARSER);
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             for (Map.Entry<String, Mapper.TypeParser> entry : mapperPlugin.getMappers().entrySet()) {
@@ -147,29 +141,52 @@ public class IndicesModule extends AbstractModule {
         return Collections.unmodifiableMap(mappers);
     }
 
+    private static Map<String, RuntimeField.Parser> getRuntimeFields(List<MapperPlugin> mapperPlugins) {
+        Map<String, RuntimeField.Parser> runtimeParsers = new LinkedHashMap<>();
+        runtimeParsers.put(BooleanFieldMapper.CONTENT_TYPE, BooleanScriptFieldType.PARSER);
+        runtimeParsers.put(NumberFieldMapper.NumberType.LONG.typeName(), LongScriptFieldType.PARSER);
+        runtimeParsers.put(NumberFieldMapper.NumberType.DOUBLE.typeName(), DoubleScriptFieldType.PARSER);
+        runtimeParsers.put(IpFieldMapper.CONTENT_TYPE, IpScriptFieldType.PARSER);
+        runtimeParsers.put(DateFieldMapper.CONTENT_TYPE, DateScriptFieldType.PARSER);
+        runtimeParsers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordScriptFieldType.PARSER);
+        runtimeParsers.put(GeoPointFieldMapper.CONTENT_TYPE, GeoPointScriptFieldType.PARSER);
+
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            for (Map.Entry<String, RuntimeField.Parser> entry : mapperPlugin.getRuntimeFields().entrySet()) {
+                if (runtimeParsers.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Runtime field type [" + entry.getKey() + "] is already registered");
+                }
+            }
+        }
+        return Collections.unmodifiableMap(runtimeParsers);
+    }
+
     private static final Map<String, MetadataFieldMapper.TypeParser> builtInMetadataMappers = initBuiltInMetadataMappers();
+
+    private static final Set<String> builtInMetadataFields = Collections.unmodifiableSet(builtInMetadataMappers.keySet());
 
     private static Map<String, MetadataFieldMapper.TypeParser> initBuiltInMetadataMappers() {
         Map<String, MetadataFieldMapper.TypeParser> builtInMetadataMappers;
         // Use a LinkedHashMap for metadataMappers because iteration order matters
         builtInMetadataMappers = new LinkedHashMap<>();
         // _ignored first so that we always load it, even if only _id is requested
-        builtInMetadataMappers.put(IgnoredFieldMapper.NAME, new IgnoredFieldMapper.TypeParser());
+        builtInMetadataMappers.put(IgnoredFieldMapper.NAME, IgnoredFieldMapper.PARSER);
         // ID second so it will be the first (if no ignored fields) stored field to load
         // (so will benefit from "fields: []" early termination
-        builtInMetadataMappers.put(IdFieldMapper.NAME, new IdFieldMapper.TypeParser());
-        builtInMetadataMappers.put(RoutingFieldMapper.NAME, new RoutingFieldMapper.TypeParser());
-        builtInMetadataMappers.put(IndexFieldMapper.NAME, new IndexFieldMapper.TypeParser());
-        builtInMetadataMappers.put(SourceFieldMapper.NAME, new SourceFieldMapper.TypeParser());
-        builtInMetadataMappers.put(TypeFieldMapper.NAME, new TypeFieldMapper.TypeParser());
-        builtInMetadataMappers.put(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser());
-        builtInMetadataMappers.put(SeqNoFieldMapper.NAME, new SeqNoFieldMapper.TypeParser());
+        builtInMetadataMappers.put(IdFieldMapper.NAME, IdFieldMapper.PARSER);
+        builtInMetadataMappers.put(RoutingFieldMapper.NAME, RoutingFieldMapper.PARSER);
+        builtInMetadataMappers.put(IndexFieldMapper.NAME, IndexFieldMapper.PARSER);
+        builtInMetadataMappers.put(SourceFieldMapper.NAME, SourceFieldMapper.PARSER);
+        builtInMetadataMappers.put(NestedPathFieldMapper.NAME, NestedPathFieldMapper.PARSER);
+        builtInMetadataMappers.put(VersionFieldMapper.NAME, VersionFieldMapper.PARSER);
+        builtInMetadataMappers.put(SeqNoFieldMapper.NAME, SeqNoFieldMapper.PARSER);
+        builtInMetadataMappers.put(DocCountFieldMapper.NAME, DocCountFieldMapper.PARSER);
         //_field_names must be added last so that it has a chance to see all the other mappers
-        builtInMetadataMappers.put(FieldNamesFieldMapper.NAME, new FieldNamesFieldMapper.TypeParser());
+        builtInMetadataMappers.put(FieldNamesFieldMapper.NAME, FieldNamesFieldMapper.PARSER);
         return Collections.unmodifiableMap(builtInMetadataMappers);
     }
 
-    private static Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers(List<MapperPlugin> mapperPlugins) {
+    public static Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers(List<MapperPlugin> mapperPlugins) {
         Map<String, MetadataFieldMapper.TypeParser> metadataMappers = new LinkedHashMap<>();
 
         int i = 0;
@@ -204,8 +221,8 @@ public class IndicesModule extends AbstractModule {
     /**
      * Returns a set containing all of the builtin metadata fields
      */
-    public static Set<String> getBuiltInMetaDataFields() {
-        return builtInMetadataMappers.keySet();
+    public static Set<String> getBuiltInMetadataFields() {
+        return builtInMetadataFields;
     }
 
     private static Function<String, Predicate<String>> getFieldFilter(List<MapperPlugin> mapperPlugins) {
@@ -243,11 +260,11 @@ public class IndicesModule extends AbstractModule {
     protected void configure() {
         bind(IndicesStore.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
-        bind(SyncedFlushService.class).asEagerSingleton();
-        bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
-        bind(GlobalCheckpointSyncAction.class).asEagerSingleton();
         bind(TransportResyncReplicationAction.class).asEagerSingleton();
         bind(PrimaryReplicaSyncer.class).asEagerSingleton();
+        bind(RetentionLeaseSyncAction.class).asEagerSingleton();
+        bind(RetentionLeaseBackgroundSyncAction.class).asEagerSingleton();
+        bind(RetentionLeaseSyncer.class).asEagerSingleton();
     }
 
     /**
@@ -255,10 +272,6 @@ public class IndicesModule extends AbstractModule {
      */
     public MapperRegistry getMapperRegistry() {
         return mapperRegistry;
-    }
-
-    public Collection<Function<IndexSettings, Optional<EngineFactory>>> getEngineFactories() {
-        return Collections.emptyList();
     }
 
 }

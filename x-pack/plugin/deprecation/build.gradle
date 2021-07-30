@@ -1,20 +1,16 @@
-evaluationDependsOn(xpackModule('core'))
+apply plugin: 'elasticsearch.internal-es-plugin'
 
-apply plugin: 'elasticsearch.esplugin'
 esplugin {
-    name 'x-pack-deprecation'
-    description 'Elasticsearch Expanded Pack Plugin - Deprecation'
-    classname 'org.elasticsearch.xpack.deprecation.Deprecation'
-    extendedPlugins = ['x-pack-core']
+  name 'x-pack-deprecation'
+  description 'Elasticsearch Expanded Pack Plugin - Deprecation'
+  classname 'org.elasticsearch.xpack.deprecation.Deprecation'
+  extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-deprecation'
 
+addQaCheckDependencies()
+
 dependencies {
-    compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
+  compileOnly project(":x-pack:plugin:core")
 }
 
-run {
-    plugin xpackModule('core')
-}
-
-integTest.enabled = false

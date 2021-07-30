@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,13 +31,11 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuild
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -59,14 +58,15 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE,
-                              numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
+                              numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
-    private final String indexTimeFormat = randomFrom("YY", "YYYY", "YYYY.MM", "YYYY-MM", "MM.YYYY", "MM", null);
+    private final String indexTimeFormat = randomFrom("yy", "yyyy", "yyyy.MM", "yyyy-MM", "MM.yyyy", "MM", null);
 
     private void stopMonitoring() {
         // Now disabling the monitoring service, so that no more collection are started
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                 Settings.builder().putNull(MonitoringService.ENABLED.getKey())
+                                  .putNull("xpack.monitoring.exporters._local.type")
                                   .putNull("xpack.monitoring.exporters._local.enabled")
                                   .putNull("xpack.monitoring.exporters._local.cluster_alerts.management.enabled")
                                   .putNull("xpack.monitoring.exporters._local.index.name.time_format")));
@@ -78,7 +78,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 // indexing some random documents
                 IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
                 for (int i = 0; i < indexRequestBuilders.length; i++) {
-                    indexRequestBuilders[i] = client().prepareIndex("test", "type", Integer.toString(i))
+                    indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i))
                             .setSource("title", "This is a random document");
                 }
                 indexRandom(true, indexRequestBuilders);
@@ -87,6 +87,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
             // start the monitoring service so that /_monitoring/bulk is not ignored
             final Settings.Builder exporterSettings = Settings.builder()
                     .put(MonitoringService.ENABLED.getKey(), true)
+                    .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)
                     .put("xpack.monitoring.exporters._local.enabled", true)
                     .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", false);
 
@@ -106,12 +107,12 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 }
 
                 assertBusy(() -> {
-                    MonitoringBulkRequestBuilder bulk = monitoringClient().prepareMonitoringBulk();
+                    MonitoringBulkRequestBuilder bulk = new MonitoringBulkRequestBuilder(client());
                     monitoringDocs.forEach(bulk::add);
                     assertEquals(RestStatus.OK, bulk.get().status());
                     refresh();
 
-                    assertThat(client().admin().indices().prepareExists(".monitoring-*").get().isExists(), is(true));
+                    assertThat(indexExists(".monitoring-*"), is(true));
                     ensureYellowAndNoInitializingShards(".monitoring-*");
 
                     SearchResponse response = client().prepareSearch(".monitoring-*").get();
@@ -125,7 +126,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
             final int numNodes = internalCluster().getNodeNames().length;
             assertBusy(() -> {
-                assertThat(client().admin().indices().prepareExists(".monitoring-*").get().isExists(), is(true));
+                assertThat(indexExists(".monitoring-*"), is(true));
                 ensureYellowAndNoInitializingShards(".monitoring-*");
 
                 assertThat(client().prepareSearch(".monitoring-es-*")
@@ -183,10 +184,9 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         // node_stats document collected for each node is at least 10 seconds old, corresponding to
         // 2 or 3 elapsed collection intervals.
         final int elapsedInSeconds = 10;
-        final DateTime startTime = DateTime.now(DateTimeZone.UTC);
+        final ZonedDateTime startTime = ZonedDateTime.now(ZoneOffset.UTC);
         assertBusy(() -> {
-            IndicesExistsResponse indicesExistsResponse = client().admin().indices().prepareExists(".monitoring-*").get();
-            if (indicesExistsResponse.isExists()) {
+            if (indexExists(".monitoring-*")) {
                 ensureYellowAndNoInitializingShards(".monitoring-*");
                 refresh(".monitoring-es-*");
 
@@ -205,11 +205,11 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                     assertTrue(bucket.getDocCount() >= 1L);
 
                     Max subAggregation = bucket.getAggregations().get("agg_last_time_collected");
-                    DateTime lastCollection = new DateTime(Math.round(subAggregation.getValue()), DateTimeZone.UTC);
-                    assertTrue(lastCollection.plusSeconds(elapsedInSeconds).isBefore(DateTime.now(DateTimeZone.UTC)));
+                    ZonedDateTime lastCollection = Instant.ofEpochMilli(Math.round(subAggregation.getValue())).atZone(ZoneOffset.UTC);
+                    assertTrue(lastCollection.plusSeconds(elapsedInSeconds).isBefore(ZonedDateTime.now(ZoneOffset.UTC)));
                 }
             } else {
-                assertTrue(DateTime.now(DateTimeZone.UTC).isAfter(startTime.plusSeconds(elapsedInSeconds)));
+                assertTrue(ZonedDateTime.now(ZoneOffset.UTC).isAfter(startTime.plusSeconds(elapsedInSeconds)));
             }
         }, 30L, TimeUnit.SECONDS);
     }
@@ -219,14 +219,14 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
      */
     private void checkMonitoringTemplates() {
         final Set<String> templates = new HashSet<>();
-        templates.add(".monitoring-alerts");
+        templates.add(".monitoring-alerts-7");
         templates.add(".monitoring-es");
         templates.add(".monitoring-kibana");
         templates.add(".monitoring-logstash");
         templates.add(".monitoring-beats");
 
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(".monitoring-*").get();
-        Set<String> actualTemplates = response.getIndexTemplates().stream().map(IndexTemplateMetaData::getName).collect(Collectors.toSet());
+        Set<String> actualTemplates = response.getIndexTemplates().stream().map(IndexTemplateMetadata::getName).collect(Collectors.toSet());
         assertEquals(templates, actualTemplates);
     }
 
@@ -252,15 +252,15 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
      */
     private void checkMonitoringDocs() {
         ClusterStateResponse response = client().admin().cluster().prepareState().get();
-        String customTimeFormat = response.getState().getMetaData().transientSettings()
+        String customTimeFormat = response.getState().getMetadata().transientSettings()
                 .get("xpack.monitoring.exporters._local.index.name.time_format");
         assertEquals(indexTimeFormat, customTimeFormat);
         if (customTimeFormat == null) {
-            customTimeFormat = "YYYY.MM.dd";
+            customTimeFormat = "yyyy.MM.dd";
         }
 
-        DateTimeFormatter dateParser = ISODateTimeFormat.dateTime().withZoneUTC();
-        DateTimeFormatter dateFormatter = DateTimeFormat.forPattern(customTimeFormat).withZoneUTC();
+        DateFormatter dateParser = DateFormatter.forPattern("strict_date_time");
+        DateFormatter dateFormatter = DateFormatter.forPattern(customTimeFormat).withZone(ZoneOffset.UTC);
 
         SearchResponse searchResponse = client().prepareSearch(".monitoring-*").setSize(100).get();
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
@@ -276,7 +276,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
             assertTrue("document is missing cluster_uuid field", Strings.hasText((String) source.get("cluster_uuid")));
             assertTrue("document is missing timestamp field", Strings.hasText(timestamp));
             assertTrue("document is missing type field", Strings.hasText(type));
-            assertEquals("document _type is 'doc'", "doc", hit.getType());
 
             @SuppressWarnings("unchecked")
             Map<String, Object> docSource = (Map<String, Object>) source.get("doc");
@@ -290,7 +289,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 expectedSystem = MonitoredSystem.fromSystem((String) docSource.get("expected_system"));
             }
 
-            String dateTime = dateFormatter.print(dateParser.parseDateTime(timestamp));
+            String dateTime = dateFormatter.format(dateParser.parse(timestamp));
             final String expectedIndex = ".monitoring-" + expectedSystem.getSystem() + "-" + TEMPLATE_VERSION + "-" + dateTime;
             assertEquals("Expected " + expectedIndex + " but got " + hit.getIndex(), expectedIndex, hit.getIndex());
 
@@ -302,7 +301,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         }
     }
 
-    private static MonitoringBulkDoc createMonitoringBulkDoc() throws IOException {
+    public static MonitoringBulkDoc createMonitoringBulkDoc() throws IOException {
         final MonitoredSystem system = randomFrom(BEATS, KIBANA, LOGSTASH);
         final XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference source;

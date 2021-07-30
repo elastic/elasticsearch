@@ -1,11 +1,10 @@
 [[discovery-azure-classic]]
 === Azure Classic Discovery Plugin
 
-The Azure Classic Discovery plugin uses the Azure Classic API for unicast discovery.
+The Azure Classic Discovery plugin uses the Azure Classic API to identify the
+addresses of seed hosts.
 
-// TODO: Link to ARM plugin when ready
-// See issue https://github.com/elastic/elasticsearch/issues/19146
-deprecated[5.0.0, Use coming Azure ARM Discovery plugin instead]
+deprecated[5.0.0, This plugin will be removed in the future]
 
 :plugin_name: discovery-azure-classic
 include::install_remove.asciidoc[]
@@ -14,8 +13,8 @@ include::install_remove.asciidoc[]
 [[discovery-azure-classic-usage]]
 ==== Azure Virtual Machine Discovery
 
-Azure VM discovery allows to use the azure APIs to perform automatic discovery (similar to multicast in non hostile
-multicast environments). Here is a simple sample configuration:
+Azure VM discovery allows to use the Azure APIs to perform automatic discovery.
+Here is a simple sample configuration:
 
 [source,yaml]
 ----
@@ -30,7 +29,7 @@ cloud:
                    type: pkcs12
 
 discovery:
-    zen.hosts_provider: azure
+    seed_providers: azure
 ----
 
 [IMPORTANT]
@@ -131,7 +130,7 @@ discovery:
 We will expose here one strategy which is to hide our Elasticsearch cluster from outside.
 
 With this strategy, only VMs behind the same virtual port can talk to each
-other.  That means that with this mode, you can use Elasticsearch unicast
+other. That means that with this mode, you can use Elasticsearch unicast
 discovery to build a cluster, using the Azure API to retrieve information
 about your nodes.
 
@@ -140,7 +139,7 @@ about your nodes.
 
 Before starting, you need to have:
 
-* A http://www.windowsazure.com/[Windows Azure account]
+* A https://azure.microsoft.com/en-us/[Windows Azure account]
 * OpenSSL that isn't from MacPorts, specifically `OpenSSL 1.0.1f 6 Jan
   2014` doesn't seem to create a valid keypair for ssh. FWIW,
  `OpenSSL 1.0.1c 10 May 2012` on Ubuntu 14.04 LTS is known to work.
@@ -332,35 +331,14 @@ scp /tmp/azurekeystore.pkcs12 azure-elasticsearch-cluster.cloudapp.net:/home/ela
 ssh azure-elasticsearch-cluster.cloudapp.net
 ----
 
-Once connected, install Elasticsearch:
-
-["source","sh",subs="attributes,callouts"]
-----
-# Install Latest Java version
-# Read http://www.webupd8.org/2012/09/install-oracle-java-8-in-ubuntu-via-ppa.html for details
-sudo add-apt-repository ppa:webupd8team/java
-sudo apt-get update
-sudo apt-get install oracle-java8-installer
-
-# If you want to install OpenJDK instead
-# sudo apt-get update
-# sudo apt-get install openjdk-8-jre-headless
-
-# Download Elasticsearch
-curl -s https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-{version}.deb -o elasticsearch-{version}.deb
-
-# Prepare Elasticsearch installation
-sudo dpkg -i elasticsearch-{version}.deb
-----
-// NOTCONSOLE
+Once connected, {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[install {es}]:
 
 Check that Elasticsearch is running:
 
-[source,js]
+[source,console]
 ----
 GET /
 ----
-// CONSOLE
 
 This command should give you a JSON result:
 
@@ -373,7 +351,7 @@ This command should give you a JSON result:
   "version" : {
     "number" : "{version_qualified}",
     "build_flavor" : "{build_flavor}",
-    "build_type" : "zip",
+    "build_type" : "{build_type}",
     "build_hash" : "f27399d",
     "build_date" : "2016-03-30T09:51:41.449Z",
     "build_snapshot" : false,

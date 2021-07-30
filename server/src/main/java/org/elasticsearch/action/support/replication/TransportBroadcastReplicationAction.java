@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.replication;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -30,11 +19,13 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
@@ -44,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Supplier;
 
 /**
  * Base class for requests that should be executed on all shards of an index or several indices.
@@ -54,15 +44,17 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
         ShardRequest extends ReplicationRequest<ShardRequest>, ShardResponse extends ReplicationResponse>
         extends HandledTransportAction<Request, Response> {
 
-    private final TransportReplicationAction replicatedBroadcastShardAction;
+    private final ActionType<ShardResponse> replicatedBroadcastShardAction;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final NodeClient client;
 
-    public TransportBroadcastReplicationAction(String name, Supplier<Request> request, ClusterService clusterService,
-                                               TransportService transportService,
+    public TransportBroadcastReplicationAction(String name, Writeable.Reader<Request> requestReader, ClusterService clusterService,
+                                               TransportService transportService, NodeClient client,
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                               TransportReplicationAction replicatedBroadcastShardAction) {
-        super(name, transportService, actionFilters, request);
+                                               ActionType<ShardResponse> replicatedBroadcastShardAction) {
+        super(name, transportService, actionFilters, requestReader);
+        this.client = client;
         this.replicatedBroadcastShardAction = replicatedBroadcastShardAction;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -91,7 +83,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
                 @Override
                 public void onFailure(Exception e) {
                     logger.trace("{}: got failure from {}", actionName, shardId);
-                    int totalNumCopies = clusterState.getMetaData().getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
+                    int totalNumCopies = clusterState.getMetadata().getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
                     ShardResponse shardResponse = newShardResponse();
                     ReplicationResponse.ShardInfo.Failure[] failures;
                     if (TransportActions.isShardNotAvailableException(e)) {
@@ -116,7 +108,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
     protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
         ShardRequest shardRequest = newShardRequest(request, shardId);
         shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        replicatedBroadcastShardAction.execute(shardRequest, shardActionListener);
+        client.executeLocally(replicatedBroadcastShardAction, shardRequest, shardActionListener);
     }
 
     /**
@@ -126,8 +118,8 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
         List<ShardId> shardIds = new ArrayList<>();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         for (String index : concreteIndices) {
-            IndexMetaData indexMetaData = clusterState.metaData().getIndices().get(index);
-            if (indexMetaData != null) {
+            IndexMetadata indexMetadata = clusterState.metadata().getIndices().get(index);
+            if (indexMetadata != null) {
                 for (IntObjectCursor<IndexShardRoutingTable> shardRouting
                         : clusterState.getRoutingTable().indicesRouting().get(index).getShards()) {
                     shardIds.add(shardRouting.value.shardId());

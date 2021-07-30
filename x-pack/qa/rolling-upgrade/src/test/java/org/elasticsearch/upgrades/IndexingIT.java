@@ -1,24 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.core.Booleans;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 
 /**
  * Basic test that indexed documents survive the rolling restart.
@@ -33,44 +29,25 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         case OLD:
             break;
         case MIXED:
-            Request waitForYellow = new Request("GET", "/_cluster/health");
-            waitForYellow.addParameter("wait_for_nodes", "3");
-            waitForYellow.addParameter("wait_for_status", "yellow");
-            client().performRequest(waitForYellow);
+            ensureHealth((request -> {
+                request.addParameter("timeout", "70s");
+                request.addParameter("wait_for_nodes", "3");
+                request.addParameter("wait_for_status", "yellow");
+            }));
             break;
         case UPGRADED:
-            Request waitForGreen = new Request("GET", "/_cluster/health/test_index,index_with_replicas,empty_index");
-            waitForGreen.addParameter("wait_for_nodes", "3");
-            waitForGreen.addParameter("wait_for_status", "green");
-            // wait for long enough that we give delayed unassigned shards to stop being delayed
-            waitForGreen.addParameter("timeout", "70s");
-            waitForGreen.addParameter("level", "shards");
-            client().performRequest(waitForGreen);
+            ensureHealth("test_index,index_with_replicas,empty_index", (request -> {
+                request.addParameter("wait_for_nodes", "3");
+                request.addParameter("wait_for_status", "green");
+                request.addParameter("timeout", "70s");
+                request.addParameter("level", "shards");
+            }));
             break;
         default:
             throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            {
-                Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
-                assertThat("this branch is not needed if we aren't compatible with 6.0",
-                        minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
-                if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
-                    XContentBuilder template = jsonBuilder();
-                    template.startObject();
-                    {
-                        template.field("index_patterns", "*");
-                        template.startObject("settings");
-                        template.field("number_of_shards", 5);
-                        template.endObject();
-                    }
-                    template.endObject();
-                    Request createTemplate = new Request("PUT", "/_template/template");
-                    createTemplate.setJsonEntity(Strings.toString(template));
-                    client().performRequest(createTemplate);
-                }
-            }
 
             Request createTestIndex = new Request("PUT", "/test_index");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
@@ -132,7 +109,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
     private void bulk(String index, String valueSuffix, int count) throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            b.append("{\"index\": {\"_index\": \"").append(index).append("\", \"_type\": \"_doc\"}}\n");
+            b.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
             b.append("{\"f1\": \"v").append(i).append(valueSuffix).append("\", \"f2\": ").append(i).append("}\n");
         }
         Request bulk = new Request("POST", "/_bulk");
@@ -141,9 +118,9 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         client().performRequest(bulk);
     }
 
-    private void assertCount(String index, int count) throws IOException {
+    static void assertCount(String index, int count) throws IOException {
         Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
-        searchTestIndexRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+        searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
         assertEquals("{\"hits\":{\"total\":" + count + "}}",

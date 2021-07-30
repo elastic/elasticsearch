@@ -1,36 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.query.functionscore;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -39,9 +26,7 @@ import java.util.Objects;
  * A function that computes a random score for the matched documents
  */
 public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScoreFunctionBuilder> {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(RandomScoreFunctionBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RandomScoreFunctionBuilder.class);
 
     public static final String NAME = "random_score";
     private String field;
@@ -58,9 +43,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         if (in.readBoolean()) {
             seed = in.readInt();
         }
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            field = in.readOptionalString();
-        }
+        field = in.readOptionalString();
     }
 
     @Override
@@ -71,9 +54,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            out.writeOptionalString(field);
-        }
+        out.writeOptionalString(field);
     }
 
     @Override
@@ -158,35 +139,30 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
     }
 
     @Override
-    protected ScoreFunction doToFunction(QueryShardContext context) {
+    protected ScoreFunction doToFunction(SearchExecutionContext context) {
         final int salt = (context.index().getName().hashCode() << 10) | context.getShardId();
         if (seed == null) {
             // DocID-based random score generation
             return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
         } else {
-            final MappedFieldType fieldType;
-            if (field != null) {
-                fieldType = context.getMapperService().fullName(field);
+            String fieldName;
+            if (field == null) {
+                deprecationLogger.deprecate(DeprecationCategory.QUERIES, "seed_requires_field",
+                    "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
+                fieldName = IdFieldMapper.NAME;
             } else {
-                deprecationLogger.deprecated(
-                        "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
-                fieldType = context.getMapperService().fullName(IdFieldMapper.NAME);
+                fieldName = field;
             }
-            if (fieldType == null) {
-                if (context.getMapperService().documentMapper() == null) {
+            if (context.isFieldMapped(fieldName) == false) {
+                if (context.hasMappings() == false) {
                     // no mappings: the index is empty anyway
                     return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
                 }
                 throw new IllegalArgumentException("Field [" + field + "] is not mapped on [" + context.index() +
-                        "] and cannot be used as a source of random numbers.");
+                    "] and cannot be used as a source of random numbers.");
             }
-            int seed;
-            if (this.seed != null) {
-                seed = this.seed;
-            } else {
-                seed = hash(context.nowInMillis());
-            }
-            return new RandomScoreFunction(seed, salt, context.getForField(fieldType));
+            int seed = this.seed == null ? hash(context.nowInMillis()) : this.seed;
+            return new RandomScoreFunction(seed, salt, context.getForField(context.getFieldType(fieldName)));
         }
     }
 

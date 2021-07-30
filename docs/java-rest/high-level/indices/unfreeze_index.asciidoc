@@ -15,7 +15,7 @@ An +{request}+ requires an `index` argument:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> The index to unreeze
+<1> The index to unfreeze
 
 ==== Optional arguments
 The following arguments can optionally be provided:
@@ -37,7 +37,7 @@ include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-waitForActiveShards]
 --------------------------------------------------
-<1> The number of active shard copies to wait for before  the unfreeze index API
+<1> The number of active shard copies to wait for before the unfreeze index API
 returns a response, as an `ActiveShardCount`
 
 ["source","java",subs="attributes,callouts,macros"]

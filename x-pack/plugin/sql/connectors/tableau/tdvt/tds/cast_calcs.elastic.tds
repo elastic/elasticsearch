@@ -1,0 +1,424 @@
+<?xml version='1.0' encoding='utf-8' ?>
+
+<!-- build 20202.20.0525.1210                               -->
+<datasource formatted-name='federated.1fpbzog1e3tyyl10dzgub1v3by4l' inline='true' source-platform='win' version='18.1' xmlns:user='http://www.tableausoftware.com/xml/user'>
+  <document-format-change-manifest>
+    <_.fcp.ObjectModelEncapsulateLegacy.true...ObjectModelEncapsulateLegacy />
+    <_.fcp.ObjectModelTableType.true...ObjectModelTableType />
+    <_.fcp.SchemaViewerObjectModel.true...SchemaViewerObjectModel />
+  </document-format-change-manifest>
+  <connection class='federated'>
+    <named-connections>
+      <named-connection caption='127.0.0.1' name='leaf'>
+        <connection class='elasticsearch_jdbc' dbname='elasticsearch' one-time-sql='' port='9200' server='127.0.0.1' sslmode='' username='elastic' warehouse='timezone=Z' tdvtconnection='elastic_connection'  />
+      </named-connection>
+    </named-connections>
+    <_.fcp.ObjectModelEncapsulateLegacy.false...relation connection='leaf' name='calcs' table='[calcs]' type='table' />
+    <_.fcp.ObjectModelEncapsulateLegacy.true...relation connection='leaf' name='calcs' table='[calcs]' type='table' />
+    <metadata-records>
+      <metadata-record class='column'>
+        <remote-name>bool0</remote-name>
+        <remote-type>11</remote-type>
+        <local-name>[bool0]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>bool0</remote-alias>
+        <ordinal>1</ordinal>
+        <local-type>boolean</local-type>
+        <aggregation>Count</aggregation>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>bool1</remote-name>
+        <remote-type>11</remote-type>
+        <local-name>[bool1]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>bool1</remote-alias>
+        <ordinal>2</ordinal>
+        <local-type>boolean</local-type>
+        <aggregation>Count</aggregation>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>bool2</remote-name>
+        <remote-type>11</remote-type>
+        <local-name>[bool2]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>bool2</remote-alias>
+        <ordinal>3</ordinal>
+        <local-type>boolean</local-type>
+        <aggregation>Count</aggregation>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>bool3</remote-name>
+        <remote-type>11</remote-type>
+        <local-name>[bool3]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>bool3</remote-alias>
+        <ordinal>4</ordinal>
+        <local-type>boolean</local-type>
+        <aggregation>Count</aggregation>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>date0</remote-name>
+        <remote-type>135</remote-type>
+        <local-name>[date0]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>date0</remote-alias>
+        <ordinal>5</ordinal>
+        <local-type>datetime</local-type>
+        <aggregation>Year</aggregation>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>date1</remote-name>
+        <remote-type>135</remote-type>
+        <local-name>[date1]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>date1</remote-alias>
+        <ordinal>6</ordinal>
+        <local-type>datetime</local-type>
+        <aggregation>Year</aggregation>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>date2</remote-name>
+        <remote-type>135</remote-type>
+        <local-name>[date2]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>date2</remote-alias>
+        <ordinal>7</ordinal>
+        <local-type>datetime</local-type>
+        <aggregation>Year</aggregation>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>date3</remote-name>
+        <remote-type>135</remote-type>
+        <local-name>[date3]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>date3</remote-alias>
+        <ordinal>8</ordinal>
+        <local-type>datetime</local-type>
+        <aggregation>Year</aggregation>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>datetime0</remote-name>
+        <remote-type>135</remote-type>
+        <local-name>[datetime0]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>datetime0</remote-alias>
+        <ordinal>9</ordinal>
+        <local-type>datetime</local-type>
+        <aggregation>Year</aggregation>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>datetime1</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[datetime1]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>datetime1</remote-alias>
+        <ordinal>10</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>int0</remote-name>
+        <remote-type>3</remote-type>
+        <local-name>[int0]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>int0</remote-alias>
+        <ordinal>11</ordinal>
+        <local-type>integer</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>11</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>int1</remote-name>
+        <remote-type>3</remote-type>
+        <local-name>[int1]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>int1</remote-alias>
+        <ordinal>12</ordinal>
+        <local-type>integer</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>11</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>int2</remote-name>
+        <remote-type>3</remote-type>
+        <local-name>[int2]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>int2</remote-alias>
+        <ordinal>13</ordinal>
+        <local-type>integer</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>11</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>int3</remote-name>
+        <remote-type>3</remote-type>
+        <local-name>[int3]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>int3</remote-alias>
+        <ordinal>14</ordinal>
+        <local-type>integer</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>11</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>key</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[key]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>key</remote-alias>
+        <ordinal>15</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>num0</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[num0]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>num0</remote-alias>
+        <ordinal>16</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>num1</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[num1]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>num1</remote-alias>
+        <ordinal>17</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>num2</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[num2]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>num2</remote-alias>
+        <ordinal>18</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>num3</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[num3]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>num3</remote-alias>
+        <ordinal>19</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>num4</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[num4]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>num4</remote-alias>
+        <ordinal>20</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>str0</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[str0]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>str0</remote-alias>
+        <ordinal>21</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>str1</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[str1]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>str1</remote-alias>
+        <ordinal>22</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>str2</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[str2]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>str2</remote-alias>
+        <ordinal>23</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>str3</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[str3]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>str3</remote-alias>
+        <ordinal>24</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>time0</remote-name>
+        <remote-type>135</remote-type>
+        <local-name>[time0]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>time0</remote-alias>
+        <ordinal>25</ordinal>
+        <local-type>datetime</local-type>
+        <aggregation>Year</aggregation>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>time1</remote-name>
+        <remote-type>135</remote-type>
+        <local-name>[time1]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>time1</remote-alias>
+        <ordinal>26</ordinal>
+        <local-type>datetime</local-type>
+        <aggregation>Year</aggregation>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>zzz</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[zzz]</local-name>
+        <parent-name>[calcs]</parent-name>
+        <remote-alias>zzz</remote-alias>
+        <ordinal>27</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+    </metadata-records>
+  </connection>
+  <aliases enabled='yes' />
+  <_.fcp.ObjectModelTableType.true...column caption='calcs' datatype='table' name='[__tableau_internal_object_id__].[calcs_C27AE2A9BA5748228EBAF65C2930B3E9]' role='measure' type='quantitative' />
+  <column caption='Bool0' datatype='boolean' name='[bool0]' role='dimension' type='nominal' />
+  <column caption='Bool1' datatype='boolean' name='[bool1]' role='dimension' type='nominal' />
+  <column caption='Bool2' datatype='boolean' name='[bool2]' role='dimension' type='nominal' />
+  <column caption='Bool3' datatype='boolean' name='[bool3]' role='dimension' type='nominal' />
+  <column caption='Date0' datatype='datetime' name='[date0]' role='dimension' type='ordinal' />
+  <column caption='Date1' datatype='datetime' name='[date1]' role='dimension' type='ordinal' />
+  <column caption='Date2' datatype='datetime' name='[date2]' role='dimension' type='ordinal' />
+  <column caption='Date3' datatype='datetime' name='[date3]' role='dimension' type='ordinal' />
+  <column caption='Datetime0' datatype='datetime' name='[datetime0]' role='dimension' type='ordinal' />
+  <column caption='Datetime1' datatype='string' name='[datetime1]' role='dimension' type='nominal' />
+  <column caption='Int0' datatype='integer' name='[int0]' role='measure' type='quantitative' />
+  <column caption='Int1' datatype='integer' name='[int1]' role='measure' type='quantitative' />
+  <column caption='Int2' datatype='integer' name='[int2]' role='measure' type='quantitative' />
+  <column caption='Int3' datatype='integer' name='[int3]' role='measure' type='quantitative' />
+  <column caption='Key' datatype='string' name='[key]' role='dimension' type='nominal' />
+  <column caption='Num0' datatype='real' name='[num0]' role='measure' type='quantitative' />
+  <column caption='Num1' datatype='real' name='[num1]' role='measure' type='quantitative' />
+  <column caption='Num2' datatype='real' name='[num2]' role='measure' type='quantitative' />
+  <column caption='Num3' datatype='real' name='[num3]' role='measure' type='quantitative' />
+  <column caption='Num4' datatype='real' name='[num4]' role='measure' type='quantitative' />
+  <column caption='Str0' datatype='string' name='[str0]' role='dimension' type='nominal' />
+  <column caption='Str1' datatype='string' name='[str1]' role='dimension' type='nominal' />
+  <column caption='Str2' datatype='string' name='[str2]' role='dimension' type='nominal' />
+  <column caption='Str3' datatype='string' name='[str3]' role='dimension' type='nominal' />
+  <column caption='Time0' datatype='datetime' name='[time0]' role='dimension' type='ordinal' />
+  <column caption='Time1' datatype='datetime' name='[time1]' role='dimension' type='ordinal' />
+  <column caption='Zzz' datatype='string' name='[zzz]' role='dimension' type='nominal' />
+  <layout _.fcp.SchemaViewerObjectModel.false...dim-percentage='0.5' _.fcp.SchemaViewerObjectModel.false...measure-percentage='0.4' dim-ordering='alphabetic' measure-ordering='alphabetic' show-structure='true' />
+  <semantic-values>
+    <semantic-value key='[Country].[Name]' value='&quot;USA&quot;' />
+  </semantic-values>
+  <_.fcp.ObjectModelEncapsulateLegacy.true...object-graph>
+    <objects>
+      <object caption='calcs' id='calcs_C27AE2A9BA5748228EBAF65C2930B3E9'>
+        <properties context=''>
+          <relation connection='leaf' name='calcs' table='[calcs]' type='table' />
+        </properties>
+      </object>
+    </objects>
+  </_.fcp.ObjectModelEncapsulateLegacy.true...object-graph>
+</datasource>

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
@@ -21,6 +22,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class GetUsersRequest extends ActionRequest implements UserRequest {
 
     private String[] usernames;
+
+    public GetUsersRequest(StreamInput in) throws IOException {
+        super(in);
+        usernames = in.readStringArray();
+    }
 
     public GetUsersRequest() {
         usernames = Strings.EMPTY_ARRAY;
@@ -42,12 +48,6 @@ public class GetUsersRequest extends ActionRequest implements UserRequest {
     @Override
     public String[] usernames() {
         return usernames;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        usernames = in.readStringArray();
     }
 
     @Override

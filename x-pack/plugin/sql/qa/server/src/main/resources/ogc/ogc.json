@@ -1,0 +1,58 @@
+// This dataset is derived from OpenGIS Simple Features for SQL (Types and Functions) Test Suite on Apr 1, 2018
+//
+// Copyright © 2018 Open Geospatial Consortium, Inc. All Rights Reserved.
+// http://www.opengeospatial.org/ogc/legal
+//
+// lakes
+{"index":{"_id": "101"}}
+{"ogc_type":"lakes", "fid": 101, "name": "BLUE LAKE", "shore": "POLYGON ((52 18, 66 23, 73 9, 48 6, 52 18), (59 18, 67 18, 67 13, 59 13, 59 18))"}
+//
+// road segments
+{"index":{"_id": "102"}}
+{"ogc_type":"road_segments", "fid": 102, "name": "Route 5", "num_lanes": 2, "centerline": "LINESTRING (0 18, 10 21, 16 23, 28 26, 44 31)"}
+{"index":{"_id": "103"}}
+{"ogc_type":"road_segments", "fid": 103, "name": "Route 5", "aliases": "Main Street", "num_lanes": 4, "centerline": "LINESTRING (44 31, 56 34, 70 38)"}
+{"index":{"_id": "104"}}
+{"ogc_type":"road_segments", "fid": 104, "name": "Route 5", "num_lanes": 2, "centerline": "LINESTRING (70 38, 72 48)"}
+{"index":{"_id": "105"}}
+{"ogc_type":"road_segments", "fid": 105, "name": "Main Street", "num_lanes": 4, "centerline": "LINESTRING (70 38, 84 42)"}
+{"index":{"_id": "106"}}
+{"ogc_type":"road_segments", "fid": 106, "name": "Dirt Road by Green Forest", "num_lanes": 1, "centerline": "LINESTRING (28 26, 28 0)"}
+//
+// divided routes
+{"index":{"_id": "119"}}
+{"ogc_type":"divided_routes", "fid": 119, "name": "Route 75", "num_lanes": 4, "centerlines": "MULTILINESTRING ((10 48, 10 21, 10 0), (16 0, 16 23, 16 48))"}
+//
+// forests
+{"index":{"_id": "109"}}
+{"ogc_type":"forests", "fid": 109, "name": "Green Forest", "boundary": "MULTIPOLYGON (((28 26, 28 0, 84 0, 84 42, 28 26), (52 18, 66 23, 73 9, 48 6, 52 18)), ((59 18, 67 18, 67 13, 59 13, 59 18)))"}
+//
+// forests
+{"index":{"_id": "110"}}
+{"ogc_type":"bridges", "fid": 110, "name": "Cam Bridge", "position": "POINT (44 31)"}
+//
+// streams
+{"index":{"_id": "111"}}
+{"ogc_type":"streams", "fid": 111, "name": "Cam Stream", "centerline": "LINESTRING (38 48, 44 41, 41 36, 44 31, 52 18)"}
+{"index":{"_id": "112"}}
+{"ogc_type":"streams", "fid": 112, "centerline": "LINESTRING (76 0, 78 4, 73 9)"}
+//
+// buildings
+{"index":{"_id": "113"}}
+{"ogc_type":"buildings", "fid": 113, "address": "123 Main Street", "position": "POINT (52 30)", "footprint": "POLYGON ((50 31, 54 31, 54 29, 50 29, 50 31))"}
+{"index":{"_id": "114"}}
+{"ogc_type":"buildings", "fid": 114, "address": "215 Main Street", "position": "POINT (64 33)", "footprint": "POLYGON ((66 34, 62 34, 62 32, 66 32, 66 34))"}
+//
+// ponds
+{"index":{"_id": "120"}}
+{"ogc_type":"ponds", "fid": 120, "type": "Stock Pond", "shores": "MULTIPOLYGON (((24 44, 22 42, 24 40, 24 44)), ((26 44, 26 40, 28 42, 26 44)))"}
+//
+// named places
+{"index":{"_id": "117"}}
+{"ogc_type":"named_places", "fid": 117, "name": "Ashton", "boundary": "POLYGON ((62 48, 84 48, 84 30, 56 30, 56 34, 62 48))"}
+{"index":{"_id": "118"}}
+{"ogc_type":"named_places", "fid": 118, "name": "Goose Island", "boundary": "POLYGON ((67 13, 67 18, 59 18, 59 13, 67 13))"}
+//
+// map neat lines
+{"index":{"_id": "115"}}
+{"ogc_type":"map_neatlines", "fid": 115, "neatline": "POLYGON ((0 0, 0 48, 84 48, 84 0, 0 0))"}

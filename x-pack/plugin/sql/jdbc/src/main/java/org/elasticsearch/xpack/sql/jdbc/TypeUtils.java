@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.jdbc;
@@ -37,7 +38,7 @@ final class TypeUtils {
 
     private static final Set<EsType> SIGNED_TYPE = EnumSet.of(EsType.BYTE,
             EsType.SHORT, EsType.INTEGER, EsType.LONG,
-            EsType.FLOAT, EsType.HALF_FLOAT, EsType.SCALED_FLOAT, EsType.DOUBLE, EsType.DATE);
+            EsType.FLOAT, EsType.HALF_FLOAT, EsType.SCALED_FLOAT, EsType.DOUBLE, EsType.DATETIME);
 
 
     static {
@@ -52,16 +53,16 @@ final class TypeUtils {
         aMap.put(String.class, EsType.KEYWORD);
         aMap.put(byte[].class, EsType.BINARY);
         aMap.put(String.class, EsType.KEYWORD);
-        aMap.put(Timestamp.class, EsType.DATE);
+        aMap.put(Timestamp.class, EsType.DATETIME);
 
         // apart from the mappings in {@code DataType} three more Java classes can be mapped to a {@code JDBCType.TIMESTAMP}
         // according to B-4 table from the jdbc4.2 spec
-        aMap.put(Calendar.class, EsType.DATE);
-        aMap.put(GregorianCalendar.class, EsType.DATE);
-        aMap.put(java.util.Date.class, EsType.DATE);
-        aMap.put(java.sql.Date.class, EsType.DATE);
-        aMap.put(java.sql.Time.class, EsType.DATE);
-        aMap.put(LocalDateTime.class, EsType.DATE);
+        aMap.put(Calendar.class, EsType.DATETIME);
+        aMap.put(GregorianCalendar.class, EsType.DATETIME);
+        aMap.put(java.util.Date.class, EsType.DATETIME);
+        aMap.put(java.sql.Date.class, EsType.DATETIME);
+        aMap.put(java.sql.Time.class, EsType.TIME);
+        aMap.put(LocalDateTime.class, EsType.DATETIME);
         CLASS_TO_TYPE = Collections.unmodifiableMap(aMap);
 
         Map<EsType, Class<?>> types = new LinkedHashMap<>();
@@ -77,7 +78,7 @@ final class TypeUtils {
         types.put(EsType.KEYWORD, String.class);
         types.put(EsType.TEXT, String.class);
         types.put(EsType.BINARY, byte[].class);
-        types.put(EsType.DATE, Timestamp.class);
+        types.put(EsType.DATETIME, Timestamp.class);
         types.put(EsType.IP, String.class);
         types.put(EsType.INTERVAL_YEAR, Period.class);
         types.put(EsType.INTERVAL_MONTH, Period.class);
@@ -92,6 +93,9 @@ final class TypeUtils {
         types.put(EsType.INTERVAL_HOUR_TO_MINUTE, Duration.class);
         types.put(EsType.INTERVAL_HOUR_TO_SECOND, Duration.class);
         types.put(EsType.INTERVAL_MINUTE_TO_SECOND, Duration.class);
+        types.put(EsType.GEO_POINT, String.class);
+        types.put(EsType.GEO_SHAPE, String.class);
+        types.put(EsType.SHAPE, String.class);
 
         TYPE_TO_CLASS = unmodifiableMap(types);
 

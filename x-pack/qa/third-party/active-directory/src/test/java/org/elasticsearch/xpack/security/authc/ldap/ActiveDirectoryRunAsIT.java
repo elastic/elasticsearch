@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -38,18 +39,18 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         useLegacyBindPassword = randomBoolean();
-        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         switch (realmConfig) {
             case AD:
-                builder.put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".bind_dn", "ironman@ad.test.elasticsearch.com")
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_search.pool.enabled", false);
+                builder.put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".bind_dn", "ironman@ad.test.elasticsearch.com")
+                        .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".user_search.pool.enabled", false);
                 if (useLegacyBindPassword) {
-                    builder.put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".bind_password", ActiveDirectorySessionFactoryTests.PASSWORD);
+                    builder.put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".bind_password", ActiveDirectorySessionFactoryTests.PASSWORD);
                 } else {
                     SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
-                        secureSettings.setString(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".secure_bind_password",
+                        secureSettings.setString(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".secure_bind_password",
                                 ActiveDirectorySessionFactoryTests.PASSWORD);
                     });
                 }
@@ -60,7 +61,6 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
         return builder.build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     public void testRunAs() throws Exception {
         String avenger = realmConfig.loginWithCommonName ? "Natasha Romanoff" : "blackwidow";
         final AuthenticateRequest request = new AuthenticateRequest(avenger);

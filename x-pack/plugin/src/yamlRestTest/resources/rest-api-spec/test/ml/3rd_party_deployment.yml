@@ -1,0 +1,30 @@
+---
+"Test start deployment fails with missing task config":
+
+  - do:
+      ml.put_trained_model:
+        model_id: distilbert-finetuned-sst
+        body: >
+          {
+            "description": "distilbert-base-uncased-finetuned-sst-2-english.pt",
+            "model_type": "pytorch",
+            "inference_config": {
+              "classification": {
+                "num_top_classes": 1
+              }
+            },
+            "input": {
+                "field_names": ["text_field"]
+            },
+            "location": {
+              "index": {
+                "model_id": "distilbert-finetuned-sst",
+                "name": "big_model"
+              }
+            }
+          }
+
+  - do:
+      catch: /Could not find trained model definition \[distilbert-finetuned-sst\]/
+      ml.start_trained_model_deployment:
+        model_id: distilbert-finetuned-sst

@@ -1,19 +1,19 @@
-[[misc-cluster]]
-=== Miscellaneous cluster settings
+[[misc-cluster-settings]]
+==== Miscellaneous cluster settings
 
 [[cluster-read-only]]
-==== Metadata
+===== Metadata
 
-An entire cluster may be set to read-only with the following _dynamic_ setting:
+An entire cluster may be set to read-only with the following setting:
 
 `cluster.blocks.read_only`::
-
+      (<<dynamic-cluster-setting,Dynamic>>)
       Make the whole cluster read only (indices do not accept write
       operations), metadata is not allowed to be modified (create or delete
       indices).
 
 `cluster.blocks.read_only_allow_delete`::
-
+      (<<dynamic-cluster-setting,Dynamic>>)
       Identical to `cluster.blocks.read_only` but allows to delete indices
       to free up resources.
 
@@ -23,8 +23,7 @@ API can make the cluster read-write again.
 
 
 [[cluster-shard-limit]]
-
-==== Cluster Shard Limit
+===== Cluster shard limit
 
 There is a soft limit on the number of shards in a cluster, based on the number
 of nodes in the cluster. This is intended to prevent operations which may
@@ -46,36 +45,73 @@ either the limit is increased as described below, or some indices are
 <<indices-open-close,closed>> or <<indices-delete-index,deleted>> to bring the
 number of shards below the limit.
 
-Replicas count towards this limit, but closed indexes do not. An index with 5
-primary shards and 2 replicas will be counted as 15 shards. Any closed index
-is counted as 0, no matter how many shards and replicas it contains.
+The cluster shard limit defaults to 1,000 shards per non-frozen data node for
+normal (non-frozen) indices and 3000 shards per frozen data node for frozen
+indices.
+Both primary and replica shards of all open indices count toward the limit,
+including unassigned shards.
+For example, an open index with 5 primary shards and 2 replicas counts as 15 shards.
+Closed indices do not contribute to the shard count.
 
-The limit defaults to 1,000 shards per data node, and can be dynamically
-adjusted using the following property:
+You can dynamically adjust the cluster shard limit with the following setting:
 
+[[cluster-max-shards-per-node]]
 `cluster.max_shards_per_node`::
++
+--
+(<<dynamic-cluster-setting,Dynamic>>)
+Limits the total number of primary and replica shards for the cluster. {es}
+calculates the limit as follows:
 
-     Controls the number of shards allowed in the cluster per data node.
+`cluster.max_shards_per_node * number of non-frozen data nodes`
 
-For example, a 3-node cluster with the default setting would allow 3,000 shards
-total, across all open indexes. If the above setting is changed to 500, then
-the cluster would allow 1,500 shards total.
+Shards for closed indices do not count toward this limit. Defaults to `1000`.
+A cluster with no data nodes is unlimited.
 
-NOTE: If there are no data nodes in the cluster, the limit will not be enforced.
-This allows the creation of indices during cluster creation if dedicated master
-nodes are set up before data nodes.
+{es} rejects any request that creates more shards than this limit allows. For
+example, a cluster with a `cluster.max_shards_per_node` setting of `100` and
+three data nodes has a shard limit of 300. If the cluster already contains 296
+shards, {es} rejects any request that adds five or more shards to the cluster.
+
+Notice that frozen shards have their own independent limit.
+--
+
+[[cluster-max-shards-per-node-frozen]]
+`cluster.max_shards_per_node.frozen`::
++
+--
+(<<dynamic-cluster-setting,Dynamic>>)
+Limits the total number of primary and replica frozen shards for the cluster.
+{es} calculates the limit as follows:
+
+`cluster.max_shards_per_node * number of frozen data nodes`
+
+Shards for closed indices do not count toward this limit. Defaults to `3000`.
+A cluster with no frozen data nodes is unlimited.
+
+{es} rejects any request that creates more frozen shards than this limit allows.
+For example, a cluster with a `cluster.max_shards_per_node.frozen` setting of
+`100` and three frozen data nodes has a frozen shard limit of 300. If the
+cluster already contains 296 shards, {es} rejects any request that adds five or
+more frozen shards to the cluster.
+
+NOTE: These setting do not limit shards for individual nodes. To limit the
+number of shards for each node, use the
+<<cluster-total-shards-per-node,`cluster.routing.allocation.total_shards_per_node`>>
+setting.
+--
 
 [[user-defined-data]]
-==== User Defined Cluster Metadata
+===== User-defined cluster metadata
 
 User-defined metadata can be stored and retrieved using the Cluster Settings API.
 This can be used to store arbitrary, infrequently-changing data about the cluster
 without the need to create an index to store it. This data may be stored using
-any key prefixed with `cluster.metadata.`.  For example, to store the email
+any key prefixed with `cluster.metadata.`. For example, to store the email
 address of the administrator of a cluster under the key `cluster.metadata.administrator`,
 issue this request:
 
-[source,js]
+[source,console]
 -------------------------------
 PUT /_cluster/settings
 {
@@ -84,7 +120,6 @@ PUT /_cluster/settings
   }
 }
 -------------------------------
-// CONSOLE
 
 IMPORTANT: User-defined cluster metadata is not intended to store sensitive or
 confidential information. Any information stored in user-defined cluster
@@ -93,14 +128,14 @@ metadata will be viewable by anyone with access to the
 {es} logs.
 
 [[cluster-max-tombstones]]
-==== Index Tombstones
+===== Index tombstones
 
 The cluster state maintains index tombstones to explicitly denote indices that
-have been deleted.  The number of tombstones maintained in the cluster state is
-controlled by the following property, which cannot be updated dynamically:
+have been deleted. The number of tombstones maintained in the cluster state is
+controlled by the following setting:
 
 `cluster.indices.tombstones.size`::
-
+(<<static-cluster-setting,Static>>)
 Index tombstones prevent nodes that are not part of the cluster when a delete
 occurs from joining the cluster and reimporting the index as though the delete
 was never issued. To keep the cluster state from growing huge we only keep the
@@ -109,14 +144,18 @@ increase it if you expect nodes to be absent from the cluster and miss more
 than 500 deletes. We think that is rare, thus the default. Tombstones don't take
 up much space, but we also think that a number like 50,000 is probably too big.
 
-[[cluster-logger]]
-==== Logger
+include::{es-repo-dir}/indices/dangling-indices-list.asciidoc[tag=dangling-index-description]
+You can use the <<dangling-indices-api,Dangling indices API>> to manage
+this situation.
 
-The settings which control logging can be updated dynamically with the
-`logger.` prefix.  For instance, to increase the logging level of the
+[[cluster-logger]]
+===== Logger
+
+The settings which control logging can be updated <<dynamic-cluster-setting,dynamically>> with the
+`logger.` prefix. For instance, to increase the logging level of the
 `indices.recovery` module to `DEBUG`, issue this request:
 
-[source,js]
+[source,console]
 -------------------------------
 PUT /_cluster/settings
 {
@@ -125,25 +164,24 @@ PUT /_cluster/settings
   }
 }
 -------------------------------
-// CONSOLE
 
 
 [[persistent-tasks-allocation]]
-==== Persistent Tasks Allocations
+===== Persistent tasks allocation
 
 Plugins can create a kind of tasks called persistent tasks. Those tasks are
-usually long-live tasks and are stored in the cluster state, allowing the
+usually long-lived tasks and are stored in the cluster state, allowing the
 tasks to be revived after a full cluster restart.
 
 Every time a persistent task is created, the master node takes care of
 assigning the task to a node of the cluster, and the assigned node will then
 pick up the task and execute it locally. The process of assigning persistent
-tasks to nodes is controlled by the following properties, which can be updated
-dynamically:
+tasks to nodes is controlled by the following settings:
 
 `cluster.persistent_tasks.allocation.enable`::
 +
 --
+(<<dynamic-cluster-setting,Dynamic>>)
 Enable or disable allocation for persistent tasks:
 
 * `all` -             (default) Allows persistent tasks to be assigned to nodes
@@ -155,7 +193,7 @@ left the cluster, for example), are impacted by this setting.
 --
 
 `cluster.persistent_tasks.allocation.recheck_interval`::
-
+     (<<dynamic-cluster-setting,Dynamic>>)
      The master node will automatically check whether persistent tasks need to
      be assigned when the cluster state changes significantly. However, there
      may be other factors, such as memory usage, that affect whether persistent

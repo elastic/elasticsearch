@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Collections;
 import java.util.Map;
@@ -112,7 +113,7 @@ public class MockHttpResource extends PublishableHttpResource {
     }
 
     @Override
-    protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    protected void doPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         assert client != null;
 
         ++published;
@@ -121,7 +122,7 @@ public class MockHttpResource extends PublishableHttpResource {
         if (publish == null) {
             listener.onFailure(new RuntimeException("TEST - expected"));
         } else {
-            listener.onResponse(publish);
+            listener.onResponse(new ResourcePublishResult(publish));
         }
     }
 

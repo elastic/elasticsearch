@@ -1,35 +1,53 @@
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.build'
 
 archivesBaseName = 'elasticsearch-security-cli'
 
 dependencies {
-    compileOnly "org.elasticsearch:elasticsearch:${version}"
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    compileOnly project(path: xpackModule('core'), configuration: 'default')
-    compile 'org.bouncycastle:bcpkix-jdk15on:1.59'
-    compile 'org.bouncycastle:bcprov-jdk15on:1.59'
-    testImplementation 'com.google.jimfs:jimfs:1.1'
-    testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
-    testCompile 'org.elasticsearch:securemock:1.2'
-    testCompile "org.elasticsearch.test:framework:${version}"
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(":server")
+  compileOnly project(path: xpackModule('core'))
+  api "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
+  api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+  testImplementation("com.google.jimfs:jimfs:${versions.jimfs}") {
+    // this is provided by the runtime classpath, from the security project
+    exclude group: "com.google.guava", module: "guava"
+  }
+  testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
+  testImplementation project(":test:framework")
+testImplementation(testArtifact(project(xpackModule('core'))))}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /bc.*/, to: 'bouncycastle'
 }
 
-dependencyLicenses {
-    mapping from: /bc.*/, to: 'bouncycastle'
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.p12'
+  exclude '**/*.jks'
 }
 
-if (project.inFipsJvm) {
-    test.enabled = false
-    // Forbiden APIs non-portable checks fail because bouncy castle classes being used from the FIPS JDK since those are
-    // not part of the Java specification - all of this is as designed, so we have to relax this check for FIPS.
-    tasks.withType(CheckForbiddenApis) {
-        bundledSignatures -= "jdk-non-portable"
-    }
-    // FIPS JVM includes manny classes from bouncycastle which count as jar hell for the third party audit,
-    // rather than provide a long list of exclusions, disable the check on FIPS.
-    thirdPartyAudit.enabled = false
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // Used in org.bouncycastle.pqc.crypto.qtesla.QTeslaKeyEncodingTests
+    'junit.framework.Assert',
+    'junit.framework.TestCase'
+  )
+}
+
+if (BuildParams.inFipsJvm) {
+  tasks.named("test").configure {
+    enabled = false
+  }
+  tasks.named("jarHell").configure {
+    enabled = false
+  }
+  tasks.named("testingConventions").configure {
+    enabled = false
+  }
+  // Forbiden APIs non-portable checks fail because bouncy castle classes being used from the FIPS JDK since those are
+  // not part of the Java specification - all of this is as designed, so we have to relax this check for FIPS.
+  tasks.withType(CheckForbiddenApis).configureEach {
+    bundledSignatures -= "jdk-non-portable"
+  }
 }

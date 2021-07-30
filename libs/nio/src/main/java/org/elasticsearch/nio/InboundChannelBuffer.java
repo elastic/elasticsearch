@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
 import java.nio.ByteBuffer;
@@ -28,7 +16,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
+import java.util.function.IntFunction;
 
 /**
  * This is a channel byte buffer composed internally of 16kb pages. When an entire message has been read
@@ -38,15 +26,14 @@ import java.util.function.Supplier;
  */
 public final class InboundChannelBuffer implements AutoCloseable {
 
-    private static final int PAGE_SIZE = 1 << 14;
+    public static final int PAGE_SIZE = 1 << 14;
     private static final int PAGE_MASK = PAGE_SIZE - 1;
     private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(PAGE_SIZE);
     private static final ByteBuffer[] EMPTY_BYTE_BUFFER_ARRAY = new ByteBuffer[0];
     private static final Page[] EMPTY_BYTE_PAGE_ARRAY = new Page[0];
 
-
-    private final ArrayDeque<Page> pages;
-    private final Supplier<Page> pageSupplier;
+    private final IntFunction<Page> pageAllocator;
+    private final ArrayDeque<Page> pages = new ArrayDeque<>();
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     private long capacity = 0;
@@ -54,14 +41,12 @@ public final class InboundChannelBuffer implements AutoCloseable {
     // The offset is an int as it is the offset of where the bytes begin in the first buffer
     private int offset = 0;
 
-    public InboundChannelBuffer(Supplier<Page> pageSupplier) {
-        this.pageSupplier = pageSupplier;
-        this.pages = new ArrayDeque<>();
-        this.capacity = PAGE_SIZE * pages.size();
+    public InboundChannelBuffer(IntFunction<Page> pageAllocator) {
+        this.pageAllocator = pageAllocator;
     }
 
     public static InboundChannelBuffer allocatingInstance() {
-        return new InboundChannelBuffer(() -> new Page(ByteBuffer.allocate(PAGE_SIZE), () -> {}));
+        return new InboundChannelBuffer((n) -> new Page(ByteBuffer.allocate(n), () -> {}));
     }
 
     @Override
@@ -88,7 +73,7 @@ public final class InboundChannelBuffer implements AutoCloseable {
             int numPages = numPages(requiredCapacity + offset);
             int pagesToAdd = numPages - pages.size();
             for (int i = 0; i < pagesToAdd; i++) {
-                Page page = pageSupplier.get();
+                Page page = pageAllocator.apply(PAGE_SIZE);
                 pages.addLast(page);
             }
             capacity += pagesToAdd * PAGE_SIZE;
@@ -140,11 +125,11 @@ public final class InboundChannelBuffer implements AutoCloseable {
 
         ByteBuffer[] buffers = new ByteBuffer[pageCount];
         Iterator<Page> pageIterator = pages.iterator();
-        ByteBuffer firstBuffer = pageIterator.next().byteBuffer.duplicate();
+        ByteBuffer firstBuffer = pageIterator.next().byteBuffer().duplicate();
         firstBuffer.position(firstBuffer.position() + offset);
         buffers[0] = firstBuffer;
         for (int i = 1; i < buffers.length; i++) {
-            buffers[i] = pageIterator.next().byteBuffer.duplicate();
+            buffers[i] = pageIterator.next().byteBuffer().duplicate();
         }
         if (finalLimit != 0) {
             buffers[buffers.length - 1].limit(finalLimit);
@@ -180,14 +165,14 @@ public final class InboundChannelBuffer implements AutoCloseable {
         Page[] pages = new Page[pageCount];
         Iterator<Page> pageIterator = this.pages.iterator();
         Page firstPage = pageIterator.next().duplicate();
-        ByteBuffer firstBuffer = firstPage.byteBuffer;
+        ByteBuffer firstBuffer = firstPage.byteBuffer();
         firstBuffer.position(firstBuffer.position() + offset);
         pages[0] = firstPage;
         for (int i = 1; i < pages.length; i++) {
             pages[i] = pageIterator.next().duplicate();
         }
         if (finalLimit != 0) {
-            pages[pages.length - 1].byteBuffer.limit(finalLimit);
+            pages[pages.length - 1].byteBuffer().limit(finalLimit);
         }
 
         return pages;
@@ -217,9 +202,9 @@ public final class InboundChannelBuffer implements AutoCloseable {
         ByteBuffer[] buffers = new ByteBuffer[pages.size() - pageIndex];
         Iterator<Page> pageIterator = pages.descendingIterator();
         for (int i = buffers.length - 1; i > 0; --i) {
-            buffers[i] = pageIterator.next().byteBuffer.duplicate();
+            buffers[i] = pageIterator.next().byteBuffer().duplicate();
         }
-        ByteBuffer firstPostIndexBuffer = pageIterator.next().byteBuffer.duplicate();
+        ByteBuffer firstPostIndexBuffer = pageIterator.next().byteBuffer().duplicate();
         firstPostIndexBuffer.position(firstPostIndexBuffer.position() + indexInPage);
         buffers[0] = firstPostIndexBuffer;
 
@@ -267,54 +252,5 @@ public final class InboundChannelBuffer implements AutoCloseable {
 
     private int indexInPage(long index) {
         return (int) (index & PAGE_MASK);
-    }
-
-    public static class Page implements AutoCloseable {
-
-        private final ByteBuffer byteBuffer;
-        // This is reference counted as some implementations want to retain the byte pages by calling
-        // sliceAndRetainPagesTo. With reference counting we can increment the reference count, return the
-        // pages, and safely close them when this channel buffer is done with them. The reference count
-        // would be 1 at that point, meaning that the pages will remain until the implementation closes
-        // theirs.
-        private final RefCountedCloseable refCountedCloseable;
-
-        public Page(ByteBuffer byteBuffer, Runnable closeable) {
-            this(byteBuffer, new RefCountedCloseable(closeable));
-        }
-
-        private Page(ByteBuffer byteBuffer, RefCountedCloseable refCountedCloseable) {
-            this.byteBuffer = byteBuffer;
-            this.refCountedCloseable = refCountedCloseable;
-        }
-
-        private Page duplicate() {
-            refCountedCloseable.incRef();
-            return new Page(byteBuffer.duplicate(), refCountedCloseable);
-        }
-
-        public ByteBuffer getByteBuffer() {
-            return byteBuffer;
-        }
-
-        @Override
-        public void close() {
-            refCountedCloseable.decRef();
-        }
-
-        private static class RefCountedCloseable extends AbstractRefCounted {
-
-            private final Runnable closeable;
-
-            private RefCountedCloseable(Runnable closeable) {
-                super("byte array page");
-                this.closeable = closeable;
-            }
-
-            @Override
-            protected void closeInternal() {
-                closeable.run();
-            }
-        }
     }
 }

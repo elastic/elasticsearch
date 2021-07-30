@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger;
 
@@ -19,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
@@ -28,12 +30,12 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArg
 public class TriggerService {
 
     private final GroupedConsumer consumer = new GroupedConsumer();
-    private final Map<String, TriggerEngine> engines;
-    private final Map<String, TriggerWatchStats> perWatchStats = new HashMap<>();
+    private final Map<String, TriggerEngine<?, ?>> engines;
+    private final Map<String, TriggerWatchStats> perWatchStats = new ConcurrentHashMap<>();
 
-    public TriggerService(Set<TriggerEngine> engines) {
-        Map<String, TriggerEngine> builder = new HashMap<>();
-        for (TriggerEngine engine : engines) {
+    public TriggerService(Set<TriggerEngine<?, ?>> engines) {
+        Map<String, TriggerEngine<?, ?>> builder = new HashMap<>();
+        for (TriggerEngine<?, ?> engine : engines) {
             builder.put(engine.type(), engine);
             engine.register(consumer);
         }
@@ -41,14 +43,14 @@ public class TriggerService {
     }
 
     public synchronized void start(Collection<Watch> watches) {
-        for (TriggerEngine engine : engines.values()) {
+        for (TriggerEngine<?, ?> engine : engines.values()) {
             engine.start(watches);
         }
         watches.forEach(this::addToStats);
     }
 
     public synchronized void stop() {
-        for (TriggerEngine engine : engines.values()) {
+        for (TriggerEngine<?, ?> engine : engines.values()) {
             engine.stop();
         }
         perWatchStats.clear();
@@ -155,7 +157,7 @@ public class TriggerService {
      */
     public boolean remove(String jobName) {
         perWatchStats.remove(jobName);
-        for (TriggerEngine engine : engines.values()) {
+        for (TriggerEngine<?, ?> engine : engines.values()) {
             if (engine.remove(jobName)) {
                 return true;
             }
@@ -168,7 +170,7 @@ public class TriggerService {
     }
 
     public TriggerEvent simulateEvent(String type, String jobId, Map<String, Object> data) {
-        TriggerEngine engine = engines.get(type);
+        TriggerEngine<?, ?> engine = engines.get(type);
         if (engine == null) {
             throw illegalArgument("could not simulate trigger event. unknown trigger type [{}]", type);
         }
@@ -199,7 +201,7 @@ public class TriggerService {
     }
 
     public Trigger parseTrigger(String jobName, String type, XContentParser parser) throws IOException {
-        TriggerEngine engine = engines.get(type);
+        TriggerEngine<?, ?> engine = engines.get(type);
         if (engine == null) {
             throw new ElasticsearchParseException("could not parse trigger [{}] for [{}]. unknown trigger type [{}]", type, jobName, type);
         }
@@ -230,7 +232,7 @@ public class TriggerService {
     }
 
     public TriggerEvent parseTriggerEvent(String watchId, String context, String type, XContentParser parser) throws IOException {
-        TriggerEngine engine = engines.get(type);
+        TriggerEngine<?, ?> engine = engines.get(type);
         if (engine == null) {
             throw new ElasticsearchParseException("Unknown trigger type [{}]", type);
         }

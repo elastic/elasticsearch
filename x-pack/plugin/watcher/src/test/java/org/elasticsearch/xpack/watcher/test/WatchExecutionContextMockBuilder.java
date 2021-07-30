@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test;
 
@@ -13,12 +14,12 @@ import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.joda.time.DateTime;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -37,7 +38,7 @@ public class WatchExecutionContextMockBuilder {
         when(ctx.watch()).thenReturn(watch);
         payload(Collections.<String, Object>emptyMap());
         metadata(Collections.<String, Object>emptyMap());
-        time(watchId, DateTime.now(UTC));
+        time(watchId, ZonedDateTime.now(ZoneOffset.UTC));
     }
 
     public WatchExecutionContextMockBuilder wid(Wid wid) {
@@ -58,11 +59,11 @@ public class WatchExecutionContextMockBuilder {
         return this;
     }
 
-    public WatchExecutionContextMockBuilder time(String watchId, DateTime time) {
+    public WatchExecutionContextMockBuilder time(String watchId, ZonedDateTime time) {
         return executionTime(time).triggerEvent(new ScheduleTriggerEvent(watchId, time, time));
     }
 
-    public WatchExecutionContextMockBuilder executionTime(DateTime time) {
+    public WatchExecutionContextMockBuilder executionTime(ZonedDateTime time) {
         when(ctx.executionTime()).thenReturn(time);
         return this;
     }

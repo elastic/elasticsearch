@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.transport.TransportRequest;
@@ -36,8 +36,8 @@ public class SecurityActionMapper {
                 break;
             case AnalyzeAction.NAME:
             case AnalyzeAction.NAME + "[s]":
-                assert request instanceof AnalyzeRequest;
-                String[] indices = ((AnalyzeRequest) request).indices();
+                assert request instanceof AnalyzeAction.Request;
+                String[] indices = ((AnalyzeAction.Request) request).indices();
                 if (indices == null || (indices.length == 1 && indices[0] == null)) {
                     return CLUSTER_PERMISSION_ANALYZE;
                 }

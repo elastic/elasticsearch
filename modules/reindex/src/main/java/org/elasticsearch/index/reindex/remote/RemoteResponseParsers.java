@@ -1,34 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex.remote;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -37,6 +22,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.search.SearchHits;
 
 import java.io.IOException;
@@ -62,14 +51,12 @@ final class RemoteResponseParsers {
             new ConstructingObjectParser<>("hit", true, a -> {
                 int i = 0;
                 String index = (String) a[i++];
-                String type = (String) a[i++];
                 String id = (String) a[i++];
                 Long version = (Long) a[i++];
-                return new BasicHit(index, type, id, version == null ? -1 : version);
+                return new BasicHit(index, id, version == null ? -1 : version);
             });
     static {
         HIT_PARSER.declareString(constructorArg(), new ParseField("_index"));
-        HIT_PARSER.declareString(constructorArg(), new ParseField("_type"));
         HIT_PARSER.declareString(constructorArg(), new ParseField("_id"));
         HIT_PARSER.declareLong(optionalConstructorArg(), new ParseField("_version"));
         HIT_PARSER.declareObject(((basicHit, tuple) -> basicHit.setSource(tuple.v1(), tuple.v2())), (p, s) -> {
@@ -126,7 +113,7 @@ final class RemoteResponseParsers {
     /**
      * Parser for {@code failed} shards in the {@code _shards} elements.
      */
-    public static final ConstructingObjectParser<SearchFailure, XContentType> SEARCH_FAILURE_PARSER =
+    public static final ConstructingObjectParser<SearchFailure, Void> SEARCH_FAILURE_PARSER =
             new ConstructingObjectParser<>("failure", true, a -> {
                 int i = 0;
                 String index = (String) a[i++];
@@ -143,12 +130,12 @@ final class RemoteResponseParsers {
                 return new SearchFailure(reasonThrowable, index, shardId, nodeId);
             });
     static {
-        SEARCH_FAILURE_PARSER.declareString(optionalConstructorArg(), new ParseField("index"));
+        SEARCH_FAILURE_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("index"));
         SEARCH_FAILURE_PARSER.declareInt(optionalConstructorArg(), new ParseField("shard"));
         SEARCH_FAILURE_PARSER.declareString(optionalConstructorArg(), new ParseField("node"));
         SEARCH_FAILURE_PARSER.declareField(constructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.START_OBJECT) {
-                return ThrowableBuilder.PARSER.apply(p, c);
+                return ThrowableBuilder.PARSER.apply(p, null);
             } else {
                 return p.text();
             }
@@ -159,7 +146,7 @@ final class RemoteResponseParsers {
      * Parser for the {@code _shards} element. Throws everything out except the errors array if there is one. If there isn't one then it
      * parses to an empty list.
      */
-    public static final ConstructingObjectParser<List<Throwable>, XContentType> SHARDS_PARSER =
+    public static final ConstructingObjectParser<List<Throwable>, Void> SHARDS_PARSER =
             new ConstructingObjectParser<>("_shards", true, a -> {
                 @SuppressWarnings("unchecked")
                 List<Throwable> failures = (List<Throwable>) a[0];
@@ -198,20 +185,20 @@ final class RemoteResponseParsers {
                 return new Response(timedOut, failures, totalHits, hits, scroll);
             });
     static {
-        RESPONSE_PARSER.declareObject(optionalConstructorArg(), ThrowableBuilder.PARSER::apply, new ParseField("error"));
+        RESPONSE_PARSER.declareObject(optionalConstructorArg(), (p, c) -> ThrowableBuilder.PARSER.apply(p, null), new ParseField("error"));
         RESPONSE_PARSER.declareBoolean(optionalConstructorArg(), new ParseField("timed_out"));
         RESPONSE_PARSER.declareString(optionalConstructorArg(), new ParseField("_scroll_id"));
         RESPONSE_PARSER.declareObject(optionalConstructorArg(), HITS_PARSER, new ParseField("hits"));
-        RESPONSE_PARSER.declareObject(optionalConstructorArg(), SHARDS_PARSER, new ParseField("_shards"));
+        RESPONSE_PARSER.declareObject(optionalConstructorArg(), (p, c) -> SHARDS_PARSER.apply(p, null), new ParseField("_shards"));
     }
 
     /**
      * Collects stuff about Throwables and attempts to rebuild them.
      */
     public static class ThrowableBuilder {
-        public static final BiFunction<XContentParser, XContentType, Throwable> PARSER;
+        public static final BiFunction<XContentParser, Void, Throwable> PARSER;
         static {
-            ObjectParser<ThrowableBuilder, XContentType> parser = new ObjectParser<>("reason", true, ThrowableBuilder::new);
+            ObjectParser<ThrowableBuilder, Void> parser = new ObjectParser<>("reason", true, ThrowableBuilder::new);
             PARSER = parser.andThen(ThrowableBuilder::build);
             parser.declareString(ThrowableBuilder::setType, new ParseField("type"));
             parser.declareString(ThrowableBuilder::setReason, new ParseField("reason"));

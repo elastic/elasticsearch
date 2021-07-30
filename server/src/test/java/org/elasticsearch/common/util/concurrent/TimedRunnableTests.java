@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.RejectedExecutionException;
@@ -33,7 +23,6 @@ public final class TimedRunnableTests extends ESTestCase {
         final boolean isForceExecution = randomBoolean();
         final AtomicBoolean onAfter = new AtomicBoolean();
         final AtomicReference<Exception> onRejection = new AtomicReference<>();
-        final AtomicReference<Exception> onFailure = new AtomicReference<>();
         final AtomicBoolean doRun = new AtomicBoolean();
 
         final AbstractRunnable runnable = new AbstractRunnable() {
@@ -54,7 +43,6 @@ public final class TimedRunnableTests extends ESTestCase {
 
             @Override
             public void onFailure(final Exception e) {
-                onFailure.set(e);
             }
 
             @Override
@@ -67,19 +55,13 @@ public final class TimedRunnableTests extends ESTestCase {
 
         assertThat(timedRunnable.isForceExecution(), equalTo(isForceExecution));
 
-        timedRunnable.onAfter();
-        assertTrue(onAfter.get());
-
         final Exception rejection = new RejectedExecutionException();
         timedRunnable.onRejection(rejection);
         assertThat(onRejection.get(), equalTo(rejection));
 
-        final Exception failure = new Exception();
-        timedRunnable.onFailure(failure);
-        assertThat(onFailure.get(), equalTo(failure));
-
         timedRunnable.run();
         assertTrue(doRun.get());
+        assertTrue(onAfter.get());
     }
 
     public void testTimedRunnableDelegatesRunInFailureCase() {
@@ -114,4 +96,78 @@ public final class TimedRunnableTests extends ESTestCase {
         assertTrue(onAfter.get());
     }
 
+    public void testTimedRunnableRethrowsExceptionWhenNotAbstractRunnable() {
+        final AtomicBoolean hasRun = new AtomicBoolean();
+        final RuntimeException exception = new RuntimeException();
+
+        final Runnable runnable = () -> {
+            hasRun.set(true);
+            throw exception;
+        };
+
+        final TimedRunnable timedRunnable = new TimedRunnable(runnable);
+        final RuntimeException thrown = expectThrows(RuntimeException.class, () -> timedRunnable.run());
+        assertTrue(hasRun.get());
+        assertSame(exception, thrown);
+    }
+
+    public void testTimedRunnableRethrowsRejectionWhenNotAbstractRunnable() {
+        final AtomicBoolean hasRun = new AtomicBoolean();
+        final RuntimeException exception = new RuntimeException();
+
+        final Runnable runnable = () -> {
+            hasRun.set(true);
+            throw new AssertionError("should not run");
+        };
+
+        final TimedRunnable timedRunnable = new TimedRunnable(runnable);
+        final RuntimeException thrown = expectThrows(RuntimeException.class, () -> timedRunnable.onRejection(exception));
+        assertFalse(hasRun.get());
+        assertSame(exception, thrown);
+    }
+
+    public void testTimedRunnableExecutesNestedOnAfterOnce() {
+        final AtomicBoolean afterRan = new AtomicBoolean(false);
+        new TimedRunnable(new AbstractRunnable() {
+
+            @Override
+            public void onFailure(final Exception e) {
+            }
+
+            @Override
+            protected void doRun() {
+            }
+
+            @Override
+            public void onAfter() {
+                if (afterRan.compareAndSet(false, true) == false) {
+                    fail("onAfter should have only been called once");
+                }
+            }
+        }).run();
+        assertTrue(afterRan.get());
+    }
+
+    public void testNestedOnFailureTriggersOnlyOnce() {
+        final Exception expectedException = new RuntimeException();
+        final AtomicBoolean onFailureRan = new AtomicBoolean(false);
+        RuntimeException thrown = expectThrows(RuntimeException.class, () -> new TimedRunnable(new AbstractRunnable() {
+
+            @Override
+            public void onFailure(Exception e) {
+                if (onFailureRan.compareAndSet(false, true) == false) {
+                    fail("onFailure should have only been called once");
+                }
+                ExceptionsHelper.reThrowIfNotNull(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                throw expectedException;
+            }
+
+        }).run());
+        assertTrue(onFailureRan.get());
+        assertSame(thrown, expectedException);
+    }
 }

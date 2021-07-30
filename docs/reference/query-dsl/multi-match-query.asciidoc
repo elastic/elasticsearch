@@ -1,10 +1,13 @@
 [[query-dsl-multi-match-query]]
-=== Multi Match Query
+=== Multi-match query
+++++
+<titleabbrev>Multi-match</titleabbrev>
+++++
 
 The `multi_match` query builds on the <<query-dsl-match-query,`match` query>>
 to allow multi-field queries:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -16,16 +19,17 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The query string.
 <2> The fields to be queried.
 
-[float]
+[discrete]
+[[field-boost]]
 ==== `fields` and per-field boosting
 
 Fields can be specified with wildcards, eg:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -37,12 +41,12 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Query the `title`, `first_name` and `last_name` fields.
 
 Individual fields can be boosted with the caret (`^`) notation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -54,21 +58,21 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
-<1> The `subject` field is three times as important as the `message` field.
+<1> The query multiplies the `subject` field's score by three but leaves the
+`message` field's score unchanged.
 
 If no `fields` are provided, the `multi_match` query defaults to the `index.query.default_field`
 index settings, which in turn defaults to `*`. `*` extracts all fields in the mapping that
 are eligible to term queries and filters the metadata fields. All extracted fields are then
 combined to build a query.
 
-WARNING: There is a limit on the number of fields that can be queried
+WARNING: There is a limit on the number of fields times terms that can be queried
 at once. It is defined by the `indices.query.bool.max_clause_count` <<search-settings>>
-which defaults to 1024.
+which defaults to 4096.
 
 [[multi-match-types]]
-[float]
+[discrete]
 ==== Types of `multi_match` query:
 
 The way the `multi_match` query is executed internally depends on the `type`
@@ -76,20 +80,24 @@ parameter, which can be set to:
 
 [horizontal]
 `best_fields`::     (*default*) Finds documents which match any field, but
-                    uses the  `_score` from the best field.  See <<type-best-fields>>.
+                    uses the  `_score` from the best field. See <<type-best-fields>>.
 
 `most_fields`::     Finds documents which match any field and combines
-                    the `_score` from each field.  See <<type-most-fields>>.
+                    the `_score` from each field. See <<type-most-fields>>.
 
 `cross_fields`::    Treats fields with the same `analyzer` as though they
                     were one big field. Looks for each word in *any*
                     field. See <<type-cross-fields>>.
 
-`phrase`::          Runs a `match_phrase` query on each field and uses the  `_score` 
-                    from the best field.  See <<type-phrase>>.
+`phrase`::          Runs a `match_phrase` query on each field and uses the `_score`
+                    from the best field. See <<type-phrase>>.
 
-`phrase_prefix`::   Runs a `match_phrase_prefix` query on each field and
-                    combines the `_score` from each field.  See <<type-phrase>>.
+`phrase_prefix`::   Runs a `match_phrase_prefix` query on each field and uses
+                    the `_score` from the best field. See <<type-phrase>>.
+
+`bool_prefix`::     Creates a `match_bool_prefix` query on each field and
+                    combines the `_score` from each field. See
+                    <<type-bool-prefix>>.
 
 [[type-best-fields]]
 ==== `best_fields`
@@ -100,9 +108,9 @@ field is more meaningful than ``brown'' in one field and ``fox'' in the other.
 
 The `best_fields` type generates a <<query-dsl-match-query,`match` query>> for
 each field and wraps them in a <<query-dsl-dis-max-query,`dis_max`>> query, to
-find the single best matching field.  For instance, this query:
+find the single best matching field. For instance, this query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -116,11 +124,10 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -135,7 +142,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Normally the `best_fields` type uses the score of the *single* best matching
 field, but if `tie_breaker` is specified, then it calculates the score as
@@ -145,9 +151,9 @@ follows:
   * plus `tie_breaker * _score` for all other matching fields
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
-`fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, `zero_terms_query`,
- `cutoff_frequency`, `auto_generate_synonyms_phrase_query` and `fuzzy_transpositions`,
-  as explained in <<query-dsl-match-query, match query>>.
+`fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `fuzzy_rewrite`, `zero_terms_query`,
+`auto_generate_synonyms_phrase_query` and `fuzzy_transpositions`,
+as explained in <<query-dsl-match-query, match query>>.
 
 [IMPORTANT]
 [[operator-min]]
@@ -155,13 +161,13 @@ Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
 ===================================================
 
 The `best_fields` and `most_fields` types are _field-centric_ -- they generate
-a `match` query *per field*.  This means that the `operator` and
+a `match` query *per field*. This means that the `operator` and
 `minimum_should_match` parameters are applied to each field individually,
 which is probably not what you want.
 
 Take this query for example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -175,7 +181,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> All terms must be present.
 
@@ -187,7 +192,10 @@ This query is executed as:
 In other words, *all terms* must be present *in a single field* for a document
 to match.
 
-See <<type-cross-fields>> for a better solution.
+The <<query-dsl-combined-fields-query, `combined_fields`>> query offers a
+term-centric approach that handles `operator` and `minimum_should_match` on a
+per-term basis. The other multi-match mode <<type-cross-fields>> also
+addresses this issue.
 
 ===================================================
 
@@ -195,7 +203,7 @@ See <<type-cross-fields>> for a better solution.
 ==== `most_fields`
 
 The `most_fields` type is most useful when querying multiple fields that
-contain the same text analyzed in different ways.  For instance, the main
+contain the same text analyzed in different ways. For instance, the main
 field may contain synonyms, stemming and terms without diacritics. A second
 field may contain the original terms, and a third field might contain
 shingles. By combining scores from all three fields we can match as many
@@ -204,7 +212,7 @@ to push the most similar results to the top of the list.
 
 This query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -217,11 +225,10 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -236,15 +243,12 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The score from each `match` clause is added together, then divided by the
 number of `match` clauses.
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
-`fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, `zero_terms_query`
-and `cutoff_frequency`, as explained in <<query-dsl-match-query,match query>>, but
-*see <<operator-min>>*.
+`fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `fuzzy_rewrite`, and `zero_terms_query`.
 
 [[type-phrase]]
 ==== `phrase` and `phrase_prefix`
@@ -254,7 +258,8 @@ but they use a `match_phrase` or `match_phrase_prefix` query instead of a
 `match` query.
 
 This query:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -267,11 +272,10 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -285,11 +289,10 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
-Also, accepts `analyzer`, `boost`, `lenient`, `slop` and `zero_terms_query`  as explained
-in <<query-dsl-match-query>>.  Type `phrase_prefix` additionally accepts
-`max_expansions`.
+Also, accepts `analyzer`, `boost`, `lenient` and `zero_terms_query` as explained
+in <<query-dsl-match-query>>, as well as `slop` which is explained in <<query-dsl-match-query-phrase>>.
+Type `phrase_prefix` additionally accepts `max_expansions`.
 
 [IMPORTANT]
 [[phrase-fuzziness]]
@@ -302,7 +305,7 @@ The `fuzziness` parameter cannot be used with the `phrase` or `phrase_prefix` ty
 ==== `cross_fields`
 
 The `cross_fields` type is particularly useful with structured documents where
-multiple fields *should* match.  For instance, when querying the `first_name`
+multiple fields *should* match. For instance, when querying the `first_name`
 and `last_name` fields for ``Will Smith'', the best match is likely to have
 ``Will'' in one field and ``Smith'' in the other.
 
@@ -314,7 +317,7 @@ with that approach. The first problem is that `operator` and
 <<operator-min,explanation above>>).
 
 The second problem is to do with relevance: the different term frequencies in
-the `first_name` and `last_name` fields   can produce unexpected results.
+the `first_name` and `last_name` fields can produce unexpected results.
 
 For instance, imagine we have two people: ``Will Smith'' and ``Smith Jones''.
 ``Smith'' as a last name is very common (and so is of low importance) but
@@ -328,17 +331,17 @@ probably appear above the better matching ``Will Smith'' because the score of
 ****
 
 One way of dealing with these types of queries is simply to index the
-`first_name` and `last_name` fields into a single `full_name` field.  Of
+`first_name` and `last_name` fields into a single `full_name` field. Of
 course, this can only be done at index time.
 
 The `cross_field` type tries to solve these problems at query time by taking a
-_term-centric_ approach.  It first analyzes the query string into individual
+_term-centric_ approach. It first analyzes the query string into individual
 terms, then looks for each term in any of the fields, as though they were one
 big field.
 
 A query like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -352,11 +355,10 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 is executed as:
 
-    +(first_name:will  last_name:will)
+    +(first_name:will last_name:will)
     +(first_name:smith last_name:smith)
 
 In other words, *all terms* must be present *in at least one field* for a
@@ -384,21 +386,27 @@ explanation:
     +blended("smith", fields: [first_name, last_name])
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
-`lenient`, `zero_terms_query` and `cutoff_frequency`, as explained in
-<<query-dsl-match-query, match query>>.
+`lenient` and `zero_terms_query`.
 
+WARNING: The `cross_fields` type blends field statistics in a way that does
+not always produce well-formed scores (for example scores can become
+negative). As an alternative, you can consider the
+<<query-dsl-combined-fields-query,`combined_fields`>> query, which is also
+term-centric but combines field statistics in a more robust way.
+
+[[cross-field-analysis]]
 ===== `cross_field` and analysis
 
 The `cross_field` type can only work in term-centric mode on fields that have
 the same analyzer. Fields with the same analyzer are grouped together as in
-the example above.  If there are multiple groups, they are combined with a
-`bool` query.
+the example above. If there are multiple groups, the query will use the best
+score from any group.
 
 For instance, if we have a `first` and `last` field which have
 the same analyzer, plus a `first.edge` and `last.edge` which
 both use an `edge_ngram` analyzer, this query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -414,7 +422,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
@@ -434,16 +441,16 @@ Having multiple groups is fine, but when combined with `operator` or
 as `most_fields` or `best_fields`.
 
 You can easily rewrite this query yourself as two separate `cross_fields`
-queries combined with a `bool` query, and apply the `minimum_should_match`
+queries combined with a `dis_max` query, and apply the `minimum_should_match`
 parameter to just one of them:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
   "query": {
-    "bool": {
-      "should": [
+    "dis_max": {
+      "queries": [
         {
           "multi_match" : {
             "query":      "Will Smith",
@@ -464,7 +471,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE 
 
 <1> Either `will` or `smith` must be present in either of the `first`
     or `last` fields
@@ -472,7 +478,7 @@ GET /_search
 You can force all fields into the same group by specifying the `analyzer`
 parameter in the query.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -486,7 +492,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Use the `standard` analyzer for all fields.
 
@@ -495,20 +500,21 @@ which will be executed as:
     blended("will",  fields: [first, first.edge, last.edge, last])
     blended("smith", fields: [first, first.edge, last.edge, last])
 
+[[tie-breaker]]
 ===== `tie_breaker`
 
 By default, each per-term `blended` query will use the best score returned by
-any field in a group, then these scores are added together to give the final
-score. The `tie_breaker` parameter can change the default behaviour of the
-per-term `blended` queries. It accepts:
+any field in a group. Then when combining scores across groups, the query uses
+the best score from any group. The `tie_breaker` parameter can change the
+behavior for both of these steps:
 
 [horizontal]
 `0.0`::             Take the single best score out of (eg) `first_name:will`
-                    and `last_name:will` (*default*)
+                    and `last_name:will` (default)
 `1.0`::             Add together the scores for (eg) `first_name:will` and
                     `last_name:will`
 `0.0 < n < 1.0`::   Take the single best score plus +tie_breaker+ multiplied
-                    by each of the scores from other matching fields.
+                    by each of the scores from other matching fields/ groups
 
 [IMPORTANT]
 [[crossfields-fuzziness]]
@@ -516,3 +522,34 @@ per-term `blended` queries. It accepts:
 ===================================================
 The `fuzziness` parameter cannot be used with the `cross_fields` type.
 ===================================================
+
+[[type-bool-prefix]]
+==== `bool_prefix`
+
+The `bool_prefix` type's scoring behaves like <<type-most-fields>>, but using a
+<<query-dsl-match-bool-prefix-query,`match_bool_prefix` query>> instead of a
+`match` query.
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "query": {
+    "multi_match" : {
+      "query":      "quick brown f",
+      "type":       "bool_prefix",
+      "fields":     [ "subject", "message" ]
+    }
+  }
+}
+--------------------------------------------------
+
+The `analyzer`, `boost`, `operator`, `minimum_should_match`, `lenient`,
+`zero_terms_query`, and `auto_generate_synonyms_phrase_query` parameters as
+explained in <<query-dsl-match-query, match query>> are supported. The
+`fuzziness`, `prefix_length`, `max_expansions`, `fuzzy_rewrite`, and
+`fuzzy_transpositions` parameters are supported for the terms that are used to
+construct term queries, but do not have an effect on the prefix query
+constructed from the final term.
+
+The `slop` parameter is not supported by this query type.

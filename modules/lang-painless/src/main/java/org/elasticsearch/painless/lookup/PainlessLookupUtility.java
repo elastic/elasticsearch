@@ -1,23 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.lookup;
+
+import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
 
 import java.util.Arrays;
 import java.util.List;
@@ -72,7 +63,7 @@ import java.util.Objects;
  * </ul>
  */
 public final class PainlessLookupUtility {
-    
+
     /**
      * The name for an anonymous class.
      */
@@ -202,6 +193,7 @@ public final class PainlessLookupUtility {
 
         return typesStringBuilder.toString();
     }
+
     /**
      * Converts a java type to a type based on the terminology specified as part of {@link PainlessLookupUtility} where if a type is an
      * object class or object array, the returned type will be the equivalent def class or def array. Otherwise, this behaves as an
@@ -358,7 +350,34 @@ public final class PainlessLookupUtility {
     public static String buildPainlessFieldKey(String fieldName) {
         return fieldName;
     }
-    
+
+    /**
+     * Constructs an array of injectable constants for a specific {@link PainlessMethod}
+     * derived from an {@link org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation}.
+     */
+    public static Object[] buildInjections(PainlessMethod painlessMethod, Map<String, Object> constants) {
+        if (painlessMethod.annotations.containsKey(InjectConstantAnnotation.class) == false) {
+            return new Object[0];
+        }
+
+        List<String> names = ((InjectConstantAnnotation)painlessMethod.annotations.get(InjectConstantAnnotation.class)).injects;
+        Object[] injections = new Object[names.size()];
+
+        for (int i = 0; i < names.size(); i++) {
+            String name = names.get(i);
+            Object constant = constants.get(name);
+
+            if (constant == null) {
+                throw new IllegalStateException("constant [" + name + "] not found for injection into method " +
+                        "[" + buildPainlessMethodKey(painlessMethod.javaMethod.getName(), painlessMethod.typeParameters.size()) + "]");
+            }
+
+            injections[i] = constant;
+        }
+
+        return injections;
+    }
+
     private PainlessLookupUtility() {
 
     }

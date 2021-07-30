@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.shards;
 
@@ -107,28 +108,29 @@ public class ShardsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<
                 new ShardMonitoringDoc("_cluster", 1502107402133L, 1506593717631L, node, shardRouting, "_state_uuid");
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, randomBoolean());
-        assertEquals("{"
-                    + "\"cluster_uuid\":\"_cluster\","
-                    + "\"timestamp\":\"2017-08-07T12:03:22.133Z\","
-                    + "\"interval_ms\":1506593717631,"
-                    + "\"type\":\"shards\","
-                    + "\"source_node\":{"
-                        + "\"uuid\":\"_uuid\","
-                        + "\"host\":\"_host\","
-                        + "\"transport_address\":\"_addr\","
-                        + "\"ip\":\"_ip\","
-                        + "\"name\":\"_name\","
-                        + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
-                    + "},"
-                    + "\"state_uuid\":\"_state_uuid\","
-                    + "\"shard\":{"
-                        + "\"state\":\"INITIALIZING\","
-                        + "\"primary\":true,"
-                        + "\"node\":\"_index_uuid\","
-                        + "\"relocating_node\":\"_node_uuid\","
-                        + "\"shard\":1,"
-                        + "\"index\":\"_index\""
-                        + "}"
-                    + "}" , xContent.utf8ToString());
+        final String expected = "{"
+            + "  \"cluster_uuid\": \"_cluster\","
+            + "  \"timestamp\": \"2017-08-07T12:03:22.133Z\","
+            + "  \"interval_ms\": 1506593717631,"
+            + "  \"type\": \"shards\","
+            + "  \"source_node\": {"
+            + "    \"uuid\": \"_uuid\","
+            + "    \"host\": \"_host\","
+            + "    \"transport_address\": \"_addr\","
+            + "    \"ip\": \"_ip\","
+            + "    \"name\": \"_name\","
+            + "    \"timestamp\": \"2017-08-31T08:46:30.855Z\""
+            + "  },"
+            + "  \"state_uuid\": \"_state_uuid\","
+            + "  \"shard\": {"
+            + "    \"state\": \"INITIALIZING\","
+            + "    \"primary\": true,"
+            + "    \"node\": \"_index_uuid\","
+            + "    \"relocating_node\": \"_node_uuid\","
+            + "    \"shard\": 1,"
+            + "    \"index\": \"_index\""
+            + "  }"
+            + "}";
+        assertEquals(XContentHelper.stripWhitespace(expected), xContent.utf8ToString());
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.documentation;
 
@@ -59,7 +48,7 @@ import org.elasticsearch.client.rollup.job.config.MetricConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.client.rollup.job.config.TermsGroupConfig;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
@@ -80,7 +69,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.oneOf;
 
 public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -89,7 +78,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         final BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 50; i++) {
-            final IndexRequest indexRequest = new IndexRequest("docs", "doc");
+            final IndexRequest indexRequest = new IndexRequest("docs");
             indexRequest.source(jsonBuilder()
                 .startObject()
                 .field("timestamp", String.format(Locale.ROOT, "2018-01-01T00:%02d:00Z", i))
@@ -103,7 +92,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
                 .endObject());
             bulkRequest.add(indexRequest);
         }
-        BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
+        BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest,  RequestOptions.DEFAULT);
         assertEquals(RestStatus.OK, bulkResponse.status());
         assertFalse(bulkResponse.hasFailures());
 
@@ -261,6 +250,14 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         } catch (Exception e) {
             // Swallow any exception, this test does not test actually cancelling.
         }
+        // stop job to prevent spamming exceptions on next start request
+        StopRollupJobRequest stopRequest = new StopRollupJobRequest(id);
+        stopRequest.waitForCompletion();
+        stopRequest.timeout(TimeValue.timeValueSeconds(10));
+
+        StopRollupJobResponse response = client.rollup().stopRollupJob(stopRequest, RequestOptions.DEFAULT);
+        assertTrue(response.isAcknowledged());
+
         // tag::rollup-start-job-execute-listener
         ActionListener<StartRollupJobResponse> listener = new ActionListener<StartRollupJobResponse>() {
             @Override
@@ -282,7 +279,8 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
 
         // stop job so it can correctly be deleted by the test teardown
-        rc.stopRollupJob(new StopRollupJobRequest(id), RequestOptions.DEFAULT);
+        response = rc.stopRollupJob(stopRequest, RequestOptions.DEFAULT);
+        assertTrue(response.isAcknowledged());
     }
 
     @SuppressWarnings("unused")
@@ -390,8 +388,8 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testGetRollupCaps() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        DateHistogramGroupConfig dateHistogram =
-            new DateHistogramGroupConfig("timestamp", DateHistogramInterval.HOUR, new DateHistogramInterval("7d"), "UTC"); // <1>
+        DateHistogramGroupConfig dateHistogram = new DateHistogramGroupConfig.FixedInterval(
+            "timestamp", DateHistogramInterval.HOUR, new DateHistogramInterval("7d"), "UTC"); // <1>
         TermsGroupConfig terms = new TermsGroupConfig("hostname", "datacenter");
         HistogramGroupConfig histogram = new HistogramGroupConfig(5L, "load", "net_in", "net_out");
         GroupConfig groups = new GroupConfig(dateHistogram, histogram, terms);
@@ -420,7 +418,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         ClusterHealthRequest healthRequest = new ClusterHealthRequest(config.getRollupIndex()).waitForYellowStatus();
         ClusterHealthResponse healthResponse = client.cluster().health(healthRequest, RequestOptions.DEFAULT);
         assertFalse(healthResponse.isTimedOut());
-        assertThat(healthResponse.getStatus(), isOneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.GREEN));
+        assertThat(healthResponse.getStatus(), oneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.GREEN));
 
         // Now that the job is created, we should have a rollup index with metadata.
         // We can test out the caps API now.
@@ -464,7 +462,8 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         // item represents a different aggregation that can be run against the "timestamp"
         // field, and any additional details specific to that agg (interval, etc)
         List<Map<String, Object>> timestampCaps = fieldCaps.get("timestamp").getAggs();
-        assert timestampCaps.get(0).toString().equals("{agg=date_histogram, delay=7d, interval=1h, time_zone=UTC}");
+        logger.error(timestampCaps.get(0).toString());
+        assert timestampCaps.get(0).toString().equals("{agg=date_histogram, fixed_interval=1h, delay=7d, time_zone=UTC}");
 
         // In contrast to the timestamp field, the temperature field has multiple aggs configured
         List<Map<String, Object>> temperatureCaps = fieldCaps.get("temperature").getAggs();
@@ -506,8 +505,8 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testGetRollupIndexCaps() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        DateHistogramGroupConfig dateHistogram =
-            new DateHistogramGroupConfig("timestamp", DateHistogramInterval.HOUR, new DateHistogramInterval("7d"), "UTC"); // <1>
+        DateHistogramGroupConfig dateHistogram = new DateHistogramGroupConfig.FixedInterval(
+            "timestamp", DateHistogramInterval.HOUR, new DateHistogramInterval("7d"), "UTC"); // <1>
         TermsGroupConfig terms = new TermsGroupConfig("hostname", "datacenter");
         HistogramGroupConfig histogram = new HistogramGroupConfig(5L, "load", "net_in", "net_out");
         GroupConfig groups = new GroupConfig(dateHistogram, histogram, terms);
@@ -536,7 +535,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         ClusterHealthRequest healthRequest = new ClusterHealthRequest(config.getRollupIndex()).waitForYellowStatus();
         ClusterHealthResponse healthResponse = client.cluster().health(healthRequest, RequestOptions.DEFAULT);
         assertFalse(healthResponse.isTimedOut());
-        assertThat(healthResponse.getStatus(), isOneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.GREEN));
+        assertThat(healthResponse.getStatus(), oneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.GREEN));
 
         // Now that the job is created, we should have a rollup index with metadata.
         // We can test out the caps API now.
@@ -578,7 +577,8 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         // item represents a different aggregation that can be run against the "timestamp"
         // field, and any additional details specific to that agg (interval, etc)
         List<Map<String, Object>> timestampCaps = fieldCaps.get("timestamp").getAggs();
-        assert timestampCaps.get(0).toString().equals("{agg=date_histogram, delay=7d, interval=1h, time_zone=UTC}");
+        logger.error(timestampCaps.get(0).toString());
+        assert timestampCaps.get(0).toString().equals("{agg=date_histogram, fixed_interval=1h, delay=7d, time_zone=UTC}");
 
         // In contrast to the timestamp field, the temperature field has multiple aggs configured
         List<Map<String, Object>> temperatureCaps = fieldCaps.get("temperature").getAggs();

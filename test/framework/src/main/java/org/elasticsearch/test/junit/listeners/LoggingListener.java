@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.junit.listeners;
@@ -22,14 +11,19 @@ package org.elasticsearch.test.junit.listeners;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.runner.Description;
 import org.junit.runner.Result;
 import org.junit.runner.notification.RunListener;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A {@link RunListener} that allows changing the log level for a specific test method. When a test method is annotated with the
@@ -49,8 +43,12 @@ public class LoggingListener extends RunListener {
     @Override
     public void testRunStarted(final Description description) throws Exception {
         Package testClassPackage = description.getTestClass().getPackage();
-        previousPackageLoggingMap = processTestLogging(testClassPackage != null ? testClassPackage.getAnnotation(TestLogging.class) : null);
-        previousClassLoggingMap = processTestLogging(description.getAnnotation(TestLogging.class));
+        previousPackageLoggingMap = processTestLogging(
+            testClassPackage != null ? testClassPackage.getAnnotation(TestLogging.class) : null,
+            testClassPackage != null ? testClassPackage.getAnnotation(TestIssueLogging.class) : null);
+        previousClassLoggingMap = processTestLogging(
+            description.getAnnotation(TestLogging.class),
+            description.getAnnotation(TestIssueLogging.class));
     }
 
     @Override
@@ -62,7 +60,8 @@ public class LoggingListener extends RunListener {
     @Override
     public void testStarted(final Description description) throws Exception {
         final TestLogging testLogging = description.getAnnotation(TestLogging.class);
-        previousLoggingMap = processTestLogging(testLogging);
+        final TestIssueLogging testIssueLogging = description.getAnnotation(TestIssueLogging.class);
+        previousLoggingMap = processTestLogging(testLogging, testIssueLogging);
     }
 
     @Override
@@ -89,22 +88,35 @@ public class LoggingListener extends RunListener {
      * @param testLogging the test logging annotation to apply
      * @return the existing logging levels
      */
-    private Map<String, String> processTestLogging(final TestLogging testLogging) {
-        final Map<String, String> map = getLoggersAndLevelsFromAnnotation(testLogging);
+    private Map<String, String> processTestLogging(final TestLogging testLogging, final TestIssueLogging testIssueLogging) {
+        final Map<String, String> testLoggingMap = getLoggersAndLevelsFromAnnotation(testLogging);
+        final Map<String, String> testIssueLoggingMap = getLoggersAndLevelsFromAnnotation(testIssueLogging);
 
-        if (map == null) {
-            return Collections.emptyMap();
+        final Set<String> testLoggingKeys = new HashSet<>(testLoggingMap.keySet());
+        testLoggingKeys.retainAll(testIssueLoggingMap.keySet());
+        if (testLoggingKeys.isEmpty() == false) {
+            throw new IllegalArgumentException("found intersection " + testLoggingKeys + " between TestLogging and TestIssueLogging");
         }
 
-        // obtain the existing logging levels so that we can restore them at the end of the test; we have to do this separately from setting
-        // the logging levels so that setting foo does not impact the logging level for foo.bar when we check the existing logging level for
-        // for.bar
+        /*
+         * Use a sorted set so that we apply a parent logger before its children thus not overwriting the child setting when processing the
+         * parent setting.
+         */
+        final Map<String, String> loggingLevels =
+            new TreeMap<>(Stream.concat(testLoggingMap.entrySet().stream(), testIssueLoggingMap.entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+
+        /*
+         * Obtain the existing logging levels so that we can restore them at the end of the test. We have to do this separately from
+         * setting the logging levels so that setting foo does not impact the logging level for for.bar when we check the existing logging
+         * level for foo.bar.
+         */
         final Map<String, String> existing = new TreeMap<>();
-        for (final Map.Entry<String, String> entry : map.entrySet()) {
+        for (final Map.Entry<String, String> entry : loggingLevels.entrySet()) {
             final Logger logger = resolveLogger(entry.getKey());
             existing.put(entry.getKey(), logger.getLevel().toString());
         }
-        for (final Map.Entry<String, String> entry : map.entrySet()) {
+        for (final Map.Entry<String, String> entry : loggingLevels.entrySet()) {
             final Logger logger = resolveLogger(entry.getKey());
             Loggers.setLevel(logger, entry.getValue());
         }
@@ -121,10 +133,25 @@ public class LoggingListener extends RunListener {
         if (testLogging == null) {
             return Collections.emptyMap();
         }
-        // use a sorted set so that we apply a parent logger before its children thus not overwriting the child setting when processing the
-        // parent setting
+
+        return getLoggersAndLevelsFromAnnotationValue(testLogging.value());
+    }
+
+    private static Map<String, String> getLoggersAndLevelsFromAnnotation(final TestIssueLogging testIssueLogging) {
+        if (testIssueLogging == null) {
+            return Collections.emptyMap();
+        }
+
+        return getLoggersAndLevelsFromAnnotationValue(testIssueLogging.value());
+    }
+
+    private static Map<String, String> getLoggersAndLevelsFromAnnotationValue(final String value) {
+        /*
+         * Use a sorted set so that we apply a parent logger before its children thus not overwriting the child setting when processing the
+         * parent setting.
+         */
         final Map<String, String> map = new TreeMap<>();
-        final String[] loggersAndLevels = testLogging.value().split(",");
+        final String[] loggersAndLevels = value.split(",");
         for (final String loggerAndLevel : loggersAndLevels) {
             final String[] loggerAndLevelArray = loggerAndLevel.split(":");
             if (loggerAndLevelArray.length == 2) {

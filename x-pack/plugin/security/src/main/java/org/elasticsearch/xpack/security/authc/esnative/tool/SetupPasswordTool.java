@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
@@ -9,15 +10,15 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
@@ -30,11 +31,14 @@ import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
+import org.elasticsearch.xpack.security.tool.HttpResponse;
+import org.elasticsearch.xpack.security.tool.HttpResponse.HttpResponseBuilder;
+import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
 
 import javax.net.ssl.SSLException;
 import java.io.ByteArrayOutputStream;
@@ -46,11 +50,11 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 
@@ -65,18 +69,18 @@ import static java.util.Arrays.asList;
 public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
     private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789").toCharArray();
-    public static final List<String> USERS = asList(ElasticUser.NAME, APMSystemUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
-        BeatsSystemUser.NAME, RemoteMonitoringUser.NAME);
+    public static final List<String> USERS = asList(ElasticUser.NAME, APMSystemUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
+        LogstashSystemUser.NAME, BeatsSystemUser.NAME, RemoteMonitoringUser.NAME);
 
-    private final BiFunction<Environment, Settings, CommandLineHttpClient> clientFunction;
+    public static final Map<String, String> USERS_WITH_SHARED_PASSWORDS = Map.of(KibanaSystemUser.NAME, KibanaUser.NAME);
+
+    private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
 
     private CommandLineHttpClient client;
 
     SetupPasswordTool() {
-        this((environment, settings) -> {
-            return new CommandLineHttpClient(settings, environment);
-        }, (environment) -> {
+        this(environment -> new CommandLineHttpClient(environment), environment -> {
             KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(environment.configFile());
             if (keyStoreWrapper == null) {
                 throw new UserException(ExitCodes.CONFIG,
@@ -86,8 +90,8 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         });
     }
 
-    SetupPasswordTool(BiFunction<Environment, Settings, CommandLineHttpClient> clientFunction,
-            CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
+    SetupPasswordTool(Function<Environment, CommandLineHttpClient> clientFunction,
+                      CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
         super("Sets the passwords for reserved users");
         subcommands.put("auto", newAutoSetup());
         subcommands.put("interactive", newInteractiveSetup());
@@ -125,7 +129,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         @Override
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
             terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
-            setupOptions(options, env);
+            setupOptions(terminal, options, env);
             checkElasticKeystorePasswordValid(terminal, env);
             checkClusterHealth(terminal);
 
@@ -171,7 +175,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         @Override
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
             terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
-            setupOptions(options, env);
+            setupOptions(terminal, options, env);
             checkElasticKeystorePasswordValid(terminal, env);
             checkClusterHealth(terminal);
 
@@ -193,17 +197,17 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             // loop for two consecutive good passwords
             while (true) {
                 SecureString password1 = new SecureString(terminal.readSecret("Enter password for [" + user + "]: "));
-                Validation.Error err = Validation.Users.validatePassword(password1.getChars());
+                Validation.Error err = Validation.Users.validatePassword(password1);
                 if (err != null) {
-                    terminal.println(err.toString());
-                    terminal.println("Try again.");
+                    terminal.errorPrintln(err.toString());
+                    terminal.errorPrintln("Try again.");
                     password1.close();
                     continue;
                 }
                 try (SecureString password2 = new SecureString(terminal.readSecret("Reenter password for [" + user + "]: "))) {
                     if (password1.equals(password2) == false) {
-                        terminal.println("Passwords do not match.");
-                        terminal.println("Try again.");
+                        terminal.errorPrintln("Passwords do not match.");
+                        terminal.errorPrintln("Try again.");
                         password1.close();
                         continue;
                     }
@@ -221,7 +225,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
      * An abstract class that provides functionality common to both the auto and
      * interactive setup modes.
      */
-    private abstract class SetupCommand extends EnvironmentAwareCommand {
+    private abstract class SetupCommand extends KeyStoreAwareCommand {
 
         boolean shouldPrompt;
 
@@ -248,10 +252,9 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             }
         }
 
-        void setupOptions(OptionSet options, Environment env) throws Exception {
+        void setupOptions(Terminal terminal, OptionSet options, Environment env) throws Exception {
             keyStoreWrapper = keyStoreFunction.apply(env);
-            // TODO: We currently do not support keystore passwords
-            keyStoreWrapper.decrypt(new char[0]);
+            decryptKeyStore(keyStoreWrapper, terminal);
 
             Settings.Builder settingsBuilder = Settings.builder();
             settingsBuilder.put(env.settings(), true);
@@ -261,12 +264,14 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             Settings settings = settingsBuilder.build();
             elasticUserPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(settings);
 
-            client = clientFunction.apply(env, settings);
+            final Environment newEnv = new Environment(settings, env.configFile());
+            Environment.assertEquivalent(newEnv, env);
+
+            client = clientFunction.apply(newEnv);
 
             String providedUrl = urlOption.value(options);
             url = new URL(providedUrl == null ? client.getDefaultURL() : providedUrl);
             setShouldPrompt(options);
-
         }
 
         private void setParser() {
@@ -302,53 +307,55 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
                 // keystore password is not valid
                 if (httpCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                    terminal.println("");
-                    terminal.println("Failed to authenticate user '" + elasticUser + "' against " + route.toString());
-                    terminal.println("Possible causes include:");
-                    terminal.println(" * The password for the '" + elasticUser + "' user has already been changed on this cluster");
-                    terminal.println(" * Your elasticsearch node is running against a different keystore");
-                    terminal.println("   This tool used the keystore at " + KeyStoreWrapper.keystorePath(env.configFile()));
-                    terminal.println("");
+                    terminal.errorPrintln("");
+                    terminal.errorPrintln("Failed to authenticate user '" + elasticUser + "' against " + route.toString());
+                    terminal.errorPrintln("Possible causes include:");
+                    terminal.errorPrintln(" * The password for the '" + elasticUser + "' user has already been changed on this cluster");
+                    terminal.errorPrintln(" * Your elasticsearch node is running against a different keystore");
+                    terminal.errorPrintln("   This tool used the keystore at " + KeyStoreWrapper.keystorePath(env.configFile()));
+                    terminal.errorPrintln("");
                     throw new UserException(ExitCodes.CONFIG, "Failed to verify bootstrap password");
                 } else if (httpCode != HttpURLConnection.HTTP_OK) {
-                    terminal.println("");
-                    terminal.println("Unexpected response code [" + httpCode + "] from calling GET " + route.toString());
+                    terminal.errorPrintln("");
+                    terminal.errorPrintln("Unexpected response code [" + httpCode + "] from calling GET " + route.toString());
                     XPackSecurityFeatureConfig xPackSecurityFeatureConfig = getXPackSecurityConfig(terminal);
                     if (xPackSecurityFeatureConfig.isAvailable == false) {
-                        terminal.println("It doesn't look like the X-Pack security feature is available on this Elasticsearch node.");
-                        terminal.println("Please check if you have installed a license that allows access to X-Pack Security feature.");
-                        terminal.println("");
+                        terminal.errorPrintln("It doesn't look like the X-Pack security feature is available on this Elasticsearch node.");
+                        terminal.errorPrintln("Please check if you have installed a license that allows access to " +
+                            "X-Pack Security feature.");
+                        terminal.errorPrintln("");
                         throw new UserException(ExitCodes.CONFIG, "X-Pack Security is not available.");
                     }
                     if (xPackSecurityFeatureConfig.isEnabled == false) {
-                        terminal.println("It doesn't look like the X-Pack security feature is enabled on this Elasticsearch node.");
-                        terminal.println("Please check if you have enabled X-Pack security in your elasticsearch.yml configuration file.");
-                        terminal.println("");
+                        terminal.errorPrintln("It doesn't look like the X-Pack security feature is enabled on this Elasticsearch node.");
+                        terminal.errorPrintln("Please check if you have enabled X-Pack security in your elasticsearch.yml " +
+                            "configuration file.");
+                        terminal.errorPrintln("");
                         throw new UserException(ExitCodes.CONFIG, "X-Pack Security is disabled by configuration.");
                     }
-                    terminal.println("X-Pack security feature is available and enabled on this Elasticsearch node.");
-                    terminal.println("Possible causes include:");
-                    terminal.println(" * The relative path of the URL is incorrect. Is there a proxy in-between?");
-                    terminal.println(" * The protocol (http/https) does not match the port.");
-                    terminal.println(" * Is this really an Elasticsearch server?");
-                    terminal.println("");
+                    terminal.errorPrintln("X-Pack security feature is available and enabled on this Elasticsearch node.");
+                    terminal.errorPrintln("Possible causes include:");
+                    terminal.errorPrintln(" * The relative path of the URL is incorrect. Is there a proxy in-between?");
+                    terminal.errorPrintln(" * The protocol (http/https) does not match the port.");
+                    terminal.errorPrintln(" * Is this really an Elasticsearch server?");
+                    terminal.errorPrintln("");
                     throw new UserException(ExitCodes.CONFIG, "Unknown error");
                 }
             } catch (SSLException e) {
-                terminal.println("");
-                terminal.println("SSL connection to " + route.toString() + " failed: " + e.getMessage());
-                terminal.println("Please check the elasticsearch SSL settings under " + XPackSettings.HTTP_SSL_PREFIX);
-                terminal.println(Verbosity.VERBOSE, "");
-                terminal.println(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
-                terminal.println("");
+                terminal.errorPrintln("");
+                terminal.errorPrintln("SSL connection to " + route.toString() + " failed: " + e.getMessage());
+                terminal.errorPrintln("Please check the elasticsearch SSL settings under " + XPackSettings.HTTP_SSL_PREFIX);
+                terminal.errorPrintln(Verbosity.VERBOSE, "");
+                terminal.errorPrintln(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
+                terminal.errorPrintln("");
                 throw new UserException(ExitCodes.CONFIG,
                         "Failed to establish SSL connection to elasticsearch at " + route.toString() + ". ", e);
             } catch (IOException e) {
-                terminal.println("");
-                terminal.println("Connection failure to: " + route.toString() + " failed: " + e.getMessage());
-                terminal.println(Verbosity.VERBOSE, "");
-                terminal.println(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
-                terminal.println("");
+                terminal.errorPrintln("");
+                terminal.errorPrintln("Connection failure to: " + route.toString() + " failed: " + e.getMessage());
+                terminal.errorPrintln(Verbosity.VERBOSE, "");
+                terminal.errorPrintln(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
+                terminal.errorPrintln("");
                 throw new UserException(ExitCodes.CONFIG,
                         "Failed to connect to elasticsearch at " + route.toString() + ". Is the URL correct and elasticsearch running?", e);
             }
@@ -361,19 +368,20 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             final HttpResponse httpResponse =
                     client.execute("GET", route, elasticUser, elasticUserPassword, () -> null, is -> responseBuilder(is, terminal));
             if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
-                terminal.println("");
-                terminal.println("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " + route.toString());
+                terminal.errorPrintln("");
+                terminal.errorPrintln("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " +
+                    route.toString());
                 if (httpResponse.getHttpStatus() == HttpURLConnection.HTTP_BAD_REQUEST) {
-                    terminal.println("It doesn't look like the X-Pack is available on this Elasticsearch node.");
-                    terminal.println("Please check that you have followed all installation instructions and that this tool");
-                    terminal.println("   is pointing to the correct Elasticsearch server.");
-                    terminal.println("");
+                    terminal.errorPrintln("It doesn't look like the X-Pack is available on this Elasticsearch node.");
+                    terminal.errorPrintln("Please check that you have followed all installation instructions and that this tool");
+                    terminal.errorPrintln("   is pointing to the correct Elasticsearch server.");
+                    terminal.errorPrintln("");
                     throw new UserException(ExitCodes.CONFIG, "X-Pack is not available on this Elasticsearch node.");
                 } else {
-                    terminal.println("* Try running this tool again.");
-                    terminal.println("* Verify that the tool is pointing to the correct Elasticsearch server.");
-                    terminal.println("* Check the elasticsearch logs for additional error details.");
-                    terminal.println("");
+                    terminal.errorPrintln("* Try running this tool again.");
+                    terminal.errorPrintln("* Verify that the tool is pointing to the correct Elasticsearch server.");
+                    terminal.errorPrintln("* Check the elasticsearch logs for additional error details.");
+                    terminal.errorPrintln("");
                     throw new UserException(ExitCodes.TEMP_FAILURE, "Failed to determine x-pack security feature configuration.");
                 }
             }
@@ -406,33 +414,34 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             final HttpResponse httpResponse = client.execute("GET", route, elasticUser, elasticUserPassword, () -> null,
                     is -> responseBuilder(is, terminal));
             if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
-                terminal.println("");
-                terminal.println("Failed to determine the health of the cluster running at " + url);
-                terminal.println("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " + route.toString());
+                terminal.errorPrintln("");
+                terminal.errorPrintln("Failed to determine the health of the cluster running at " + url);
+                terminal.errorPrintln("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " +
+                    route.toString());
                 final String cause = getErrorCause(httpResponse);
                 if (cause != null) {
-                    terminal.println("Cause: " + cause);
+                    terminal.errorPrintln("Cause: " + cause);
                 }
             } else {
                 final String clusterStatus = Objects.toString(httpResponse.getResponseBody().get("status"), "");
                 if (clusterStatus.isEmpty()) {
-                    terminal.println("");
-                    terminal.println("Failed to determine the health of the cluster running at " + url);
-                    terminal.println("Could not find a 'status' value at " + route.toString());
+                    terminal.errorPrintln("");
+                    terminal.errorPrintln("Failed to determine the health of the cluster running at " + url);
+                    terminal.errorPrintln("Could not find a 'status' value at " + route.toString());
                 } else if ("red".equalsIgnoreCase(clusterStatus)) {
-                    terminal.println("");
-                    terminal.println("Your cluster health is currently RED.");
-                    terminal.println("This means that some cluster data is unavailable and your cluster is not fully functional.");
+                    terminal.errorPrintln("");
+                    terminal.errorPrintln("Your cluster health is currently RED.");
+                    terminal.errorPrintln("This means that some cluster data is unavailable and your cluster is not fully functional.");
                 } else {
                     // Cluster is yellow/green -> all OK
                     return;
                 }
             }
-            terminal.println("");
-            terminal.println(
+            terminal.errorPrintln("");
+            terminal.errorPrintln(
                     "It is recommended that you resolve the issues with your cluster before running elasticsearch-setup-passwords.");
-            terminal.println("It is very likely that the password changes will fail when run against an unhealthy cluster.");
-            terminal.println("");
+            terminal.errorPrintln("It is very likely that the password changes will fail when run against an unhealthy cluster.");
+            terminal.errorPrintln("");
             if (shouldPrompt) {
                 final boolean keepGoing = terminal.promptYesNo("Do you want to continue with the password setup process", false);
                 if (keepGoing == false) {
@@ -465,28 +474,28 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     }
                 }, is -> responseBuilder(is, terminal));
                 if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
-                    terminal.println("");
-                    terminal.println(
+                    terminal.errorPrintln("");
+                    terminal.errorPrintln(
                             "Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling PUT " + route.toString());
                     String cause = getErrorCause(httpResponse);
                     if (cause != null) {
-                        terminal.println("Cause: " + cause);
-                        terminal.println("");
+                        terminal.errorPrintln("Cause: " + cause);
+                        terminal.errorPrintln("");
                     }
-                    terminal.println("Possible next steps:");
-                    terminal.println("* Try running this tool again.");
-                    terminal.println("* Try running with the --verbose parameter for additional messages.");
-                    terminal.println("* Check the elasticsearch logs for additional error details.");
-                    terminal.println("* Use the change password API manually. ");
-                    terminal.println("");
+                    terminal.errorPrintln("Possible next steps:");
+                    terminal.errorPrintln("* Try running this tool again.");
+                    terminal.errorPrintln("* Try running with the --verbose parameter for additional messages.");
+                    terminal.errorPrintln("* Check the elasticsearch logs for additional error details.");
+                    terminal.errorPrintln("* Use the change password API manually. ");
+                    terminal.errorPrintln("");
                     throw new UserException(ExitCodes.TEMP_FAILURE, "Failed to set password for user [" + user + "].");
                 }
             } catch (IOException e) {
-                terminal.println("");
-                terminal.println("Connection failure to: " + route.toString() + " failed: " + e.getMessage());
-                terminal.println(Verbosity.VERBOSE, "");
-                terminal.println(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
-                terminal.println("");
+                terminal.errorPrintln("");
+                terminal.errorPrintln("Connection failure to: " + route.toString() + " failed: " + e.getMessage());
+                terminal.errorPrintln(Verbosity.VERBOSE, "");
+                terminal.errorPrintln(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
+                terminal.errorPrintln("");
                 throw new UserException(ExitCodes.TEMP_FAILURE, "Failed to set password for user [" + user + "].", e);
             }
         }
@@ -500,10 +509,18 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
          */
         void changePasswords(CheckedFunction<String, SecureString, UserException> passwordFn,
                              CheckedBiConsumer<String, SecureString, Exception> successCallback, Terminal terminal) throws Exception {
-            Map<String, SecureString> passwordsMap = new HashMap<>(USERS.size());
+            Map<String, SecureString> passwordsMap = new LinkedHashMap<>(USERS.size());
             try {
                 for (String user : USERS) {
-                    passwordsMap.put(user, passwordFn.apply(user));
+                    if (USERS_WITH_SHARED_PASSWORDS.containsValue(user)) {
+                        continue;
+                    }
+
+                    SecureString password = passwordFn.apply(user);
+                    passwordsMap.put(user, password);
+                    if (USERS_WITH_SHARED_PASSWORDS.containsKey(user)) {
+                        passwordsMap.put(USERS_WITH_SHARED_PASSWORDS.get(user), password.clone());
+                    }
                 }
                 /*
                  * Change elastic user last. This tool will not run after the elastic user

@@ -1,38 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
+import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.listSetting;
 
 public final class HttpTransportSettings {
@@ -42,7 +32,7 @@ public final class HttpTransportSettings {
     public static final Setting<String> SETTING_CORS_ALLOW_ORIGIN =
         new Setting<>("http.cors.allow-origin", "", (value) -> value, Property.NodeScope);
     public static final Setting<Integer> SETTING_CORS_MAX_AGE =
-        Setting.intSetting("http.cors.max-age", 1728000, Property.NodeScope);
+        intSetting("http.cors.max-age", 1728000, Property.NodeScope);
     public static final Setting<String> SETTING_CORS_ALLOW_METHODS =
         new Setting<>("http.cors.allow-methods", "OPTIONS,HEAD,GET,POST,PUT,DELETE", (value) -> value, Property.NodeScope);
     public static final Setting<String> SETTING_CORS_ALLOW_HEADERS =
@@ -50,13 +40,13 @@ public final class HttpTransportSettings {
     public static final Setting<Boolean> SETTING_CORS_ALLOW_CREDENTIALS =
         Setting.boolSetting("http.cors.allow-credentials", false, Property.NodeScope);
     public static final Setting<Integer> SETTING_PIPELINING_MAX_EVENTS =
-        Setting.intSetting("http.pipelining.max_events", 10000, Property.NodeScope);
+        intSetting("http.pipelining.max_events", 10000, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_COMPRESSION =
         Setting.boolSetting("http.compression", true, Property.NodeScope);
     // we intentionally use a different compression level as Netty here as our benchmarks have shown that a compression level of 3 is the
     // best compromise between reduction in network traffic and added latency. For more details please check #7309.
     public static final Setting<Integer> SETTING_HTTP_COMPRESSION_LEVEL =
-        Setting.intSetting("http.compression_level", 3, Property.NodeScope);
+        intSetting("http.compression_level", 3, Property.NodeScope);
     public static final Setting<List<String>> SETTING_HTTP_HOST =
         listSetting("http.host", emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> SETTING_HTTP_PUBLISH_HOST =
@@ -67,18 +57,9 @@ public final class HttpTransportSettings {
     public static final Setting<PortsRange> SETTING_HTTP_PORT =
         new Setting<>("http.port", "9200-9300", PortsRange::new, Property.NodeScope);
     public static final Setting<Integer> SETTING_HTTP_PUBLISH_PORT =
-        Setting.intSetting("http.publish_port", -1, -1, Property.NodeScope);
+        intSetting("http.publish_port", -1, -1, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_DETAILED_ERRORS_ENABLED =
         Setting.boolSetting("http.detailed_errors.enabled", true, Property.NodeScope);
-    public static final Setting<Boolean> SETTING_HTTP_CONTENT_TYPE_REQUIRED =
-        new Setting<>("http.content_type.required", (s) -> Boolean.toString(true), (s) -> {
-            final boolean value = Booleans.parseBoolean(s);
-            if (value == false) {
-                throw new IllegalArgumentException("http.content_type.required cannot be set to false. It exists only to make a rolling" +
-                    " upgrade easier");
-            }
-            return true;
-        }, Property.NodeScope, Property.Deprecated);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CONTENT_LENGTH =
         Setting.byteSizeSetting(
                 "http.max_content_length",
@@ -91,7 +72,7 @@ public final class HttpTransportSettings {
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_HEADER_SIZE =
         Setting.byteSizeSetting("http.max_header_size", new ByteSizeValue(8, ByteSizeUnit.KB), Property.NodeScope);
     public static final Setting<Integer> SETTING_HTTP_MAX_WARNING_HEADER_COUNT =
-        Setting.intSetting("http.max_warning_header_count", -1, -1, Property.NodeScope);
+        intSetting("http.max_warning_header_count", -1, -1, Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_WARNING_HEADER_SIZE =
         Setting.byteSizeSetting("http.max_warning_header_size", new ByteSizeValue(-1), Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_INITIAL_LINE_LENGTH =
@@ -105,16 +86,34 @@ public final class HttpTransportSettings {
     public static final Setting<TimeValue> SETTING_HTTP_READ_TIMEOUT =
         Setting.timeSetting("http.read_timeout", new TimeValue(0), new TimeValue(0), Property.NodeScope);
 
+    // Tcp socket settings
+
     public static final Setting<Boolean> SETTING_HTTP_TCP_NO_DELAY =
-        boolSetting("http.tcp_no_delay", NetworkService.TCP_NO_DELAY, Setting.Property.NodeScope);
+        boolSetting("http.tcp.no_delay", NetworkService.TCP_NO_DELAY, Setting.Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_KEEP_ALIVE =
         boolSetting("http.tcp.keep_alive", NetworkService.TCP_KEEP_ALIVE, Setting.Property.NodeScope);
+    public static final Setting<Integer> SETTING_HTTP_TCP_KEEP_IDLE =
+        intSetting("http.tcp.keep_idle", NetworkService.TCP_KEEP_IDLE, -1, 300, Setting.Property.NodeScope);
+    public static final Setting<Integer> SETTING_HTTP_TCP_KEEP_INTERVAL =
+        intSetting("http.tcp.keep_interval", NetworkService.TCP_KEEP_INTERVAL, -1, 300, Setting.Property.NodeScope);
+    public static final Setting<Integer> SETTING_HTTP_TCP_KEEP_COUNT =
+        intSetting("http.tcp.keep_count", NetworkService.TCP_KEEP_COUNT, -1, Setting.Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_REUSE_ADDRESS =
         boolSetting("http.tcp.reuse_address", NetworkService.TCP_REUSE_ADDRESS, Setting.Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_TCP_SEND_BUFFER_SIZE =
         Setting.byteSizeSetting("http.tcp.send_buffer_size", NetworkService.TCP_SEND_BUFFER_SIZE, Setting.Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE =
         Setting.byteSizeSetting("http.tcp.receive_buffer_size", NetworkService.TCP_RECEIVE_BUFFER_SIZE, Setting.Property.NodeScope);
+
+    public static final Setting<List<String>> SETTING_HTTP_TRACE_LOG_INCLUDE =
+        Setting.listSetting("http.tracer.include", Collections.emptyList(),
+            Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<List<String>> SETTING_HTTP_TRACE_LOG_EXCLUDE =
+        Setting.listSetting("http.tracer.exclude",
+            Collections.emptyList(), Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    public static final Setting<Boolean> SETTING_HTTP_CLIENT_STATS_ENABLED =
+        boolSetting("http.client_stats.enabled", true, Property.Dynamic, Property.NodeScope);
 
     private HttpTransportSettings() {
     }

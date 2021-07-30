@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-significantterms-aggregation]]
-=== Significant Terms Aggregation
+=== Significant terms aggregation
+++++
+<titleabbrev>Significant terms</titleabbrev>
+++++
 
 An aggregation that returns interesting or unusual occurrences of terms in a set.
 
@@ -7,7 +10,7 @@ An aggregation that returns interesting or unusual occurrences of terms in a set
 * Suggesting "H5N1" when users search for "bird flu" in text
 * Identifying the merchant that is the "common point of compromise" from the transaction history of credit card owners reporting loss
 * Suggesting keywords relating to stock symbol $ATI for an automated news classifier
-* Spotting the fraudulent doctor who is diagnosing more than his fair share of whiplash injuries
+* Spotting the fraudulent doctor who is diagnosing more than their fair share of whiplash injuries
 * Spotting the tire manufacturer who has a disproportionate number of blow-outs
 
 In all these cases the terms being selected are not simply the most popular terms in a set.
@@ -17,25 +20,23 @@ that is significant and probably very relevant to their search. 5/10,000,000 vs 
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /reports
 {
-    "mappings": {
-        "report": {
-            "properties": {
-                "force": {
-                    "type": "keyword"
-                },
-                "crime_type": {
-                    "type": "keyword"
-                }
-            }
-        }
+  "mappings": {
+    "properties": {
+      "force": {
+        "type": "keyword"
+      },
+      "crime_type": {
+        "type": "keyword"
+      }
     }
+  }
 }
 
-POST /reports/report/_bulk?refresh
+POST /reports/_bulk?refresh
 {"index":{"_id":0}}
 {"force": "British Transport Police", "crime_type": "Bicycle theft"}
 {"index":{"_id":1}}
@@ -54,7 +55,6 @@ POST /reports/report/_bulk?refresh
 {"force": "Metropolitan Police Service", "crime_type": "Robbery"}
 
 -------------------------------------------------
-// NOTCONSOLE
 // TESTSETUP
 
 //////////////////////////
@@ -66,44 +66,43 @@ set used for statistical comparisons is the index or indices from which the resu
 
 Example:
 
-[source,js]
+[source,console,id=significantterms-aggregation-example]
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "terms" : {"force" : [ "British Transport Police" ]}
-    },
-    "aggregations" : {
-        "significant_crime_types" : {
-            "significant_terms" : { "field" : "crime_type" }
-        }
+  "query": {
+    "terms": { "force": [ "British Transport Police" ] }
+  },
+  "aggregations": {
+    "significant_crime_types": {
+      "significant_terms": { "field": "crime_type" }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations" : {
-        "significant_crime_types" : {
-            "doc_count": 47347,
-            "bg_count": 5064554,
-            "buckets" : [
-                {
-                    "key": "Bicycle theft",
-                    "doc_count": 3640,
-                    "score": 0.371235374214817,
-                    "bg_count": 66799
-                }
-                ...
-            ]
+  ...
+  "aggregations": {
+    "significant_crime_types": {
+      "doc_count": 47347,
+      "bg_count": 5064554,
+      "buckets": [
+        {
+          "key": "Bicycle theft",
+          "doc_count": 3640,
+          "score": 0.371235374214817,
+          "bg_count": 66799
         }
+              ...
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
@@ -117,7 +116,7 @@ a bike theft. This is a significant seven-fold increase in frequency and so this
 The problem with using a query to spot anomalies is it only gives us one subset to use for comparisons.
 To discover all the other police forces' anomalies we would have to repeat the query for each of the different forces.
 
-This can be a tedious way to look for unusual patterns in an index
+This can be a tedious way to look for unusual patterns in an index.
 
 
 
@@ -127,28 +126,27 @@ A simpler way to perform analysis across multiple categories is to use a parent-
 
 Example using a parent aggregation for segmentation:
 
-[source,js]
+[source,console,id=significantterms-aggregation-multiset--example]
 --------------------------------------------------
 GET /_search
 {
-    "aggregations": {
-        "forces": {
-            "terms": {"field": "force"},
-            "aggregations": {
-                "significant_crime_types": {
-                    "significant_terms": {"field": "crime_type"}
-                }
-            }
+  "aggregations": {
+    "forces": {
+      "terms": { "field": "force" },
+      "aggregations": {
+        "significant_crime_types": {
+          "significant_terms": { "field": "crime_type" }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
  ...
@@ -205,26 +203,25 @@ Now we have anomaly detection for each of the police forces using a single reque
 We can use other forms of top-level aggregations to segment our data, for example segmenting by geographic
 area to identify unusual hot-spots of a particular crime type:
 
-[source,js]
+[source,console,id=significantterms-aggregation-hotspot-example]
 --------------------------------------------------
 GET /_search
 {
-    "aggs": {
-        "hotspots": {
-            "geohash_grid": {
-                "field": "location",
-                "precision": 5
-            },
-            "aggs": {
-                "significant_crime_types": {
-                    "significant_terms": {"field": "crime_type"}
-                }
-            }
+  "aggs": {
+    "hotspots": {
+      "geohash_grid": {
+        "field": "location",
+        "precision": 5
+      },
+      "aggs": {
+        "significant_crime_types": {
+          "significant_terms": { "field": "crime_type" }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 This example uses the `geohash_grid` aggregation to create result buckets that represent geographic areas, and inside each
 bucket we can identify anomalous levels of a crime type in these tightly-focused areas e.g.
@@ -308,7 +305,7 @@ If there is the equivalent of a `match_all` query or no query criteria providing
 top-most aggregation - in this scenario the _foreground_ set is exactly the same as the _background_ set and
 so there is no difference in document frequencies to observe and from which to make sensible suggestions.
 
-Another consideration is that  the significant_terms aggregation produces many candidate results at shard level
+Another consideration is that the significant_terms aggregation produces many candidate results at shard level
 that are only later pruned on the reducing node once all statistics from all shards are merged. As a result,
 it can be inefficient and costly in terms of RAM to embed large child aggregations under a significant_terms
 aggregation that later discards many candidate terms. It is advisable in these cases to perform two searches - the first to provide a rationalized list of
@@ -324,6 +321,7 @@ as such may be:
 Like most design decisions, this is the basis of a trade-off in which we have chosen to provide fast performance at the cost of some (typically small) inaccuracies.
 However, the `size` and `shard size` settings covered in the next section provide tools to help control the accuracy levels.
 
+[[significantterms-aggregation-parameters]]
 ==== Parameters
 
 ===== JLH score
@@ -339,7 +337,7 @@ The JLH score can be used as a significance score by adding the parameter
 
 The scores are derived from the doc frequencies in _foreground_ and _background_ sets. The _absolute_ change in popularity (foregroundPercent - backgroundPercent) would favor common terms whereas the _relative_ change in popularity (foregroundPercent/ backgroundPercent) would favor rare terms. Rare vs common is essentially a precision vs recall balance and so the absolute and relative changes are multiplied to provide a sweet spot between precision and recall.
 
-===== mutual information
+===== Mutual information
 Mutual information as described in "Information Retrieval", Manning et al., Chapter 13.5.1 can be used as significance score by adding the parameter
 
 [source,js]
@@ -375,8 +373,8 @@ Chi square as described in "Information Retrieval", Manning et al., Chapter 13.5
 Chi square behaves like mutual information and can be configured with the same parameters `include_negatives` and `background_is_superset`.
 
 
-===== google normalized distance
-Google normalized distance  as described in "The Google Similarity Distance", Cilibrasi and Vitanyi, 2007 (http://arxiv.org/pdf/cs/0412098v3.pdf) can be used as significance score by adding the parameter
+===== Google normalized distance
+Google normalized distance as described in https://arxiv.org/pdf/cs/0412098v3.pdf["The Google Similarity Distance", Cilibrasi and Vitanyi, 2007] can be used as significance score by adding the parameter
 
 [source,js]
 --------------------------------------------------
@@ -387,6 +385,94 @@ Google normalized distance  as described in "The Google Similarity Distance", Ci
 // NOTCONSOLE
 `gnd` also accepts the `background_is_superset` parameter.
 
+[role="xpack"]
+[[p-value-score]]
+===== p-value score
+
+The p-value is the probability of obtaining test results at least as extreme as 
+the results actually observed, under the assumption that the null hypothesis is 
+correct. The p-value is calculated assuming that the foreground set and the 
+background set are independent 
+https://en.wikipedia.org/wiki/Bernoulli_trial[Bernoulli trials], with the null 
+hypothesis that the probabilities are the same.
+
+====== Example usage
+
+This example calculates the p-value score for terms `user_agent.version` given 
+the foreground set of "ended in failure" versus "NOT ended in failure".
+
+`"background_is_superset": false` indicates that the background set does 
+not contain the counts of the foreground set as they are filtered out.
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "term": {
+            "event.outcome": "failure"
+          }
+        },
+        {
+          "range": {
+            "@timestamp": {
+              "gte": "2021-02-01",
+              "lt": "2021-02-04"
+            }
+          }
+        },
+        {
+          "term": {
+            "service.name": {
+              "value": "frontend-node"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "aggs": {
+    "failure_p_value": {
+      "significant_terms": {
+        "field": "user_agent.version",
+        "background_filter": {
+          "bool": {
+            "must_not": [
+              {
+                "term": {
+                  "event.outcome": "failure"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "@timestamp": {
+                    "gte": "2021-02-01",
+                    "lt": "2021-02-04"
+                  }
+                }
+              },
+              {
+                "term": {
+                  "service.name": {
+                    "value": "frontend-node"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "p_value": {"background_is_superset": false}
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[s/_search/_search?size=0/]
 
 ===== Percentage
 A simple calculation of the number of documents in the foreground sample with a term divided by the number of documents in the background with the term.
@@ -394,7 +480,7 @@ By default this produces a score greater than zero and less than one.
 
 The benefit of this heuristic is that the scoring logic is simple to explain to anyone familiar with a "per capita" statistic. However, for fields with high cardinality there is a tendency for this heuristic to select the rarest terms such as typos that occur only once because they score 1/1 = 100%.
 
-It would be hard for a seasoned boxer to win a championship if the prize was awarded purely on the basis of percentage of fights won - by these rules a newcomer with only one fight under his belt would be impossible to beat.
+It would be hard for a seasoned boxer to win a championship if the prize was awarded purely on the basis of percentage of fights won - by these rules a newcomer with only one fight under their belt would be impossible to beat.
 Multiple observations are typically required to reinforce a view so it is recommended in these cases to set both `min_doc_count` and `shard_min_doc_count` to a higher value such as 10 in order to filter out the low-frequency terms that otherwise take precedence.
 
 [source,js]
@@ -410,11 +496,11 @@ Multiple observations are typically required to reinforce a view so it is recomm
 
 Roughly, `mutual_information` prefers high frequent terms even if they occur also frequently in the background. For example, in an analysis of natural language text this might lead to selection of stop words. `mutual_information` is unlikely to select very rare terms like misspellings. `gnd` prefers terms with a high co-occurrence and avoids selection of stopwords. It might be better suited for synonym detection. However, `gnd` has a tendency to select very rare terms that are, for example, a result of misspelling. `chi_square` and `jlh` are somewhat in-between.
 
-It is hard to say which one of the different heuristics will be the best choice as it depends on what the significant terms are used for (see for example [Yang and Pedersen, "A Comparative Study on Feature Selection in Text Categorization", 1997](http://courses.ischool.berkeley.edu/i256/f06/papers/yang97comparative.pdf) for a study on using significant terms for feature selection for text classification).
+It is hard to say which one of the different heuristics will be the best choice as it depends on what the significant terms are used for (see for example http://courses.ischool.berkeley.edu/i256/f06/papers/yang97comparative.pdf[Yang and Pedersen, "A Comparative Study on Feature Selection in Text Categorization", 1997] for a study on using significant terms for feature selection for text classification).
 
 If none of the above measures suits your usecase than another option is to implement a custom significance measure:
 
-===== scripted
+===== Scripted
 Customized scores can be implemented via a script:
 
 [source,js]
@@ -438,6 +524,7 @@ Available parameters in the script are
 `_subset_size`:: Number of documents in the subset.
 `_superset_size`:: Number of documents in the superset.
 
+[[sig-terms-shard-size]]
 ===== Size & Shard Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By
@@ -448,14 +535,14 @@ If the number of unique terms is greater than `size`, the returned list can be s
 size buckets was not returned).
 
 To ensure better accuracy a multiple of the final `size` is used as the number of terms to request from each shard
-using a heuristic based on the number of shards. To take manual control of this setting the `shard_size` parameter
-can be  used to control the volumes of candidate terms produced by each shard.
+(`2 * (size * 1.5 + 10)`). To take manual control of this setting the `shard_size` parameter
+can be used to control the volumes of candidate terms produced by each shard.
 
 Low-frequency terms can turn out to be the most interesting ones once all results are combined so the
 significant_terms aggregation can produce higher-quality results when the `shard_size` parameter is set to
 values significantly higher than the `size` setting. This ensures that a bigger volume of promising candidate terms are given
 a consolidated review by the reducing node before the final selection. Obviously large candidate term lists
-will cause extra network traffic and RAM usage so this is  quality/cost trade off that needs to be balanced.  If `shard_size` is set to -1 (the default) then `shard_size` will be automatically estimated based on the number of shards and the `size` parameter.
+will cause extra network traffic and RAM usage so this is quality/cost trade off that needs to be balanced. If `shard_size` is set to -1 (the default) then `shard_size` will be automatically estimated based on the number of shards and the `size` parameter.
 
 
 NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, Elasticsearch will
@@ -465,21 +552,21 @@ NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sens
 
 It is possible to only return terms that match more than a configured number of hits using the `min_doc_count` option:
 
-[source,js]
+[source,console,id=significantterms-aggregation-min-document-example]
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "tags" : {
-            "significant_terms" : {
-                "field" : "tag",
-                "min_doc_count": 10
-            }
-        }
+  "aggs": {
+    "tags": {
+      "significant_terms": {
+        "field": "tag",
+        "min_doc_count": 10
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
+
 The above aggregation would only return tags which have been found in 10 hits or more. Default value is `3`.
 
 
@@ -487,12 +574,11 @@ The above aggregation would only return tags which have been found in 10 hits or
 
 Terms that score highly will be collected on a shard level and merged with the terms collected from other shards in a second step. However, the shard does not have the information about the global term frequencies available. The decision if a term is added to a candidate list depends only on the score computed on the shard using local shard frequencies, not the global frequencies of the word. The `min_doc_count` criterion is only applied after merging local terms statistics of all shards. In a way the decision to add the term as a candidate is made without being very _certain_ about if the term will actually reach the required `min_doc_count`. This might cause many (globally) high frequent terms to be missing in the final result if low frequent but high scoring terms populated the candidate lists. To avoid this, the `shard_size` parameter can be increased to allow more candidate terms on the shards. However, this increases memory consumption and network traffic.
 
-`shard_min_doc_count` parameter
 
-The parameter `shard_min_doc_count` regulates the _certainty_ a shard has if the term should actually be added to the candidate list or not with respect to the `min_doc_count`. Terms will only be considered if their local shard frequency within the set is higher than the `shard_min_doc_count`. If your dictionary contains many low frequent words and you are not interested in these (for example misspellings), then you can set the `shard_min_doc_count` parameter to filter out candidate terms on a shard level that will with a reasonable certainty not reach the required `min_doc_count` even after merging the local frequencies. `shard_min_doc_count` is set to `1` per default and has no effect unless you explicitly set it.
+[[search-aggregations-bucket-significantterms-shard-min-doc-count]]
+===== `shard_min_doc_count`
 
-
-
+include::terms-aggregation.asciidoc[tag=min-doc-count]
 
 WARNING: Setting `min_doc_count` to `1` is generally not advised as it tends to return terms that
          are typos or other bizarre curiosities. Finding more than one instance of a term helps
@@ -508,28 +594,27 @@ The default source of statistical information for background term frequencies is
 scope can be narrowed through the use of a `background_filter` to focus in on significant terms within a narrower
 context:
 
-[source,js]
+[source,console,id=significantterms-aggregation-custom-background-example]
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "match" : {
-            "city" : "madrid"
-        }
-    },
-    "aggs" : {
-        "tags" : {
-            "significant_terms" : {
-                "field" : "tag",
-                "background_filter": {
-                	"term" : { "text" : "spain"}
-                }
-            }
-        }
+  "query": {
+    "match": {
+      "city": "madrid"
     }
+  },
+  "aggs": {
+    "tags": {
+      "significant_terms": {
+        "field": "tag",
+        "background_filter": {
+          "term": { "text": "spain" }
+        }
+      }
+    }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 The above filter would help focus in on terms that were peculiar to the city of Madrid rather than revealing
 terms like "Spanish" that are unusual in the full index's worldwide context but commonplace in the subset of documents containing the
@@ -544,12 +629,18 @@ It is possible (although rarely required) to filter the values for which buckets
 `exclude` parameters which are based on a regular expression string or arrays of exact terms. This functionality mirrors the features
 described in the <<search-aggregations-bucket-terms-aggregation,terms aggregation>> documentation.
 
+==== Collect mode
+
+To avoid memory issues, the `significant_terms` aggregation always computes child aggregations in `breadth_first` mode.
+A description of the different collection modes can be found in the
+<<search-aggregations-bucket-terms-aggregation-collect, terms aggregation>> documentation.
+
 ==== Execution hint
 
 There are different mechanisms by which terms aggregations can be executed:
 
  - by using field values directly in order to aggregate data per-bucket (`map`)
- - by using global ordinals of the field and allocating one bucket per global ordinal (`global_ordinals`)
+ - by using <<eager-global-ordinals,global ordinals>> of the field and allocating one bucket per global ordinal (`global_ordinals`)
 
 Elasticsearch tries to have sensible defaults so this is something that generally doesn't need to be configured.
 
@@ -561,21 +652,20 @@ is significantly faster. By default, `map` is only used when running an aggregat
 ordinals.
 
 
-[source,js]
+[source,console,id=significantterms-aggregation-execution-hint-example]
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "tags" : {
-             "significant_terms" : {
-                 "field" : "tags",
-                 "execution_hint": "map" <1>
-             }
-         }
+  "aggs": {
+    "tags": {
+      "significant_terms": {
+        "field": "tags",
+        "execution_hint": "map" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> the possible values are `map`, `global_ordinals`
 

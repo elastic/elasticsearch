@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.suggest.phrase;
 
@@ -37,18 +26,18 @@ public abstract class WordScorer {
     protected final String field;
     protected final Terms terms;
     protected final long vocabluarySize;
-    protected final double realWordLikelyhood;
+    protected final double realWordLikelihood;
     protected final BytesRefBuilder spare = new BytesRefBuilder();
     protected final BytesRef separator;
     protected final long numTerms;
     private final TermsEnum termsEnum;
     private final boolean useTotalTermFreq;
 
-    public WordScorer(IndexReader reader, String field, double realWordLikelyHood, BytesRef separator) throws IOException {
-        this(reader, MultiTerms.getTerms(reader, field), field, realWordLikelyHood, separator);
+    public WordScorer(IndexReader reader, String field, double realWordLikelihood, BytesRef separator) throws IOException {
+        this(reader, MultiTerms.getTerms(reader, field), field, realWordLikelihood, separator);
     }
 
-    public WordScorer(IndexReader reader, Terms terms, String field, double realWordLikelyHood, BytesRef separator) throws IOException {
+    public WordScorer(IndexReader reader, Terms terms, String field, double realWordLikelihood, BytesRef separator) throws IOException {
         this.field = field;
         if (terms == null) {
             throw new IllegalArgumentException("Field: [" + field + "] does not exist");
@@ -62,10 +51,17 @@ public abstract class WordScorer {
         // division by zero, by scoreUnigram.
         final long nTerms = terms.size();
         this.numTerms = nTerms == -1 ? reader.maxDoc() : nTerms;
-        this.termsEnum = new FreqTermsEnum(reader, field, !useTotalTermFreq, useTotalTermFreq, null,
-            BigArrays.NON_RECYCLING_INSTANCE); // non recycling for now
+        // non recycling for now
+        this.termsEnum = new FreqTermsEnum(
+            reader,
+            field,
+            useTotalTermFreq == false,
+            useTotalTermFreq,
+            null,
+            BigArrays.NON_RECYCLING_INSTANCE
+        );
         this.reader = reader;
-        this.realWordLikelyhood = realWordLikelyHood;
+        this.realWordLikelihood = realWordLikelihood;
         this.separator = separator;
     }
 
@@ -78,7 +74,7 @@ public abstract class WordScorer {
 
    protected double channelScore(Candidate candidate, Candidate original) throws IOException {
        if (candidate.stringDistance == 1.0d) {
-           return realWordLikelyhood;
+           return realWordLikelihood;
        }
        return candidate.stringDistance;
    }
@@ -117,6 +113,6 @@ public abstract class WordScorer {
 
    public interface WordScorerFactory {
        WordScorer newScorer(IndexReader reader, Terms terms,
-                            String field, double realWordLikelyhood, BytesRef separator) throws IOException;
+                            String field, double realWordLikelihood, BytesRef separator) throws IOException;
    }
 }

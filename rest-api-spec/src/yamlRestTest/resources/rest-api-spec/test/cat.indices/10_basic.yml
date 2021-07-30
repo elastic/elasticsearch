@@ -1,0 +1,304 @@
+---
+"Test cat indices output (no indices)":
+
+  - do:
+      cat.indices: {}
+
+  - match:
+      $body: |
+               /^$/
+---
+"Test cat indices output":
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+      cat.indices: {}
+
+  - match:
+      $body: |
+               /^(green  \s+
+                  open   \s+
+                  index1 \s+
+                  ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+                  1      \s+
+                  0      \s+
+                  0      \s+
+                  0      \s+
+                  (\d+|\d+[.]\d+)(kb|b) \s+
+                  (\d+|\d+[.]\d+)(kb|b) \s*
+                )
+                $/
+
+  - do:
+      cat.indices:
+        v: false
+        h: i,cd,cds,creation.date,creation.date.string
+  - match:
+      $body: |
+               /^(
+                  index1                                                    \s+
+                  (\d+)                                                     \s+
+                  (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\dZ) \s+
+                  (\d+)                                                     \s+
+                  (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\dZ) \s*
+                )
+                $/
+---
+"Test cat indices output for closed index (pre 7.2.0)":
+  - skip:
+      version: "7.2.0 - "
+      reason:  "closed indices are replicated starting version 7.2.0"
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.create:
+        index: index-2
+        body:
+          settings:
+            number_of_shards: 3
+            number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: index-2
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      cat.indices:
+        index: index-*
+
+  - match:
+      $body: |
+               /^(        \s+
+                  close   \s+
+                  index-2 \s+
+                  ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+                          \s+
+                          \s+
+                          \s+
+                          \s+
+                          \s+
+                          \s*
+                )
+                $/
+---
+"Test cat indices output for closed index":
+  - skip:
+      version: " - 7.1.99"
+      reason:  "closed indices are replicated starting version 7.2.0"
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.create:
+        index: index-2
+        body:
+          settings:
+            number_of_shards: 3
+            number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: index-2
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      cat.indices:
+        index: index-*
+
+  - match:
+      $body: |
+        /^(green  \s+
+           close   \s+
+           index-2 \s+
+           ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+           3       \s+
+           0       \s+
+                   \s+
+                   \s+
+                   \s+
+                   \s*
+         )
+         $/
+---
+"Test cat indices using health status":
+
+  - do:
+      cluster.health: {}
+
+  - set: { number_of_data_nodes: count }
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: $count
+
+  - do:
+      cat.indices:
+        health: green
+        h: index
+
+  - match:
+      $body: |
+                /^(foo)$/
+
+  - do:
+      cat.indices:
+        health: yellow
+        h: index
+
+  - match:
+      $body: |
+               /^(bar)$/
+
+---
+"Test cat indices using wildcards":
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: baz
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      cat.indices:
+        index: f*
+        v: false
+        h: i
+
+  - match:
+      $body: |
+               /^(foo \n?)$/
+
+  - do:
+      cat.indices:
+        index: ba*
+        v: false
+        h: i
+
+  - match:
+      $body: |
+               /^(ba(r|z) \n?){2}$/
+
+---
+"Test cat indices sort":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: baz
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.close:
+        index: bar
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+
+  - do:
+      cat.indices:
+        h: [status, index]
+        s: [status, index]
+
+  - match:
+      $body: |
+            /^ close \s+ bar\n
+               open \s+ baz\n
+               open \s+ foo\n
+            $/
+
+  - do:
+      cat.indices:
+        h: [status, index]
+        s: [status, "index:desc"]
+
+  - match:
+      $body: |
+            /^ close \s+ bar\n
+               open \s+ foo\n
+               open \s+ baz\n
+            $/
+
+---
+"Test cat indices with invalid health parameter":
+  - skip:
+      version: " - 7.7.1"
+      reason:  "fixed in 7.7.1+"
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      catch: bad_request
+      cat.indices:
+        health: "invalid-health-value"

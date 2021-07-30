@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.junit.Before;
 
@@ -32,7 +34,7 @@ public class EmailServiceTests extends ESTestCase {
     public void init() throws Exception {
         account = mock(Account.class);
         service = new EmailService(Settings.builder().put("xpack.notification.email.account.account1.foo", "bar").build(), null,
-                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()))) {
+            mock(SSLService.class), new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()))) {
             @Override
             protected Account createAccount(String name, Settings accountSettings) {
                 return account;
@@ -70,7 +72,7 @@ public class EmailServiceTests extends ESTestCase {
                 .put("xpack.notification.email.account.account5.smtp.wait_on_quit", true)
                 .put("xpack.notification.email.account.account5.smtp.ssl.trust", "host1,host2,host3")
                 .build();
-        EmailService emailService = new EmailService(settings, null,
+        EmailService emailService = new EmailService(settings, null, mock(SSLService.class),
                 new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
 
         Account account1 = emailService.getAccount("account1");

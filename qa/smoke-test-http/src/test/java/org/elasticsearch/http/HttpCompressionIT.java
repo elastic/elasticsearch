@@ -1,24 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.http;
 
 import org.apache.http.HttpHeaders;
+import org.apache.http.client.entity.GzipDecompressingEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -26,9 +17,14 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 
-public class HttpCompressionIT extends ESRestTestCase {
-    private static final String GZIP_ENCODING = "gzip";
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 
+public class HttpCompressionIT extends ESRestTestCase {
+
+    private static final String GZIP_ENCODING = "gzip";
     private static final String SAMPLE_DOCUMENT = "{\n" +
         "   \"name\": {\n" +
         "      \"first name\": \"Steve\",\n" +
@@ -36,15 +32,27 @@ public class HttpCompressionIT extends ESRestTestCase {
         "   }\n" +
         "}";
 
-
     public void testCompressesResponseIfRequested() throws IOException {
-        Request request = new Request("GET", "/");
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING);
-        request.setOptions(options);
+        Request request = new Request("POST", "/company/_doc/2");
+        request.setJsonEntity(SAMPLE_DOCUMENT);
         Response response = client().performRequest(request);
+        assertEquals(201, response.getStatusLine().getStatusCode());
+        assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
+        assertThat(response.getEntity(), is(not(instanceOf(GzipDecompressingEntity.class))));
+
+        request = new Request("GET", "/company/_doc/2");
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING)
+            .build();
+
+        request.setOptions(requestOptions);
+        response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
-        assertEquals(GZIP_ENCODING, response.getHeader(HttpHeaders.CONTENT_ENCODING));
+        assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
+        assertThat(response.getEntity(), instanceOf(GzipDecompressingEntity.class));
+
+        String body = EntityUtils.toString(response.getEntity());
+        assertThat(body, containsString(SAMPLE_DOCUMENT));
     }
 
     public void testUncompressedResponseByDefault() throws IOException {
@@ -52,11 +60,12 @@ public class HttpCompressionIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
 
-        Request request = new Request("POST", "/company/employees/1");
+        Request request = new Request("POST", "/company/_doc/1");
         request.setJsonEntity(SAMPLE_DOCUMENT);
         response = client().performRequest(request);
         assertEquals(201, response.getStatusLine().getStatusCode());
         assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
+        assertThat(response.getEntity(), is(not(instanceOf(GzipDecompressingEntity.class))));
     }
 
 }

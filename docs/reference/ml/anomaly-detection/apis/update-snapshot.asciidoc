@@ -1,0 +1,73 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-update-snapshot]]
+= Update model snapshots API
+++++
+<titleabbrev>Update model snapshots</titleabbrev>
+++++
+
+Updates certain properties of a snapshot.
+
+[[ml-update-snapshot-request]]
+== {api-request-title}
+
+`POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_update`
+
+[[ml-update-snapshot-prereqs]]
+== {api-prereq-title}
+
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
+
+[[ml-update-snapshot-path-parms]]
+== {api-path-parms-title}
+
+`<job_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`<snapshot_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
+
+[[ml-update-snapshot-request-body]]
+== {api-request-body-title}
+
+The following properties can be updated after the model snapshot is created:
+
+`description`::
+(Optional, string) A description of the model snapshot.
+
+`retain`::
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=retain]
+
+
+[[ml-update-snapshot-example]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST
+_ml/anomaly_detectors/it_ops_new_logs/model_snapshots/1491852978/_update
+{
+  "description": "Snapshot 1",
+  "retain": true
+}
+--------------------------------------------------
+// TEST[skip:todo]
+
+When the snapshot is updated, you receive the following results:
+[source,js]
+----
+{
+  "acknowledged": true,
+  "model": {
+    "job_id": "it_ops_new_logs",
+    "timestamp": 1491852978000,
+    "description": "Snapshot 1",
+...
+    "retain": true
+  }
+}
+----

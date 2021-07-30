@@ -1,56 +1,44 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.calendars.Calendar;
-import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
-
-import java.io.IOException;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 public final class MlMetaIndex {
+
+    private static final String INDEX_NAME = ".ml-meta";
+    private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
+
     /**
      * Where to store the ml info in Elasticsearch - must match what's
      * expected by kibana/engineAPI/app/directives/mlLogUsage.js
+     *
+     * @return The index name
      */
-    public static final String INDEX_NAME = ".ml-meta";
+    public static String indexName() {
+        return INDEX_NAME;
+    }
 
-    public static final String INCLUDE_TYPE_KEY = "include_type";
+    public static String mapping() {
+        return TemplateUtils.loadTemplate(
+            "/org/elasticsearch/xpack/core/ml/meta_index_mappings.json",
+            Version.CURRENT.toString(),
+            MAPPINGS_VERSION_VARIABLE);
+    }
 
-    public static final String TYPE = "doc";
+    public static Settings settings() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .build();
+    }
 
     private MlMetaIndex() {}
-
-    public static XContentBuilder docMapping() throws IOException {
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject();
-            builder.startObject(TYPE);
-                ElasticsearchMappings.addDefaultMapping(builder);
-                builder.startObject(ElasticsearchMappings.PROPERTIES)
-                    .startObject(Calendar.ID.getPreferredName())
-                        .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
-                    .endObject()
-                    .startObject(Calendar.JOB_IDS.getPreferredName())
-                        .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
-                    .endObject()
-                    .startObject(Calendar.DESCRIPTION.getPreferredName())
-                        .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
-                    .endObject()
-                    .startObject(ScheduledEvent.START_TIME.getPreferredName())
-                        .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.DATE)
-                    .endObject()
-                    .startObject(ScheduledEvent.END_TIME.getPreferredName())
-                        .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.DATE)
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject();
-        return builder;
-    }
 }

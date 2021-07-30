@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugin.discovery.azure.classic;
@@ -23,12 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeServiceImpl;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.azure.classic.AzureUnicastHostsProvider;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.discovery.azure.classic.AzureSeedHostsProvider;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
@@ -44,11 +34,11 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
     public static final String AZURE = "azure";
     protected final Settings settings;
     private static final Logger logger = LogManager.getLogger(AzureDiscoveryPlugin.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AzureDiscoveryPlugin.class);
 
     public AzureDiscoveryPlugin(Settings settings) {
         this.settings = settings;
-        deprecationLogger.deprecated("azure classic discovery plugin is deprecated. Use azure arm discovery plugin instead");
+        deprecationLogger.deprecate(DeprecationCategory.PLUGINS, "azure_discovery_plugin", "azure classic discovery plugin is deprecated.");
         logger.trace("starting azure classic discovery plugin...");
     }
 
@@ -58,18 +48,18 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
     }
 
     @Override
-    public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
-                                                                            NetworkService networkService) {
+    public Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService,
+                                                                         NetworkService networkService) {
         return Collections.singletonMap(AZURE,
-            () -> createUnicastHostsProvider(settings, createComputeService(), transportService, networkService));
+            () -> createSeedHostsProvider(settings, createComputeService(), transportService, networkService));
     }
 
     // Used for testing
-    protected AzureUnicastHostsProvider createUnicastHostsProvider(final Settings settings,
-                                                                   final AzureComputeService azureComputeService,
-                                                                   final TransportService transportService,
-                                                                   final NetworkService networkService) {
-        return new AzureUnicastHostsProvider(settings, azureComputeService, transportService, networkService);
+    protected AzureSeedHostsProvider createSeedHostsProvider(final Settings settings,
+                                                             final AzureComputeService azureComputeService,
+                                                             final TransportService transportService,
+                                                             final NetworkService networkService) {
+        return new AzureSeedHostsProvider(settings, azureComputeService, transportService, networkService);
     }
 
     @Override

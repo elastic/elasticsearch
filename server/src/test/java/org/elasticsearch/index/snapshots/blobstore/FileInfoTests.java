@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.snapshots.blobstore;
 
@@ -23,14 +12,13 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -51,12 +39,17 @@ public class FileInfoTests extends ESTestCase {
             for (int i = 0; i < hash.length; i++) {
                 hash.bytes[i] = randomByte();
             }
-            StoreFileMetaData meta = new StoreFileMetaData("foobar", Math.abs(randomLong()), randomAlphaOfLengthBetween(1, 10),
-                Version.LATEST, hash);
+            StoreFileMetadata meta = new StoreFileMetadata(
+                "foobar",
+                Math.abs(randomLong()),
+                randomAlphaOfLengthBetween(1, 10),
+                Version.LATEST.toString(),
+                hash
+            );
             ByteSizeValue size = new ByteSizeValue(Math.abs(randomLong()));
             BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_foobar", meta, size);
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
-            BlobStoreIndexShardSnapshot.FileInfo.toXContent(info, builder, ToXContent.EMPTY_PARAMS);
+            BlobStoreIndexShardSnapshot.FileInfo.toXContent(info, builder);
             byte[] xcontent = BytesReference.toBytes(BytesReference.bytes(shuffleXContent(builder)));
 
             final BlobStoreIndexShardSnapshot.FileInfo parsedInfo;
@@ -71,7 +64,7 @@ public class FileInfoTests extends ESTestCase {
             assertThat(info.partSize(), equalTo(parsedInfo.partSize()));
             assertThat(parsedInfo.metadata().hash().length, equalTo(hash.length));
             assertThat(parsedInfo.metadata().hash(), equalTo(hash));
-            assertThat(parsedInfo.metadata().writtenBy(), equalTo(Version.LATEST));
+            assertThat(parsedInfo.metadata().writtenBy(), equalTo(Version.LATEST.toString()));
             assertThat(parsedInfo.isSame(info.metadata()), is(true));
         }
     }
@@ -130,7 +123,7 @@ public class FileInfoTests extends ESTestCase {
                 assertThat(length, equalTo(parsedInfo.length()));
                 assertEquals("666", parsedInfo.checksum());
                 assertEquals("666", parsedInfo.metadata().checksum());
-                assertEquals(Version.LATEST, parsedInfo.metadata().writtenBy());
+                assertEquals(Version.LATEST.toString(), parsedInfo.metadata().writtenBy());
             } else {
                 try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
                     parser.nextToken();
@@ -144,16 +137,22 @@ public class FileInfoTests extends ESTestCase {
     }
 
     public void testGetPartSize() {
-        BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetaData("foo", 36, "666",
-            MIN_SUPPORTED_LUCENE_VERSION), new ByteSizeValue(6));
+        BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo(
+            "foo",
+            new StoreFileMetadata("foo", 36, "666", MIN_SUPPORTED_LUCENE_VERSION.toString()),
+            new ByteSizeValue(6)
+        );
         int numBytes = 0;
         for (int i = 0; i < info.numberOfParts(); i++) {
             numBytes += info.partBytes(i);
         }
         assertEquals(numBytes, 36);
 
-        info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetaData("foo", 35, "666",
-            MIN_SUPPORTED_LUCENE_VERSION), new ByteSizeValue(6));
+        info = new BlobStoreIndexShardSnapshot.FileInfo(
+            "foo",
+            new StoreFileMetadata("foo", 35, "666", MIN_SUPPORTED_LUCENE_VERSION.toString()),
+            new ByteSizeValue(6)
+        );
         numBytes = 0;
         for (int i = 0; i < info.numberOfParts(); i++) {
             numBytes += info.partBytes(i);
@@ -161,15 +160,18 @@ public class FileInfoTests extends ESTestCase {
         assertEquals(numBytes, 35);
         final int numIters = randomIntBetween(10, 100);
         for (int j = 0; j < numIters; j++) {
-            StoreFileMetaData metaData = new StoreFileMetaData("foo", randomIntBetween(0, 1000), "666",
-                MIN_SUPPORTED_LUCENE_VERSION);
-            info = new BlobStoreIndexShardSnapshot.FileInfo("foo", metaData, new ByteSizeValue(randomIntBetween(1, 1000)));
+            StoreFileMetadata metadata = new StoreFileMetadata(
+                "foo",
+                randomIntBetween(0, 1000),
+                "666",
+                MIN_SUPPORTED_LUCENE_VERSION.toString()
+            );
+            info = new BlobStoreIndexShardSnapshot.FileInfo("foo", metadata, new ByteSizeValue(randomIntBetween(1, 1000)));
             numBytes = 0;
             for (int i = 0; i < info.numberOfParts(); i++) {
                 numBytes += info.partBytes(i);
             }
-            assertEquals(numBytes, metaData.length());
+            assertEquals(numBytes, metadata.length());
         }
-
     }
 }

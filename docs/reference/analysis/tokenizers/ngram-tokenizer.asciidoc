@@ -1,23 +1,26 @@
 [[analysis-ngram-tokenizer]]
-=== NGram Tokenizer
+=== N-gram tokenizer
+++++
+<titleabbrev>N-gram</titleabbrev>
+++++
 
 The `ngram` tokenizer first breaks text down into words whenever it encounters
 one of a list of specified characters, then it emits
-https://en.wikipedia.org/wiki/N-gram[N-grams] of each word of the specified
+{wikipedia}/N-gram[N-grams] of each word of the specified
 length.
 
 N-grams are like a sliding window that moves across the word - a continuous
 sequence of characters of the specified length. They are useful for querying
 languages that don't use spaces or that have long compound words, like German.
 
-[float]
+[discrete]
 === Example output
 
 With the default settings, the `ngram` tokenizer treats the initial text as a
 single token and produces N-grams with minimum length `1` and maximum length
 `2`:
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -25,11 +28,10 @@ POST _analyze
   "text": "Quick Fox"
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -155,7 +157,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -167,21 +168,21 @@ The above sentence would produce the following terms:
 [ Q, Qu, u, ui, i, ic, c, ck, k, "k ", " ", " F", F, Fo, o, ox, x ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `ngram` tokenizer accepts the following parameters:
 
 [horizontal]
 `min_gram`::
-    Minimum length of characters in a gram.  Defaults to `1`.
+    Minimum length of characters in a gram. Defaults to `1`.
 
 `max_gram`::
-    Maximum length of characters in a gram.  Defaults to `2`.
+    Maximum length of characters in a gram. Defaults to `2`.
 
 `token_chars`::
 
-    Character classes that should be included in a token.  Elasticsearch
+    Character classes that should be included in a token. Elasticsearch
     will split on characters that don't belong to the classes specified.
     Defaults to `[]` (keep all characters).
 +
@@ -192,24 +193,32 @@ Character classes may be any of the following:
 * `whitespace` --  for example `" "` or `"\n"`
 * `punctuation` -- for example `!` or `"`
 * `symbol` --      for example `$` or `√`
+* `custom` --      custom characters which need to be set using the
+`custom_token_chars` setting.
+
+`custom_token_chars`::
+
+    Custom characters that should be treated as part of a token. For example,
+    setting this to `+-_` will make the tokenizer treat the plus, minus and
+    underscore sign as part of a token.
 
 TIP:  It usually makes sense to set `min_gram` and `max_gram` to the same
-value.  The smaller the length, the more documents will match but the lower
-the quality of the matches.  The longer the length, the more specific the
-matches.  A tri-gram (length `3`) is a good place to start.
+value. The smaller the length, the more documents will match but the lower
+the quality of the matches. The longer the length, the more specific the
+matches. A tri-gram (length `3`) is a good place to start.
 
 The index level setting `index.max_ngram_diff` controls the maximum allowed
 difference between `max_gram` and `min_gram`.
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `ngram` tokenizer to treat letters and
 digits as tokens, and to produce tri-grams (grams of length `3`):
 
-[source,js]
+[source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -233,17 +242,16 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "2 Quick Foxes."
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -292,7 +300,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 

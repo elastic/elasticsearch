@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -25,10 +26,10 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -39,8 +40,7 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
 
     @Inject
     public TransportPutCalendarAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(PutCalendarAction.NAME, transportService, actionFilters,
-            (Supplier<PutCalendarAction.Request>) PutCalendarAction.Request::new);
+        super(PutCalendarAction.NAME, transportService, actionFilters, PutCalendarAction.Request::new);
         this.client = client;
     }
 
@@ -48,10 +48,10 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
     protected void doExecute(Task task, PutCalendarAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
         Calendar calendar = request.getCalendar();
 
-        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, calendar.documentId());
+        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(calendar.documentId());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             indexRequest.source(calendar.toXContent(builder,
-                    new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"))));
+                    new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))));
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialise calendar with id [" + calendar.getId() + "]", e);
         }
@@ -69,7 +69,7 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
 
                     @Override
                     public void onFailure(Exception e) {
-                        if (e instanceof VersionConflictEngineException) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                             listener.onFailure(ExceptionsHelper.badRequestException("Cannot create calendar with id [" +
                                     calendar.getId() + "] as it already exists"));
                         } else {

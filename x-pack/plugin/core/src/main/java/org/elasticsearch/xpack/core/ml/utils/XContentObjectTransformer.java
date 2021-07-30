@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -18,12 +18,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -38,15 +36,8 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
     private final NamedXContentRegistry registry;
     private final CheckedFunction<XContentParser, T, IOException> parserFunction;
 
-    // We need this registry for parsing out Aggregations and Searches
-    private static NamedXContentRegistry searchRegistry;
-    static {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
-        searchRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
-    }
-
-    public static XContentObjectTransformer<AggregatorFactories.Builder> aggregatorTransformer() {
-        return new XContentObjectTransformer<>(searchRegistry, (p) -> {
+    public static XContentObjectTransformer<AggregatorFactories.Builder> aggregatorTransformer(NamedXContentRegistry registry) {
+        return new XContentObjectTransformer<>(registry, (p) -> {
             // Serializing a map creates an object, need to skip the start object for the aggregation parser
             XContentParser.Token token = p.nextToken();
             assert(XContentParser.Token.START_OBJECT.equals(token));
@@ -54,8 +45,8 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
         });
     }
 
-    public static XContentObjectTransformer<QueryBuilder> queryBuilderTransformer() {
-        return new XContentObjectTransformer<>(searchRegistry, AbstractQueryBuilder::parseInnerQueryBuilder);
+    public static XContentObjectTransformer<QueryBuilder> queryBuilderTransformer(NamedXContentRegistry registry) {
+        return new XContentObjectTransformer<>(registry, AbstractQueryBuilder::parseInnerQueryBuilder);
     }
 
     XContentObjectTransformer(NamedXContentRegistry registry, CheckedFunction<XContentParser, T, IOException> parserFunction) {

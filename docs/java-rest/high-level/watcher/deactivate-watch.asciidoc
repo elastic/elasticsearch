@@ -1,10 +1,11 @@
 --
 :api: deactivate-watch
-:request: deactivateWatchRequet
+:request: deactivateWatchRequest
 :response: deactivateWatchResponse
 :doc-tests-file: {doc-tests}/WatcherDocumentationIT.java
 --
+[role="xpack"]
 [[java-rest-high-watcher-deactivate-watch]]
-=== Deactivate Watch API
+=== Deactivate watch API
 
 include::../execution.asciidoc[]

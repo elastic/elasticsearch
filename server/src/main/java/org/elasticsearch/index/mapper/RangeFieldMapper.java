@@ -1,77 +1,48 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANYDa
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.DoubleRange;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FloatRange;
-import org.apache.lucene.document.InetAddressPoint;
-import org.apache.lucene.document.InetAddressRange;
-import org.apache.lucene.document.IntRange;
-import org.apache.lucene.document.LongRange;
-import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
-import org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType;
-import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.ZoneId;
-import java.util.ArrayList;
+import java.time.ZoneOffset;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
-import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
@@ -84,166 +55,154 @@ public class RangeFieldMapper extends FieldMapper {
 
     public static class Defaults {
         public static final Explicit<Boolean> COERCE = new Explicit<>(true, false);
+        public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
     }
 
     // this is private since it has a different default
     static final Setting<Boolean> COERCE_SETTING =
         Setting.boolSetting("index.mapping.coerce", true, Setting.Property.IndexScope);
 
-    public static class Builder extends FieldMapper.Builder<Builder, RangeFieldMapper> {
-        private Boolean coerce;
-        private Locale locale;
+    private static RangeFieldMapper toType(FieldMapper in) {
+        return (RangeFieldMapper) in;
+    }
 
-        public Builder(String name, RangeType type) {
-            super(name, new RangeFieldType(type), new RangeFieldType(type));
-            builder = this;
-            locale = Locale.ROOT;
+    public static class Builder extends FieldMapper.Builder {
+
+        private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
+        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
+        private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
+        private final Parameter<Explicit<Boolean>> coerce;
+        private final Parameter<String> format
+            = Parameter.stringParam("format", false, m -> toType(m).format, Defaults.DATE_FORMATTER.pattern());
+        private final Parameter<Locale> locale = new Parameter<>("locale", false, () -> Locale.ROOT,
+            (n, c, o) -> LocaleUtils.parse(o.toString()), m -> toType(m).locale);
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        private final RangeType type;
+
+        public Builder(String name, RangeType type, Settings settings) {
+            this(name, type, COERCE_SETTING.get(settings));
         }
 
-        @Override
-        public RangeFieldType fieldType() {
-            return (RangeFieldType)fieldType;
-        }
-
-        @Override
-        public Builder docValues(boolean docValues) {
-            if (docValues == true) {
-                throw new IllegalArgumentException("field [" + name + "] does not currently support " + TypeParsers.DOC_VALUES);
+        public Builder(String name, RangeType type, boolean coerceByDefault) {
+            super(name);
+            this.type = type;
+            this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
+            if (this.type != RangeType.DATE) {
+                format.neverSerialize();
+                locale.neverSerialize();
             }
-            return super.docValues(docValues);
         }
 
-        public Builder coerce(boolean coerce) {
-            this.coerce = coerce;
-            return builder;
+        public void docValues(boolean hasDocValues) {
+            this.hasDocValues.setValue(hasDocValues);
         }
 
-        protected Explicit<Boolean> coerce(BuilderContext context) {
-            if (coerce != null) {
-                return new Explicit<>(coerce, true);
-            }
-            if (context.indexSettings() != null) {
-                return new Explicit<>(COERCE_SETTING.get(context.indexSettings()), false);
-            }
-            return Defaults.COERCE;
-        }
-
-        public Builder dateTimeFormatter(DateFormatter dateTimeFormatter) {
-            fieldType().setDateTimeFormatter(dateTimeFormatter);
+        Builder format(String format) {
+            this.format.setValue(format);
             return this;
         }
 
         @Override
-        public Builder nullValue(Object nullValue) {
-            throw new IllegalArgumentException("Field [" + name() + "] does not support null value.");
+        protected List<Parameter<?>> getParameters() {
+            return List.of(index, hasDocValues, store, coerce, format, locale, meta);
         }
 
-        public void locale(Locale locale) {
-            this.locale = locale;
-        }
-
-        @Override
-        protected void setupFieldType(BuilderContext context) {
-            super.setupFieldType(context);
-            DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
-            if (fieldType().rangeType == RangeType.DATE) {
-                if (!locale.equals(dateTimeFormatter.locale())) {
-                    fieldType().setDateTimeFormatter(dateTimeFormatter.withLocale(locale));
+        protected RangeFieldType setupFieldType(ContentPath contentPath) {
+            if (format.isConfigured()) {
+                if (type != RangeType.DATE) {
+                    throw new IllegalArgumentException("field [" + name() + "] of type [range]"
+                        + " should not define a dateTimeFormatter unless it is a " + RangeType.DATE + " type");
                 }
-            } else if (dateTimeFormatter != null) {
-                throw new IllegalArgumentException("field [" + name() + "] of type [" + fieldType().rangeType
-                    + "] should not define a dateTimeFormatter unless it is a " + RangeType.DATE + " type");
+                return new RangeFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), hasDocValues.getValue(),
+                    DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue()),
+                    coerce.getValue().value(), meta.getValue());
             }
+            if (type == RangeType.DATE) {
+                return new RangeFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), hasDocValues.getValue(),
+                    Defaults.DATE_FORMATTER, coerce.getValue().value(), meta.getValue());
+            }
+            return new RangeFieldType(buildFullName(contentPath), type, index.getValue(), store.getValue(), hasDocValues.getValue(),
+                coerce.getValue().value(), meta.getValue());
         }
 
         @Override
-        public RangeFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new RangeFieldMapper(name, fieldType, defaultFieldType, coerce(context),
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-        }
-    }
-
-    public static class TypeParser implements Mapper.TypeParser {
-        final RangeType type;
-
-        public TypeParser(RangeType type) {
-            this.type = type;
-        }
-
-        @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node,
-                                         ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(name, type);
-            TypeParsers.parseField(builder, name, node, parserContext);
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
-                Object propNode = entry.getValue();
-                if (propName.equals("null_value")) {
-                    throw new MapperParsingException("Property [null_value] is not supported for [" + this.type.name
-                            + "] field types.");
-                } else if (propName.equals("coerce")) {
-                    builder.coerce(XContentMapValues.nodeBooleanValue(propNode, name + ".coerce"));
-                    iterator.remove();
-                } else if (propName.equals("locale")) {
-                    builder.locale(LocaleUtils.parse(propNode.toString()));
-                    iterator.remove();
-                } else if (propName.equals("format")) {
-                    builder.dateTimeFormatter(parseDateTimeFormatter(propNode));
-                    iterator.remove();
-                } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
-                    iterator.remove();
-                }
-            }
-            return builder;
+        public RangeFieldMapper build(ContentPath contentPath) {
+            RangeFieldType ft = setupFieldType(contentPath);
+            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), type, this);
         }
     }
 
     public static final class RangeFieldType extends MappedFieldType {
-        protected RangeType rangeType;
-        protected DateFormatter dateTimeFormatter;
-        protected DateMathParser dateMathParser;
+        protected final RangeType rangeType;
+        protected final DateFormatter dateTimeFormatter;
+        protected final DateMathParser dateMathParser;
+        protected final boolean coerce;
 
-        RangeFieldType(RangeType type) {
-            super();
+        public RangeFieldType(String name, RangeType type, boolean indexed, boolean stored,
+                              boolean hasDocValues, boolean coerce, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            assert type != RangeType.DATE;
             this.rangeType = Objects.requireNonNull(type);
-            setTokenized(false);
-            setHasDocValues(true);
-            setOmitNorms(true);
-            if (rangeType == RangeType.DATE) {
-                setDateTimeFormatter(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
-            }
+            dateTimeFormatter = null;
+            dateMathParser = null;
+            this.coerce = coerce;
         }
 
-        RangeFieldType(RangeFieldType other) {
-            super(other);
-            this.rangeType = other.rangeType;
-            if (other.dateTimeFormatter() != null) {
-                setDateTimeFormatter(other.dateTimeFormatter);
-            }
+        public RangeFieldType(String name, RangeType type) {
+            this(name, type, true, false, true, false, Collections.emptyMap());
+        }
+
+        public RangeFieldType(String name, boolean indexed, boolean stored,  boolean hasDocValues, DateFormatter formatter,
+                              boolean coerce, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            this.rangeType = RangeType.DATE;
+            this.dateTimeFormatter = Objects.requireNonNull(formatter);
+            this.dateMathParser = dateTimeFormatter.toDateMathParser();
+            this.coerce = coerce;
+        }
+
+        public RangeFieldType(String name, DateFormatter formatter) {
+            this(name, true, false, true, formatter, false, Collections.emptyMap());
+        }
+
+        public RangeType rangeType() { return rangeType; }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues();
+            return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE);
         }
 
         @Override
-        public MappedFieldType clone() {
-            return new RangeFieldType(this);
-        }
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            DateFormatter defaultFormatter = dateTimeFormatter();
+            DateFormatter formatter = format != null
+                ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
+                : defaultFormatter;
 
-        @Override
-        public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
-            RangeFieldType that = (RangeFieldType) o;
-            return Objects.equals(rangeType, that.rangeType) &&
-            (rangeType == RangeType.DATE) ?
-                Objects.equals(dateTimeFormatter.pattern(), that.dateTimeFormatter.pattern())
-                && Objects.equals(dateTimeFormatter.locale(), that.dateTimeFormatter.locale())
-                : dateTimeFormatter == null && that.dateTimeFormatter == null;
-        }
+            return new SourceValueFetcher(name(), context) {
 
-        @Override
-        public int hashCode() {
-            return (dateTimeFormatter == null) ? Objects.hash(super.hashCode(), rangeType)
-                : Objects.hash(super.hashCode(), rangeType, dateTimeFormatter.pattern(), dateTimeFormatter.locale());
+                @Override
+                @SuppressWarnings("unchecked")
+                protected Object parseSourceValue(Object value) {
+                    RangeType rangeType = rangeType();
+                    if ((value instanceof Map) == false) {
+                        assert rangeType == RangeType.IP;
+                        Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
+                        return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
+                    }
+
+                    Map<String, Object> range = (Map<String, Object>) value;
+                    Map<String, Object> parsedRange = new HashMap<>();
+                    for (Map.Entry<String, Object> entry : range.entrySet()) {
+                        Object parsedValue = rangeType.parseValue(entry.getValue(), coerce, dateMathParser);
+                        Object formattedValue = rangeType.formatValue(parsedValue, formatter);
+                        parsedRange.put(entry.getKey(), formattedValue);
+                    }
+                    return parsedRange;
+                }
+            };
         }
 
         @Override
@@ -255,37 +214,35 @@ public class RangeFieldMapper extends FieldMapper {
             return dateTimeFormatter;
         }
 
-        public void setDateTimeFormatter(DateFormatter dateTimeFormatter) {
-            checkIfFrozen();
-            this.dateTimeFormatter = dateTimeFormatter;
-            this.dateMathParser = dateTimeFormatter.toDateMathParser();
-        }
-
         protected DateMathParser dateMathParser() {
             return dateMathParser;
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+            if (rangeType == RangeType.DATE) {
+                DateFormatter dateTimeFormatter = this.dateTimeFormatter;
+                if (format != null) {
+                    dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
+                }
+                if (timeZone == null) {
+                    timeZone = ZoneOffset.UTC;
+                }
+                // the resolution here is always set to milliseconds, as aggregations use this formatter mainly and those are always in
+                // milliseconds. The only special case here is docvalue fields, which are handled somewhere else
+                return new DocValueFormat.DateTime(dateTimeFormatter, timeZone, DateFieldMapper.Resolution.MILLISECONDS);
             }
+            return super.docValueFormat(format, timeZone);
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
-            Query query = rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
-            if (boost() != 1f) {
-                query = new BoostQuery(query, boost());
-            }
-            return query;
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            return rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
         }
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                                ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser, QueryShardContext context) {
+                                ShapeRelation relation, ZoneId timeZone, DateMathParser parser, SearchExecutionContext context) {
             failIfNotIndexed();
             if (parser == null) {
                 parser = dateMathParser();
@@ -295,18 +252,41 @@ public class RangeFieldMapper extends FieldMapper {
         }
     }
 
-    private Explicit<Boolean> coerce;
+    private final RangeType type;
+    private final boolean index;
+    private final boolean hasDocValues;
+    private final boolean store;
+    private final Explicit<Boolean> coerce;
+    private final String format;
+    private final Locale locale;
+
+    private final boolean coerceByDefault;
 
     private RangeFieldMapper(
         String simpleName,
-        MappedFieldType fieldType,
-        MappedFieldType defaultFieldType,
-        Explicit<Boolean> coerce,
-        Settings indexSettings,
+        MappedFieldType mappedFieldType,
         MultiFields multiFields,
-        CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
-        this.coerce = coerce;
+        CopyTo copyTo,
+        RangeType type,
+        Builder builder) {
+        super(simpleName, mappedFieldType, multiFields, copyTo);
+        this.type = type;
+        this.index = builder.index.getValue();
+        this.hasDocValues = builder.hasDocValues.getValue();
+        this.store = builder.store.getValue();
+        this.coerce = builder.coerce.getValue();
+        this.format = builder.format.getValue();
+        this.locale = builder.locale.getValue();
+        this.coerceByDefault = builder.coerce.getDefaultValue().value();
+    }
+
+    boolean coerce() {
+        return coerce.value();
+    }
+
+    @Override
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), type, coerceByDefault).init(this);
     }
 
     @Override
@@ -316,105 +296,66 @@ public class RangeFieldMapper extends FieldMapper {
 
     @Override
     protected String contentType() {
-        return fieldType.typeName();
+        return fieldType().typeName();
     }
 
     @Override
-    protected RangeFieldMapper clone() {
-        return (RangeFieldMapper) super.clone();
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         Range range;
-        if (context.externalValueSet()) {
-            range = context.parseExternalValue(Range.class);
-        } else {
-            XContentParser parser = context.parser();
-            final XContentParser.Token start = parser.currentToken();
-            if (start == XContentParser.Token.VALUE_NULL) {
-                return;
-            } else if (start == XContentParser.Token.START_OBJECT) {
-                RangeFieldType fieldType = fieldType();
-                RangeType rangeType = fieldType.rangeType;
-                String fieldName = null;
-                Object from = rangeType.minValue();
-                Object to = rangeType.maxValue();
-                boolean includeFrom = DEFAULT_INCLUDE_LOWER;
-                boolean includeTo = DEFAULT_INCLUDE_UPPER;
-                XContentParser.Token token;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        fieldName = parser.currentName();
-                    } else {
-                        if (fieldName.equals(GT_FIELD.getPreferredName())) {
-                            includeFrom = false;
-                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                from = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
-                            }
-                        } else if (fieldName.equals(GTE_FIELD.getPreferredName())) {
-                            includeFrom = true;
-                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                from = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
-                            }
-                        } else if (fieldName.equals(LT_FIELD.getPreferredName())) {
-                            includeTo = false;
-                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
-                            }
-                        } else if (fieldName.equals(LTE_FIELD.getPreferredName())) {
-                            includeTo = true;
-                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
-                            }
-                        } else {
-                            throw new MapperParsingException("error parsing field [" +
-                                name() + "], with unknown parameter [" + fieldName + "]");
+        XContentParser parser = context.parser();
+        final XContentParser.Token start = parser.currentToken();
+        if (start == XContentParser.Token.VALUE_NULL) {
+            return;
+        } else if (start == XContentParser.Token.START_OBJECT) {
+            RangeFieldType fieldType = fieldType();
+            RangeType rangeType = fieldType.rangeType;
+            String fieldName = null;
+            Object from = rangeType.minValue();
+            Object to = rangeType.maxValue();
+            boolean includeFrom = DEFAULT_INCLUDE_LOWER;
+            boolean includeTo = DEFAULT_INCLUDE_UPPER;
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    fieldName = parser.currentName();
+                } else {
+                    if (fieldName.equals(GT_FIELD.getPreferredName())) {
+                        includeFrom = false;
+                        if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                            from = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
                         }
+                    } else if (fieldName.equals(GTE_FIELD.getPreferredName())) {
+                        includeFrom = true;
+                        if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                            from = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
+                        }
+                    } else if (fieldName.equals(LT_FIELD.getPreferredName())) {
+                        includeTo = false;
+                        if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                            to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
+                        }
+                    } else if (fieldName.equals(LTE_FIELD.getPreferredName())) {
+                        includeTo = true;
+                        if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                            to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
+                        }
+                    } else {
+                        throw new MapperParsingException("error parsing field [" +
+                            name() + "], with unknown parameter [" + fieldName + "]");
                     }
                 }
-                range = new Range(rangeType, from, to, includeFrom, includeTo);
-            } else if (fieldType().rangeType == RangeType.IP && start == XContentParser.Token.VALUE_STRING) {
-                range = parseIpRangeFromCidr(parser);
-            } else {
-                throw new MapperParsingException("error parsing field ["
-                    + name() + "], expected an object but got " + parser.currentName());
             }
+            range = new Range(rangeType, from, to, includeFrom, includeTo);
+        } else if (fieldType().rangeType == RangeType.IP && start == XContentParser.Token.VALUE_STRING) {
+            range = parseIpRangeFromCidr(parser);
+        } else {
+            throw new MapperParsingException("error parsing field ["
+                + name() + "], expected an object but got " + parser.currentName());
         }
-        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
-        boolean docValued = fieldType.hasDocValues();
-        boolean stored = fieldType.stored();
-        fields.addAll(fieldType().rangeType.createFields(context, name(), range, indexed, docValued, stored));
-        if (docValued == false && (indexed || stored)) {
-            createFieldNamesField(context, fields);
-        }
-    }
+        context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, index, hasDocValues, store));
 
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        RangeFieldMapper other = (RangeFieldMapper) mergeWith;
-        if (other.coerce.explicit()) {
-            this.coerce = other.coerce;
-        }
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-
-        if (fieldType().rangeType == RangeType.DATE
-                && (includeDefaults || (fieldType().dateTimeFormatter() != null
-                && fieldType().dateTimeFormatter().pattern().equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern()) == false))) {
-            builder.field("format", fieldType().dateTimeFormatter().pattern());
-        }
-        if (fieldType().rangeType == RangeType.DATE
-                && (includeDefaults || (fieldType().dateTimeFormatter() != null
-                && fieldType().dateTimeFormatter().locale() != Locale.ROOT))) {
-            builder.field("locale", fieldType().dateTimeFormatter().locale());
-        }
-        if (includeDefaults || coerce.explicit()) {
-            builder.field("coerce", coerce.value());
+        if (hasDocValues == false && (index || store)) {
+            context.addToFieldNames(fieldType().name());
         }
     }
 
@@ -435,530 +376,13 @@ public class RangeFieldMapper extends FieldMapper {
         }
     }
 
-    /** Enum defining the type of range */
-    public enum RangeType {
-        IP("ip_range") {
-            @Override
-            public Field getRangeField(String name, Range r) {
-                return new InetAddressRange(name, (InetAddress)r.from, (InetAddress)r.to);
-            }
-            @Override
-            public InetAddress parseFrom(RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
-                    throws IOException {
-                InetAddress address = InetAddresses.forString(parser.text());
-                return included ? address : nextUp(address);
-            }
-            @Override
-            public InetAddress parseTo(RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
-                    throws IOException {
-                InetAddress address = InetAddresses.forString(parser.text());
-                return included ? address : nextDown(address);
-            }
-            @Override
-            public InetAddress parse(Object value, boolean coerce) {
-                if (value instanceof InetAddress) {
-                    return (InetAddress) value;
-                } else {
-                    if (value instanceof BytesRef) {
-                        value = ((BytesRef) value).utf8ToString();
-                    }
-                    return InetAddresses.forString(value.toString());
-                }
-            }
-            @Override
-            public InetAddress minValue() {
-                return InetAddressPoint.MIN_VALUE;
-            }
-            @Override
-            public InetAddress maxValue() {
-                return InetAddressPoint.MAX_VALUE;
-            }
-            @Override
-            public InetAddress nextUp(Object value) {
-                return InetAddressPoint.nextUp((InetAddress)value);
-            }
-            @Override
-            public InetAddress nextDown(Object value) {
-                return InetAddressPoint.nextDown((InetAddress)value);
-            }
-
-            @Override
-            public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
-                final byte[] encoded = new byte[5 + (16 * 2) * ranges.size()];
-                ByteArrayDataOutput out = new ByteArrayDataOutput(encoded);
-                out.writeVInt(ranges.size());
-                for (Range range : ranges) {
-                    InetAddress fromValue = (InetAddress) range.from;
-                    byte[] encodedFromValue = InetAddressPoint.encode(fromValue);
-                    out.writeBytes(encodedFromValue, 0, encodedFromValue.length);
-
-                    InetAddress toValue = (InetAddress) range.to;
-                    byte[] encodedToValue = InetAddressPoint.encode(toValue);
-                    out.writeBytes(encodedToValue, 0, encodedToValue.length);
-                }
-                return new BytesRef(encoded, 0, out.getPosition());
-            }
-
-            @Override
-            public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                if (includeFrom == false) {
-                    from = nextUp(from);
-                }
-
-                if (includeTo == false) {
-                    to = nextDown(to);
-                }
-
-                byte[] encodedFrom = InetAddressPoint.encode((InetAddress) from);
-                byte[] encodedTo = InetAddressPoint.encode((InetAddress) to);
-                return new BinaryDocValuesRangeQuery(field, queryType, BinaryDocValuesRangeQuery.LengthType.FIXED_16,
-                        new BytesRef(encodedFrom), new BytesRef(encodedTo), from, to);
-            }
-
-            @Override
-            public Query withinQuery(String field, Object from, Object to, boolean includeLower, boolean includeUpper) {
-                InetAddress lower = (InetAddress)from;
-                InetAddress upper = (InetAddress)to;
-                return InetAddressRange.newWithinQuery(field,
-                    includeLower ? lower : nextUp(lower), includeUpper ? upper : nextDown(upper));
-            }
-            @Override
-            public Query containsQuery(String field, Object from, Object to, boolean includeLower, boolean includeUpper) {
-                InetAddress lower = (InetAddress)from;
-                InetAddress upper = (InetAddress)to;
-                return InetAddressRange.newContainsQuery(field,
-                    includeLower ? lower : nextUp(lower), includeUpper ? upper : nextDown(upper));
-            }
-            @Override
-            public Query intersectsQuery(String field, Object from, Object to, boolean includeLower, boolean includeUpper) {
-                InetAddress lower = (InetAddress)from;
-                InetAddress upper = (InetAddress)to;
-                return InetAddressRange.newIntersectsQuery(field,
-                    includeLower ? lower : nextUp(lower), includeUpper ? upper : nextDown(upper));
-            }
-        },
-        DATE("date_range", NumberType.LONG) {
-            @Override
-            public Field getRangeField(String name, Range r) {
-                return new LongRange(name, new long[] {((Number)r.from).longValue()}, new long[] {((Number)r.to).longValue()});
-            }
-            private Number parse(DateMathParser dateMathParser, String dateStr) {
-                return dateMathParser.parse(dateStr, () -> {throw new IllegalArgumentException("now is not used at indexing time");});
-            }
-            @Override
-            public Number parseFrom(RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
-                    throws IOException {
-                Number value = parse(fieldType.dateMathParser, parser.text());
-                return included ? value : nextUp(value);
-            }
-            @Override
-            public Number parseTo(RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
-                    throws IOException{
-                Number value = parse(fieldType.dateMathParser, parser.text());
-                return included ? value : nextDown(value);
-            }
-            @Override
-            public Long minValue() {
-                return Long.MIN_VALUE;
-            }
-            @Override
-            public Long maxValue() {
-                return Long.MAX_VALUE;
-            }
-            @Override
-            public Long nextUp(Object value) {
-                return (long) LONG.nextUp(value);
-            }
-            @Override
-            public Long nextDown(Object value) {
-                return (long) LONG.nextDown(value);
-            }
-
-            @Override
-            public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
-                return LONG.encodeRanges(ranges);
-            }
-
-            @Override
-            public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return LONG.dvRangeQuery(field, queryType, from, to, includeFrom, includeTo);
-            }
-
-            @Override
-            public Query rangeQuery(String field, boolean hasDocValues, Object lowerTerm, Object upperTerm, boolean includeLower,
-                                    boolean includeUpper, ShapeRelation relation, @Nullable DateTimeZone timeZone,
-                                    @Nullable DateMathParser parser, QueryShardContext context) {
-                    DateTimeZone zone = (timeZone == null) ? DateTimeZone.UTC : timeZone;
-                    ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(zone);
-                DateMathParser dateMathParser = (parser == null) ?
-                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser() : parser;
-                Long low = lowerTerm == null ? Long.MIN_VALUE :
-                    dateMathParser.parse(lowerTerm instanceof BytesRef ? ((BytesRef) lowerTerm).utf8ToString() : lowerTerm.toString(),
-                        context::nowInMillis, false, zoneId);
-                Long high = upperTerm == null ? Long.MAX_VALUE :
-                    dateMathParser.parse(upperTerm instanceof BytesRef ? ((BytesRef) upperTerm).utf8ToString() : upperTerm.toString(),
-                        context::nowInMillis, false, zoneId);
-
-                return super.rangeQuery(field, hasDocValues, low, high, includeLower, includeUpper, relation, zone,
-                    dateMathParser, context);
-            }
-            @Override
-            public Query withinQuery(String field, Object from, Object to, boolean includeLower, boolean includeUpper) {
-                return LONG.withinQuery(field, from, to, includeLower, includeUpper);
-            }
-            @Override
-            public Query containsQuery(String field, Object from, Object to, boolean includeLower, boolean includeUpper) {
-                return LONG.containsQuery(field, from, to, includeLower, includeUpper);
-            }
-            @Override
-            public Query intersectsQuery(String field, Object from, Object to, boolean includeLower, boolean includeUpper) {
-                return LONG.intersectsQuery(field, from, to, includeLower, includeUpper);
-            }
-        },
-        // todo support half_float
-        FLOAT("float_range", NumberType.FLOAT) {
-            @Override
-            public Float minValue() {
-                return Float.NEGATIVE_INFINITY;
-            }
-            @Override
-            public Float maxValue() {
-                return Float.POSITIVE_INFINITY;
-            }
-            @Override
-            public Float nextUp(Object value) {
-                return Math.nextUp(((Number)value).floatValue());
-            }
-            @Override
-            public Float nextDown(Object value) {
-                return Math.nextDown(((Number)value).floatValue());
-            }
-
-            @Override
-            public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
-                return BinaryRangeUtil.encodeFloatRanges(ranges);
-            }
-
-            @Override
-            public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                if (includeFrom == false) {
-                    from = nextUp(from);
-                }
-
-                if (includeTo == false) {
-                    to = nextDown(to);
-                }
-
-                byte[] encodedFrom = BinaryRangeUtil.encodeFloat((Float) from);
-                byte[] encodedTo = BinaryRangeUtil.encodeFloat((Float) to);
-                return new BinaryDocValuesRangeQuery(field, queryType, BinaryDocValuesRangeQuery.LengthType.FIXED_4,
-                        new BytesRef(encodedFrom), new BytesRef(encodedTo), from, to);
-            }
-
-            @Override
-            public Field getRangeField(String name, Range r) {
-                return new FloatRange(name, new float[] {((Number)r.from).floatValue()}, new float[] {((Number)r.to).floatValue()});
-            }
-            @Override
-            public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return FloatRange.newWithinQuery(field,
-                    new float[] {includeFrom ? (Float)from : Math.nextUp((Float)from)},
-                    new float[] {includeTo ? (Float)to : Math.nextDown((Float)to)});
-            }
-            @Override
-            public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return FloatRange.newContainsQuery(field,
-                    new float[] {includeFrom ? (Float)from : Math.nextUp((Float)from)},
-                    new float[] {includeTo ? (Float)to : Math.nextDown((Float)to)});
-            }
-            @Override
-            public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return FloatRange.newIntersectsQuery(field,
-                    new float[] {includeFrom ? (Float)from : Math.nextUp((Float)from)},
-                    new float[] {includeTo ? (Float)to : Math.nextDown((Float)to)});
-            }
-        },
-        DOUBLE("double_range", NumberType.DOUBLE) {
-            @Override
-            public Double minValue() {
-                return Double.NEGATIVE_INFINITY;
-            }
-            @Override
-            public Double maxValue() {
-                return Double.POSITIVE_INFINITY;
-            }
-            @Override
-            public Double nextUp(Object value) {
-                return Math.nextUp(((Number)value).doubleValue());
-            }
-            @Override
-            public Double nextDown(Object value) {
-                return Math.nextDown(((Number)value).doubleValue());
-            }
-
-            @Override
-            public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
-                return BinaryRangeUtil.encodeDoubleRanges(ranges);
-            }
-
-            @Override
-            public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                if (includeFrom == false) {
-                    from = nextUp(from);
-                }
-
-                if (includeTo == false) {
-                    to = nextDown(to);
-                }
-
-                byte[] encodedFrom = BinaryRangeUtil.encodeDouble((Double) from);
-                byte[] encodedTo = BinaryRangeUtil.encodeDouble((Double) to);
-                return new BinaryDocValuesRangeQuery(field, queryType, BinaryDocValuesRangeQuery.LengthType.FIXED_8,
-                        new BytesRef(encodedFrom), new BytesRef(encodedTo), from, to);
-            }
-
-            @Override
-            public Field getRangeField(String name, Range r) {
-                return new DoubleRange(name, new double[] {((Number)r.from).doubleValue()}, new double[] {((Number)r.to).doubleValue()});
-            }
-            @Override
-            public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return DoubleRange.newWithinQuery(field,
-                    new double[] {includeFrom ? (Double)from : Math.nextUp((Double)from)},
-                    new double[] {includeTo ? (Double)to : Math.nextDown((Double)to)});
-            }
-            @Override
-            public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return DoubleRange.newContainsQuery(field,
-                    new double[] {includeFrom ? (Double)from : Math.nextUp((Double)from)},
-                    new double[] {includeTo ? (Double)to : Math.nextDown((Double)to)});
-            }
-            @Override
-            public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return DoubleRange.newIntersectsQuery(field,
-                    new double[] {includeFrom ? (Double)from : Math.nextUp((Double)from)},
-                    new double[] {includeTo ? (Double)to : Math.nextDown((Double)to)});
-            }
-        },
-        // todo add BYTE support
-        // todo add SHORT support
-        INTEGER("integer_range", NumberType.INTEGER) {
-            @Override
-            public Integer minValue() {
-                return Integer.MIN_VALUE;
-            }
-            @Override
-            public Integer maxValue() {
-                return Integer.MAX_VALUE;
-            }
-            @Override
-            public Integer nextUp(Object value) {
-                return ((Number)value).intValue() + 1;
-            }
-            @Override
-            public Integer nextDown(Object value) {
-                return ((Number)value).intValue() - 1;
-            }
-
-            @Override
-            public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
-                return LONG.encodeRanges(ranges);
-            }
-
-            @Override
-            public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return LONG.dvRangeQuery(field, queryType, from, to, includeFrom, includeTo);
-            }
-
-            @Override
-            public Field getRangeField(String name, Range r) {
-                return new IntRange(name, new int[] {((Number)r.from).intValue()}, new int[] {((Number)r.to).intValue()});
-            }
-            @Override
-            public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return IntRange.newWithinQuery(field, new int[] {(Integer)from + (includeFrom ? 0 : 1)},
-                    new int[] {(Integer)to - (includeTo ? 0 : 1)});
-            }
-            @Override
-            public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return IntRange.newContainsQuery(field, new int[] {(Integer)from + (includeFrom ? 0 : 1)},
-                    new int[] {(Integer)to - (includeTo ? 0 : 1)});
-            }
-            @Override
-            public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return IntRange.newIntersectsQuery(field, new int[] {(Integer)from + (includeFrom ? 0 : 1)},
-                    new int[] {(Integer)to - (includeTo ? 0 : 1)});
-            }
-        },
-        LONG("long_range", NumberType.LONG) {
-            @Override
-            public Long minValue() {
-                return Long.MIN_VALUE;
-            }
-            @Override
-            public Long maxValue() {
-                return Long.MAX_VALUE;
-            }
-            @Override
-            public Long nextUp(Object value) {
-                return ((Number)value).longValue() + 1;
-            }
-            @Override
-            public Long nextDown(Object value) {
-                return ((Number)value).longValue() - 1;
-            }
-
-            @Override
-            public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
-                return BinaryRangeUtil.encodeLongRanges(ranges);
-            }
-
-            @Override
-            public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                if (includeFrom == false) {
-                    from = nextUp(from);
-                }
-
-                if (includeTo == false) {
-                    to = nextDown(to);
-                }
-
-                byte[] encodedFrom = BinaryRangeUtil.encodeLong(((Number) from).longValue());
-                byte[] encodedTo = BinaryRangeUtil.encodeLong(((Number) to).longValue());
-                return new BinaryDocValuesRangeQuery(field, queryType, BinaryDocValuesRangeQuery.LengthType.VARIABLE,
-                        new BytesRef(encodedFrom), new BytesRef(encodedTo), from, to);
-            }
-
-            @Override
-            public Field getRangeField(String name, Range r) {
-                return new LongRange(name, new long[] {((Number)r.from).longValue()},
-                    new long[] {((Number)r.to).longValue()});
-            }
-            @Override
-            public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return LongRange.newWithinQuery(field,  new long[] {(Long)from + (includeFrom ? 0 : 1)},
-                    new long[] {(Long)to - (includeTo ? 0 : 1)});
-            }
-            @Override
-            public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return LongRange.newContainsQuery(field,  new long[] {(Long)from + (includeFrom ? 0 : 1)},
-                    new long[] {(Long)to - (includeTo ? 0 : 1)});
-            }
-            @Override
-            public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return LongRange.newIntersectsQuery(field,  new long[] {(Long)from + (includeFrom ? 0 : 1)},
-                    new long[] {(Long)to - (includeTo ? 0 : 1)});
-            }
-        };
-
-        RangeType(String name) {
-            this.name = name;
-            this.numberType = null;
-        }
-
-        RangeType(String name, NumberType type) {
-            this.name = name;
-            this.numberType = type;
-        }
-
-        /** Get the associated type name. */
-        public final String typeName() {
-            return name;
-        }
-
-        public abstract Field getRangeField(String name, Range range);
-        public List<IndexableField> createFields(ParseContext context, String name, Range range, boolean indexed,
-                                                 boolean docValued, boolean stored) {
-            assert range != null : "range cannot be null when creating fields";
-            List<IndexableField> fields = new ArrayList<>();
-            if (indexed) {
-                fields.add(getRangeField(name, range));
-            }
-            if (docValued) {
-                BinaryRangesDocValuesField field = (BinaryRangesDocValuesField) context.doc().getByKey(name);
-                if (field == null) {
-                    field = new BinaryRangesDocValuesField(name, range, this);
-                    context.doc().addWithKey(name, field);
-                } else {
-                    field.add(range);
-                }
-            }
-            if (stored) {
-                fields.add(new StoredField(name, range.toString()));
-            }
-            return fields;
-        }
-        /** parses from value. rounds according to included flag */
-        public Object parseFrom(RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included) throws IOException {
-            Number value = numberType.parse(parser, coerce);
-            return included ? value : (Number)nextUp(value);
-        }
-        /** parses to value. rounds according to included flag */
-        public Object parseTo(RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included) throws IOException {
-            Number value = numberType.parse(parser, coerce);
-            return included ? value : (Number)nextDown(value);
-        }
-
-        public abstract Object minValue();
-        public abstract Object maxValue();
-        public abstract Object nextUp(Object value);
-        public abstract Object nextDown(Object value);
-        public abstract Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo);
-        public abstract Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo);
-        public abstract Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo);
-        public Object parse(Object value, boolean coerce) {
-            return numberType.parse(value, coerce);
-        }
-        public Query rangeQuery(String field, boolean hasDocValues, Object from, Object to, boolean includeFrom, boolean includeTo,
-                                ShapeRelation relation, @Nullable DateTimeZone timeZone, @Nullable DateMathParser dateMathParser,
-                                QueryShardContext context) {
-            Object lower = from == null ? minValue() : parse(from, false);
-            Object upper = to == null ? maxValue() : parse(to, false);
-            Query indexQuery;
-            if (relation == ShapeRelation.WITHIN) {
-                indexQuery = withinQuery(field, lower, upper, includeFrom, includeTo);
-            } else if (relation == ShapeRelation.CONTAINS) {
-                indexQuery = containsQuery(field, lower, upper, includeFrom, includeTo);
-            } else {
-                indexQuery = intersectsQuery(field, lower, upper, includeFrom, includeTo);
-            }
-            if (hasDocValues) {
-                final QueryType queryType;
-                if (relation == ShapeRelation.WITHIN) {
-                    queryType = QueryType.WITHIN;
-                } else if (relation == ShapeRelation.CONTAINS) {
-                    queryType = QueryType.CONTAINS;
-                } else {
-                    queryType = QueryType.INTERSECTS;
-                }
-                Query dvQuery = dvRangeQuery(field, queryType, lower, upper, includeFrom, includeTo);
-                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
-            } else {
-                return indexQuery;
-            }
-        }
-
-        // No need to take into account Range#includeFrom or Range#includeTo, because from and to have already been
-        // rounded up via parseFrom and parseTo methods.
-        public abstract BytesRef encodeRanges(Set<Range> ranges) throws IOException;
-
-        public abstract Query dvRangeQuery(String field, QueryType queryType, Object from, Object to,
-                boolean includeFrom, boolean includeTo);
-
-        public final String name;
-        private final NumberType numberType;
-
-
-
-    }
-
     /** Class defining a range */
     public static class Range {
         RangeType type;
         Object from;
         Object to;
-        private boolean includeFrom;
-        private boolean includeTo;
+        private final boolean includeFrom;
+        private final boolean includeTo;
 
         public Range(RangeType type, Object from, Object to, boolean includeFrom, boolean includeTo) {
             this.type = type;
@@ -966,6 +390,27 @@ public class RangeFieldMapper extends FieldMapper {
             this.to = to;
             this.includeFrom = includeFrom;
             this.includeTo = includeTo;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Range range = (Range) o;
+            return includeFrom == range.includeFrom &&
+                includeTo == range.includeTo &&
+                type == range.type &&
+                from.equals(range.from) &&
+                to.equals(range.to);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type, from, to, includeFrom, includeTo);
         }
 
         @Override
@@ -979,6 +424,14 @@ public class RangeFieldMapper extends FieldMapper {
             sb.append(type == RangeType.IP ? InetAddresses.toAddrString((InetAddress)t) : t.toString());
             sb.append(includeTo ? ']' : ')');
             return sb.toString();
+        }
+
+        public Object getFrom() {
+            return from;
+        }
+
+        public Object getTo() {
+            return to;
         }
     }
 

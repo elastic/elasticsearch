@@ -1,0 +1,52 @@
+[discrete]
+[[breaking_80_http_changes]]
+==== HTTP changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+.The `http.content_type.required` setting has been removed.
+[%collapsible]
+====
+*Details* +
+The `http.content_type.required` setting was deprecated in Elasticsearch 6.0
+and has been removed in Elasticsearch 8.0. The setting was introduced in
+Elasticsearch 5.3 to prepare users for Elasticsearch 6.0, where content type
+auto detection was removed for HTTP requests.
+
+*Impact* +
+Discontinue use of the `http.content_type.required` system property.
+Specifying this property in `elasticsearch.yml` will result in an error on
+startup.
+====
+
+.The `http.tcp_no_delay` setting has been replaced by `http.tcp.no_delay`.
+[%collapsible]
+====
+*Details* +
+The `http.tcp_no_delay` setting was deprecated in 7.x and has been removed in 8.0. It has been replaced by
+`http.tcp.no_delay`.
+
+*Impact* +
+Use the `http.tcp.no_delay` setting. Discontinue use of the `http.tcp_no_delay`
+setting. Specifying the `http.tcp_no_delay` setting in `elasticsearch.yml` will
+result in an error on startup.
+====
+
+.The `es.rest.url_plus_as_space` system property has been removed.
+[%collapsible]
+====
+*Details* +
+Starting in version 7.4, a `+` in a URL will be encoded as `%2B` by all REST API functionality. Prior versions handled a `+` as a single space.
+In these previous versions, if your application required handling `+` as a single space, you could return to the old behaviour by setting the system property
+`es.rest.url_plus_as_space` to `true`. Note that this behaviour is deprecated and setting this system property to `true` will cease
+to be supported in version 8.
+
+*Impact* +
+Update your workflow and applications to assume `+` in a URL is encoded as
+`%2B`. Discontinue use of the `es.rest.url_plus_as_space` system property.
+Specifying this property in `elasticsearch.yml` will result in an error on
+startup.
+====
+// end::notable-breaking-changes[]

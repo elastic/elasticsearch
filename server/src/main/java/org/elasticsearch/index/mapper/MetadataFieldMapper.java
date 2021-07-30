@@ -1,28 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Function;
 
 
 /**
@@ -33,44 +26,147 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     public interface TypeParser extends Mapper.TypeParser {
 
         @Override
-        MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
-                                               ParserContext parserContext) throws MapperParsingException;
+        MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
+                                               MappingParserContext parserContext) throws MapperParsingException;
 
         /**
          * Get the default {@link MetadataFieldMapper} to use, if nothing had to be parsed.
-         * @param fieldType      the existing field type for this meta mapper on the current index
-         *                       or null if this is the first type being introduced
+         *
          * @param parserContext context that may be useful to build the field like analyzers
          */
-        // TODO: remove the fieldType parameter which is only used for bw compat with pre-2.0
-        // since settings could be modified
-        MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext parserContext);
+        MetadataFieldMapper getDefault(MappingParserContext parserContext);
     }
 
-    public abstract static class Builder<T extends Builder, Y extends MetadataFieldMapper> extends FieldMapper.Builder<T, Y> {
-        public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
-            super(name, fieldType, defaultFieldType);
+    /**
+     * Declares an updateable boolean parameter for a metadata field
+     *
+     * We need to distinguish between explicit configuration and default value for metadata
+     * fields, because mapping updates will carry over the previous metadata values if a
+     * metadata field is not explicitly declared in the update.  A standard boolean
+     * parameter explicitly configured with a default value will not be serialized (as
+     * we do not serialize default parameters for mapping updates), and as such will be
+     * ignored by the update merge.  Instead, we use an {@link Explicit} object that
+     * will serialize its value if it has been configured, no matter what the value is.
+     */
+    public static Parameter<Explicit<Boolean>> updateableBoolParam(String name, Function<FieldMapper, Explicit<Boolean>> initializer,
+                                                                   boolean defaultValue) {
+        Explicit<Boolean> defaultExplicit = new Explicit<>(defaultValue, false);
+        return new Parameter<>(name, true, () -> defaultExplicit,
+            (n, c, o) -> new Explicit<>(XContentMapValues.nodeBooleanValue(o), true), initializer)
+            .setSerializer((b, n, v) -> b.field(n, v.value()), v -> Boolean.toString(v.value()));
+    }
+
+    /**
+     * A type parser for an unconfigurable metadata field.
+     */
+    public static class FixedTypeParser implements TypeParser {
+
+        final Function<MappingParserContext, MetadataFieldMapper> mapperParser;
+
+        public FixedTypeParser(Function<MappingParserContext, MetadataFieldMapper> mapperParser) {
+            this.mapperParser = mapperParser;
+        }
+
+        @Override
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
+            throw new MapperParsingException(name + " is not configurable");
+        }
+
+        @Override
+        public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
+            return mapperParser.apply(parserContext);
         }
     }
 
-    protected MetadataFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+    public static class ConfigurableTypeParser implements TypeParser {
+
+        final Function<MappingParserContext, MetadataFieldMapper> defaultMapperParser;
+        final Function<MappingParserContext, Builder> builderFunction;
+
+        public ConfigurableTypeParser(Function<MappingParserContext, MetadataFieldMapper> defaultMapperParser,
+                                      Function<MappingParserContext, Builder> builderFunction) {
+            this.defaultMapperParser = defaultMapperParser;
+            this.builderFunction = builderFunction;
+        }
+
+        @Override
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
+            Builder builder = builderFunction.apply(parserContext);
+            builder.parse(name, parserContext, node);
+            return builder;
+        }
+
+        @Override
+        public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
+            return defaultMapperParser.apply(parserContext);
+        }
     }
 
-    /**
-     * Called before {@link FieldMapper#parse(ParseContext)} on the {@link RootObjectMapper}.
-     */
-    public abstract void preParse(ParseContext context) throws IOException;
+    public abstract static class Builder extends FieldMapper.Builder {
 
-    /**
-     * Called after {@link FieldMapper#parse(ParseContext)} on the {@link RootObjectMapper}.
-     */
-    public void postParse(ParseContext context) throws IOException {
-        // do nothing
+        protected Builder(String name) {
+            super(name);
+        }
+
+        boolean isConfigured() {
+            for (Parameter<?> param : getParameters()) {
+                if (param.isConfigured()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public final MetadataFieldMapper build(ContentPath path) {
+            return build();
+        }
+
+        public abstract MetadataFieldMapper build();
+    }
+
+    protected MetadataFieldMapper(MappedFieldType mappedFieldType) {
+        super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    }
+
+    protected MetadataFieldMapper(MappedFieldType mappedFieldType, NamedAnalyzer indexAnalyzer) {
+        super(mappedFieldType.name(), mappedFieldType, indexAnalyzer, MultiFields.empty(), CopyTo.empty());
     }
 
     @Override
-    public MetadataFieldMapper merge(Mapper mergeWith) {
-        return (MetadataFieldMapper) super.merge(mergeWith);
+    public FieldMapper.Builder getMergeBuilder() {
+        return null;    // by default, things can't be configured so we have no builder
     }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        MetadataFieldMapper.Builder mergeBuilder = (MetadataFieldMapper.Builder) getMergeBuilder();
+        if (mergeBuilder == null || mergeBuilder.isConfigured() == false) {
+            return builder;
+        }
+        builder.startObject(simpleName());
+        getMergeBuilder().toXContent(builder, params);
+        return builder.endObject();
+    }
+
+    @Override
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        throw new MapperParsingException("Field [" + name() + "] is a metadata field and cannot be added inside"
+            + " a document. Use the index API request parameters.");
+    }
+
+    /**
+     * Called before {@link FieldMapper#parse(DocumentParserContext)} on the {@link RootObjectMapper}.
+     */
+    public void preParse(DocumentParserContext context) throws IOException {
+        // do nothing
+    }
+
+    /**
+     * Called after {@link FieldMapper#parse(DocumentParserContext)} on the {@link RootObjectMapper}.
+     */
+    public void postParse(DocumentParserContext context) throws IOException {
+        // do nothing
+    }
+
 }

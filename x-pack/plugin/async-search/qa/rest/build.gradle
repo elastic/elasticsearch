@@ -1,0 +1,29 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+esplugin {
+  name 'x-pack-test-deprecated-query'
+  description 'Deprecated query plugin'
+  classname 'org.elasticsearch.query.DeprecatedQueryPlugin'
+}
+
+restResources {
+  restApi {
+    include '_common', 'indices', 'index', 'async_search'
+  }
+}
+
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
+}
+
+tasks.named("test").configure { enabled = false }
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("yamlRestTest").configure{enabled = false }
+}

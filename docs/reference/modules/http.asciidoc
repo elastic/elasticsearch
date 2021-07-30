@@ -1,110 +1,192 @@
-[[modules-http]]
-== HTTP
+[[http-settings]]
+==== Advanced HTTP settings
 
-The http module allows to expose *Elasticsearch* APIs
-over HTTP.
+Use the following advanced settings to configure the HTTP interface
+independently of the <<transport-settings,transport interface>>. You can also
+configure both interfaces together using the <<common-network-settings,network settings>>.
 
-The http mechanism is completely asynchronous in nature, meaning that
-there is no blocking thread waiting for a response. The benefit of using
-asynchronous communication for HTTP is solving the
-http://en.wikipedia.org/wiki/C10k_problem[C10k problem].
+`http.host`::
+(<<static-cluster-setting,Static>>)
+Sets the address of this node for HTTP traffic. The node will bind to this
+address and will also use it as its HTTP publish address. Accepts an IP
+address, a hostname, or a <<network-interface-values,special value>>.
+Use this setting only if you require different configurations for the
+transport and HTTP interfaces.
++
+Defaults to the address given by `network.host`.
 
-When possible, consider using
-http://en.wikipedia.org/wiki/Keepalive#HTTP_Keepalive[HTTP keep alive]
-when connecting for better performance and try to get your favorite
-client not to do
-http://en.wikipedia.org/wiki/Chunked_transfer_encoding[HTTP chunking].
+`http.bind_host`::
+(<<static-cluster-setting,Static>>)
+The network address(es) to which the node should bind in order to listen for
+incoming HTTP connections. Accepts a list of IP addresses, hostnames, and
+<<network-interface-values,special values>>. Defaults to the address given by
+`http.host` or `network.bind_host`. Use this setting only if you require to
+bind to multiple addresses or to use different addresses for publishing and
+binding, and you also require different binding configurations for the
+transport and HTTP interfaces.
 
-[float]
-=== Settings
+`http.publish_host`::
+(<<static-cluster-setting,Static>>)
+The network address for HTTP clients to contact the node using sniffing.
+Accepts an IP address, a hostname, or a <<network-interface-values,special
+value>>. Defaults to the address given by `http.host` or
+`network.publish_host`. Use this setting only if you require to bind to
+multiple addresses or to use different addresses for publishing and binding,
+and you also require different binding configurations for the transport and
+HTTP interfaces.
 
-The settings in the table below can be configured for HTTP. Note that none of
-them are dynamically updatable so for them to take effect they should be set in
-the Elasticsearch <<settings, configuration file>>.
+`http.publish_port`::
+(<<static-cluster-setting,Static>>)
+The port of the <<modules-network-binding-publishing,HTTP publish address>>.
+Configure this setting only if you need the publish port to be different from
+`http.port`. Defaults to the port assigned via `http.port`.
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`http.port` |A bind port range. Defaults to `9200-9300`.
+`http.max_content_length`::
+(<<static-cluster-setting,Static>>)
+Maximum size of an HTTP request body. Defaults to `100mb`.
 
-|`http.publish_port` |The port that HTTP clients should use when
-communicating with this node. Useful when a cluster node is behind a
-proxy or firewall and the `http.port` is not directly addressable
-from the outside. Defaults to the actual port assigned via `http.port`.
+`http.max_initial_line_length`::
+(<<static-cluster-setting,Static>>)
+Maximum size of an HTTP URL. Defaults to `4kb`.
 
-|`http.bind_host` |The host address to bind the HTTP service to. Defaults to `http.host` (if set) or `network.bind_host`.
+`http.max_header_size`::
+(<<static-cluster-setting,Static>>)
+Maximum size of allowed headers. Defaults to `8kb`.
 
-|`http.publish_host` |The host address to publish for HTTP clients to connect to. Defaults to `http.host` (if set) or `network.publish_host`.
+[[http-compression]]
+// tag::http-compression-tag[]
+`http.compression` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Support for compression when possible (with Accept-Encoding). If HTTPS is enabled, defaults to `false`. Otherwise, defaults to `true`.
++
+Disabling compression for HTTPS mitigates potential security risks, such as a
+{wikipedia}/BREACH[BREACH attack]. To compress HTTPS traffic,
+you must explicitly set `http.compression` to `true`.
+// end::http-compression-tag[]
 
-|`http.host` |Used to set the `http.bind_host` and the `http.publish_host` Defaults to `http.host` or `network.host`.
+`http.compression_level`::
+(<<static-cluster-setting,Static>>)
+Defines the compression level to use for HTTP responses. Valid values are in the range of 1 (minimum compression) and 9 (maximum compression). Defaults to `3`.
 
-|`http.max_content_length` |The max content of an HTTP request. Defaults to
-`100mb`.
+[[http-cors-enabled]]
+// tag::http-cors-enabled-tag[]
+`http.cors.enabled` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Enable or disable cross-origin resource sharing, which determines whether a browser on another origin can execute requests against {es}. Set to `true` to enable {es} to process pre-flight
+{wikipedia}/Cross-origin_resource_sharing[CORS] requests.
+{es} will respond to those requests with the `Access-Control-Allow-Origin` header if the `Origin` sent in the request is permitted by the `http.cors.allow-origin` list. Set to `false` (the default) to make {es} ignore the `Origin` request header, effectively disabling CORS requests because {es} will never respond with the `Access-Control-Allow-Origin` response header.
++
+NOTE: If the client does not send a pre-flight request with an `Origin` header or it does not check the response headers from the server to validate the
+`Access-Control-Allow-Origin` response header, then cross-origin security is
+compromised. If CORS is not enabled on {es}, the only way for the client to know is to send a pre-flight request and realize the required response headers are missing.
 
-|`http.max_initial_line_length` |The max length of an HTTP URL. Defaults
-to `4kb`
+// end::http-cors-enabled-tag[]
 
-|`http.max_header_size` | The max size of allowed headers.  Defaults to `8kB`
+[[http-cors-allow-origin]]
+// tag::http-cors-allow-origin-tag[]
+`http.cors.allow-origin` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Which origins to allow. If you prepend and append a forward slash (`/`) to the value, this will be treated as a regular expression, allowing you to support HTTP and HTTPs. For example, using `/https?:\/\/localhost(:[0-9]+)?/` would return the request header appropriately in both cases. Defaults to no origins allowed.
++
+IMPORTANT: A wildcard (`*`) is a valid value but is considered a security risk, as your {es} instance is open to cross origin requests from *anywhere*.
 
+// end::http-cors-allow-origin-tag[]
 
-|`http.compression` |Support for compression when possible (with
-Accept-Encoding). Defaults to `true`.
+[[http-cors-max-age]]
+// tag::http-cors-max-age-tag[]
+`http.cors.max-age` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Browsers send a "preflight" OPTIONS-request to determine CORS settings. `max-age` defines how long the result should be cached for. Defaults to `1728000` (20 days).
+// end::http-cors-max-age-tag[]
 
-|`http.compression_level` |Defines the compression level to use for HTTP responses. Valid values are in the range of 1 (minimum compression)
-and 9 (maximum compression). Defaults to `3`.
+[[http-cors-allow-methods]]
+// tag::http-cors-allow-methods-tag[]
+`http.cors.allow-methods` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Which methods to allow. Defaults to `OPTIONS, HEAD, GET, POST, PUT, DELETE`.
+// end::http-cors-allow-methods-tag[]
 
-|`http.cors.enabled` |Enable or disable cross-origin resource sharing,
-i.e. whether a browser on another origin can execute requests against
-Elasticsearch. Set to `true` to enable Elasticsearch to process pre-flight 
-https://en.wikipedia.org/wiki/Cross-origin_resource_sharing[CORS] requests. 
-Elasticsearch will respond to those requests with the `Access-Control-Allow-Origin` header 
-if the `Origin` sent in the request is permitted by the `http.cors.allow-origin` 
-list. Set to `false` (the default) to make Elasticsearch ignore the `Origin` 
-request header, effectively disabling CORS requests because Elasticsearch will 
-never respond with the `Access-Control-Allow-Origin` response header. Note that 
-if the client does not send a pre-flight request with an `Origin` header or it 
-does not check the response headers from the server to validate the 
-`Access-Control-Allow-Origin` response header, then cross-origin security is 
-compromised. If CORS is not enabled on Elasticsearch, the only way for the client 
-to know is to send a pre-flight request and realize the required response headers 
-are missing. 
+[[http-cors-allow-headers]]
+// tag::http-cors-allow-headers-tag[]
+`http.cors.allow-headers` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Which headers to allow. Defaults to `X-Requested-With, Content-Type, Content-Length`.
+// end::http-cors-allow-headers-tag[]
 
-|`http.cors.allow-origin` |Which origins to allow. Defaults to no origins
-allowed. If you prepend and append a `/` to the value, this will
-be treated as a regular expression, allowing you to support HTTP and HTTPs.
-for example using `/https?:\/\/localhost(:[0-9]+)?/` would return the
-request header appropriately in both cases. `*` is a valid value but is
-considered a *security risk* as your Elasticsearch instance is open to cross origin
-requests from *anywhere*.
+[[http-cors-allow-credentials]]
+// tag::http-cors-allow-credentials-tag[]
+`http.cors.allow-credentials` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Whether the `Access-Control-Allow-Credentials` header should be returned. Defaults to `false`.
++
+NOTE: This header is only returned when the setting is set to `true`.
 
-|`http.cors.max-age` |Browsers send a "preflight" OPTIONS-request to
-determine CORS settings. `max-age` defines how long the result should
-be cached for. Defaults to `1728000` (20 days)
+// end::http-cors-allow-credentials-tag[]
 
-|`http.cors.allow-methods` |Which methods to allow. Defaults to
-`OPTIONS, HEAD, GET, POST, PUT, DELETE`.
+`http.detailed_errors.enabled`::
+(<<static-cluster-setting,Static>>)
+If `true`, enables the output of detailed error messages and stack traces in the response output. Defaults to `true`.
++
+If `false`, use the `error_trace` parameter to <<common-options-error-options,enable stack traces>> and return detailed error messages. Otherwise, only a simple message will be returned.
 
-|`http.cors.allow-headers` |Which headers to allow. Defaults to
-`X-Requested-With, Content-Type, Content-Length`.
+`http.pipelining.max_events`::
+(<<static-cluster-setting,Static>>)
+The maximum number of events to be queued up in memory before an HTTP connection is closed, defaults to `10000`.
 
-|`http.cors.allow-credentials` | Whether the `Access-Control-Allow-Credentials`
-header should be returned. Note: This header is only returned, when the setting is
-set to `true`. Defaults to `false`
+`http.max_warning_header_count`::
+(<<static-cluster-setting,Static>>)
+The maximum number of warning headers in client HTTP responses. Defaults to `unbounded`.
 
-|`http.detailed_errors.enabled` |Enables or disables the output of detailed error messages
-and stack traces in response output. Note: When set to `false` and the `error_trace` request
-parameter is specified, an error will be returned; when `error_trace` is not specified, a
-simple message will be returned. Defaults to `true`
+`http.max_warning_header_size`::
+(<<static-cluster-setting,Static>>)
+The maximum total size of warning headers in client HTTP responses. Defaults to `unbounded`.
 
-|`http.pipelining.max_events` |The maximum number of events to be queued up in memory before an HTTP connection is closed, defaults to `10000`.
+`http.tcp.no_delay`::
+(<<static-cluster-setting,Static>>)
+Enable or disable the {wikipedia}/Nagle%27s_algorithm[TCP no delay]
+setting. Defaults to `network.tcp.no_delay`.
 
-|`http.max_warning_header_count` |The maximum number of warning headers in
- client HTTP responses, defaults to unbounded.
+`http.tcp.keep_alive`::
+(<<static-cluster-setting,Static>>)
+Configures the `SO_KEEPALIVE` option for this socket, which
+determines whether it sends TCP keepalive probes.
+Defaults to `network.tcp.keep_alive`.
 
-|`http.max_warning_header_size` |The maximum total size of warning headers in
-client HTTP responses, defaults to unbounded.
+`http.tcp.keep_idle`::
+(<<static-cluster-setting,Static>>) Configures the `TCP_KEEPIDLE` option for this socket, which
+determines the time in seconds that a connection must be idle before
+starting to send TCP keepalive probes. Defaults to `network.tcp.keep_idle`, which
+uses the system default. This value cannot exceed `300` seconds. Only applicable on
+Linux and macOS, and requires Java 11 or newer.
 
-|=======================================================================
+`http.tcp.keep_interval`::
+(<<static-cluster-setting,Static>>) Configures the `TCP_KEEPINTVL` option for this socket,
+which determines the time in seconds between sending TCP keepalive probes.
+Defaults to `network.tcp.keep_interval`, which uses the system default.
+This value cannot exceed `300` seconds. Only applicable on Linux and macOS, and requires
+Java 11 or newer.
 
-It also uses the common
-<<modules-network,network settings>>.
+`http.tcp.keep_count`::
+(<<static-cluster-setting,Static>>) Configures the `TCP_KEEPCNT` option for this socket, which
+determines the number of unacknowledged TCP keepalive probes that may be
+sent on a connection before it is dropped. Defaults to `network.tcp.keep_count`,
+which uses the system default. Only applicable on Linux and macOS, and
+requires Java 11 or newer.
+
+`http.tcp.reuse_address`::
+(<<static-cluster-setting,Static>>)
+Should an address be reused or not. Defaults to `network.tcp.reuse_address`.
+
+`http.tcp.send_buffer_size`::
+(<<static-cluster-setting,Static>>)
+The size of the TCP send buffer (specified with <<size-units,size units>>).
+Defaults to `network.tcp.send_buffer_size`.
+
+`http.tcp.receive_buffer_size`::
+(<<static-cluster-setting,Static>>)
+The size of the TCP receive buffer (specified with <<size-units,size units>>).
+Defaults to `network.tcp.receive_buffer_size`.
+
+`http.client_stats.enabled`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Enable or disable collection of HTTP client stats. Defaults to `true`.

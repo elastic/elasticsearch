@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -29,7 +18,7 @@ import org.elasticsearch.action.index.IndexResponseTests;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.action.update.UpdateResponseTests;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -44,7 +33,7 @@ import static org.hamcrest.Matchers.containsString;
 public class BulkItemResponseTests extends ESTestCase {
 
     public void testFailureToString() {
-        Failure failure = new Failure("index", "type", "id", new RuntimeException("test"));
+        Failure failure = new Failure("index", "id", new RuntimeException("test"));
         String toString = failure.toString();
         assertThat(toString, containsString("\"type\":\"runtime_exception\""));
         assertThat(toString, containsString("\"reason\":\"test\""));
@@ -88,16 +77,15 @@ public class BulkItemResponseTests extends ESTestCase {
 
         int itemId = randomIntBetween(0, 100);
         String index = randomAlphaOfLength(5);
-        String type = randomAlphaOfLength(5);
         String id = randomAlphaOfLength(5);
         DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
 
         final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
 
         Exception bulkItemCause = (Exception) exceptions.v1();
-        Failure bulkItemFailure = new Failure(index, type, id, bulkItemCause);
+        Failure bulkItemFailure = new Failure(index, id, bulkItemCause);
         BulkItemResponse bulkItemResponse = new BulkItemResponse(itemId, opType, bulkItemFailure);
-        Failure expectedBulkItemFailure = new Failure(index, type, id, exceptions.v2(), ExceptionsHelper.status(bulkItemCause));
+        Failure expectedBulkItemFailure = new Failure(index, id, exceptions.v2(), ExceptionsHelper.status(bulkItemCause));
         BulkItemResponse expectedBulkItemResponse = new BulkItemResponse(itemId, opType, expectedBulkItemFailure);
         BytesReference originalBytes = toShuffledXContent(bulkItemResponse, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
 
@@ -120,7 +108,6 @@ public class BulkItemResponseTests extends ESTestCase {
     public static void assertBulkItemResponse(BulkItemResponse expected, BulkItemResponse actual) {
         assertEquals(expected.getItemId(), actual.getItemId());
         assertEquals(expected.getIndex(), actual.getIndex());
-        assertEquals(expected.getType(), actual.getType());
         assertEquals(expected.getId(), actual.getId());
         assertEquals(expected.getOpType(), actual.getOpType());
         assertEquals(expected.getVersion(), actual.getVersion());
@@ -131,7 +118,6 @@ public class BulkItemResponseTests extends ESTestCase {
             BulkItemResponse.Failure actualFailure = actual.getFailure();
 
             assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
-            assertEquals(expectedFailure.getType(), actualFailure.getType());
             assertEquals(expectedFailure.getId(), actualFailure.getId());
             assertEquals(expectedFailure.getMessage(), actualFailure.getMessage());
             assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());

@@ -1,74 +1,64 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 
-public class IdFieldMapperTests extends ESSingleNodeTestCase {
+import static org.elasticsearch.index.mapper.IdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE;
+import static org.hamcrest.Matchers.containsString;
 
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
-    }
+public class IdFieldMapperTests extends MapperServiceTestCase {
 
     public void testIncludeInObjectNotAllowed() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
 
-        try {
-            docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("_id", "1").endObject()), XContentType.JSON));
-            fail("Expected failure to parse metadata field");
-        } catch (MapperParsingException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("Field [_id] is a metadata field and cannot be added inside a document"));
-        }
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> docMapper.parse(source(b -> b.field("_id", 1))));
+
+        assertThat(e.getCause().getMessage(),
+            containsString("Field [_id] is a metadata field and cannot be added inside a document"));
     }
 
     public void testDefaults() throws IOException {
-        Settings indexSettings = Settings.EMPTY;
-        MapperService mapperService = createIndex("test", indexSettings).mapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
-        ParsedDocument document = mapper.parse(SourceToParse.source("index", "type", "id",
-            new BytesArray("{}"), XContentType.JSON));
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        ParsedDocument document = mapper.parse(source(b -> {}));
         IndexableField[] fields = document.rootDoc().getFields(IdFieldMapper.NAME);
         assertEquals(1, fields.length);
         assertEquals(IndexOptions.DOCS, fields[0].fieldType().indexOptions());
         assertTrue(fields[0].fieldType().stored());
-        assertEquals(Uid.encodeId("id"), fields[0].binaryValue());
+        assertEquals(Uid.encodeId("1"), fields[0].binaryValue());
+    }
+
+    public void testEnableFieldData() throws IOException {
+
+        boolean[] enabled = new boolean[1];
+
+        MapperService mapperService = createMapperService(() -> enabled[0], mapping(b -> {}));
+        IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) mapperService.fieldType("_id");
+
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> ft.fielddataBuilder("test", () -> {
+                throw new UnsupportedOperationException();
+            }).build(null, null));
+        assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
+        assertFalse(ft.isAggregatable());
+
+        enabled[0] = true;
+        ft.fielddataBuilder("test", () -> {
+            throw new UnsupportedOperationException();
+        }).build(null, null);
+        assertWarnings(ID_FIELD_DATA_DEPRECATION_MESSAGE);
+        assertTrue(ft.isAggregatable());
     }
 
 }

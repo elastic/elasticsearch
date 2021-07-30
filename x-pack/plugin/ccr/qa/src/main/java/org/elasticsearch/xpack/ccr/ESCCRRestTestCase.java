@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr;
 
@@ -11,8 +12,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -25,10 +28,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ESCCRRestTestCase extends ESRestTestCase {
 
@@ -73,9 +78,34 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     }
 
     protected static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
-        final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow");
-        request.setJsonEntity("{\"remote_cluster\": \"" + leaderCluster + "\", \"leader_index\": \"" + leaderIndex +
-            "\", \"read_poll_timeout\": \"10ms\"}");
+        followIndex(client, leaderCluster, leaderIndex, followIndex, null);
+    }
+
+    protected static void followIndex(
+        final RestClient client,
+        final String leaderCluster,
+        final String leaderIndex,
+        final String followIndex,
+        final Settings settings
+    ) throws IOException {
+        final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow?wait_for_active_shards=1");
+        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
+            bodyBuilder.startObject();
+            {
+                bodyBuilder.field("remote_cluster", leaderCluster);
+                bodyBuilder.field("leader_index", leaderIndex);
+                bodyBuilder.field("read_poll_timeout", "10ms");
+                if (settings != null) {
+                    bodyBuilder.startObject("settings");
+                    {
+                        settings.toXContent(bodyBuilder, ToXContent.EMPTY_PARAMS);
+                    }
+                    bodyBuilder.endObject();
+                }
+            }
+            bodyBuilder.endObject();
+            request.setJsonEntity(Strings.toString(bodyBuilder));
+        }
         assertOK(client.performRequest(request));
     }
 
@@ -85,6 +115,26 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void pauseFollow(RestClient client, String followIndex) throws IOException {
         assertOK(client.performRequest(new Request("POST", "/" + followIndex + "/_ccr/pause_follow")));
+    }
+
+    protected static void putAutoFollowPattern(String patternName, String remoteCluster, String indexPattern) throws IOException {
+        Request putPatternRequest = new Request("PUT", "/_ccr/auto_follow/" + patternName);
+        putPatternRequest.setJsonEntity("{\"leader_index_patterns\": [\"" + indexPattern + "\"], \"remote_cluster\": \"" +
+            remoteCluster + "\"}");
+        assertOK(client().performRequest(putPatternRequest));
+    }
+
+    protected static void deleteAutoFollowPattern(String patternName) throws IOException {
+        deleteAutoFollowPattern(client(), patternName);
+    }
+
+    protected static void deleteAutoFollowPattern(RestClient client, String patternName) throws IOException {
+        Request putPatternRequest = new Request("DELETE", "/_ccr/auto_follow/" + patternName);
+        assertOK(client.performRequest(putPatternRequest));
+    }
+
+    protected static void unfollow(String followIndex) throws IOException {
+        assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_ccr/unfollow")));
     }
 
     protected static void verifyDocuments(final String index, final int expectedNumDocs, final String query) throws IOException {
@@ -99,18 +149,29 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         request.addParameter("size", Integer.toString(expectedNumDocs));
         request.addParameter("sort", "field:asc");
         request.addParameter("q", query);
-        request.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+        request.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         Map<String, ?> response = toMap(client.performRequest(request));
 
         int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
-        assertThat(numDocs, equalTo(expectedNumDocs));
+        assertThat(index, numDocs, equalTo(expectedNumDocs));
 
         List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
         assertThat(hits.size(), equalTo(expectedNumDocs));
         for (int i = 0; i < expectedNumDocs; i++) {
             int value = (int) XContentMapValues.extractValue("_source.field", (Map<?, ?>) hits.get(i));
-            assertThat(i, equalTo(value));
+            assertThat(index, i, equalTo(value));
         }
+    }
+
+    protected static void verifyDocuments(final RestClient client,
+                                          final String index,
+                                          final int expectedNumDocs) throws IOException {
+        final Request request = new Request("GET", "/" + index + "/_search");
+        request.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+        Map<String, ?> response = toMap(client.performRequest(request));
+
+        int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+        assertThat(index, numDocs, equalTo(expectedNumDocs));
     }
 
     protected static void verifyCcrMonitoring(final String expectedLeaderIndex, final String expectedFollowerIndex) throws IOException {
@@ -123,8 +184,10 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             throw new AssertionError("error while searching", e);
         }
 
-        int numberOfOperationsReceived = 0;
-        int numberOfOperationsIndexed = 0;
+        int followerMaxSeqNo = 0;
+        int followerMappingVersion = 0;
+        int followerSettingsVersion = 0;
+        int followerAliasesVersion = 0;
 
         List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
         assertThat(hits.size(), greaterThanOrEqualTo(1));
@@ -137,16 +200,24 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             final String followerIndex = (String) XContentMapValues.extractValue("_source.ccr_stats.follower_index", hit);
             assertThat(followerIndex, equalTo(expectedFollowerIndex));
 
-            int foundNumberOfOperationsReceived =
-                (int) XContentMapValues.extractValue("_source.ccr_stats.operations_read", hit);
-            numberOfOperationsReceived = Math.max(numberOfOperationsReceived, foundNumberOfOperationsReceived);
-            int foundNumberOfOperationsIndexed =
-                (int) XContentMapValues.extractValue("_source.ccr_stats.operations_written", hit);
-            numberOfOperationsIndexed = Math.max(numberOfOperationsIndexed, foundNumberOfOperationsIndexed);
+            int foundFollowerMaxSeqNo =
+                (int) XContentMapValues.extractValue("_source.ccr_stats.follower_max_seq_no", hit);
+            followerMaxSeqNo = Math.max(followerMaxSeqNo, foundFollowerMaxSeqNo);
+            int foundFollowerMappingVersion =
+                (int) XContentMapValues.extractValue("_source.ccr_stats.follower_mapping_version", hit);
+            followerMappingVersion = Math.max(followerMappingVersion, foundFollowerMappingVersion);
+            int foundFollowerSettingsVersion =
+                    (int) XContentMapValues.extractValue("_source.ccr_stats.follower_settings_version", hit);
+            followerSettingsVersion = Math.max(followerSettingsVersion, foundFollowerSettingsVersion);
+            int foundFollowerAliasesVersion =
+                    (int) XContentMapValues.extractValue("_source.ccr_stats.follower_aliases_version", hit);
+            followerAliasesVersion = Math.max(followerAliasesVersion, foundFollowerAliasesVersion);
         }
 
-        assertThat(numberOfOperationsReceived, greaterThanOrEqualTo(1));
-        assertThat(numberOfOperationsIndexed, greaterThanOrEqualTo(1));
+        assertThat(followerMaxSeqNo, greaterThan(0));
+        assertThat(followerMappingVersion, greaterThan(0));
+        assertThat(followerSettingsVersion, greaterThan(0));
+        assertThat(followerAliasesVersion, greaterThan(0));
     }
 
     protected static void verifyAutoFollowMonitoring() throws IOException {
@@ -183,14 +254,20 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
     }
 
-    protected static void ensureYellow(String index) throws IOException {
-        Request request = new Request("GET", "/_cluster/health/" + index);
-        request.addParameter("wait_for_status", "yellow");
-        request.addParameter("wait_for_no_relocating_shards", "true");
-        request.addParameter("wait_for_no_initializing_shards", "true");
-        request.addParameter("timeout", "70s");
-        request.addParameter("level", "shards");
-        adminClient().performRequest(request);
+    protected static void ensureYellow(final String index) throws IOException {
+        ensureYellow(index, adminClient());
+    }
+
+    protected static void ensureYellow(final String index, final RestClient client) throws IOException {
+        ensureHealth(client, index, request -> {
+            request.addParameter("wait_for_status", "yellow");
+            request.addParameter("wait_for_active_shards", "1");
+            request.addParameter("wait_for_no_relocating_shards", "true");
+            // follower index can be yellow even when its primary shards are still initializing as we bootstrap them using snapshot/restore.
+            request.addParameter("wait_for_no_initializing_shards", "true");
+            request.addParameter("timeout", "5s");
+            request.addParameter("level", "shards");
+        });
     }
 
     protected int countCcrNodeTasks() throws IOException {
@@ -227,9 +304,60 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
+    protected static void verifyDataStream(final RestClient client,
+                                 final String name,
+                                 final String... expectedBackingIndices) throws IOException {
+        Request request = new Request("GET", "/_data_stream/" + name);
+        Map<String, ?> response = toMap(client.performRequest(request));
+        List<?> retrievedDataStreams = (List<?>) response.get("data_streams");
+        assertThat(retrievedDataStreams, hasSize(1));
+        List<?> actualBackingIndexItems = (List<?>) ((Map<?, ?>) retrievedDataStreams.get(0)).get("indices");
+        assertThat(actualBackingIndexItems, hasSize(expectedBackingIndices.length));
+        for (int i = 0; i < expectedBackingIndices.length; i++) {
+            Map<?, ?> actualBackingIndexItem = (Map<?, ?>) actualBackingIndexItems.get(i);
+            String actualBackingIndex = (String) actualBackingIndexItem.get("index_name");
+            String expectedBackingIndex = expectedBackingIndices[i];
+
+            String actualDataStreamName = actualBackingIndex.substring(5, actualBackingIndex.indexOf('-', 5));
+            String expectedDataStreamName = expectedBackingIndex.substring(5, expectedBackingIndex.indexOf('-', 5));
+            assertThat(actualDataStreamName, equalTo(expectedDataStreamName));
+
+            int actualGeneration = Integer.parseInt(actualBackingIndex.substring(actualBackingIndex.lastIndexOf('-')));
+            int expectedGeneration = Integer.parseInt(expectedBackingIndex.substring(expectedBackingIndex.lastIndexOf('-')));
+            assertThat(actualGeneration, equalTo(expectedGeneration));
+        }
+    }
+
+    protected static void createAutoFollowPattern(RestClient client, String name, String pattern, String remoteCluster) throws IOException {
+        Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
+        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
+            bodyBuilder.startObject();
+            {
+                bodyBuilder.startArray("leader_index_patterns");
+                {
+                    bodyBuilder.value(pattern);
+                }
+                bodyBuilder.endArray();
+                bodyBuilder.field("remote_cluster", remoteCluster);
+            }
+            bodyBuilder.endObject();
+            request.setJsonEntity(Strings.toString(bodyBuilder));
+        }
+        assertOK(client.performRequest(request));
+    }
+
+    protected static String backingIndexName(String dataStreamName, int generation) {
+        return DataStream.getDefaultBackingIndexName(dataStreamName, generation);
+    }
+
     protected RestClient buildLeaderClient() throws IOException {
         assert "leader".equals(targetCluster) == false;
         return buildClient(System.getProperty("tests.leader_host"));
+    }
+
+    protected RestClient buildLeaderClient(final Settings settings) throws IOException {
+        assert "leader".equals(targetCluster) == false;
+        return buildClient(System.getProperty("tests.leader_host"), settings);
     }
 
     protected RestClient buildMiddleClient() throws IOException {
@@ -238,10 +366,14 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     }
 
     private RestClient buildClient(final String url) throws IOException {
+        return buildClient(url, restAdminSettings());
+    }
+
+    private RestClient buildClient(final String url, final Settings settings) throws IOException {
         int portSeparator = url.lastIndexOf(':');
         HttpHost httpHost = new HttpHost(url.substring(0, portSeparator),
-            Integer.parseInt(url.substring(portSeparator + 1)), getProtocol());
-        return buildClient(restAdminSettings(), new HttpHost[]{httpHost});
+                Integer.parseInt(url.substring(portSeparator + 1)), getProtocol());
+        return buildClient(settings, new HttpHost[]{httpHost});
     }
 
 }

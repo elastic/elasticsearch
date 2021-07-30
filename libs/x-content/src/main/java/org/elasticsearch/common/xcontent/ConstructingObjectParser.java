@@ -1,35 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Like {@link ObjectParser} but works with objects that have constructors whose arguments are mixed in with its other settings. Queries are
@@ -73,7 +66,9 @@ import java.util.function.Function;
  * Note: if optional constructor arguments aren't specified then the number of allocations is always the worst case.
  * </p>
  */
-public final class ConstructingObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> {
+public final class ConstructingObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> implements
+    BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value>{
+
     /**
      * Consumer that marks a field as a required constructor argument instead of a real object field.
      */
@@ -91,7 +86,8 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     /**
      * List of constructor names used for generating the error message if not all arrive.
      */
-    private final List<ConstructorArgInfo> constructorArgInfos = new ArrayList<>();
+    private final Map<RestApiVersion, List<ConstructorArgInfo>> constructorArgInfos =
+        new EnumMap<>(RestApiVersion.class);
     private final ObjectParser<Target, Context> objectParser;
     private final BiFunction<Object[], Context, Value> builder;
     /**
@@ -206,17 +202,16 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             throw new IllegalArgumentException("[type] is required");
         }
 
-        if (consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER) {
+        if (isConstructorArg(consumer)) {
             /*
-             * Constructor arguments are detected by these "marker" consumers. It keeps the API looking clean even if it is a bit sleezy. We
-             * then build a new consumer directly against the object parser that triggers the "constructor arg just arrived behavior" of the
-             * parser. Conveniently, we can close over the position of the constructor in the argument list so we don't need to do any fancy
+             * Build a new consumer directly against the object parser that
+             * triggers the "constructor arg just arrived behavior" of the
+             * parser. Conveniently, we can close over the position of the
+             * constructor in the argument list so we don't need to do any fancy
              * or expensive lookups whenever the constructor args come in.
              */
-            int position = constructorArgInfos.size();
-            boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
-            constructorArgInfos.add(new ConstructorArgInfo(parseField, required));
-            objectParser.declareField((target, v) -> target.constructorArg(position, v), parser, parseField, type);
+            Map<RestApiVersion, Integer> positions = addConstructorArg(consumer, parseField);
+            objectParser.declareField((target, v) -> target.constructorArg(positions, v), parser, parseField, type);
         } else {
             numberOfFields += 1;
             objectParser.declareField(queueingConsumer(consumer, parseField), parser, parseField, type);
@@ -224,8 +219,8 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     }
 
     @Override
-    public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
-            ParseField parseField) {
+    public <T> void declareNamedObject(BiConsumer<Value, T> consumer, NamedObjectParser<T, Context> namedObjectParser,
+                                                ParseField parseField) {
         if (consumer == null) {
             throw new IllegalArgumentException("[consumer] is required");
         }
@@ -236,20 +231,46 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             throw new IllegalArgumentException("[parseField] is required");
         }
 
-        if (consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER) {
+        if (isConstructorArg(consumer)) {
             /*
-             * Constructor arguments are detected by this "marker" consumer. It
-             * keeps the API looking clean even if it is a bit sleezy. We then
-             * build a new consumer directly against the object parser that
+             * Build a new consumer directly against the object parser that
              * triggers the "constructor arg just arrived behavior" of the
              * parser. Conveniently, we can close over the position of the
              * constructor in the argument list so we don't need to do any fancy
              * or expensive lookups whenever the constructor args come in.
              */
-            int position = constructorArgInfos.size();
-            boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
-            constructorArgInfos.add(new ConstructorArgInfo(parseField, required));
-            objectParser.declareNamedObjects((target, v) -> target.constructorArg(position, v), namedObjectParser, parseField);
+            Map<RestApiVersion, Integer> positions = addConstructorArg(consumer, parseField);
+            objectParser.declareNamedObject((target, v) -> target.constructorArg(positions, v), namedObjectParser, parseField);
+        } else {
+            numberOfFields += 1;
+            objectParser.declareNamedObject(queueingConsumer(consumer, parseField), namedObjectParser, parseField);
+        }
+    }
+
+    @Override
+    public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
+            ParseField parseField) {
+
+        if (consumer == null) {
+            throw new IllegalArgumentException("[consumer] is required");
+        }
+        if (namedObjectParser == null) {
+            throw new IllegalArgumentException("[parser] is required");
+        }
+        if (parseField == null) {
+            throw new IllegalArgumentException("[parseField] is required");
+        }
+
+        if (isConstructorArg(consumer)) {
+            /*
+             * Build a new consumer directly against the object parser that
+             * triggers the "constructor arg just arrived behavior" of the
+             * parser. Conveniently, we can close over the position of the
+             * constructor in the argument list so we don't need to do any fancy
+             * or expensive lookups whenever the constructor args come in.
+             */
+            Map<RestApiVersion, Integer> positions = addConstructorArg(consumer, parseField);
+            objectParser.declareNamedObjects((target, v) -> target.constructorArg(positions, v), namedObjectParser, parseField);
         } else {
             numberOfFields += 1;
             objectParser.declareNamedObjects(queueingConsumer(consumer, parseField), namedObjectParser, parseField);
@@ -272,31 +293,75 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             throw new IllegalArgumentException("[parseField] is required");
         }
 
-        if (consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER) {
+        if (isConstructorArg(consumer)) {
             /*
-             * Constructor arguments are detected by this "marker" consumer. It
-             * keeps the API looking clean even if it is a bit sleezy. We then
-             * build a new consumer directly against the object parser that
+             * Build a new consumer directly against the object parser that
              * triggers the "constructor arg just arrived behavior" of the
              * parser. Conveniently, we can close over the position of the
              * constructor in the argument list so we don't need to do any fancy
              * or expensive lookups whenever the constructor args come in.
              */
-            int position = constructorArgInfos.size();
-            boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
-            constructorArgInfos.add(new ConstructorArgInfo(parseField, required));
-            objectParser.declareNamedObjects((target, v) -> target.constructorArg(position, v), namedObjectParser,
-                    wrapOrderedModeCallBack(orderedModeCallback), parseField);
+            Map<RestApiVersion, Integer> positions = addConstructorArg(consumer, parseField);
+            objectParser.declareNamedObjects((target, v) -> target.constructorArg(positions, v), namedObjectParser,
+                wrapOrderedModeCallBack(orderedModeCallback), parseField);
         } else {
             numberOfFields += 1;
             objectParser.declareNamedObjects(queueingConsumer(consumer, parseField), namedObjectParser,
-                    wrapOrderedModeCallBack(orderedModeCallback), parseField);
+                wrapOrderedModeCallBack(orderedModeCallback), parseField);
         }
+    }
+
+    int getNumberOfFields() {
+        assert this.constructorArgInfos.get(RestApiVersion.current()).size()
+            == this.constructorArgInfos.get(RestApiVersion.minimumSupported()).size() :
+            "Constructors must have same number of arguments per all compatible versions";
+        return this.constructorArgInfos.get(RestApiVersion.current()).size();
+    }
+
+    /**
+     * Constructor arguments are detected by this "marker" consumer. It
+     * keeps the API looking clean even if it is a bit sleezy.
+     */
+    private boolean isConstructorArg(BiConsumer<?, ?> consumer) {
+        return consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER;
+    }
+
+    /**
+     * Add a constructor argument
+     * @param consumer Either {@link #REQUIRED_CONSTRUCTOR_ARG_MARKER} or {@link #REQUIRED_CONSTRUCTOR_ARG_MARKER}
+     * @param parseField Parse field
+     * @return The argument position
+     */
+    private Map<RestApiVersion, Integer> addConstructorArg(BiConsumer<?, ?> consumer, ParseField parseField) {
+
+        boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
+
+        if (RestApiVersion.minimumSupported().matches(parseField.getForRestApiVersion())) {
+            constructorArgInfos.computeIfAbsent(RestApiVersion.minimumSupported(), (v)-> new ArrayList<>())
+                .add(new ConstructorArgInfo(parseField, required));
+        }
+        if (RestApiVersion.current().matches(parseField.getForRestApiVersion())) {
+            constructorArgInfos.computeIfAbsent(RestApiVersion.current(), (v)-> new ArrayList<>())
+                .add(new ConstructorArgInfo(parseField, required));
+        }
+
+        //calculate the positions for the arguments
+        return constructorArgInfos.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size()));
     }
 
     @Override
     public String getName() {
         return objectParser.getName();
+    }
+
+    @Override
+    public void declareRequiredFieldSet(String... requiredSet) {
+        objectParser.declareRequiredFieldSet(requiredSet);
+    }
+
+    @Override
+    public void declareExclusiveFieldSet(String... exclusiveSet) {
+        objectParser.declareExclusiveFieldSet(exclusiveSet);
     }
 
     private Consumer<Target> wrapOrderedModeCallBack(Consumer<Value> callback) {
@@ -351,7 +416,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         /**
          * Array of constructor args to be passed to the {@link ConstructingObjectParser#builder}.
          */
-        private final Object[] constructorArgs = new Object[constructorArgInfos.size()];
+        private final Object[] constructorArgs;
         /**
          * The parser this class is working against. We store it here so we can fetch it conveniently when queueing fields to lookup the
          * location of each field so that we can give a useful error message when replaying the queue.
@@ -390,15 +455,18 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         Target(XContentParser parser, Context context) {
             this.parser = parser;
             this.context = context;
+            this.constructorArgs = new Object[constructorArgInfos
+                .getOrDefault(parser.getRestApiVersion(), Collections.emptyList()).size()];
         }
 
         /**
          * Set a constructor argument and build the target object if all constructor arguments have arrived.
          */
-        private void constructorArg(int position, Object value) {
+        private void constructorArg(Map<RestApiVersion, Integer> positions, Object value) {
+            int position = positions.get(parser.getRestApiVersion()) - 1;
             constructorArgs[position] = value;
             constructorArgsCollected++;
-            if (constructorArgsCollected == constructorArgInfos.size()) {
+            if (constructorArgsCollected == constructorArgInfos.get(parser.getRestApiVersion()).size()) {
                 buildTarget();
             }
         }
@@ -433,7 +501,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             StringBuilder message = null;
             for (int i = 0; i < constructorArgs.length; i++) {
                 if (constructorArgs[i] != null) continue;
-                ConstructorArgInfo arg = constructorArgInfos.get(i);
+                ConstructorArgInfo arg = constructorArgInfos.get(parser.getRestApiVersion()).get(i);
                 if (false == arg.required) continue;
                 if (message == null) {
                     message = new StringBuilder("Required [").append(arg.field);

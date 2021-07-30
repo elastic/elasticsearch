@@ -1,18 +1,21 @@
 [[analysis-fingerprint-analyzer]]
-=== Fingerprint Analyzer
+=== Fingerprint analyzer
+++++
+<titleabbrev>Fingerprint</titleabbrev>
+++++
 
 The `fingerprint` analyzer implements a
 https://github.com/OpenRefine/OpenRefine/wiki/Clustering-In-Depth#fingerprint[fingerprinting algorithm]
 which is used by the OpenRefine project to assist in clustering.
 
 Input text is lowercased, normalized to remove extended characters, sorted,
-deduplicated and concatenated into a single token.  If a stopword list is
+deduplicated and concatenated into a single token. If a stopword list is
 configured, stop words will also be removed.
 
-[float]
+[discrete]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -20,11 +23,10 @@ POST _analyze
   "text": "Yes yes, Gödel said this sentence is consistent and."
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -38,7 +40,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -50,7 +51,7 @@ The above sentence would produce the following single term:
 [ and consistent godel is said sentence this yes ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `fingerprint` analyzer accepts the following parameters:
@@ -58,17 +59,17 @@ The `fingerprint` analyzer accepts the following parameters:
 [horizontal]
 `separator`::
 
-    The character to use to concate the terms.  Defaults to a space.
+    The character to use to concatenate the terms. Defaults to a space.
 
 `max_output_size`::
 
-    The maximum token size to emit.  Defaults to `255`. Tokens larger than
+    The maximum token size to emit. Defaults to `255`. Tokens larger than
     this size will be discarded.
 
 `stopwords`::
 
-    A pre-defined stop words list like `_english_` or an array  containing a
-    list of stop words.  Defaults to `\_none_`.
+    A pre-defined stop words list like `_english_` or an array containing a
+    list of stop words. Defaults to `_none_`.
 
 `stopwords_path`::
 
@@ -78,15 +79,15 @@ See the <<analysis-stop-tokenfilter,Stop Token Filter>> for more information
 about stop word configuration.
 
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `fingerprint` analyzer to use the
 pre-defined list of English stop words:
 
-[source,js]
+[source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -100,17 +101,16 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_fingerprint_analyzer",
   "text": "Yes yes, Gödel said this sentence is consistent and."
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -124,7 +124,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -136,7 +135,7 @@ The above example produces the following term:
 [ consistent godel said sentence yes ]
 ---------------------------
 
-[float]
+[discrete]
 === Definition
 
 The `fingerprint` tokenizer consists of:
@@ -156,7 +155,7 @@ it, usually by adding token filters. This would recreate the built-in
 `fingerprint` analyzer and you can use it as a starting point for further
 customization:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /fingerprint_example
 {
@@ -176,5 +175,4 @@ PUT /fingerprint_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: fingerprint_example, first: fingerprint, second: rebuilt_fingerprint}\nendyaml\n/]

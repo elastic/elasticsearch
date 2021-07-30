@@ -1,80 +1,64 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.test.AntFixture
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.AntFixture
+
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 final int gceNumberOfNodes = 3
-File gceDiscoveryFile =  new File(project.buildDir, 'generated-resources/nodes.uri')
 
 dependencies {
-    testCompile project(path: ':plugins:discovery-gce', configuration: 'runtime')
+  yamlRestTestImplementation project(':plugins:discovery-gce')
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'nodes'
+  }
 }
 
 /** A task to start the GCEFixture which emulates a GCE service **/
-task gceFixture(type: AntFixture) {
-    dependsOn compileTestJava
-    env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-    executable = new File(project.runtimeJavaHome, 'bin/java')
-    args 'org.elasticsearch.cloud.gce.GCEFixture', baseDir, gceDiscoveryFile.getAbsolutePath()
+def gceFixtureProvider = tasks.register("gceFixture", AntFixture) {
+  dependsOn project.sourceSets.yamlRestTest.runtimeClasspath
+  env 'CLASSPATH', "${-> project.sourceSets.yamlRestTest.runtimeClasspath.asPath}"
+  executable = "${BuildParams.runtimeJavaHome}/bin/java"
+  args 'org.elasticsearch.cloud.gce.GCEFixture', baseDir, "${buildDir}/testclusters/yamlRestTest-1/config/unicast_hosts.txt"
 }
 
 Map<String, Object> expansions = [
-        'expected_nodes': gceNumberOfNodes
+  'expected_nodes': gceNumberOfNodes
 ]
 
-processTestResources {
-    inputs.properties(expansions)
-    MavenFilteringHack.filter(it, expansions)
+tasks.named("processYamlRestTestResources").configure {
+  inputs.properties(expansions)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
-integTestCluster {
-    dependsOn gceFixture
-    numNodes = gceNumberOfNodes
-    plugin ':plugins:discovery-gce'
-    setting 'discovery.zen.hosts_provider', 'gce'
+tasks.named("yamlRestTest").configure {
+  dependsOn gceFixtureProvider
+}
 
-    // use gce fixture for Auth calls instead of http://metadata.google.internal
-    integTestCluster.environment 'GCE_METADATA_HOST', "http://${-> gceFixture.addressAndPort}"
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
+  numberOfNodes = gceNumberOfNodes
+  plugin ':plugins:discovery-gce'
+  // use gce fixture for Auth calls instead of http://metadata.google.internal
+  environment 'GCE_METADATA_HOST', { "http://${gceFixtureProvider.get().addressAndPort}" }, IGNORE_VALUE
+  // allows to configure hidden settings (`cloud.gce.host` and `cloud.gce.root_url`)
+  systemProperty 'es.allow_reroute_gce_settings', 'true'
 
-    // allows to configure hidden settings (`cloud.gce.host` and `cloud.gce.root_url`)
-    systemProperty 'es.allow_reroute_gce_settings', 'true'
-
-    // use gce fixture for metadata server calls instead of http://metadata.google.internal
-    setting 'cloud.gce.host', "http://${-> gceFixture.addressAndPort}"
-    // use gce fixture for API calls instead of https://www.googleapis.com
-    setting 'cloud.gce.root_url', "http://${-> gceFixture.addressAndPort}"
-
-    unicastTransportUri = { seedNode, node, ant -> return null }
-
-    waitCondition = { node, ant ->
-        gceDiscoveryFile.parentFile.mkdirs()
-        gceDiscoveryFile.setText(integTest.nodes.collect { n -> "${n.transportUri()}" }.join('\n'), 'UTF-8')
-
-        File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}/",
-                dest: tmpFile.toString(),
-                ignoreerrors: true,
-                retries: 10)
-        return tmpFile.exists()
-    }
+  setting 'discovery.seed_providers', 'gce'
+  // use gce fixture for metadata server calls instead of http://metadata.google.internal
+  setting 'cloud.gce.host', { "http://${gceFixtureProvider.get().addressAndPort}" }, IGNORE_VALUE
+  // use gce fixture for API calls instead of https://www.googleapis.com
+  setting 'cloud.gce.root_url', { "http://${gceFixtureProvider.get().addressAndPort}" }, IGNORE_VALUE
 }

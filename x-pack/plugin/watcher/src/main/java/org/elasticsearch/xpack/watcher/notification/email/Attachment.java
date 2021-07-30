@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -24,6 +25,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.Set;
 
 import static javax.mail.Part.ATTACHMENT;
 import static javax.mail.Part.INLINE;
@@ -31,10 +34,17 @@ import static javax.mail.Part.INLINE;
 public abstract class Attachment extends BodyPartSource {
 
     private final boolean inline;
+    private final Set<String> warnings;
 
     protected Attachment(String id, String name, String contentType, boolean inline) {
+        this(id, name, contentType, inline, Collections.emptySet());
+    }
+
+    protected Attachment(String id, String name, String contentType, boolean inline, Set<String> warnings) {
         super(id, name, contentType);
         this.inline = inline;
+        assert warnings != null;
+        this.warnings = warnings;
     }
 
     @Override
@@ -51,6 +61,10 @@ public abstract class Attachment extends BodyPartSource {
 
     public boolean isInline() {
         return inline;
+    }
+
+    public Set<String> getWarnings() {
+        return warnings;
     }
 
     /**
@@ -116,15 +130,15 @@ public abstract class Attachment extends BodyPartSource {
         private final byte[] bytes;
 
         public Bytes(String id, byte[] bytes, String contentType, boolean inline) {
-            this(id, id, bytes, contentType, inline);
+            this(id, id, bytes, contentType, inline, Collections.emptySet());
         }
 
         public Bytes(String id, String name, byte[] bytes, boolean inline) {
-            this(id, name, bytes, fileTypeMap.getContentType(name), inline);
+            this(id, name, bytes, fileTypeMap.getContentType(name), inline, Collections.emptySet());
         }
 
-        public Bytes(String id, String name, byte[] bytes, String contentType, boolean inline) {
-            super(id, name, contentType, inline);
+        public Bytes(String id, String name, byte[] bytes, String contentType, boolean inline, Set<String> warnings) {
+            super(id, name, contentType, inline, warnings);
             this.bytes = bytes;
         }
 
@@ -213,7 +227,7 @@ public abstract class Attachment extends BodyPartSource {
         }
 
         protected XContent(String id, String name, ToXContent content, XContentType type) {
-            super(id, name, bytes(name, content, type), mimeType(type), false);
+            super(id, name, bytes(name, content, type), mimeType(type), false, Collections.emptySet());
         }
 
         static String mimeType(XContentType type) {

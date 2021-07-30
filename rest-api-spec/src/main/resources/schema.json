@@ -1,0 +1,329 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://github.com/elastic/elasticsearch/tree/master/rest-api-spec",
+    "$ref": "#/definitions/Api",
+    "definitions": {
+        "Api": {
+            "type": "object",
+            "propertyNames": {
+                "pattern": "^[a-z]+?(_[a-z]+)*(\\.[a-z]+?(_[a-z]+)*)?$"
+            },
+            "minProperties": 1,
+            "maxProperties": 1,
+            "patternProperties": {
+                "^[a-z]+?(_[a-z]+)*(\\.[a-z]+?(_[a-z]+)*)?$": {
+                    "$ref": "#/definitions/Components"
+                }
+            },
+            "additionalProperties": false,
+            "title": "API name",
+            "description": "An object with a single property name of the API and value of the API components"
+        },
+        "Components": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "deprecated": {
+                    "$ref": "#/definitions/Deprecated"
+                },
+                "documentation": {
+                    "$ref": "#/definitions/Documentation"
+                },
+                "stability": {
+                    "type": "string",
+                    "enum": ["stable", "beta", "experimental"]
+                },
+                "visibility": {
+                    "type": "string",
+                    "enum": ["private", "feature_flag", "public"]
+                },
+                "feature_flag": {
+                    "type": "string",
+                    "title": "If visibility of the API is set to `feature_flag` this documents the feature_flag to use"
+                },
+                "headers": {
+                  "$ref": "#/definitions/Headers"
+                },
+                "url": {
+                    "$ref": "#/definitions/Url"
+                },
+                "params": {
+                    "$ref": "#/definitions/Params"
+                },
+                "body": {
+                    "$ref": "#/definitions/Body"
+                }
+            },
+            "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "stability": {
+                        "const": "stable"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "documentation": {
+                        "$ref": "#/definitions/Documentation",
+                        "properties": {
+                          "url" : {
+                            "type": ["string"]
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "documentation": {
+                        "$ref": "#/definitions/Documentation",
+                        "properties": {
+                          "url" : {
+                            "type": ["string", "null"]
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "visibility": {
+                        "const": "feature_flag"
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": [
+                      "feature_flag"
+                    ]
+                  }
+                }
+            ],
+            "required": [
+                "documentation",
+                "stability",
+                "visibility",
+                "headers",
+                "url"
+            ],
+            "title": "API components",
+            "description": "The components that make up the API"
+        },
+        "Url": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "paths": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Path"
+                    },
+                    "minLength": 1
+                }
+            },
+            "required": [
+                "paths"
+            ],
+            "title": "API urls",
+            "description": "An array of the URL path variants for the API"
+        },
+        "Params": {
+            "type": "object",
+            "additionalProperties": true,
+            "propertyNames": {
+              "pattern": "^_?[a-z]+?(_[a-z]+)*$"
+            },
+            "patternProperties": {
+                "^_?[a-z]+?(_[a-z]+)*$": {
+                    "$ref": "#/definitions/ParamPart"
+                }
+            },
+            "title": "API query string parameters",
+            "description": "A collection of the query string parameters for the API"
+        },
+        "Body": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "serialize": {
+                    "type": "string",
+                    "enum": ["bulk"]
+                }
+            },
+            "required": [
+                "description"
+            ],
+            "title": "API request Body",
+            "description": "The request body for the API. Does not detail the structure, only whether the API accepts a body and its format"
+        },
+        "Deprecated": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "version": {
+                    "type": "string",
+                    "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                    "title": "The version from which deprecation applies"
+                },
+                "description": {
+                    "type": "string",
+                    "title": "A description for the deprecation, which may include alternatives to use"
+                }
+            },
+            "required": [
+                "description",
+                "version"
+            ],
+            "title": "Deprecation",
+            "description": "Indicates if part of the API is deprecated, in what version and why"
+        },
+        "Documentation": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "url": {
+                    "format": "uri"
+                },
+                "description": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "url",
+                "description"
+            ],
+            "title": "Documentation",
+            "description": "API documentation including a link to the public reference and a short description"
+        },
+        "Headers": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "accept": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "minItems": 1
+                    }
+                },
+                "content_type": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "minItems": 1
+                    }
+                }
+            },
+            "required": ["accept"],
+            "title": "Headers the API understands",
+            "description": "Documents the headers the API supports, at a minimum this must document the Accept header. The Content-Type header should be documented if the API supports a body"
+        },
+        "Parts": {
+            "type": "object",
+            "additionalProperties": true,
+            "propertyNames": {
+              "pattern": "^_?[a-z]+?(_[a-z]+)*$"
+            },
+            "patternProperties": {
+                "^_?[a-z]+?(_[a-z]+)*$": {
+                    "$ref": "#/definitions/ParamPart"
+                }
+            },
+            "title": "API url parts",
+            "description": "Variable parts that make up an API url path"
+        },
+        "ParamPart": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "pattern": "^list|date|time|string|enum|int|double|long|boolean|number$",
+                    "title": "The type of the parameter."
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "pattern": "^[a-zA-Z_]+$"
+                    },
+                    "title": "Valid options when type is an enum"
+                },
+                "default": {
+                    "type": ["string", "number", "boolean"],
+                    "title": "Default value"
+                },
+                "deprecated": {
+                    "oneOf": [
+                      { "$ref": "#/definitions/Deprecated" },
+                      { "type": "boolean" }
+                    ]
+                },
+                "description": {
+                    "type": "string",
+                    "title": "A description for the parameter"
+                },
+                "required": {
+                    "type": "boolean",
+                    "title": "Whether the parameter is required"
+                }
+            },
+            "required": [
+                "description",
+                "type"
+            ],
+            "allOf": [
+                {
+                    "if": {
+                        "properties": { "type": { "const": "enum" } }
+                    },
+                    "then": {
+                        "required": ["options"]
+                    }
+                }
+            ],
+            "title": "API parameter or part",
+            "description": "The properties of an API parameter or part"
+        },
+        "Path": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "pattern": "^\\/([a-z0-9\\/_{}])*$"
+                },
+                "methods": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": ["DELETE", "GET", "HEAD", "POST", "PUT"],
+                        "minLength": 1
+                    }
+                },
+                "parts": {
+                    "$ref": "#/definitions/Parts"
+                },
+                "deprecated": {
+                    "$ref": "#/definitions/Deprecated"
+                }
+            },
+            "required": [
+                "methods",
+                "path"
+            ],
+            "title": "API path",
+            "description": "A path variant for the API including the HTTP methods it supports and parts"
+        }
+    }
+}

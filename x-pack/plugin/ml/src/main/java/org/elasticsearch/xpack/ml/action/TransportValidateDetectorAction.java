@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -14,19 +15,16 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 
-import java.util.function.Supplier;
-
 public class TransportValidateDetectorAction extends HandledTransportAction<ValidateDetectorAction.Request, AcknowledgedResponse> {
 
     @Inject
     public TransportValidateDetectorAction(TransportService transportService, ActionFilters actionFilters) {
-        super(ValidateDetectorAction.NAME, transportService, actionFilters,
-            (Supplier<ValidateDetectorAction.Request>) ValidateDetectorAction.Request::new);
+        super(ValidateDetectorAction.NAME, transportService, actionFilters, ValidateDetectorAction.Request::new);
     }
 
     @Override
     protected void doExecute(Task task, ValidateDetectorAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        listener.onResponse(new AcknowledgedResponse(true));
+        listener.onResponse(AcknowledgedResponse.TRUE);
     }
 
 }

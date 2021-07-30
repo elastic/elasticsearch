@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -49,6 +38,9 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequestBuilder;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
@@ -68,6 +60,8 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -98,6 +92,10 @@ import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptReque
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
+import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
@@ -454,6 +452,21 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     GetRepositoriesRequestBuilder prepareGetRepositories(String... name);
 
     /**
+     * Cleans up repository.
+     */
+    CleanupRepositoryRequestBuilder prepareCleanupRepository(String repository);
+
+    /**
+     * Cleans up repository.
+     */
+    ActionFuture<CleanupRepositoryResponse> cleanupRepository(CleanupRepositoryRequest repository);
+
+    /**
+     * Cleans up repository.
+     */
+    void cleanupRepository(CleanupRepositoryRequest repository, ActionListener<CleanupRepositoryResponse> listener);
+
+    /**
      * Verifies a repository.
      */
     ActionFuture<VerifyRepositoryResponse> verifyRepository(VerifyRepositoryRequest request);
@@ -484,19 +497,34 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     CreateSnapshotRequestBuilder prepareCreateSnapshot(String repository, String name);
 
     /**
-     * Get snapshot.
+     * Clones a snapshot.
+     */
+    CloneSnapshotRequestBuilder prepareCloneSnapshot(String repository, String source, String target);
+
+    /**
+     * Clones a snapshot.
+     */
+    ActionFuture<AcknowledgedResponse> cloneSnapshot(CloneSnapshotRequest request);
+
+    /**
+     * Clones a snapshot.
+     */
+    void cloneSnapshot(CloneSnapshotRequest request, ActionListener<AcknowledgedResponse> listener);
+
+    /**
+     * Get snapshots.
      */
     ActionFuture<GetSnapshotsResponse> getSnapshots(GetSnapshotsRequest request);
 
     /**
-     * Get snapshot.
+     * Get snapshots.
      */
     void getSnapshots(GetSnapshotsRequest request, ActionListener<GetSnapshotsResponse> listener);
 
     /**
-     * Get snapshot.
+     * Get snapshots.
      */
-    GetSnapshotsRequestBuilder prepareGetSnapshots(String repository);
+    GetSnapshotsRequestBuilder prepareGetSnapshots(String... repository);
 
     /**
      * Delete snapshot.
@@ -511,7 +539,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Delete snapshot.
      */
-    DeleteSnapshotRequestBuilder prepareDeleteSnapshot(String repository, String snapshot);
+    DeleteSnapshotRequestBuilder prepareDeleteSnapshot(String repository, String... snapshot);
 
     /**
      * Restores a snapshot.
@@ -578,13 +606,6 @@ public interface ClusterAdminClient extends ElasticsearchClient {
 
     /**
      * Stores an ingest pipeline
-     * @deprecated use {@link #preparePutPipeline(String, BytesReference, XContentType)}
-     */
-    @Deprecated
-    PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source);
-
-    /**
-     * Stores an ingest pipeline
      */
     PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, XContentType xContentType);
 
@@ -632,12 +653,6 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Simulates an ingest pipeline
      */
     ActionFuture<SimulatePipelineResponse> simulatePipeline(SimulatePipelineRequest request);
-
-    /**
-     * Simulates an ingest pipeline
-     */
-    @Deprecated
-    SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source);
 
     /**
      * Simulates an ingest pipeline
@@ -713,4 +728,34 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Get a script from the cluster state
      */
     ActionFuture<GetStoredScriptResponse> getStoredScript(GetStoredScriptRequest request);
+
+    /**
+     * List dangling indices on all nodes.
+     */
+    void listDanglingIndices(ListDanglingIndicesRequest request, ActionListener<ListDanglingIndicesResponse> listener);
+
+    /**
+     * List dangling indices on all nodes.
+     */
+    ActionFuture<ListDanglingIndicesResponse> listDanglingIndices(ListDanglingIndicesRequest request);
+
+    /**
+     * Restore specified dangling indices.
+     */
+    void importDanglingIndex(ImportDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener);
+
+    /**
+     * Restore specified dangling indices.
+     */
+    ActionFuture<AcknowledgedResponse> importDanglingIndex(ImportDanglingIndexRequest request);
+
+    /**
+     * Delete specified dangling indices.
+     */
+    void deleteDanglingIndex(DeleteDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener);
+
+    /**
+     * Delete specified dangling indices.
+     */
+    ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request);
 }

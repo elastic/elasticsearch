@@ -1,30 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
 
 
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 
 public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
 
@@ -37,12 +29,14 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
         runTest(
                 ExitCodes.OK,
                 true,
-                output -> {},
+                (output, error) -> {},
                 (foreground, pidFile, quiet, esSettings) -> {
                     Settings settings = esSettings.settings();
-                    assertThat(settings.size(), equalTo(2));
-                    assertEquals(value, settings.get("path.home"));
-                    assertTrue(settings.keySet().contains("path.logs")); // added by env initialization
+                    assertThat(settings.keySet(), hasSize(2));
+                    assertThat(
+                        settings.get("path.home"),
+                        equalTo(PathUtils.get(System.getProperty("user.dir")).resolve(value).toString()));
+                    assertThat(settings.keySet(), hasItem("path.logs")); // added by env initialization
                 });
 
         System.clearProperty("es.path.home");
@@ -50,12 +44,14 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
         runTest(
                 ExitCodes.OK,
                 true,
-                output -> {},
+                (output, error) -> {},
                 (foreground, pidFile, quiet, esSettings) -> {
                     Settings settings = esSettings.settings();
-                    assertThat(settings.size(), equalTo(2));
-                    assertEquals(commandLineValue, settings.get("path.home"));
-                    assertTrue(settings.keySet().contains("path.logs")); // added by env initialization
+                    assertThat(settings.keySet(), hasSize(2));
+                    assertThat(
+                        settings.get("path.home"),
+                        equalTo(PathUtils.get(System.getProperty("user.dir")).resolve(commandLineValue).toString()));
+                    assertThat(settings.keySet(), hasItem("path.logs")); // added by env initialization
                 },
                 "-Epath.home=" + commandLineValue);
 

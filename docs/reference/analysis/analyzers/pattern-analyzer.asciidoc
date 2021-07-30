@@ -1,5 +1,8 @@
 [[analysis-pattern-analyzer]]
-=== Pattern Analyzer
+=== Pattern analyzer
+++++
+<titleabbrev>Pattern</titleabbrev>
+++++
 
 The `pattern` analyzer uses a regular expression to split the text into terms.
 The regular expression should match the *token separators*  not the tokens
@@ -10,19 +13,19 @@ themselves. The regular expression defaults to `\W+` (or all non-word characters
 ========================================
 
 The pattern analyzer uses
-http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java Regular Expressions].
+https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java Regular Expressions].
 
 A badly written regular expression could run very slowly or even throw a
 StackOverflowError and cause the node it is running on to exit suddenly.
 
-Read more about http://www.regular-expressions.info/catastrophic.html[pathological regular expressions and how to avoid them].
+Read more about https://www.regular-expressions.info/catastrophic.html[pathological regular expressions and how to avoid them].
 
 ========================================
 
-[float]
+[discrete]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -30,11 +33,10 @@ POST _analyze
   "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -125,7 +127,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -137,7 +138,7 @@ The above sentence would produce the following terms:
 [ the, 2, quick, brown, foxes, jumped, over, the, lazy, dog, s, bone ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `pattern` analyzer accepts the following parameters:
@@ -145,11 +146,11 @@ The `pattern` analyzer accepts the following parameters:
 [horizontal]
 `pattern`::
 
-    A http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expression], defaults to `\W+`.
+    A https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expression], defaults to `\W+`.
 
 `flags`::
 
-    Java regular expression http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#field.summary[flags].
+    Java regular expression https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#field.summary[flags].
     Flags should be pipe-separated, eg `"CASE_INSENSITIVE|COMMENTS"`.
 
 `lowercase`::
@@ -158,8 +159,8 @@ The `pattern` analyzer accepts the following parameters:
 
 `stopwords`::
 
-    A pre-defined stop words list like `_english_` or an array  containing a
-    list of stop words.  Defaults to `\_none_`.
+    A pre-defined stop words list like `_english_` or an array containing a
+    list of stop words. Defaults to `_none_`.
 
 `stopwords_path`::
 
@@ -169,15 +170,15 @@ See the <<analysis-stop-tokenfilter,Stop Token Filter>> for more information
 about stop word configuration.
 
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `pattern` analyzer to split email addresses
 on non-word characters or on underscores (`\W|_`), and to lower-case the result:
 
-[source,js]
+[source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -192,20 +193,19 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_email_analyzer",
   "text": "John_Smith@foo-bar.com"
 }
 ----------------------------
-// CONSOLE
 
 <1> The backslashes in the pattern need to be escaped when specifying the
     pattern as a JSON string.
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -247,7 +247,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -259,14 +258,14 @@ The above example produces the following terms:
 [ john, smith, foo, bar, com ]
 ---------------------------
 
-[float]
+[discrete]
 ==== CamelCase tokenizer
 
 The following more complicated example splits CamelCase text into tokens:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -280,17 +279,16 @@ PUT my_index
   }
 }
 
-GET my_index/_analyze
+GET my-index-000001/_analyze
 {
   "analyzer": "camel",
   "text": "MooseX::FTPClass2_beta"
 }
 --------------------------------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -339,7 +337,6 @@ GET my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -366,7 +363,7 @@ The regex above is easier to understand as:
   )
 --------------------------------------------------
 
-[float]
+[discrete]
 === Definition
 
 The `pattern` anlayzer consists of:
@@ -384,7 +381,7 @@ it, usually by adding token filters. This would recreate the built-in
 `pattern` analyzer and you can use it as a starting point for further
 customization:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /pattern_example
 {
@@ -408,7 +405,6 @@ PUT /pattern_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: pattern_example, first: pattern, second: rebuilt_pattern}\nendyaml\n/]
 <1> The default pattern is `\W+` which splits on non-word characters
 and this is where you'd change it.

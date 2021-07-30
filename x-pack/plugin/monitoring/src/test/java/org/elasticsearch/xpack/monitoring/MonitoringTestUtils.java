@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring;
 
@@ -23,6 +24,9 @@ import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
 
 public final class MonitoringTestUtils {
 
+    // maximum number of milliseconds before a five digit year comes in, which could change formatting
+    public static  final long MAX_MILLIS_BEFORE_10000 = 253402300799999L;
+
     private MonitoringTestUtils() {
     }
 
@@ -37,7 +41,7 @@ public final class MonitoringTestUtils {
         final String host = fakeTransportAddress.address().getHostString();
         final String transportAddress = fakeTransportAddress.toString();
         final String ip = fakeTransportAddress.getAddress();
-        final long timestamp = RandomNumbers.randomLongBetween(random, 0, Long.MAX_VALUE);
+        final long timestamp = RandomNumbers.randomLongBetween(random, 0, MAX_MILLIS_BEFORE_10000);
 
         return new MonitoringDoc.Node(id, host, transportAddress, ip, name, timestamp);
     }
@@ -87,7 +91,7 @@ public final class MonitoringTestUtils {
                                                             final MonitoredSystem system,
                                                             final String type) throws IOException {
         final String id = random.nextBoolean() ? RandomStrings.randomAsciiLettersOfLength(random, 5) : null;
-        final long timestamp = RandomNumbers.randomLongBetween(random, 0L, Long.MAX_VALUE);
+        final long timestamp = RandomNumbers.randomLongBetween(random, 0L, MAX_MILLIS_BEFORE_10000);
         final long interval = RandomNumbers.randomLongBetween(random, 0L, Long.MAX_VALUE);
         return new MonitoringBulkDoc(system, type, id, timestamp, interval, source, xContentType);
     }

@@ -1,27 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -29,17 +19,23 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
@@ -62,13 +58,13 @@ public final class IndexSettings {
         Setting.boolSetting("index.query.parse.allow_unmapped_fields", true, Property.IndexScope);
     public static final Setting<TimeValue> INDEX_TRANSLOG_SYNC_INTERVAL_SETTING =
         Setting.timeSetting("index.translog.sync_interval", TimeValue.timeValueSeconds(5), TimeValue.timeValueMillis(100),
-            Property.IndexScope);
+            Property.Dynamic, Property.IndexScope);
     public static final Setting<TimeValue> INDEX_SEARCH_IDLE_AFTER =
         Setting.timeSetting("index.search.idle.after", TimeValue.timeValueSeconds(30),
             TimeValue.timeValueMinutes(0), Property.IndexScope, Property.Dynamic);
     public static final Setting<Translog.Durability> INDEX_TRANSLOG_DURABILITY_SETTING =
-        new Setting<>("index.translog.durability", Translog.Durability.REQUEST.name(),
-            (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)), Property.Dynamic, Property.IndexScope);
+        Setting.enumSetting(Translog.Durability.class, "index.translog.durability", Translog.Durability.REQUEST,
+            Property.Dynamic, Property.IndexScope);
     public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING =
         Setting.boolSetting("index.warmer.enabled", true, Property.Dynamic, Property.IndexScope);
     public static final Setting<String> INDEX_CHECK_ON_STARTUP =
@@ -173,13 +169,6 @@ public final class IndexSettings {
     public static final Setting<Integer> MAX_RESCORE_WINDOW_SETTING =
             Setting.intSetting("index.max_rescore_window", MAX_RESULT_WINDOW_SETTING, 1,
                 Property.Dynamic, Property.IndexScope);
-    /**
-     * Index setting describing the maximum number of filters clauses that can be used
-     * in an adjacency_matrix aggregation. The max number of buckets produced by
-     * N filters is (N*N)/2 so a limit of 100 filters is imposed by default.
-     */
-    public static final Setting<Integer> MAX_ADJACENCY_MATRIX_FILTERS_SETTING =
-        Setting.intSetting("index.max_adjacency_matrix_filters", 100, 2, Property.Dynamic, Property.IndexScope);
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.MILLISECONDS),
@@ -196,23 +185,13 @@ public final class IndexSettings {
             Property.Dynamic, Property.IndexScope);
 
     /**
-     * Controls how long translog files that are no longer needed for persistence reasons
-     * will be kept around before being deleted. A longer retention policy is useful to increase
-     * the chance of ops based recoveries.
-     **/
-    public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
-        Setting.timeSetting("index.translog.retention.age", TimeValue.timeValueHours(12), TimeValue.timeValueMillis(-1),
+     * The minimum size of a merge that triggers a flush in order to free resources
+     */
+    public static final Setting<ByteSizeValue> INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING =
+        Setting.byteSizeSetting("index.flush_after_merge", new ByteSizeValue(512, ByteSizeUnit.MB),
+            new ByteSizeValue(0, ByteSizeUnit.BYTES), // always flush after merge
+            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES), // never flush after merge
             Property.Dynamic, Property.IndexScope);
-
-    /**
-     * Controls how many translog files that are no longer needed for persistence reasons
-     * will be kept around before being deleted. Keeping more files is useful to increase
-     * the chance of ops based recoveries.
-     **/
-    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
-        Setting.byteSizeSetting("index.translog.retention.size", new ByteSizeValue(512, ByteSizeUnit.MB), Property.Dynamic,
-            Property.IndexScope);
-
     /**
      * The maximum size of a translog generation. This is independent of the maximum size of
      * translog operations that have not been flushed.
@@ -243,6 +222,7 @@ public final class IndexSettings {
 
     /**
      * Specifies if the index should use soft-delete instead of hard-delete for update/delete operations.
+     * Soft-deletes is enabled by default for 7.0 indices and mandatory for 8.0 indices.
      */
     public static final Setting<Boolean> INDEX_SOFT_DELETES_SETTING =
         Setting.boolSetting("index.soft_deletes.enabled", true, Property.IndexScope, Property.Final);
@@ -255,6 +235,36 @@ public final class IndexSettings {
     public static final Setting<Long> INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING =
         Setting.longSetting("index.soft_deletes.retention.operations", 0, 0,
             Property.IndexScope, Property.Dynamic);
+
+    /**
+     * Controls how long translog files that are no longer needed for persistence reasons
+     * will be kept around before being deleted. Keeping more files is useful to increase
+     * the chance of ops based recoveries for indices with soft-deletes disabled.
+     * TODO: Remove this setting in 9.0.
+     **/
+    public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
+        Setting.timeSetting("index.translog.retention.age", settings -> TimeValue.MINUS_ONE,
+            TimeValue.MINUS_ONE, Property.Dynamic, Property.IndexScope);
+
+    /**
+     * Controls how many translog files that are no longer needed for persistence reasons
+     * will be kept around before being deleted. Keeping more files is useful to increase
+     * the chance of ops based recoveries for indices with soft-deletes disabled.
+     * TODO: Remove this setting in 9.0.
+     **/
+    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
+        Setting.byteSizeSetting("index.translog.retention.size", settings -> "-1", Property.Dynamic, Property.IndexScope);
+
+    /**
+     * Controls the maximum length of time since a retention lease is created or renewed before it is considered expired.
+     */
+    public static final Setting<TimeValue> INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING =
+            Setting.timeSetting(
+                    "index.soft_deletes.retention_lease.period",
+                    TimeValue.timeValueHours(12),
+                    TimeValue.ZERO,
+                    Property.Dynamic,
+                    Property.IndexScope);
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -275,12 +285,18 @@ public final class IndexSettings {
         1000, 1, Property.Dynamic, Property.IndexScope);
 
     public static final Setting<String> DEFAULT_PIPELINE =
-       new Setting<>("index.default_pipeline", IngestService.NOOP_PIPELINE_NAME, s -> {
-           if (s == null || s.isEmpty()) {
-               throw new IllegalArgumentException("Value for [index.default_pipeline] must be a non-empty string.");
-           }
-        return s;
-       }, Property.Dynamic, Property.IndexScope);
+        new Setting<>("index.default_pipeline",
+        IngestService.NOOP_PIPELINE_NAME,
+        Function.identity(),
+        Property.Dynamic,
+        Property.IndexScope);
+
+    public static final Setting<String> FINAL_PIPELINE =
+        new Setting<>("index.final_pipeline",
+            IngestService.NOOP_PIPELINE_NAME,
+            Function.identity(),
+            Property.Dynamic,
+            Property.IndexScope);
 
     /**
      * Marks an index to be searched throttled. This means that never more than one shard of such an index will be searched concurrently
@@ -288,27 +304,39 @@ public final class IndexSettings {
     public static final Setting<Boolean> INDEX_SEARCH_THROTTLED = Setting.boolSetting("index.search.throttled", false,
         Property.IndexScope, Property.PrivateIndex, Property.Dynamic);
 
+    /**
+     * Determines a balance between file-based and operations-based peer recoveries. The number of operations that will be used in an
+     * operations-based peer recovery is limited to this proportion of the total number of documents in the shard (including deleted
+     * documents) on the grounds that a file-based peer recovery may copy all of the documents in the shard over to the new peer, but is
+     * significantly faster than replaying the missing operations on the peer, so once a peer falls far enough behind the primary it makes
+     * more sense to copy all the data over again instead of replaying history.
+     *
+     * Defaults to retaining history for up to 10% of the documents in the shard. This can only be changed in tests, since this setting is
+     * intentionally unregistered.
+     */
+    public static final Setting<Double> FILE_BASED_RECOVERY_THRESHOLD_SETTING
+        = Setting.doubleSetting("index.recovery.file_based_threshold", 0.1d, 0.0d, Setting.Property.IndexScope);
+
     private final Index index;
     private final Version version;
     private final Logger logger;
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
-    // volatile fields are updated via #updateIndexMetaData(IndexMetaData) under lock
+    // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
-    private volatile IndexMetaData indexMetaData;
+    private volatile IndexMetadata indexMetadata;
     private volatile List<String> defaultFields;
     private final boolean queryStringLenient;
     private final boolean queryStringAnalyzeWildcard;
     private final boolean queryStringAllowLeadingWildcard;
     private final boolean defaultAllowUnmappedFields;
     private volatile Translog.Durability durability;
-    private final TimeValue syncInterval;
+    private volatile TimeValue syncInterval;
     private volatile TimeValue refreshInterval;
     private volatile ByteSizeValue flushThresholdSize;
-    private volatile TimeValue translogRetentionAge;
-    private volatile ByteSizeValue translogRetentionSize;
     private volatile ByteSizeValue generationThresholdSize;
+    private volatile ByteSizeValue flushAfterMergeThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
     private final IndexSortConfig indexSortConfig;
@@ -316,10 +344,25 @@ public final class IndexSettings {
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
+
+    private volatile long retentionLeaseMillis;
+
+    /**
+     * The maximum age of a retention lease before it is considered expired.
+     *
+     * @return the maximum age
+     */
+    public long getRetentionLeaseMillis() {
+        return retentionLeaseMillis;
+    }
+
+    private void setRetentionLeaseMillis(final TimeValue retentionLease) {
+        this.retentionLeaseMillis = retentionLease.millis();
+    }
+
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
     private volatile int maxInnerResultWindow;
-    private volatile int maxAdjacencyMatrixFilters;
     private volatile int maxRescoreWindow;
     private volatile int maxDocvalueFields;
     private volatile int maxScriptFields;
@@ -330,7 +373,14 @@ public final class IndexSettings {
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
     private volatile String defaultPipeline;
+    private volatile String requiredPipeline;
     private volatile boolean searchThrottled;
+    private volatile long mappingNestedFieldsLimit;
+    private volatile long mappingNestedDocsLimit;
+    private volatile long mappingTotalFieldsLimit;
+    private volatile long mappingDepthLimit;
+    private volatile long mappingFieldNameLengthLimit;
+    private volatile long mappingDimensionFieldsLimit;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -389,30 +439,30 @@ public final class IndexSettings {
      * Creates a new {@link IndexSettings} instance. The given node settings will be merged with the settings in the metadata
      * while index level settings will overwrite node settings.
      *
-     * @param indexMetaData the index metadata this settings object is associated with
+     * @param indexMetadata the index metadata this settings object is associated with
      * @param nodeSettings the nodes settings this index is allocated on.
      */
-    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings) {
-        this(indexMetaData, nodeSettings, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+    public IndexSettings(final IndexMetadata indexMetadata, final Settings nodeSettings) {
+        this(indexMetadata, nodeSettings, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
     }
 
     /**
      * Creates a new {@link IndexSettings} instance. The given node settings will be merged with the settings in the metadata
      * while index level settings will overwrite node settings.
      *
-     * @param indexMetaData the index metadata this settings object is associated with
+     * @param indexMetadata the index metadata this settings object is associated with
      * @param nodeSettings the nodes settings this index is allocated on.
      */
-    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
-        scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetaData);
+    public IndexSettings(final IndexMetadata indexMetadata, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
+        scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetadata);
         this.nodeSettings = nodeSettings;
-        this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
-        this.index = indexMetaData.getIndex();
-        version = IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings);
+        this.settings = Settings.builder().put(nodeSettings).put(indexMetadata.getSettings()).build();
+        this.index = indexMetadata.getIndex();
+        version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
         logger = Loggers.getLogger(getClass(), index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
-        this.indexMetaData = indexMetaData;
-        numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
+        this.indexMetadata = indexMetadata;
+        numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
 
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -424,17 +474,17 @@ public final class IndexSettings {
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
-        translogRetentionAge = scopedSettings.get(INDEX_TRANSLOG_RETENTION_AGE_SETTING);
-        translogRetentionSize = scopedSettings.get(INDEX_TRANSLOG_RETENTION_SIZE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
+        flushAfterMergeThresholdSize = scopedSettings.get(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
-        softDeleteEnabled = version.onOrAfter(Version.V_6_5_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
+        softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
+        assert softDeleteEnabled || version.before(Version.V_8_0_0) : "soft deletes must be enabled in version " + version;
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
+        retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
-        maxAdjacencyMatrixFilters = scopedSettings.get(MAX_ADJACENCY_MATRIX_FILTERS_SETTING);
         maxRescoreWindow = scopedSettings.get(MAX_RESCORE_WINDOW_SETTING);
         maxDocvalueFields = scopedSettings.get(MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
         maxScriptFields = scopedSettings.get(MAX_SCRIPT_FIELDS_SETTING);
@@ -450,6 +500,12 @@ public final class IndexSettings {
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
+        mappingNestedFieldsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
+        mappingNestedDocsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
+        mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
+        mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
+        mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
+        mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
@@ -471,9 +527,9 @@ public final class IndexSettings {
             MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING, mergeSchedulerConfig::setMaxThreadAndMergeCount);
         scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.AUTO_THROTTLE_SETTING, mergeSchedulerConfig::setAutoThrottle);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_SYNC_INTERVAL_SETTING, this::setTranslogSyncInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_INNER_RESULT_WINDOW_SETTING, this::setMaxInnerResultWindow);
-        scopedSettings.addSettingsUpdateConsumer(MAX_ADJACENCY_MATRIX_FILTERS_SETTING, this::setMaxAdjacencyMatrixFilters);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESCORE_WINDOW_SETTING, this::setMaxRescoreWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_DOCVALUE_FIELDS_SEARCH_SETTING, this::setMaxDocvalueFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_SCRIPT_FIELDS_SETTING, this::setMaxScriptFields);
@@ -483,11 +539,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING, this::setFlushAfterMergeThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(
                 INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
                 this::setGenerationThresholdSize);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_AGE_SETTING, this::setTranslogRetentionAge);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_SIZE_SETTING, this::setTranslogRetentionSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
@@ -497,8 +552,16 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
+        scopedSettings.addSettingsUpdateConsumer(FINAL_PIPELINE, this::setRequiredPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, this::setMappingNestedFieldsLimit);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING, this::setMappingNestedDocsLimit);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING, this::setMappingTotalFieldsLimit);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING, this::setMappingDimensionFieldsLimit);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) { this.searchIdleAfter = searchIdleAfter; }
@@ -507,12 +570,8 @@ public final class IndexSettings {
         this.flushThresholdSize = byteSizeValue;
     }
 
-    private void setTranslogRetentionSize(ByteSizeValue byteSizeValue) {
-        this.translogRetentionSize = byteSizeValue;
-    }
-
-    private void setTranslogRetentionAge(TimeValue age) {
-        this.translogRetentionAge = age;
+    private void setFlushAfterMergeThresholdSize(ByteSizeValue byteSizeValue) {
+        this.flushAfterMergeThresholdSize = byteSizeValue;
     }
 
     private void setGenerationThresholdSize(final ByteSizeValue generationThresholdSize) {
@@ -551,19 +610,19 @@ public final class IndexSettings {
      * Returns <code>true</code> if the index has a custom data path
      */
     public boolean hasCustomDataPath() {
-        return customDataPath() != null;
+        return Strings.isNotEmpty(customDataPath());
     }
 
     /**
-     * Returns the customDataPath for this index, if configured. <code>null</code> o.w.
+     * Returns the customDataPath for this index, if configured. <code>""</code> o.w.
      */
     public String customDataPath() {
-        return settings.get(IndexMetaData.SETTING_DATA_PATH);
+        return IndexMetadata.INDEX_DATA_PATH_SETTING.get(settings);
     }
 
     /**
      * Returns the version the index was created on.
-     * @see Version#indexCreated(Settings)
+     * @see IndexMetadata#SETTING_VERSION_CREATED
      */
     public Version getIndexVersionCreated() {
         return version;
@@ -577,10 +636,10 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns the current IndexMetaData for this index
+     * Returns the current IndexMetadata for this index
      */
-    public IndexMetaData getIndexMetaData() {
-        return indexMetaData;
+    public IndexMetadata getIndexMetadata() {
+        return indexMetadata;
     }
 
     /**
@@ -591,7 +650,7 @@ public final class IndexSettings {
     /**
      * Returns the number of replicas this index has.
      */
-    public int getNumberOfReplicas() { return settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null); }
+    public int getNumberOfReplicas() { return settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null); }
 
     /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the
@@ -607,17 +666,22 @@ public final class IndexSettings {
      *
      * @return <code>true</code> iff any setting has been updated otherwise <code>false</code>.
      */
-    public synchronized boolean updateIndexMetaData(IndexMetaData indexMetaData) {
-        final Settings newSettings = indexMetaData.getSettings();
-        if (version.equals(Version.indexCreated(newSettings)) == false) {
-            throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " +
-                Version.indexCreated(newSettings));
+    public synchronized boolean updateIndexMetadata(IndexMetadata indexMetadata) {
+        final Settings newSettings = indexMetadata.getSettings();
+        Version newIndexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(newSettings);
+        if (version.equals(newIndexVersion) == false) {
+            throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + newIndexVersion);
         }
-        final String newUUID = newSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+        final String newUUID = newSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
         if (newUUID.equals(getUUID()) == false) {
             throw new IllegalArgumentException("uuid mismatch on settings update expected: " + getUUID() + " but was: " + newUUID);
         }
-        this.indexMetaData = indexMetaData;
+        final String newRestoreUUID = newSettings.get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
+        final String restoreUUID = this.settings.get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
+        if (newRestoreUUID.equals(restoreUUID) == false) {
+            throw new IllegalArgumentException("uuid mismatch on settings update expected: " + restoreUUID + " but was: " + newRestoreUUID);
+        }
+        this.indexMetadata = indexMetadata;
         final Settings newIndexSettings = Settings.builder().put(nodeSettings).put(newSettings).build();
         if (same(this.settings, newIndexSettings)) {
             // nothing to update, same settings
@@ -670,6 +734,10 @@ public final class IndexSettings {
         return syncInterval;
     }
 
+    public void setTranslogSyncInterval(TimeValue translogSyncInterval) {
+        this.syncInterval = translogSyncInterval;
+    }
+
     /**
      * Returns this interval in which the shards of this index are asynchronously refreshed. {@code -1} means async refresh is disabled.
      */
@@ -683,15 +751,9 @@ public final class IndexSettings {
     public ByteSizeValue getFlushThresholdSize() { return flushThresholdSize; }
 
     /**
-     * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
+     * Returns the merge threshold size when to forcefully flush the index and free resources.
      */
-    public ByteSizeValue getTranslogRetentionSize() { return translogRetentionSize; }
-
-    /**
-     * Returns the transaction log retention age which controls the maximum age (time from creation) that translog files will be kept
-     * around
-     */
-    public TimeValue getTranslogRetentionAge() { return translogRetentionAge; }
+    public ByteSizeValue getFlushAfterMergeThresholdSize() { return flushAfterMergeThresholdSize; }
 
     /**
      * Returns the generation threshold size. As sequence numbers can cause multiple generations to
@@ -731,17 +793,6 @@ public final class IndexSettings {
 
     private void setMaxInnerResultWindow(int maxInnerResultWindow) {
         this.maxInnerResultWindow = maxInnerResultWindow;
-    }
-
-    /**
-     * Returns the max number of filters in adjacency_matrix aggregation search requests
-     */
-    public int getMaxAdjacencyMatrixFilters() {
-        return this.maxAdjacencyMatrixFilters;
-    }
-
-    private void setMaxAdjacencyMatrixFilters(int maxAdjacencyFilters) {
-        this.maxAdjacencyMatrixFilters = maxAdjacencyFilters;
     }
 
     /**
@@ -897,6 +948,14 @@ public final class IndexSettings {
         this.defaultPipeline = defaultPipeline;
     }
 
+    public String getRequiredPipeline() {
+        return requiredPipeline;
+    }
+
+    public void setRequiredPipeline(final String requiredPipeline) {
+        this.requiredPipeline = requiredPipeline;
+    }
+
     /**
      * Returns <code>true</code> if soft-delete is enabled.
      */
@@ -925,5 +984,53 @@ public final class IndexSettings {
 
     private void setSearchThrottled(boolean searchThrottled) {
         this.searchThrottled = searchThrottled;
+    }
+
+    public long getMappingNestedFieldsLimit() {
+        return mappingNestedFieldsLimit;
+    }
+
+    private void setMappingNestedFieldsLimit(long value) {
+        this.mappingNestedFieldsLimit = value;
+    }
+
+    public long getMappingNestedDocsLimit() {
+        return mappingNestedDocsLimit;
+    }
+
+    private void setMappingNestedDocsLimit(long value) {
+        this.mappingNestedDocsLimit = value;
+    }
+
+    public long getMappingTotalFieldsLimit() {
+        return mappingTotalFieldsLimit;
+    }
+
+    private void setMappingTotalFieldsLimit(long value) {
+        this.mappingTotalFieldsLimit = value;
+    }
+
+    public long getMappingDepthLimit() {
+        return mappingDepthLimit;
+    }
+
+    private void setMappingDepthLimit(long value) {
+        this.mappingDepthLimit = value;
+    }
+
+    public long getMappingFieldNameLengthLimit() {
+        return mappingFieldNameLengthLimit;
+    }
+
+    private void setMappingFieldNameLengthLimit(long value) {
+        this.mappingFieldNameLengthLimit = value;
+    }
+
+    public long getMappingDimensionFieldsLimit() {
+        return mappingDimensionFieldsLimit;
+    }
+
+    private void setMappingDimensionFieldsLimit(long value) {
+        this.mappingDimensionFieldsLimit = value;
     }
 }

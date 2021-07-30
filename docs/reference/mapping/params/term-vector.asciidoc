@@ -8,6 +8,8 @@ Term vectors contain information about the terms produced by the
 * the position (or order) of each term.
 * the start and end character offsets mapping the term to its
   origin in the original string.
+* payloads (if they are available) — user-defined binary data
+  associated with each term position.
 
 These term vectors can be stored so that they can be retrieved for a
 particular document.
@@ -20,35 +22,35 @@ The `term_vector` setting accepts:
 `with_positions`::          Terms and positions are stored.
 `with_offsets`::            Terms and character offsets are stored.
 `with_positions_offsets`::  Terms, positions, and character offsets are stored.
+`with_positions_payloads`:: Terms, positions, and payloads are stored.
+`with_positions_offsets_payloads`::  Terms, positions, offsets and payloads are stored.
 
-The fast vector highlighter requires `with_positions_offsets`.  The term
-vectors API can retrieve whatever is stored.
+The fast vector highlighter requires `with_positions_offsets`.
+<<docs-termvectors, The term vectors API>> can retrieve whatever is stored.
 
 WARNING:  Setting `with_positions_offsets` will double the size of a field's
 index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "text": {
-          "type":        "text",
-          "term_vector": "with_positions_offsets"
-        }
+    "properties": {
+      "text": {
+        "type":        "text",
+        "term_vector": "with_positions_offsets"
       }
     }
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "text": "Quick brown fox"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
@@ -62,7 +64,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The fast vector highlighter will be used by default for the `text` field
     because term vectors are enabled.
 

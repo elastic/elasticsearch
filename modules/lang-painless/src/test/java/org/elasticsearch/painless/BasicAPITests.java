@@ -1,26 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
 
+import java.text.MessageFormat.Field;
+import java.text.Normalizer;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class BasicAPITests extends ScriptTestCase {
 
@@ -127,7 +119,7 @@ public class BasicAPITests extends ScriptTestCase {
     }
 
     public void testPublicMemberAccess() {
-        assertEquals(5, exec("org.elasticsearch.painless.FeatureTest ft = new org.elasticsearch.painless.FeatureTest();" +
+        assertEquals(5, exec("org.elasticsearch.painless.FeatureTestObject ft = new org.elasticsearch.painless.FeatureTestObject();" +
             "ft.z = 5; return ft.z;"));
     }
 
@@ -138,5 +130,36 @@ public class BasicAPITests extends ScriptTestCase {
     public void testStatic() {
         assertEquals(10, exec("staticAddIntsTest(7, 3)"));
         assertEquals(15.5f, exec("staticAddFloatsTest(6.5f, 9.0f)"));
+    }
+
+    // TODO: remove this when the transition from Joda to Java datetimes is completed
+    public void testJCZDTToZonedDateTime() {
+        assertEquals(0L, exec(
+                "Instant instant = Instant.ofEpochMilli(434931330000L);" +
+                "JodaCompatibleZonedDateTime d = new JodaCompatibleZonedDateTime(instant, ZoneId.of('Z'));" +
+                "ZonedDateTime t = d;" +
+                "return ChronoUnit.MILLIS.between(d, t);"
+        ));
+    }
+
+    public void testRandomUUID() {
+        assertTrue(
+                Pattern.compile("\\p{XDigit}{8}(-\\p{XDigit}{4}){3}-\\p{XDigit}{12}").matcher(
+                    (String)exec(
+                            "UUID a = UUID.randomUUID();" +
+                            "String s = a.toString(); " +
+                            "UUID b = UUID.fromString(s);" +
+                            "if (a.equals(b) == false) {" +
+                            "   throw new RuntimeException('uuids did not match');" +
+                            "}" +
+                            "return s;"
+                    )
+                ).matches()
+        );
+    }
+
+    public void testStaticInnerClassResolution() {
+        assertEquals(Field.ARGUMENT, exec("MessageFormat.Field.ARGUMENT"));
+        assertEquals(Normalizer.Form.NFD, exec("Normalizer.Form.NFD"));
     }
 }

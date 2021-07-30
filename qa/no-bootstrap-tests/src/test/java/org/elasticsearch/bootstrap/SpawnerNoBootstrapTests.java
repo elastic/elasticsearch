@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
@@ -68,7 +57,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
     /**
      * Simplest case: a module with no controller daemon.
      */
-    public void testNoControllerSpawn() throws IOException, InterruptedException {
+    public void testNoControllerSpawn() throws IOException {
         Path esHome = createTempDir().resolve("esHome");
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString());
@@ -91,7 +80,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
                 "has.native.controller", "false");
 
         try (Spawner spawner = new Spawner()) {
-            spawner.spawnNativeControllers(environment);
+            spawner.spawnNativeControllers(environment, false);
             assertThat(spawner.getProcesses(), hasSize(0));
         }
     }
@@ -149,7 +138,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             "has.native.controller", "false");
 
         Spawner spawner = new Spawner();
-        spawner.spawnNativeControllers(environment);
+        spawner.spawnNativeControllers(environment, false);
 
         List<Process> processes = spawner.getProcesses();
 
@@ -196,7 +185,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Spawner spawner = new Spawner();
         IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> spawner.spawnNativeControllers(environment));
+                () -> spawner.spawnNativeControllers(environment, false));
         assertThat(
                 e.getMessage(),
                 equalTo("module [test_plugin] does not have permission to fork native controller"));
@@ -217,10 +206,10 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         final Spawner spawner = new Spawner();
         if (Constants.MAC_OS_X) {
             // if the spawner were not skipping the Desktop Services Store files on macOS this would explode
-            spawner.spawnNativeControllers(environment);
+            spawner.spawnNativeControllers(environment, false);
         } else {
             // we do not ignore these files on non-macOS systems
-            final FileSystemException e = expectThrows(FileSystemException.class, () -> spawner.spawnNativeControllers(environment));
+            final FileSystemException e = expectThrows(FileSystemException.class, () -> spawner.spawnNativeControllers(environment, false));
             if (Constants.WINDOWS) {
                 assertThat(e, instanceOf(NoSuchFileException.class));
             } else {

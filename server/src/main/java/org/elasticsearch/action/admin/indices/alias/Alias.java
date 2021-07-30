@@ -1,35 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -40,17 +27,19 @@ import org.elasticsearch.index.query.QueryBuilder;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Represents an alias, to be associated with an index
  */
-public class Alias implements Streamable, ToXContentFragment {
+public class Alias implements Writeable, ToXContentFragment {
 
     private static final ParseField FILTER = new ParseField("filter");
     private static final ParseField ROUTING = new ParseField("routing");
     private static final ParseField INDEX_ROUTING = new ParseField("index_routing", "indexRouting", "index-routing");
     private static final ParseField SEARCH_ROUTING = new ParseField("search_routing", "searchRouting", "search-routing");
     private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
+    private static final ParseField IS_HIDDEN = new ParseField("is_hidden");
 
     private String name;
 
@@ -66,8 +55,16 @@ public class Alias implements Streamable, ToXContentFragment {
     @Nullable
     private Boolean writeIndex;
 
-    private Alias() {
+    @Nullable
+    private Boolean isHidden;
 
+    public Alias(StreamInput in) throws IOException {
+        name = in.readString();
+        filter = in.readOptionalString();
+        indexRouting = in.readOptionalString();
+        searchRouting = in.readOptionalString();
+        writeIndex = in.readOptionalBoolean();
+        isHidden = in.readOptionalBoolean();
     }
 
     public Alias(String name) {
@@ -79,6 +76,14 @@ public class Alias implements Streamable, ToXContentFragment {
      */
     public String name() {
         return name;
+    }
+
+    /**
+      Modify the alias name only
+     */
+    public Alias name(String name){
+        this.name = name;
+        return this;
     }
 
     /**
@@ -188,25 +193,18 @@ public class Alias implements Streamable, ToXContentFragment {
     }
 
     /**
-     * Allows to read an alias from the provided input stream
+     * @return whether this alias is hidden or not
      */
-    public static Alias read(StreamInput in) throws IOException {
-        Alias alias = new Alias();
-        alias.readFrom(in);
-        return alias;
+    public Boolean isHidden() {
+        return isHidden;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        filter = in.readOptionalString();
-        indexRouting = in.readOptionalString();
-        searchRouting = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            writeIndex = in.readOptionalBoolean();
-        } else {
-            writeIndex = null;
-        }
+    /**
+     * Sets whether this alias is hidden
+     */
+    public Alias isHidden(@Nullable Boolean isHidden) {
+        this.isHidden = isHidden;
+        return this;
     }
 
     @Override
@@ -215,9 +213,8 @@ public class Alias implements Streamable, ToXContentFragment {
         out.writeOptionalString(filter);
         out.writeOptionalString(indexRouting);
         out.writeOptionalString(searchRouting);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeOptionalBoolean(writeIndex);
-        }
+        out.writeOptionalBoolean(writeIndex);
+        out.writeOptionalBoolean(isHidden);
     }
 
     /**
@@ -250,6 +247,8 @@ public class Alias implements Streamable, ToXContentFragment {
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (IS_WRITE_INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.writeIndex(parser.booleanValue());
+                } else if (IS_HIDDEN.match(currentFieldName, parser.getDeprecationHandler())) {
+                    alias.isHidden(parser.booleanValue());
                 }
             }
         }
@@ -279,6 +278,10 @@ public class Alias implements Streamable, ToXContentFragment {
 
         builder.field(IS_WRITE_INDEX.getPreferredName(), writeIndex);
 
+        if (isHidden != null) {
+            builder.field(IS_HIDDEN.getPreferredName(), isHidden);
+        }
+
         builder.endObject();
         return builder;
     }
@@ -295,9 +298,7 @@ public class Alias implements Streamable, ToXContentFragment {
 
         Alias alias = (Alias) o;
 
-        if (name != null ? !name.equals(alias.name) : alias.name != null) return false;
-
-        return true;
+        return Objects.equals(name, alias.name);
     }
 
     @Override

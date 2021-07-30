@@ -1,0 +1,570 @@
+[[modules-scripting-using]]
+== How to write scripts
+
+Wherever scripting is supported in the {es} APIs, the syntax follows the same
+pattern; you specify the language of your script, provide the script logic (or
+source, and add parameters that are passed into the script:
+
+[source,js]
+-------------------------------------
+  "script": {
+    "lang":   "...",
+    "source" | "id": "...",
+    "params": { ... }
+  }
+-------------------------------------
+// NOTCONSOLE
+
+`lang`::
+
+    Specifies the language the script is written in. Defaults to `painless`.
+
+`source`, `id`::
+
+    The script itself, which you specify as `source` for an inline script or
+    `id` for a stored script. Use the <<stored-script-apis,stored script APIs>>
+    to create and manage stored scripts.
+
+`params`::
+
+    Specifies any named parameters that are passed into the script as
+    variables. <<prefer-params,Use parameters>> instead of hard-coded values to decrease compile time.
+
+[discrete]
+[[hello-world-script]]
+=== Write your first script
+<<modules-scripting-painless,Painless>> is the default scripting language
+for {es}. It is secure, performant, and provides a natural syntax for anyone
+with a little coding experience.
+
+A Painless script is structured as one or more statements and optionally
+has one or more user-defined functions at the beginning. A script must always
+have at least one statement.
+
+The {painless}/painless-execute-api.html[Painless execute API] provides the ability to
+test a script with simple user-defined parameters and receive a result. Let's
+start with a complete script and review its constituent parts.
+
+First, index a document with a single field so that we have some data to work
+with:
+
+[source,console]
+----
+PUT my-index-000001/_doc/1
+{
+  "my_field": 5
+}
+----
+
+We can then construct a script that operates on that field and run evaluate the
+script as part of a query. The following query uses the
+<<script-fields,`script_fields`>> parameter of the search API to retrieve a
+script valuation. There's a lot happening here, but we'll break it down the
+components to understand them individually. For now, you only need to
+understand that this script takes `my_field` and operates on it.
+
+[source,console]
+----
+GET my-index-000001/_search
+{
+  "script_fields": {
+    "my_doubled_field": {
+      "script": { <1>
+        "source": "doc['my_field'].value * params['multiplier']", <2>
+        "params": {
+          "multiplier": 2
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+<1> `script` object
+<2> `script` source
+
+The `script` is a standard JSON object that defines scripts under most APIs
+in {es}. This object requires `source` to define the script itself. The
+script doesn't specify a language, so it defaults to Painless.
+
+[discrete]
+[[prefer-params]]
+=== Use parameters in your script
+
+The first time {es} sees a new script, it compiles the script and stores the
+compiled version in a cache. Compilation can be a heavy process. Rather than
+hard-coding values in your script, pass them as named `params` instead.
+
+For example, in the previous script, we could have just hard coded values and
+written a script that is seemingly less complex. We could just retrieve the
+first value for `my_field` and then multiply it by `2`:
+
+[source,painless]
+----
+"source": "return doc['my_field'].value * 2"
+----
+
+Though it works, this solution is pretty inflexible. We have to modify the
+script source to change the multiplier, and {es} has to recompile the script
+every time that the multiplier changes.
+
+Instead of hard-coding values, use named `params` to make scripts flexible, and
+also reduce compilation time when the script runs. You can now make changes to
+the `multiplier` parameter without {es} recompiling the script.
+
+[source,painless]
+----
+"source": "doc['my_field'].value * params['multiplier']",
+"params": {
+  "multiplier": 2
+}
+----
+
+For most contexts, you can compile up to 75 scripts per 5 minutes by default.
+For ingest contexts, the default script compilation rate is unlimited. You
+can change these settings dynamically by setting
+`script.context.$CONTEXT.max_compilations_rate`. For example, the following
+setting limits script compilation to 100 scripts every 10 minutes for the
+{painless}/painless-field-context.html[field context]:
+
+[source,js]
+----
+script.context.field.max_compilations_rate=100/10m
+----
+// NOTCONSOLE
+
+IMPORTANT: If you compile too many unique scripts within a short time, {es}
+rejects the new dynamic scripts with a `circuit_breaking_exception` error.
+
+[discrete]
+[[script-shorten-syntax]]
+=== Shorten your script
+Using syntactic abilities that are native to Painless, you can reduce verbosity
+in your scripts and make them shorter. Here's a simple script that we can make
+shorter:
+
+[source,console]
+----
+GET my-index-000001/_search
+{
+  "script_fields": {
+    "my_doubled_field": {
+      "script": {
+        "lang":   "painless",
+        "source": "return doc['my_field'].value * params.get('multiplier');",
+        "params": {
+          "multiplier": 2
+        }
+      }
+    }
+  }
+}
+----
+// TEST[s/^/PUT my-index-000001\n/]
+
+Let's look at a shortened version of the script to see what improvements it
+includes over the previous iteration:
+
+[source,console]
+----
+GET my-index-000001/_search
+{
+  "script_fields": {
+    "my_doubled_field": {
+      "script": {
+        "source": "doc['my_field'].value * params['multiplier']",
+        "params": {
+          "multiplier": 2
+        }
+      }
+    }
+  }
+}
+----
+// TEST[s/^/PUT my-index-000001\n/]
+
+This version of the script removes several components and simplifies the syntax
+significantly:
+
+* The `lang` declaration. Because Painless is the default language, you don't
+need to specify the language if you're writing a Painless script.
+* The `return` keyword. Painless automatically uses the final statement in a
+script (when possible) to produce a return value in a script context that
+requires one.
+* The `get` method, which is replaced with brackets `[]`. Painless
+uses a shortcut specifically for the `Map` type that allows us to use brackets
+instead of the lengthier `get` method.
+* The semicolon at the end of the `source` statement. Painless does not
+require semicolons for the final statement of a block. However, it does require
+them in other cases to remove ambiguity.
+
+Use this abbreviated syntax anywhere that {es} supports scripts, such as
+when you're creating <<runtime-mapping-fields,runtime fields>>.
+
+[discrete]
+[[script-stored-scripts]]
+=== Store and retrieve scripts
+You can store and retrieve scripts from the cluster state using the
+<<stored-script-apis,stored script APIs>>. Stored scripts reduce compilation
+time and make searches faster.
+
+NOTE: Unlike regular scripts, stored scripts require that you specify a script
+language using the `lang` parameter.
+
+To create a script, use the <<create-stored-script-api,create stored script
+API>>. For example, the following request creates a stored script named
+`calculate-score`.
+
+[source,console]
+----
+POST _scripts/calculate-score
+{
+  "script": {
+    "lang": "painless",
+    "source": "Math.log(_score * 2) + params['my_modifier']"
+  }
+}
+----
+
+You can retrieve that script by using the <<get-stored-script-api,get stored
+script API>>.
+
+[source,console]
+----
+GET _scripts/calculate-score
+----
+// TEST[continued]
+
+To use the stored script in a query, include the script `id` in the `script`
+declaration:
+
+[source,console]
+----
+GET my-index-000001/_search
+{
+  "query": {
+    "script_score": {
+      "query": {
+        "match": {
+            "message": "some message"
+        }
+      },
+      "script": {
+        "id": "calculate-score", <1>
+        "params": {
+          "my_modifier": 2
+        }
+      }
+    }
+  }
+}
+----
+// TEST[setup:my_index]
+// TEST[continued]
+<1> `id` of the stored script
+
+To delete a stored script, submit a <<delete-stored-script-api,delete stored
+script API>> request.
+
+[source,console]
+----
+DELETE _scripts/calculate-score
+----
+// TEST[continued]
+
+[discrete]
+[[scripts-update-scripts]]
+=== Update documents with scripts
+You can use the <<docs-update,update API>> to update documents with a specified
+script. The script can update, delete, or skip modifying the document. The
+update API also supports passing a partial document, which is merged into the
+existing document.
+
+First, let's index a simple document:
+
+[source,console]
+----
+PUT my-index-000001/_doc/1
+{
+  "counter" : 1,
+  "tags" : ["red"]
+}
+----
+
+To increment the counter, you can submit an update request with the following
+script:
+
+[source,console]
+----
+POST my-index-000001/_update/1
+{
+  "script" : {
+    "source": "ctx._source.counter += params.count",
+    "lang": "painless",
+    "params" : {
+      "count" : 4
+    }
+  }
+}
+----
+// TEST[continued]
+
+Similarly, you can use an update script to add a tag to the list of tags.
+Because this is just a list, the tag is added even it exists:
+
+[source,console]
+----
+POST my-index-000001/_update/1
+{
+  "script": {
+    "source": "ctx._source.tags.add(params['tag'])",
+    "lang": "painless",
+    "params": {
+      "tag": "blue"
+    }
+  }
+}
+----
+// TEST[continued]
+
+You can also remove a tag from the list of tags. The `remove` method of a Java
+`List` is available in Painless. It takes the index of the element you
+want to remove. To avoid a possible runtime error, you first need to make sure
+the tag exists. If the list contains duplicates of the tag, this script just
+removes one occurrence.
+
+[source,console]
+----
+POST my-index-000001/_update/1
+{
+  "script": {
+    "source": "if (ctx._source.tags.contains(params['tag'])) { ctx._source.tags.remove(ctx._source.tags.indexOf(params['tag'])) }",
+    "lang": "painless",
+    "params": {
+      "tag": "blue"
+    }
+  }
+}
+----
+// TEST[continued]
+
+You can also add and remove fields from a document. For example, this script
+adds the field `new_field`:
+
+[source,console]
+----
+POST my-index-000001/_update/1
+{
+  "script" : "ctx._source.new_field = 'value_of_new_field'"
+}
+----
+// TEST[continued]
+
+Conversely, this script removes the field `new_field`:
+
+[source,console]
+----
+POST my-index-000001/_update/1
+{
+  "script" : "ctx._source.remove('new_field')"
+}
+----
+// TEST[continued]
+
+Instead of updating the document, you can also change the operation that is
+executed from within the script. For example, this request deletes the document
+if the `tags` field contains `green`. Otherwise it does nothing (`noop`):
+
+[source,console]
+----
+POST my-index-000001/_update/1
+{
+  "script": {
+    "source": "if (ctx._source.tags.contains(params['tag'])) { ctx.op = 'delete' } else { ctx.op = 'none' }",
+    "lang": "painless",
+    "params": {
+      "tag": "green"
+    }
+  }
+}
+----
+// TEST[continued]
+
+[[scripts-and-search-speed]]
+=== Scripts, caching, and search speed
+{es} performs a number of optimizations to make using scripts as fast as
+possible. One important optimization is a script cache. The compiled script is
+placed in a cache so that requests that reference the script do not incur a
+compilation penalty.
+
+Cache sizing is important. Your script cache should be large enough to hold all
+of the scripts that users need to be accessed concurrently.
+
+If you see a large number of script cache evictions and a rising number of
+compilations in <<cluster-nodes-stats,node stats>>, your cache might be too
+small.
+
+All scripts are cached by default so that they only need to be recompiled
+when updates occur. By default, scripts do not have a time-based expiration.
+You can change this behavior by using the `script.context.$CONTEXT.cache_expire` setting.
+Use the `script.context.$CONTEXT.cache_max_size` setting to configure the size of the cache.
+
+NOTE: The size of scripts is limited to 65,535 bytes. Set the value of `script.max_size_in_bytes` to increase that soft limit. If your scripts are
+really large, then consider using a
+<<modules-scripting-engine,native script engine>>.
+
+[discrete]
+==== Improving search speed
+Scripts are incredibly useful, but can't use {es}'s index structures or related
+optimizations. This relationship can sometimes result in slower search speeds.
+
+If you often use scripts to transform indexed data, you can make search faster
+by transforming data during ingest instead. However, that often means slower
+index speeds. Let's look at a practical example to illustrate how you can
+increase search speed.
+
+When running searches, it's common to sort results by the sum of two values.
+For example, consider an index named `my_test_scores` that contains test score
+data. This index includes two fields of type `long`:
+
+* `math_score`
+* `verbal_score`
+
+You can run a query with a script that adds these values together. There's
+nothing wrong with this approach, but the query will be slower because the
+script valuation occurs as part of the request. The following request returns
+documents where `grad_year` equals `2099`, and sorts by the results by the
+valuation of the script.
+
+[source,console]
+----
+GET /my_test_scores/_search
+{
+  "query": {
+    "term": {
+      "grad_year": "2099"
+    }
+  },
+  "sort": [
+    {
+      "_script": {
+        "type": "number",
+        "script": {
+          "source": "doc['math_score'].value + doc['verbal_score'].value"
+        },
+        "order": "desc"
+      }
+    }
+  ]
+}
+----
+// TEST[s/^/PUT my_test_scores\n/]
+
+If you're searching a small index, then including the script as part of your
+search query can be a good solution. If you want to make search faster, you can
+perform this calculation during ingest and index the sum to a field instead.
+
+First, we'll add a new field to the index named `total_score`, which will
+contain sum of the `math_score` and `verbal_score` field values.
+
+[source,console]
+----
+PUT /my_test_scores/_mapping
+{
+  "properties": {
+    "total_score": {
+      "type": "long"
+    }
+  }
+}
+----
+// TEST[continued]
+
+Next, use an <<ingest,ingest pipeline>> containing the
+<<script-processor,script processor>> to calculate the sum of `math_score` and
+`verbal_score` and index it in the `total_score` field.
+
+[source,console]
+----
+PUT _ingest/pipeline/my_test_scores_pipeline
+{
+  "description": "Calculates the total test score",
+  "processors": [
+    {
+      "script": {
+        "source": "ctx.total_score = (ctx.math_score + ctx.verbal_score)"
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+
+To update existing data, use this pipeline to <<docs-reindex,reindex>> any
+documents from `my_test_scores` to a new index named `my_test_scores_2`.
+
+[source,console]
+----
+POST /_reindex
+{
+  "source": {
+    "index": "my_test_scores"
+  },
+  "dest": {
+    "index": "my_test_scores_2",
+    "pipeline": "my_test_scores_pipeline"
+  }
+}
+----
+// TEST[continued]
+
+Continue using the pipeline to index any new documents to `my_test_scores_2`.
+
+[source,console]
+----
+POST /my_test_scores_2/_doc/?pipeline=my_test_scores_pipeline
+{
+  "student": "kimchy",
+  "grad_year": "2099",
+  "math_score": 1200,
+  "verbal_score": 800
+}
+----
+// TEST[continued]
+
+These changes slow the index process, but allow for faster searches. Instead of
+using a script, you can sort searches made on `my_test_scores_2` using the
+`total_score` field. The response is near real-time! Though this process slows
+ingest time, it greatly increases queries at search time.
+
+[source,console]
+----
+GET /my_test_scores_2/_search
+{
+  "query": {
+    "term": {
+      "grad_year": "2099"
+    }
+  },
+  "sort": [
+    {
+      "total_score": {
+        "order": "desc"
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+
+////
+[source,console]
+----
+DELETE /_ingest/pipeline/my_test_scores_pipeline
+----
+// TEST[continued]
+
+////
+
+include::dissect-syntax.asciidoc[]
+include::grok-syntax.asciidoc[]

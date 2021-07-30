@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.nested;
@@ -29,26 +18,29 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.nested;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.reverseNested;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ReverseNestedAggregatorTests extends AggregatorTestCase {
 
@@ -59,13 +51,11 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
     private static final String MAX_AGG_NAME = "maxAgg";
 
     /**
-     * For each provided field type, we also register an alias with name {@code <field>-alias}.
+     * Nested aggregations need the {@linkplain DirectoryReader} wrapped.
      */
     @Override
-    protected Map<String, MappedFieldType> getFieldAliases(MappedFieldType... fieldTypes) {
-        return Arrays.stream(fieldTypes).collect(Collectors.toMap(
-            ft -> ft.name() + "-alias",
-            Function.identity()));
+    protected IndexReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+        return wrapInMockESDirectoryReader(reader);
     }
 
     public void testNoDocs() throws IOException {
@@ -73,7 +63,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 // intentionally not writing any docs
             }
-            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                         NESTED_OBJECT);
                 ReverseNestedAggregationBuilder reverseNestedBuilder
@@ -82,11 +72,9 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME)
                         .field(VALUE_FIELD_NAME);
                 reverseNestedBuilder.subAggregation(maxAgg);
-                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
-                        NumberFieldMapper.NumberType.LONG);
-                fieldType.setName(VALUE_FIELD_NAME);
+                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                Nested nested = searchAndReduce(newSearcher(indexReader, false, true),
                         new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 ReverseNested reverseNested = (ReverseNested)
                         ((InternalAggregation)nested).getProperty(REVERSE_AGG_NAME);
@@ -115,16 +103,16 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         Document document = new Document();
                         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
                                 IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-                        document.add(new Field(TypeFieldMapper.NAME, "__" + NESTED_OBJECT,
-                                TypeFieldMapper.Defaults.FIELD_TYPE));
+                        document.add(new Field(NestedPathFieldMapper.NAME, NESTED_OBJECT,
+                            NestedPathFieldMapper.Defaults.FIELD_TYPE));
                         documents.add(document);
                         expectedNestedDocs++;
                     }
                     Document document = new Document();
                     document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
                             IdFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(new Field(TypeFieldMapper.NAME, "test",
-                            TypeFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(new Field(NestedPathFieldMapper.NAME, "test",
+                        NestedPathFieldMapper.Defaults.FIELD_TYPE));
                     long value = randomNonNegativeLong() % 10000;
                     document.add(new SortedNumericDocValuesField(VALUE_FIELD_NAME, value));
                     document.add(SeqNoFieldMapper.SequenceIDFields.emptySeqID().primaryTerm);
@@ -137,7 +125,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 }
                 iw.commit();
             }
-            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                         NESTED_OBJECT);
                 ReverseNestedAggregationBuilder reverseNestedBuilder
@@ -146,11 +134,9 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME)
                         .field(VALUE_FIELD_NAME);
                 reverseNestedBuilder.subAggregation(maxAgg);
-                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
-                        NumberFieldMapper.NumberType.LONG);
-                fieldType.setName(VALUE_FIELD_NAME);
+                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                Nested nested = searchAndReduce(newSearcher(indexReader, false, true),
                         new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
@@ -171,9 +157,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         int numParentDocs = randomIntBetween(1, 20);
         int expectedParentDocs = 0;
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
-            NumberFieldMapper.NumberType.LONG);
-        fieldType.setName(VALUE_FIELD_NAME);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -188,15 +172,15 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         Document document = new Document();
                         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
                                 IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-                        document.add(new Field(TypeFieldMapper.NAME, "__" + NESTED_OBJECT,
-                                TypeFieldMapper.Defaults.FIELD_TYPE));
+                        document.add(new Field(NestedPathFieldMapper.NAME, NESTED_OBJECT,
+                            NestedPathFieldMapper.Defaults.FIELD_TYPE));
                         documents.add(document);
                     }
                     Document document = new Document();
                     document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
                             IdFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(new Field(TypeFieldMapper.NAME, "test",
-                            TypeFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(new Field(NestedPathFieldMapper.NAME, "test",
+                        NestedPathFieldMapper.Defaults.FIELD_TYPE));
 
                     long value = randomNonNegativeLong() % 10000;
                     document.add(new SortedNumericDocValuesField(VALUE_FIELD_NAME, value));
@@ -207,7 +191,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 iw.commit();
             }
 
-            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 MaxAggregationBuilder maxAgg = max(MAX_AGG_NAME).field(VALUE_FIELD_NAME);
                 MaxAggregationBuilder aliasMaxAgg = max(MAX_AGG_NAME).field(VALUE_FIELD_NAME + "-alias");
 
@@ -216,9 +200,9 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 NestedAggregationBuilder aliasAgg = nested(NESTED_AGG, NESTED_OBJECT).subAggregation(
                     reverseNested(REVERSE_AGG_NAME).subAggregation(aliasMaxAgg));
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                Nested nested = searchAndReduce(newSearcher(indexReader, false, true),
                         new MatchAllDocsQuery(), agg, fieldType);
-                Nested aliasNested = search(newSearcher(indexReader, false, true),
+                Nested aliasNested = searchAndReduce(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), aliasAgg, fieldType);
 
                 ReverseNested reverseNested = nested.getAggregations().get(REVERSE_AGG_NAME);
@@ -230,4 +214,34 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testNestedUnderTerms() throws IOException {
+        int numProducts = scaledRandomIntBetween(1, 100);
+        int numResellers = scaledRandomIntBetween(1, 100);
+
+        AggregationBuilder b = new NestedAggregationBuilder("nested", "nested_reseller")
+            .subAggregation(new TermsAggregationBuilder("resellers").field("reseller_id").size(numResellers)
+                .subAggregation(new ReverseNestedAggregationBuilder("reverse_nested")
+                    .subAggregation(new TermsAggregationBuilder("products").field("product_id").size(numProducts))));
+        testCase(b, new MatchAllDocsQuery(), NestedAggregatorTests.buildResellerData(numProducts, numResellers), result -> {
+            InternalNested nested = (InternalNested) result;
+            assertThat(nested.getDocCount(), equalTo((long) numProducts * numResellers));
+            LongTerms resellers = nested.getAggregations().get("resellers");
+            assertThat(resellers.getBuckets().stream().map(LongTerms.Bucket::getKeyAsNumber).collect(toList()),
+                equalTo(LongStream.range(0, numResellers).mapToObj(Long::valueOf).collect(toList())));
+            for (int r = 0; r < numResellers; r++) {
+                LongTerms.Bucket bucket = resellers.getBucketByKey(Integer.toString(r));
+                assertThat(bucket.getDocCount(), equalTo((long) numProducts));
+                InternalReverseNested reverseNested = bucket.getAggregations().get("reverse_nested");
+                assertThat(reverseNested.getDocCount(), equalTo((long) numProducts));
+                LongTerms products = reverseNested.getAggregations().get("products");
+                assertThat(products.getBuckets().stream().map(LongTerms.Bucket::getKeyAsNumber).collect(toList()),
+                    equalTo(LongStream.range(0, numProducts).mapToObj(Long::valueOf).collect(toList())));
+            }
+        }, NestedAggregatorTests.resellersMappedFields());
+    }
+
+    @Override
+    protected List<ObjectMapper> objectMappers() {
+        return NestedAggregatorTests.MOCK_OBJECT_MAPPERS;
+    }
 }

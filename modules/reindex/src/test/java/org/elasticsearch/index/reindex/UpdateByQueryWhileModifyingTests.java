@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -42,7 +31,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
 
     public void testUpdateWhileReindexing() throws Exception {
         AtomicReference<String> value = new AtomicReference<>(randomSimpleString(random()));
-        indexRandom(true, client().prepareIndex("test", "test", "test").setSource("test", value.get()));
+        indexRandom(true, client().prepareIndex("test").setId("test").setSource("test", value.get()));
 
         AtomicReference<Exception> failure = new AtomicReference<>();
         AtomicBoolean keepUpdating = new AtomicBoolean(true);
@@ -61,13 +50,13 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
 
         try {
             for (int i = 0; i < MAX_MUTATIONS; i++) {
-                GetResponse get = client().prepareGet("test", "test", "test").get();
+                GetResponse get = client().prepareGet("test", "test").get();
                 assertEquals(value.get(), get.getSource().get("test"));
                 value.set(randomSimpleString(random()));
-                IndexRequestBuilder index = client().prepareIndex("test", "test", "test").setSource("test", value.get())
+                IndexRequestBuilder index = client().prepareIndex("test").setId("test").setSource("test", value.get())
                         .setRefreshPolicy(IMMEDIATE);
                 /*
-                 * Update by query increments the version number so concurrent
+                 * Update by query changes the document so concurrent
                  * indexes might get version conflict exceptions so we just
                  * blindly retry.
                  */
@@ -75,7 +64,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                 while (true) {
                     attempts++;
                     try {
-                        index.setVersion(get.getVersion()).get();
+                        index.setIfSeqNo(get.getSeqNo()).setIfPrimaryTerm(get.getPrimaryTerm()).get();
                         break;
                     } catch (VersionConflictEngineException e) {
                         if (attempts >= MAX_ATTEMPTS) {
@@ -84,7 +73,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                         }
                         logger.info("Caught expected version conflict trying to perform mutation number [{}] with version [{}] "
                                 + "on attempt [{}]. Retrying.", i, get.getVersion(), attempts);
-                        get = client().prepareGet("test", "test", "test").get();
+                        get = client().prepareGet("test", "test").get();
                     }
                 }
             }

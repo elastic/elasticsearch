@@ -1,35 +1,36 @@
 [[binary]]
-=== Binary datatype
+=== Binary field type
+++++
+<titleabbrev>Binary</titleabbrev>
+++++
 
 The `binary` type accepts a binary value as a
-https://en.wikipedia.org/wiki/Base64[Base64] encoded string. The field is not
+{wikipedia}/Base64[Base64] encoded string. The field is not
 stored by default and is not searchable:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "name": {
-          "type": "text"
-        },
-        "blob": {
-          "type": "binary"
-        }
+    "properties": {
+      "name": {
+        "type": "text"
+      },
+      "blob": {
+        "type": "binary"
       }
     }
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "name": "Some binary blob",
   "blob": "U29tZSBiaW5hcnkgYmxvYg==" <1>
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The Base64 encoded binary value must not have embedded newlines `\n`.
 
 [[binary-params]]

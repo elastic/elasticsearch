@@ -1,85 +1,80 @@
 [[elasticsearch-reference]]
-= Elasticsearch Reference
+= Elasticsearch Guide
 
 :include-xpack:         true
-:es-test-dir:           {docdir}/../src/test
-:plugins-examples-dir:  {docdir}/../../plugins/examples
-:xes-repo-dir:          {docdir}/../../x-pack/docs/{lang}
-:es-repo-dir:           {docdir}
-
+:es-test-dir:           {elasticsearch-root}/docs/src/test
+:plugins-examples-dir:  {elasticsearch-root}/plugins/examples
+:dependencies-dir:      {elasticsearch-root}/build-tools-internal
+:xes-repo-dir:          {elasticsearch-root}/x-pack/docs/{lang}
+:es-repo-dir:           {elasticsearch-root}/docs/reference
 
 include::../Versions.asciidoc[]
+include::links.asciidoc[]
+
+include::intro.asciidoc[]
+
+include::release-notes/highlights.asciidoc[]
 
 include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
 
-include::setup/setup-xes.asciidoc[]
-
-include::monitoring/configuring-monitoring.asciidoc[]
-
-include::{xes-repo-dir}/security/configuring-es.asciidoc[]
-
-include::setup/setup-xclient.asciidoc[]
-
-include::settings/configuring-xes.asciidoc[]
-
-include::setup/bootstrap-checks-xes.asciidoc[]
-
-:edit_url:
 include::upgrade.asciidoc[]
 
-include::api-conventions.asciidoc[]
-
-include::docs.asciidoc[]
-
-include::search.asciidoc[]
-
-include::aggregations.asciidoc[]
-
-include::indices.asciidoc[]
-
-include::cat.asciidoc[]
-
-include::cluster.asciidoc[]
-
-include::query-dsl.asciidoc[]
+include::index-modules.asciidoc[]
 
 include::mapping.asciidoc[]
 
 include::analysis.asciidoc[]
 
-include::modules.asciidoc[]
+include::indices/index-templates.asciidoc[]
 
-include::index-modules.asciidoc[]
+include::data-streams/data-streams.asciidoc[]
 
 include::ingest.asciidoc[]
 
-include::ilm/index.asciidoc[]
+include::alias.asciidoc[]
+
+include::search/search-your-data/search-your-data.asciidoc[]
+
+include::query-dsl.asciidoc[]
+
+include::aggregations.asciidoc[]
+
+include::eql/eql.asciidoc[]
 
 include::sql/index.asciidoc[]
 
+include::scripting.asciidoc[]
+
+include::data-management.asciidoc[]
+
+include::ilm/index.asciidoc[]
+
+include::autoscaling/index.asciidoc[]
+
 include::monitoring/index.asciidoc[]
 
-include::rollup/index.asciidoc[]
+include::data-rollup-transform.asciidoc[]
 
-include::frozen-indices.asciidoc[]
+include::high-availability.asciidoc[]
 
-include::rest-api/index.asciidoc[]
+include::snapshot-restore/index.asciidoc[]
+
+include::{xes-repo-dir}/security/index.asciidoc[]
+
+include::{xes-repo-dir}/watcher/index.asciidoc[]
 
 include::commands/index.asciidoc[]
 
-:edit_url:
 include::how-to.asciidoc[]
 
-include::testing.asciidoc[]
-
-include::glossary.asciidoc[]
-
-include::release-notes/highlights.asciidoc[]
+include::rest-api/index.asciidoc[]
 
 include::migration/index.asciidoc[]
 
 include::release-notes.asciidoc[]
+
+include::dependencies-versions.asciidoc[]
 
 include::redirects.asciidoc[]

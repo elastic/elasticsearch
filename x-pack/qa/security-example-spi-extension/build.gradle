@@ -1,50 +1,40 @@
-apply plugin: 'elasticsearch.esplugin'
+import org.elasticsearch.gradle.util.GradleUtils
+
+apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
   name 'spi-extension'
-  description 'An example spi extension pluing for xpack security'
+  description 'An example spi extension plugin for security'
   classname 'org.elasticsearch.example.SpiExtensionPlugin'
   extendedPlugins = ['x-pack-security']
 }
 
 dependencies {
-  compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
-  testCompile project(path: xpackProject('transport-client').path, configuration: 'runtime')
+  compileOnly project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':client:rest-high-level')
+  // let the javaRestTest see the classpath of main
+  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 }
 
-
-integTestRunner {
-    systemProperty 'tests.security.manager', 'false'
-}
-
-integTestCluster {
-  dependsOn buildZip
-  setting 'xpack.security.authc.realms.custom.custom.order', '0'
-  setting 'xpack.security.authc.realms.custom.custom.filtered_setting', 'should be filtered'
-  setting 'xpack.security.authc.realms.file.esusers.order', '1'
-  setting 'xpack.security.authc.realms.native.native.order', '2'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.ilm.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-
+testClusters.all {
   // This is important, so that all the modules are available too.
   // There are index templates that use token filters that are in analysis-module and
   // processors are being used that are in ingest-common module.
-  distribution = 'zip'
+  testDistribution = 'DEFAULT'
 
-  setupCommand 'setupDummyUser',
-               'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: 'test_user',
-            password: 'x-pack-test-password',
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
-  }
+  setting 'xpack.security.authc.realms.custom.my_realm.order', '0'
+  setting 'xpack.security.authc.realms.custom.my_realm.filtered_setting', 'should be filtered'
+  setting 'xpack.security.authc.realms.custom.my_realm.username', 'test_user'
+  keystore 'xpack.security.authc.realms.custom.my_realm.password', 'secret_password'
+
+  setting 'xpack.security.authc.realms.file.esusers.order', '1'
+  setting 'xpack.security.authc.realms.native.native.order', '2'
+  setting 'xpack.security.authc.realms.custom_role_mapping.role_map.order', '3'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+
+  user username: "test_user", password: "x-pack-test-password"
 }
-check.dependsOn integTest

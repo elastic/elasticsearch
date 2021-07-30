@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc;
 
@@ -27,7 +28,7 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.authentic
  * response headers like 'WWW-Authenticate'
  */
 public class DefaultAuthenticationFailureHandler implements AuthenticationFailureHandler {
-    private final Map<String, List<String>> defaultFailureResponseHeaders;
+    private volatile Map<String, List<String>> defaultFailureResponseHeaders;
 
     /**
      * Constructs default authentication failure handler with provided default
@@ -56,6 +57,15 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     }
 
     /**
+     * This method is called when failureResponseHeaders need to be set (at startup) or updated (if license state changes)
+     *
+     * @param failureResponseHeaders the Map of failure response headers to be set
+     */
+    public void setHeaders(Map<String, List<String>> failureResponseHeaders){
+        defaultFailureResponseHeaders = failureResponseHeaders;
+    }
+
+    /**
      * For given 'WWW-Authenticate' header value returns the priority based on
      * the auth-scheme. Lower number denotes more secure and preferred
      * auth-scheme than the higher number.
@@ -68,10 +78,12 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
             return 0;
         } else if (headerValue.regionMatches(true, 0, "bearer", 0, "bearer".length())) {
             return 1;
-        } else if (headerValue.regionMatches(true, 0, "basic", 0, "basic".length())) {
+        } else if (headerValue.regionMatches(true, 0, "apikey", 0, "apikey".length())) {
             return 2;
-        } else {
+        } else if (headerValue.regionMatches(true, 0, "basic", 0, "basic".length())) {
             return 3;
+        } else {
+            return 4;
         }
     }
 
@@ -99,12 +111,12 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
 
     @Override
     public ElasticsearchSecurityException missingToken(RestRequest request, ThreadContext context) {
-        return createAuthenticationError("missing authentication token for REST request [{}]", null, request.uri());
+        return createAuthenticationError("missing authentication credentials for REST request [{}]", null, request.uri());
     }
 
     @Override
     public ElasticsearchSecurityException missingToken(TransportMessage message, String action, ThreadContext context) {
-        return createAuthenticationError("missing authentication token for action [{}]", null, action);
+        return createAuthenticationError("missing authentication credentials for action [{}]", null, action);
     }
 
     @Override

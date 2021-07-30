@@ -1,43 +1,33 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo.builders;
 
-import org.apache.lucene.geo.Line;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.LineString;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.MultiLine;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.LineString;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 
-public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, MultiLineStringBuilder> {
+public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.geometry.Geometry, MultiLineStringBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTILINESTRING;
 
@@ -150,24 +140,18 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, MultiLineS
     }
 
     @Override
-    public Object buildLucene() {
-        if (wrapdateline) {
-            ArrayList<Line> parts = new ArrayList<>();
-            for (LineStringBuilder line : lines) {
-                LineStringBuilder.decomposeLucene(line.coordinates(false), parts);
-            }
-            if (parts.size() == 1) {
-                return parts.get(0);
-            }
-            return parts.toArray(new Line[parts.size()]);
+    public org.elasticsearch.geometry.Geometry buildGeometry() {
+        if (lines.isEmpty()) {
+            return MultiLine.EMPTY;
         }
-        Line[] linestrings = new Line[lines.size()];
+        List<Line> linestrings = new ArrayList<>(lines.size());
         for (int i = 0; i < lines.size(); ++i) {
             LineStringBuilder lsb = lines.get(i);
-            linestrings[i] = new Line(lsb.coordinates.stream().mapToDouble(c->c.y).toArray(),
-                lsb.coordinates.stream().mapToDouble(c->c.x).toArray());
+            linestrings.add(new Line(lsb.coordinates.stream().mapToDouble(c->c.x).toArray(),
+                lsb.coordinates.stream().mapToDouble(c->c.y).toArray()
+            ));
         }
-        return linestrings;
+        return new MultiLine(linestrings);
     }
 
     @Override

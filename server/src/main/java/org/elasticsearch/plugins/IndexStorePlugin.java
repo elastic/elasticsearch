@@ -1,42 +1,135 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
 
+import org.apache.lucene.store.Directory;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.indices.recovery.RecoveryState;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
- * A plugin that provides alternative index store implementations.
+ * A plugin that provides alternative directory implementations.
  */
 public interface IndexStorePlugin {
 
     /**
-     * The index store factories for this plugin. When an index is created the store type setting
-     * {@link org.elasticsearch.index.IndexModule#INDEX_STORE_TYPE_SETTING} on the index will be examined and either use the default or a
-     * built-in type, or looked up among all the index store factories from {@link IndexStore} plugins.
-     *
-     * @return a map from store type to an index store factory
+     * An interface that describes how to create a new directory instance per shard.
      */
-    Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories();
+    @FunctionalInterface
+    interface DirectoryFactory {
+        /**
+         * Creates a new directory per shard. This method is called once per shard on shard creation.
+         * @param indexSettings the shards index settings
+         * @param shardPath the path the shard is using
+         * @return a new lucene directory instance
+         * @throws IOException if an IOException occurs while opening the directory
+         */
+        Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException;
+    }
+
+    /**
+     * The {@link DirectoryFactory} mappings for this plugin. When an index is created the store type setting
+     * {@link org.elasticsearch.index.IndexModule#INDEX_STORE_TYPE_SETTING} on the index will be examined and either use the default or a
+     * built-in type, or looked up among all the directory factories from {@link IndexStorePlugin} plugins.
+     *
+     * @return a map from store type to an directory factory
+     */
+    Map<String, DirectoryFactory> getDirectoryFactories();
+
+    /**
+     * An interface that allows to create a new {@link RecoveryState} per shard.
+     */
+    @FunctionalInterface
+    interface RecoveryStateFactory {
+        /**
+         * Creates a new {@link RecoveryState} per shard. This method is called once per shard on shard creation.
+         * @return a new RecoveryState instance
+         */
+        RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode);
+    }
+
+    /**
+     * The {@link RecoveryStateFactory} mappings for this plugin. When an index is created the recovery type setting
+     * {@link org.elasticsearch.index.IndexModule#INDEX_RECOVERY_TYPE_SETTING} on the index will be examined and either use the default
+     * or looked up among all the recovery state factories from {@link IndexStorePlugin} plugins.
+     *
+     * @return a map from recovery type to an recovery state factory
+     */
+    default Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * {@link IndexFoldersDeletionListener} are invoked before the folders of a shard or an index are deleted from disk.
+     */
+    interface IndexFoldersDeletionListener {
+        /**
+         * Invoked before the folders of an index are deleted from disk. The folder's {@link Path} may or may not
+         * exist on disk. Shard locks are expected to be acquired at the time this method is invoked.
+         * @param index         the {@link Index} of the index whose folders are going to be deleted
+         * @param indexSettings settings for the index whose folders are going to be deleted
+         * @param indexPath    the path of the folders that will be deleted
+         */
+        void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path indexPath);
+
+        /**
+         * Invoked before the folders of a shard are deleted from disk. The folder's {@link Path} may or may not
+         * exist on disk. Shard locks are expected to be acquired at the time this method is invoked.
+         * @param shardId       the {@link ShardId} of the shard whose folders are going to be deleted
+         * @param indexSettings index settings of the shard whose folders are going to be deleted
+         * @param shardPath    the path of the folder that will be deleted
+         */
+        void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path shardPath);
+    }
+
+    /**
+     * The {@link IndexFoldersDeletionListener} listeners for this plugin. When the folders of an index or a shard are deleted from disk,
+     * these listeners are invoked before the deletion happens in order to allow plugin to clean up any resources if needed.
+     *
+     * @return a list of {@link IndexFoldersDeletionListener} listeners
+     */
+    default List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * An interface that allows plugins to override the {@link org.apache.lucene.index.IndexCommit} of which a snapshot is taken. By default
+     * we snapshot the latest such commit.
+     */
+    @FunctionalInterface
+    interface SnapshotCommitSupplier {
+        Engine.IndexCommitRef acquireIndexCommitForSnapshot(Engine engine) throws EngineException;
+    }
+
+    /**
+     * The {@link SnapshotCommitSupplier} mappings for this plugin. When an index is created the store type setting
+     * {@link org.elasticsearch.index.IndexModule#INDEX_STORE_TYPE_SETTING} on the index will determine whether the snapshot commit supplier
+     * should be overridden and, if so, which override to use.
+     *
+     * @return a collection of snapshot commit suppliers, keyed by the value of
+     *         {@link org.elasticsearch.index.IndexModule#INDEX_STORE_TYPE_SETTING}.
+     */
+    default Map<String, SnapshotCommitSupplier> getSnapshotCommitSuppliers() {
+        return Collections.emptyMap();
+    }
 
 }

@@ -1,37 +1,32 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.OffsetTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,13 +41,17 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Tests for {@link BytesStreamOutput} paging behaviour.
+ * Tests for {@link StreamOutput}.
  */
 public class BytesStreamsTests extends ESTestCase {
     public void testEmpty() throws Exception {
@@ -275,6 +274,8 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeLong(-3);
         out.writeVLong(4);
         out.writeOptionalLong(11234234L);
+        out.writeOptionalVLong(5L);
+        out.writeOptionalVLong(null);
         out.writeFloat(1.1f);
         out.writeDouble(2.2);
         int[] intArray = {1, 2, 3};
@@ -300,6 +301,9 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeTimeZone(DateTimeZone.forID("CET"));
         out.writeOptionalTimeZone(DateTimeZone.getDefault());
         out.writeOptionalTimeZone(null);
+        out.writeGenericValue(new DateTime(123456, DateTimeZone.forID("America/Los_Angeles")));
+        final OffsetTime offsetNow = OffsetTime.now(randomZone());
+        out.writeGenericValue(offsetNow);
         final byte[] bytes = BytesReference.toBytes(out.bytes());
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         assertEquals(in.available(), bytes.length);
@@ -311,6 +315,8 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readLong(), equalTo(-3L));
         assertThat(in.readVLong(), equalTo(4L));
         assertThat(in.readOptionalLong(), equalTo(11234234L));
+        assertThat(in.readOptionalVLong(), equalTo(5L));
+        assertThat(in.readOptionalVLong(), nullValue());
         assertThat((double)in.readFloat(), closeTo(1.1, 0.0001));
         assertThat(in.readDouble(), closeTo(2.2, 0.0001));
         assertThat(in.readGenericValue(), equalTo((Object) intArray));
@@ -330,7 +336,20 @@ public class BytesStreamsTests extends ESTestCase {
         assertEquals(DateTimeZone.forID("CET"), in.readTimeZone());
         assertEquals(DateTimeZone.getDefault(), in.readOptionalTimeZone());
         assertNull(in.readOptionalTimeZone());
+        Object dt = in.readGenericValue();
+        assertThat(dt, instanceOf(JodaCompatibleZonedDateTime.class));
+        JodaCompatibleZonedDateTime jdt = (JodaCompatibleZonedDateTime) dt;
+        assertThat(jdt.getZonedDateTime().toInstant().toEpochMilli(), equalTo(123456L));
+        assertThat(jdt.getZonedDateTime().getZone(), equalTo(ZoneId.of("America/Los_Angeles")));
+        assertThat(in.readGenericValue(), equalTo(offsetNow));
         assertEquals(0, in.available());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> out.writeGenericValue(new Object() {
+            @Override
+            public String toString() {
+                return "This object cannot be serialized by writeGeneric method";
+            }
+        }));
+        assertThat(ex.getMessage(), containsString("can not write type"));
         in.close();
         out.close();
     }
@@ -430,20 +449,20 @@ public class BytesStreamsTests extends ESTestCase {
         }
     }
 
-    public void testWriteStreamableList() throws IOException {
+    public void testWriteWriteableList() throws IOException {
         final int size = randomIntBetween(0, 5);
-        final List<TestStreamable> expected = new ArrayList<>(size);
+        final List<TestWriteable> expected = new ArrayList<>(size);
 
         for (int i = 0; i < size; ++i) {
-            expected.add(new TestStreamable(randomBoolean()));
+            expected.add(new TestWriteable(randomBoolean()));
         }
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.writeStreamableList(expected);
+        out.writeList(expected);
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
 
-        final List<TestStreamable> loaded = in.readStreamableList(TestStreamable::new);
+        final List<TestWriteable> loaded = in.readList(TestWriteable::new);
 
         assertThat(loaded, hasSize(expected.size()));
 
@@ -470,6 +489,38 @@ public class BytesStreamsTests extends ESTestCase {
         final Map<String, String> loaded = in.readMap(StreamInput::readString, StreamInput::readString);
 
         assertThat(loaded.size(), equalTo(expected.size()));
+        assertThat(expected, equalTo(loaded));
+    }
+
+    public void testWriteImmutableMap() throws IOException {
+        final int size = randomIntBetween(0, 100);
+        final ImmutableOpenMap.Builder<String, String> expectedBuilder = ImmutableOpenMap.builder(randomIntBetween(0, 100));
+        for (int i = 0; i < size; ++i) {
+            expectedBuilder.put(randomAlphaOfLength(2), randomAlphaOfLength(5));
+        }
+
+        final ImmutableOpenMap<String, String> expected = expectedBuilder.build();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
+        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
+        final ImmutableOpenMap<String, String> loaded = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
+
+        assertThat(expected, equalTo(loaded));
+    }
+
+    public void testWriteImmutableMapOfWritable() throws IOException {
+        final int size = randomIntBetween(0, 100);
+        final ImmutableOpenMap.Builder<TestWriteable, TestWriteable> expectedBuilder = ImmutableOpenMap.builder(randomIntBetween(0, 100));
+        for (int i = 0; i < size; ++i) {
+            expectedBuilder.put(new TestWriteable(randomBoolean()), new TestWriteable(randomBoolean()));
+        }
+
+        final ImmutableOpenMap<TestWriteable, TestWriteable> expected = expectedBuilder.build();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.writeMap(expected);
+        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
+        final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableMap(TestWriteable::new, TestWriteable::new);
+
         assertThat(expected, equalTo(loaded));
     }
 
@@ -570,7 +621,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testReadWriteGeoPoint() throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
             GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
             out.writeGenericValue(geoPoint);
             StreamInput wrap = out.bytes().streamInput();
@@ -587,24 +638,31 @@ public class BytesStreamsTests extends ESTestCase {
         }
     }
 
-    private static class TestStreamable implements Streamable {
+    private static class TestWriteable implements Writeable {
 
         private boolean value;
 
-        TestStreamable() { }
-
-        TestStreamable(boolean value) {
+        TestWriteable(boolean value) {
             this.value = value;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
+        TestWriteable(StreamInput in) throws IOException {
             value = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(value);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof TestWriteable && value == ((TestWriteable) o).value;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(value);
         }
     }
 
@@ -762,6 +820,16 @@ public class BytesStreamsTests extends ESTestCase {
         final int value = randomInt();
         BytesStreamOutput output = new BytesStreamOutput();
         output.writeVInt(value);
+
+        BytesStreamOutput simple = new BytesStreamOutput();
+        int i = value;
+        while ((i & ~0x7F) != 0) {
+            simple.writeByte(((byte) ((i & 0x7f) | 0x80)));
+            i >>>= 7;
+        }
+        simple.writeByte((byte) i);
+        assertEquals(simple.bytes().toBytesRef().toString(), output.bytes().toBytesRef().toString());
+
         StreamInput input = output.bytes().streamInput();
         assertEquals(value, input.readVInt());
     }
@@ -813,7 +881,7 @@ public class BytesStreamsTests extends ESTestCase {
         assertEquals(0, input.available());
     }
 
-    private void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {
+    private static void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeTimeValue(value);
         assertEquals(expectedSize, out.size());
@@ -838,4 +906,28 @@ public class BytesStreamsTests extends ESTestCase {
         assertEqualityAfterSerialize(timeValue, 1 + out.bytes().length());
     }
 
+    public void testWriteCircularReferenceException() throws IOException {
+        IOException rootEx = new IOException("disk broken");
+        AlreadyClosedException ace = new AlreadyClosedException("closed", rootEx);
+        rootEx.addSuppressed(ace); // circular reference
+
+        BytesStreamOutput testOut = new BytesStreamOutput();
+        AssertionError error = expectThrows(AssertionError.class, () -> testOut.writeException(rootEx));
+        assertThat(error.getMessage(), containsString("too many nested exceptions"));
+        assertThat(error.getCause(), equalTo(rootEx));
+
+        BytesStreamOutput prodOut = new BytesStreamOutput() {
+            @Override
+            boolean failOnTooManyNestedExceptions(Throwable throwable) {
+                assertThat(throwable, sameInstance(rootEx));
+                return true;
+            }
+        };
+        prodOut.writeException(rootEx);
+        StreamInput in = prodOut.bytes().streamInput();
+        Exception newEx = in.readException();
+        assertThat(newEx, instanceOf(IOException.class));
+        assertThat(newEx.getMessage(), equalTo("disk broken"));
+        assertArrayEquals(newEx.getStackTrace(), rootEx.getStackTrace());
+    }
 }

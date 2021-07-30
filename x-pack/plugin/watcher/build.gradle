@@ -1,62 +1,68 @@
-evaluationDependsOn(xpackModule('core'))
-
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-watcher'
   description 'Elasticsearch Expanded Pack Plugin - Watcher'
   classname 'org.elasticsearch.xpack.watcher.Watcher'
   hasNativeController false
   requiresKeystore false
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 
 archivesBaseName = 'x-pack-watcher'
 
 ext.compactProfile = 'full'
 
-compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-
-dependencyLicenses {
-    mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
-    ignoreSha 'x-pack-core'
+tasks.named("dependencyLicenses").configure {
+  mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
 }
 
 dependencies {
-    compileOnly "org.elasticsearch:elasticsearch:${version}"
+  compileOnly project(':server')
+  compileOnly project(':modules:lang-painless:spi')
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: ':modules:transport-netty4')
+  compileOnly project(path: ':plugins:transport-nio')
 
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    compileOnly project(path: xpackModule('core'), configuration: 'default')
-    compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
-    compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(xpackModule('ilm'))
+  testImplementation project(xpackModule('data-streams'))
 
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  // watcher deps
+  api 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20191001.1'
+  runtimeOnly 'com.google.guava:guava:27.1-jre' // needed by watcher for the html sanitizer
+  runtimeOnly 'com.google.guava:failureaccess:1.0.1'
+  api 'com.sun.mail:jakarta.mail:1.6.4'
+  api 'com.sun.activation:jakarta.activation:1.2.1'
+  compileOnly "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compileOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 
-    // watcher deps
-    compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:r239'
-    compile 'com.google.guava:guava:16.0.1' // needed by watcher for the html sanitizer and security tests for jimfs
-    compile 'com.sun.mail:javax.mail:1.6.2'
-    // HACK: java 9 removed javax.activation from the default modules, so instead of trying to add modules, which would have
-    // to be conditionalized for java 8/9, we pull in the classes directly
-    compile 'javax.activation:activation:1.1.1'
-    compileOnly "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-    compileOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-
-    testCompile 'org.subethamail:subethasmtp:3.1.7'
-    // needed for subethasmtp, has @GuardedBy annotation
-    testCompile 'com.google.code.findbugs:jsr305:3.0.1'
+  testImplementation 'org.subethamail:subethasmtp:3.1.7'
+  // needed for subethasmtp, has @GuardedBy annotation
+  testImplementation 'com.google.code.findbugs:jsr305:3.0.2'
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
-thirdPartyAudit.excludes = [
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
     // uses internal java api: sun.misc.Unsafe
     'com.google.common.cache.Striped64',
     'com.google.common.cache.Striped64$1',
     'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+  )
 
-    // pulled in as external dependency to work on java 9
+  ignoreViolations(
     'com.sun.activation.registries.LineTokenizer',
     'com.sun.activation.registries.LogSupport',
     'com.sun.activation.registries.MailcapFile',
@@ -64,54 +70,12 @@ thirdPartyAudit.excludes = [
     'com.sun.activation.registries.MimeTypeEntry',
     'com.sun.activation.registries.MimeTypeFile',
     'javax.activation.MailcapCommandMap',
-    'javax.activation.MimetypesFileTypeMap',
-]
-
-// pulled in as external dependency to work on java 9
-if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-    thirdPartyAudit.excludes += [
-        'com.sun.activation.registries.MailcapParseException',
-        'javax.activation.ActivationDataFlavor',
-        'javax.activation.CommandInfo',
-        'javax.activation.CommandMap',
-        'javax.activation.CommandObject',
-        'javax.activation.DataContentHandler',
-        'javax.activation.DataContentHandlerFactory',
-        'javax.activation.DataHandler$1',
-        'javax.activation.DataHandler',
-        'javax.activation.DataHandlerDataSource',
-        'javax.activation.DataSource',
-        'javax.activation.DataSourceDataContentHandler',
-        'javax.activation.FileDataSource',
-        'javax.activation.FileTypeMap',
-        'javax.activation.MimeType',
-        'javax.activation.MimeTypeParameterList',
-        'javax.activation.MimeTypeParseException',
-        'javax.activation.ObjectDataContentHandler',
-        'javax.activation.SecuritySupport$1',
-        'javax.activation.SecuritySupport$2',
-        'javax.activation.SecuritySupport$3',
-        'javax.activation.SecuritySupport$4',
-        'javax.activation.SecuritySupport$5',
-        'javax.activation.SecuritySupport',
-        'javax.activation.URLDataSource',
-        'javax.activation.UnsupportedDataTypeException'
-    ]
+    'javax.activation.MimetypesFileTypeMap'
+  )
 }
 
-run {
-    plugin xpackModule('core')
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.p12'
 }
 
-test {
-    /*
-     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
-     * other if we allow them to set the number of available processors as it's set-once in Netty.
-     */
-    systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
-// xpack modules are installed in real clusters as the meta plugin, so
-// installing them as individual plugins for integ tests doesn't make sense,
-// so we disable integ tests
-integTest.enabled = false
+addQaCheckDependencies()

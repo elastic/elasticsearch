@@ -1,26 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.EnclosedAgg;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
+
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isExact;
+import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isNumericOrDateOrTime;
 
 /**
  * Find the maximum value in matching documents.
  */
 public class Max extends NumericAggregate implements EnclosedAgg {
 
-    public Max(Location location, Expression field) {
-        super(location, field);
+    public Max(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -30,7 +35,7 @@ public class Max extends NumericAggregate implements EnclosedAgg {
 
     @Override
     public Max replaceChildren(List<Expression> newChildren) {
-        return new Max(location(), newChildren.get(0));
+        return new Max(source(), newChildren.get(0));
     }
 
     @Override
@@ -45,6 +50,10 @@ public class Max extends NumericAggregate implements EnclosedAgg {
 
     @Override
     protected TypeResolution resolveType() {
-        return Expressions.typeMustBeNumericOrDate(field(), functionName(), ParamOrdinal.DEFAULT);
+        if (DataTypes.isString(field().dataType())) {
+            return isExact(field(), sourceText(), DEFAULT);
+        } else {
+            return isNumericOrDateOrTime(field(), sourceText(), DEFAULT);
+        }
     }
 }

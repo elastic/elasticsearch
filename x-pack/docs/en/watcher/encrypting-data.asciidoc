@@ -1,5 +1,6 @@
+[role="xpack"]
 [[encrypting-data]]
-== Encrypting Sensitive Data in {watcher}
+== Encrypting sensitive data in {watcher}
 
 Watches might have access to sensitive data such as HTTP basic authentication
 information or details about your SMTP email service. You can encrypt this
@@ -14,7 +15,7 @@ encrypted.
 
 To encrypt sensitive data in {watcher}:
 
-. Use the {ref}/syskeygen.html[elasticsearch-syskeygen] command to create a system key file.
+. Use the <<syskeygen,elasticsearch-syskeygen>> command to create a system key file.
 
 . Copy the `system_key` file to all of the nodes in your cluster.
 +
@@ -24,8 +25,7 @@ every node in the cluster.
 
 --
 
-. Set the
-{ref}/notification-settings.html[`xpack.watcher.encrypt_sensitive_data` setting]:
+. Set the <<notification-settings,`xpack.watcher.encrypt_sensitive_data` setting>>:
 +
 --
 
@@ -36,8 +36,8 @@ xpack.watcher.encrypt_sensitive_data: true
 --
 
 . Set the
-{ref}/notification-settings.html[`xpack.watcher.encryption_key` setting] in the
-{ref}/secure-settings.html[{es} keystore] on each node in the cluster.
+<<notification-settings,`xpack.watcher.encryption_key` setting>> in the
+<<secure-settings,{es} keystore>> on each node in the cluster.
 +
 --
 For example, run the following command to import the `system_key` file on

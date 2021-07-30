@@ -1,7 +1,7 @@
 [[tune-for-disk-usage]]
 == Tune for disk usage
 
-[float]
+[discrete]
 === Disable the features you do not need
 
 By default Elasticsearch indexes and adds doc values to most fields so that they
@@ -10,95 +10,84 @@ field called `foo` that you need to run histograms on but that you never need to
 filter on, you can safely disable indexing on this field in your
 <<mappings,mappings>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "integer",
-          "index": false
-        }
+    "properties": {
+      "foo": {
+        "type": "integer",
+        "index": false
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <<text,`text`>> fields store normalization factors in the index in order to be
 able to score documents. If you only need matching capabilities on a `text`
 field but do not care about the produced scores, you can configure Elasticsearch
 to not write norms to the index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "text",
-          "norms": false
-        }
+    "properties": {
+      "foo": {
+        "type": "text",
+        "norms": false
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <<text,`text`>> fields also store frequencies and positions in the index by
 default. Frequencies are used to compute scores and positions are used to run
 phrase queries. If you do not need to run phrase queries, you can tell
 Elasticsearch to not index positions:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "text",
-          "index_options": "freqs"
-        }
+    "properties": {
+      "foo": {
+        "type": "text",
+        "index_options": "freqs"
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Furthermore if you do not care about scoring either, you can configure
 Elasticsearch to just index matching documents for every term. You will
 still be able to search on this field, but phrase queries will raise errors
 and scoring will assume that terms appear only once in every document.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "text",
-          "norms": false,
-          "index_options": "freqs"
-        }
+    "properties": {
+      "foo": {
+        "type": "text",
+        "norms": false,
+        "index_options": "freqs"
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 
-[float]
+[discrete]
+[[default-dynamic-string-mapping]]
 === Don't use default dynamic string mappings
 
 The default <<dynamic-mapping,dynamic string mappings>> will index string fields
@@ -113,60 +102,61 @@ or `keyword`.
 For instance, here is a template that can be used in order to only map string
 fields as `keyword`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "strings": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "keyword"
-            }
+    "dynamic_templates": [
+      {
+        "strings": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "keyword"
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 --------------------------------------------------
-// CONSOLE
 
-[float]
+[discrete]
 === Watch your shard size
 
-Larger shards are going to be more efficient at storing data. To increase the size of your shards, you can decrease the number of primary shards in an index by <<indices-create-index,creating indices>> with less primary shards, creating less indices (e.g. by leveraging the <<indices-rollover-index,Rollover API>>), or modifying an existing index using the <<indices-shrink-index,Shrink API>>.
+Larger shards are going to be more efficient at storing data. To increase the size of your shards, you can decrease the number of primary shards in an index by <<indices-create-index,creating indices>> with fewer primary shards, creating fewer indices (e.g. by leveraging the <<indices-rollover-index,Rollover API>>), or modifying an existing index using the <<indices-shrink-index,Shrink API>>.
 
 Keep in mind that large shard sizes come with drawbacks, such as long full recovery times.
 
-[float]
+[discrete]
+[[disable-source]]
 === Disable `_source`
 
 The <<mapping-source-field,`_source`>> field stores the original JSON body of the document. If you don’t need access to it you can disable it. However, APIs that needs access to `_source` such as update and reindex won’t work.
 
-[float]
+[discrete]
+[[best-compression]]
 === Use `best_compression`
 
 The `_source` and stored fields can easily take a non negligible amount of disk
 space. They can be compressed more aggressively by using the `best_compression`
 <<index-codec,codec>>.
 
-[float]
-=== Force Merge
+[discrete]
+=== Force merge
 
 Indices in Elasticsearch are stored in one or more shards. Each shard is a Lucene index and made up of one or more segments - the actual files on disk. Larger segments are more efficient for storing data.
 
-The <<indices-forcemerge,`_forcemerge` API>> can be used to reduce the number of segments per shard. In many cases, the number of segments can be reduced to one per shard by setting `max_num_segments=1`.
+The <<indices-forcemerge,force merge API>> can be used to reduce the number of segments per shard. In many cases, the number of segments can be reduced to one per shard by setting `max_num_segments=1`.
 
-[float]
-=== Shrink Index
+include::{es-repo-dir}/indices/forcemerge.asciidoc[tag=force-merge-read-only-warn]
 
-The <<indices-shrink-index,Shrink API>> allows you to reduce the number of shards in an index. Together with the Force Merge API above, this can significantly reduce the number of shards and segments of an index.
+[discrete]
+=== Shrink index
 
-[float]
+The <<indices-shrink-index,shrink API>> allows you to reduce the number of shards in an index. Together with the force merge API above, this can significantly reduce the number of shards and segments of an index.
+
+[discrete]
 === Use the smallest numeric type that is sufficient
 
 The type that you pick for <<number,numeric data>> can have a significant impact
@@ -176,23 +166,31 @@ stored in a `scaled_float` if appropriate or in the smallest type that fits the
 use-case: using `float` over `double`, or `half_float` over `float` will help
 save storage.
 
-[float]
+[discrete]
 === Use index sorting to colocate similar documents
 
 When Elasticsearch stores `_source`, it compresses multiple documents at once
 in order to improve the overall compression ratio. For instance it is very
 common that documents share the same field names, and quite common that they
 share some field values, especially on fields that have a low cardinality or
-a https://en.wikipedia.org/wiki/Zipf%27s_law[zipfian] distribution.
+a {wikipedia}/Zipf%27s_law[zipfian] distribution.
 
 By default documents are compressed together in the order that they are added
 to the index. If you enabled <<index-modules-index-sorting,index sorting>>
 then instead they are compressed in sorted order. Sorting documents with similar
 structure, fields, and values together should improve the compression ratio.
 
-[float]
+[discrete]
 === Put fields in the same order in documents
 
 Due to the fact that multiple documents are compressed together into blocks,
 it is more likely to find longer duplicate strings in those `_source` documents
 if fields always occur in the same order.
+
+[discrete]
+[[roll-up-historical-data]]
+=== Roll up historical data
+
+Keeping older data can useful for later analysis but is often avoided due to
+storage costs. You can use data rollups to summarize and store historical data
+at a fraction of the raw data's storage cost. See <<xpack-rollup>>.

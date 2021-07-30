@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
+import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 
-public class GetCalendarsActionRequestTests extends AbstractStreamableXContentTestCase<GetCalendarsAction.Request> {
+public class GetCalendarsActionRequestTests extends AbstractSerializingTestCase<GetCalendarsAction.Request> {
 
     @Override
     protected GetCalendarsAction.Request createTestInstance() {
@@ -25,8 +26,8 @@ public class GetCalendarsActionRequestTests extends AbstractStreamableXContentTe
     }
 
     @Override
-    protected GetCalendarsAction.Request createBlankInstance() {
-        return new GetCalendarsAction.Request();
+    protected Writeable.Reader<GetCalendarsAction.Request> instanceReader() {
+        return GetCalendarsAction.Request::new;
     }
 
     @Override

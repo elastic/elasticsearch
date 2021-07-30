@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.analysis;
@@ -22,11 +11,7 @@ package org.elasticsearch.index.analysis;
 import com.ibm.icu.text.FilteredNormalizer2;
 import com.ibm.icu.text.Normalizer2;
 import com.ibm.icu.text.UnicodeSet;
-
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -38,9 +23,6 @@ import org.elasticsearch.index.IndexSettings;
  * <p>The {@code unicodeSetFilter} attribute can be used to provide the UniCodeSet for filtering.</p>
  */
 public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
-
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(IcuNormalizerTokenFilterFactory.class));
 
     private final Normalizer2 normalizer;
 
@@ -59,14 +41,7 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
     static Normalizer2 wrapWithUnicodeSetFilter(final IndexSettings indexSettings,
                                                 final Normalizer2 normalizer,
                                                 final Settings settings) {
-        String unicodeSetFilter = settings.get("unicodeSetFilter");
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-            if (unicodeSetFilter != null) {
-                deprecationLogger.deprecated("[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]");
-            } else {
-                unicodeSetFilter = settings.get("unicode_set_filter");
-            }
-        }
+        String unicodeSetFilter = settings.get("unicode_set_filter");
         if (unicodeSetFilter != null) {
             UnicodeSet unicodeSet = new UnicodeSet(unicodeSetFilter);
 

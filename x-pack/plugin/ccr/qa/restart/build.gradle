@@ -1,0 +1,58 @@
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+
+dependencies {
+  testImplementation project(':x-pack:plugin:ccr:qa')
+}
+
+testClusters {
+  'leader-cluster' {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
+  }
+
+  'follow-cluster' {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.monitoring.collection.enabled', 'true'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
+    setting 'cluster.remote.leader_cluster.seeds',
+            { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().get(0)}\"" }
+    nameCustomization = { 'follow' }
+  }
+}
+
+tasks.register('leader-cluster', RestIntegTestTask) {
+  mustRunAfter("precommit")
+  systemProperty 'tests.target_cluster', 'leader'
+}
+
+tasks.register('follow-cluster', RestIntegTestTask) {
+  dependsOn 'leader-cluster'
+  useCluster testClusters.'leader-cluster'
+  systemProperty 'tests.target_cluster', 'follow'
+  nonInputProperties.systemProperty 'tests.leader_host',
+          "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
+}
+
+tasks.register("followClusterRestartTest", StandaloneRestIntegTestTask) {
+  dependsOn 'follow-cluster'
+  useCluster testClusters.'leader-cluster'
+  useCluster testClusters.'follow-cluster'
+
+  systemProperty 'tests.rest.load_packaged', 'false'
+  systemProperty 'tests.target_cluster', 'follow-restart'
+  doFirst {
+    testClusters.'follow-cluster'.restart()
+    nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
+    nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.'follow-cluster'.getAllHttpSocketURI().join(",")}"
+  }
+}
+
+tasks.named("check").configure { dependsOn "followClusterRestartTest" }

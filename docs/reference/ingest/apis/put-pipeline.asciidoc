@@ -1,0 +1,82 @@
+[[put-pipeline-api]]
+=== Create or update pipeline API
+++++
+<titleabbrev>Create or update pipeline</titleabbrev>
+++++
+
+Creates or updates an <<ingest,ingest pipeline>>. Changes made using this API
+take effect immediately.
+
+[source,console]
+----
+PUT _ingest/pipeline/my-pipeline-id
+{
+  "description" : "My optional pipeline description",
+  "processors" : [
+    {
+      "set" : {
+        "description" : "My optional processor description",
+        "field": "my-keyword-field",
+        "value": "foo"
+      }
+    }
+  ]
+}
+----
+
+
+[[put-pipeline-api-request]]
+==== {api-request-title}
+
+`PUT /_ingest/pipeline/<pipeline>`
+
+[[put-pipeline-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_pipeline`, `manage_ingest_pipelines`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
+
+[[put-pipeline-api-path-params]]
+==== {api-path-parms-title}
+
+`<pipeline>`::
+(Required, string) ID of the ingest pipeline to create or update.
+
+
+[[put-pipeline-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+
+[[put-pipeline-api-request-body]]
+==== {api-request-body-title}
+
+// tag::pipeline-object[]
+`description`::
+(Optional, string)
+Description of the ingest pipeline.
+
+`on_failure`::
+(Optional, array of <<processors,processor>> objects)
+Processors to run immediately after a processor failure.
++
+Each processor supports a processor-level `on_failure` value. If a processor
+without an `on_failure` value fails, {es} uses this pipeline-level parameter as
+a fallback. The processors in this parameter run sequentially in the order
+specified. {es} will not attempt to run the pipeline's remaining processors.
+
+`processors`::
+(Required, array of <<processors,processor>> objects)
+Processors used to preform transformations on documents before indexing.
+Processors run sequentially in the order specified.
+
+`version`::
+(Optional, integer)
+Version number used by external systems to track ingest pipelines.
++
+This parameter is intended for external systems only. {es} does not use or
+validate pipeline version numbers.
+// end::pipeline-object[]

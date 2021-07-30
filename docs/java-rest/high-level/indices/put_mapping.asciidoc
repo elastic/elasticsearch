@@ -5,19 +5,21 @@
 --
 
 [id="{upid}-{api}"]
-=== Put Mapping API
+=== Update mapping API
+
+Adds new fields to an existing data stream or index. You can also use the API to
+change the search settings of existing fields.
 
 [id="{upid}-{api}-request"]
-==== Put Mapping Request
+==== Request
 
-A +{request}+ requires an `index` argument, and a type:
+A +{request}+ requires an `index` argument:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The index to add the mapping to
-<2> The type to create (or update)
 
 ==== Mapping source
 A description of the fields to create on the mapping; if not defined, the mapping will default to empty.
@@ -46,13 +48,6 @@ include-tagged::{doc-tests-file}[{api}-xcontent]
 <1> Mapping source provided as an `XContentBuilder` object, the Elasticsearch
 built-in helpers to generate JSON content
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-shortcut]
---------------------------------------------------
-<1> Mapping source provided as `Object` key-pairs, which gets converted to
-JSON format
-
 ==== Optional arguments
 The following arguments can optionally be provided:
 
@@ -61,19 +56,17 @@ The following arguments can optionally be provided:
 include-tagged::{doc-tests-file}[{api}-request-timeout]
 --------------------------------------------------
 <1> Timeout to wait for the all the nodes to acknowledge the index creation as a `TimeValue`
-<2> Timeout to wait for the all the nodes to acknowledge the index creation as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
-<2> Timeout to connect to the master node as a `String`
 
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Put Mapping Response
+==== Response
 
 The returned +{response}+ allows to retrieve information about the executed
  operation as follows:

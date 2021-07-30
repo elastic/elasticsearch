@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.job;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -25,14 +27,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * These utilities are used to convert agg responses into a set of rollup documents.
  * They are extracted out as static classes mainly to make testing easier.
  */
 class IndexerUtils {
-    private static final Logger logger = Logger.getLogger(IndexerUtils.class.getName());
+    private static final Logger logger = LogManager.getLogger(IndexerUtils.class);
 
     /**
      * The only entry point in this class.  You hand this method an aggregation and an index
@@ -43,11 +45,10 @@ class IndexerUtils {
      * @param stats            The stats accumulator for this job's task
      * @param groupConfig      The grouping configuration for the job
      * @param jobId            The ID for the job
-     * @param isUpgradedDocID  `true` if this job is using the new ID scheme
-     * @return             A list of rolled documents derived from the response
+     * @return                 A stream of rolled documents derived from the response
      */
-    static List<IndexRequest> processBuckets(CompositeAggregation agg, String rollupIndex, RollupIndexerJobStats stats,
-                                             GroupConfig groupConfig, String jobId, boolean isUpgradedDocID) {
+    static Stream<IndexRequest> processBuckets(CompositeAggregation agg, String rollupIndex, RollupIndexerJobStats stats,
+                                             GroupConfig groupConfig, String jobId) {
 
         logger.debug("Buckets: [" + agg.getBuckets().size() + "][" + jobId + "]");
         return agg.getBuckets().stream().map(b ->{
@@ -58,26 +59,20 @@ class IndexerUtils {
             TreeMap<String, Object> keys = new TreeMap<>(b.getKey());
             List<Aggregation> metrics = b.getAggregations().asList();
 
-            RollupIDGenerator idGenerator;
-            if (isUpgradedDocID) {
-                idGenerator = new RollupIDGenerator.Murmur3(jobId);
-            } else  {
-                idGenerator = new RollupIDGenerator.CRC();
-            }
+            RollupIDGenerator idGenerator  = new RollupIDGenerator(jobId);
             Map<String, Object> doc = new HashMap<>(keys.size() + metrics.size());
 
             processKeys(keys, doc, b.getDocCount(), groupConfig, idGenerator);
             idGenerator.add(jobId);
             processMetrics(metrics, doc);
 
-            doc.put(RollupField.ROLLUP_META + "." + RollupField.VERSION_FIELD,
-                isUpgradedDocID ? Rollup.CURRENT_ROLLUP_VERSION : Rollup.ROLLUP_VERSION_V1);
+            doc.put(RollupField.ROLLUP_META + "." + RollupField.VERSION_FIELD, Rollup.CURRENT_ROLLUP_VERSION );
             doc.put(RollupField.ROLLUP_META + "." + RollupField.ID.getPreferredName(), jobId);
 
-            IndexRequest request = new IndexRequest(rollupIndex, RollupField.TYPE_NAME, idGenerator.getID());
+            IndexRequest request = new IndexRequest(rollupIndex).id(idGenerator.getID());
             request.source(doc);
             return request;
-        }).collect(Collectors.toList());
+        });
     }
 
     private static void processKeys(Map<String, Object> keys, Map<String, Object> doc,

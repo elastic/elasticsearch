@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -33,9 +35,13 @@ public class DelayedDataDetectorFactory {
      * @param job The {@link Job} object for the given `datafeedConfig`
      * @param datafeedConfig The {@link DatafeedConfig} for which to create the {@link DelayedDataDetector}
      * @param client The {@link Client} capable of taking action against the ES Cluster.
+     * @param xContentRegistry The current NamedXContentRegistry with which to parse the query
      * @return A new {@link DelayedDataDetector}
      */
-    public static DelayedDataDetector buildDetector(Job job, DatafeedConfig datafeedConfig, Client client) {
+    public static DelayedDataDetector buildDetector(Job job,
+                                                    DatafeedConfig datafeedConfig,
+                                                    Client client,
+                                                    NamedXContentRegistry xContentRegistry) {
         if (datafeedConfig.getDelayedDataCheckConfig().isEnabled()) {
             long window = validateAndCalculateWindowLength(job.getAnalysisConfig().getBucketSpan(),
                 datafeedConfig.getDelayedDataCheckConfig().getCheckWindow());
@@ -44,8 +50,10 @@ public class DelayedDataDetectorFactory {
                 window,
                 job.getId(),
                 job.getDataDescription().getTimeField(),
-                datafeedConfig.getParsedQuery(),
+                datafeedConfig.getParsedQuery(xContentRegistry),
                 datafeedConfig.getIndices().toArray(new String[0]),
+                datafeedConfig.getIndicesOptions(),
+                datafeedConfig.getRuntimeMappings(),
                 client);
         } else {
             return new NullDelayedDataDetector();

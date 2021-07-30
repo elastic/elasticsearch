@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test;
 
@@ -26,7 +15,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
@@ -35,39 +26,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static junit.framework.TestCase.fail;
 
 public class ClusterServiceUtils {
-
-    public static MasterService createMasterService(ThreadPool threadPool, ClusterState initialClusterState) {
-        MasterService masterService = new MasterService("test_master_node", Settings.EMPTY, threadPool);
-        AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
-        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
-            clusterStateRef.set(event.state());
-            publishListener.onResponse(null);
-        });
-        masterService.setClusterStateSupplier(clusterStateRef::get);
-        masterService.start();
-        return masterService;
-    }
-
-    public static MasterService createMasterService(ThreadPool threadPool, DiscoveryNode localNode) {
-        ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
-            .nodes(DiscoveryNodes.builder()
-                .add(localNode)
-                .localNodeId(localNode.getId())
-                .masterNodeId(localNode.getId()))
-            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
-        return createMasterService(threadPool, initialClusterState);
-    }
 
     public static void setState(ClusterApplierService executor, ClusterState clusterState) {
         CountDownLatch latch = new CountDownLatch(1);
@@ -123,7 +90,7 @@ public class ClusterServiceUtils {
 
     public static ClusterService createClusterService(ThreadPool threadPool) {
         DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+            DiscoveryNodeRole.roles(), Version.CURRENT);
         return createClusterService(threadPool, discoveryNode);
     }
 
@@ -137,17 +104,7 @@ public class ClusterServiceUtils {
                 .put("cluster.name", "ClusterServiceTests")
                 .build();
         ClusterService clusterService = new ClusterService(settings, clusterSettings, threadPool);
-        clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
-            @Override
-            public void connectToNodes(DiscoveryNodes discoveryNodes) {
-                // skip
-            }
-
-            @Override
-            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
-                // skip
-            }
-        });
+        clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder()
                 .add(localNode)
@@ -160,6 +117,21 @@ public class ClusterServiceUtils {
         clusterService.getMasterService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
         clusterService.start();
         return clusterService;
+    }
+
+    public static NodeConnectionsService createNoOpNodeConnectionsService() {
+        return new NodeConnectionsService(Settings.EMPTY, null, null) {
+            @Override
+            public void connectToNodes(DiscoveryNodes discoveryNodes, Runnable onCompletion) {
+                // don't do anything
+                onCompletion.run();
+            }
+
+            @Override
+            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
+                // don't do anything
+            }
+        };
     }
 
     public static ClusterStatePublisher createClusterStatePublisher(ClusterApplier clusterApplier) {

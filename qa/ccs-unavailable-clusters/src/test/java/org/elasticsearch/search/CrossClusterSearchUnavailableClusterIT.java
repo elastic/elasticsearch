@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
@@ -22,6 +11,7 @@ package org.elasticsearch.search;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
@@ -32,9 +22,11 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -46,9 +38,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -107,6 +103,14 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                         channel.sendResponse(new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
                                 knownNodes.toArray(new DiscoveryNode[0]), Collections.emptyMap()));
                     });
+            newService.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new,
+                (request, channel, task) -> {
+                    InternalSearchResponse response = new InternalSearchResponse(new SearchHits(new SearchHit[0],
+                        new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN), InternalAggregations.EMPTY, null, null, false, null, 1);
+                    SearchResponse searchResponse = new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY);
+                    channel.sendResponse(searchResponse);
+                });
             newService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,
                 (request, channel, task) -> {
                         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
@@ -114,7 +118,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                             builder.add(node);
                         }
                         ClusterState build = ClusterState.builder(clusterName).nodes(builder.build()).build();
-                        channel.sendResponse(new ClusterStateResponse(clusterName, build, 0L, false));
+                        channel.sendResponse(new ClusterStateResponse(clusterName, build, false));
                     });
             newService.start();
             newService.acceptIncomingRequests();
@@ -135,7 +139,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
             for (int i = 0; i < 10; i++) {
                 restHighLevelClient.index(
-                        new IndexRequest("index", "doc", String.valueOf(i)).source("field", "value"), RequestOptions.DEFAULT);
+                        new IndexRequest("index").id(String.valueOf(i)).source("field", "value"), RequestOptions.DEFAULT);
             }
             Response refreshResponse = client().performRequest(new Request("POST", "/index/_refresh"));
             assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
@@ -235,8 +239,8 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                         () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
                 assertThat(responseException.getMessage(),
-                        containsString("missing required setting [cluster.remote.remote1.seeds] " +
-                                "for setting [cluster.remote.remote1.skip_unavailable]"));
+                        containsString("Cannot configure setting [cluster.remote.remote1.skip_unavailable] if remote cluster is " +
+                            "not enabled."));
             }
 
             Map<String, Object> settingsMap = new HashMap<>();
@@ -251,8 +255,8 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 ResponseException responseException = expectThrows(ResponseException.class,
                         () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-                assertThat(responseException.getMessage(), containsString("missing required setting [cluster.remote.remote1.seeds] " +
-                        "for setting [cluster.remote.remote1.skip_unavailable]"));
+                assertThat(responseException.getMessage(), containsString("Cannot configure setting " +
+                    "[cluster.remote.remote1.skip_unavailable] if remote cluster is not enabled."));
             }
 
             if (randomBoolean()) {
@@ -324,5 +328,13 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
         private HighLevelClient(RestClient restClient) {
             super(restClient, (client) -> {}, Collections.emptyList());
         }
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
     }
 }

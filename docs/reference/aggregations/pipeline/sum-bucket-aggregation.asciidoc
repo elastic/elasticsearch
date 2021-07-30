@@ -1,7 +1,11 @@
 [[search-aggregations-pipeline-sum-bucket-aggregation]]
-=== Sum Bucket Aggregation
+=== Sum bucket aggregation
+++++
+<titleabbrev>Sum bucket</titleabbrev>
+++++
 
-A sibling pipeline aggregation which calculates the sum across all bucket of a specified metric in a sibling aggregation.
+
+A sibling pipeline aggregation which calculates the sum across all buckets of a specified metric in a sibling aggregation.
 The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.
 
 ==== Syntax
@@ -11,14 +15,16 @@ A `sum_bucket` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "sum_bucket": {
-        "buckets_path": "the_sum"
-    }
+  "sum_bucket": {
+    "buckets_path": "the_sum"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
 
+[[sum-bucket-params]]
 .`sum_bucket` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to find the sum for (see <<buckets-path-syntax>> for more
@@ -30,34 +36,33 @@ A `sum_bucket` aggregation looks like this in isolation:
 
 The following snippet calculates the sum of all the total monthly `sales` buckets:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                }
-            }
-        },
-        "sum_monthly_sales": {
-            "sum_bucket": {
-                "buckets_path": "sales_per_month>sales" <1>
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
         }
+      }
+    },
+    "sum_monthly_sales": {
+      "sum_bucket": {
+        "buckets_path": "sales_per_month>sales" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> `buckets_path` instructs this sum_bucket aggregation that we want the sum of the `sales` aggregation in the
@@ -65,7 +70,7 @@ POST /sales/_search
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,

@@ -1,28 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * A bit array that is implemented using a growing {@link LongArray}
@@ -34,31 +21,103 @@ public final class BitArray implements Releasable {
     private final BigArrays bigArrays;
     private LongArray bits;
 
-    public BitArray(int initialSize, BigArrays bigArrays) {
+    /**
+     * Create the {@linkplain BitArray}.
+     * @param initialSize the initial size of underlying storage expressed in bits.
+     */
+    public BitArray(long initialSize, BigArrays bigArrays) {
         this.bigArrays = bigArrays;
-        this.bits = bigArrays.newLongArray(initialSize, true);
+        this.bits = bigArrays.newLongArray(wordNum(initialSize) + 1, true);
     }
 
-    public void set(int index) {
-        fill(index, true);
+    /**
+     * Set the {@code index}th bit.
+     */
+    public void set(long index) {
+        long wordNum = wordNum(index);
+        bits = bigArrays.grow(bits, wordNum + 1);
+        bits.set(wordNum, bits.get(wordNum) | bitmask(index));
     }
 
-    public void clear(int index) {
-        fill(index, false);
+    /** this = this OR other */
+    public void or(BitArray other) {
+        or(other.bits);
     }
 
-    public boolean get(int index) {
-        int wordNum = index >> 6;
+    private void or(final LongArray otherArr) {
+        long pos = otherArr.size();
+        bits = bigArrays.grow(bits, pos + 1);
+        final LongArray thisArr = this.bits;
+        while (--pos >= 0) {
+            thisArr.set(pos, thisArr.get(pos) | otherArr.get(pos));
+        }
+    }
+
+    public long nextSetBit(long index) {
+        long wordNum = wordNum(index);
+        if (wordNum >= bits.size()) {
+            return Long.MAX_VALUE;
+        }
+        long word = bits.get(wordNum) >> index;  // skip all the bits to the right of index
+
+        if (word!=0) {
+            return index + Long.numberOfTrailingZeros(word);
+        }
+
+        while (++wordNum < bits.size()) {
+            word = bits.get(wordNum);
+            if (word != 0) {
+                return (wordNum << 6) + Long.numberOfTrailingZeros(word);
+            }
+        }
+        return Long.MAX_VALUE;
+    }
+
+    public long cardinality() {
+        long cardinality = 0;
+        for (int i = 0; i < bits.size(); ++i) {
+            cardinality += Long.bitCount(bits.get(i));
+        }
+        return cardinality;
+    }
+
+    /**
+     * Clear the {@code index}th bit.
+     */
+    public void clear(long index) {
+        long wordNum = wordNum(index);
+        if (wordNum >= bits.size()) {
+            /*
+             * No need to resize the array just to clear the bit because we'll
+             * initialize them to false when we grow the array anyway.
+             */
+            return;
+        }
+        bits.set(wordNum, bits.get(wordNum) & ~bitmask(index));
+    }
+
+    /**
+     * Is the {@code index}th bit set?
+     */
+    public boolean get(long index) {
+        long wordNum = wordNum(index);
+        if (wordNum >= bits.size()) {
+            /*
+             * If the word is bigger than the array then it could *never* have
+             * been set.
+             */
+            return false;
+        }
         long bitmask = 1L << index;
         return (bits.get(wordNum) & bitmask) != 0;
     }
 
-    private void fill(int index, boolean bit) {
-        int wordNum = index >> 6;
-        bits = bigArrays.grow(bits,wordNum+1);
-        long bitmask = 1L << index;
-        long value = bit ? bits.get(wordNum) | bitmask : bits.get(wordNum) & ~bitmask;
-        bits.set(wordNum, value);
+    private static long wordNum(long index) {
+        return index >> 6;
+    }
+
+    private static long bitmask(long index) {
+        return 1L << index;
     }
 
     @Override

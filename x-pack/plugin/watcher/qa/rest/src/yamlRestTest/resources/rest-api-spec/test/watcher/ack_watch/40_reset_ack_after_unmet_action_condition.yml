@@ -1,0 +1,103 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      watcher.delete_watch:
+        id: "my_watch"
+        ignore: 404
+
+---
+"Ensure that ack status is reset after unmet action condition":
+
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        body: >
+          {
+            "trigger": {
+              "schedule": {
+                "interval": "1m"
+              }
+            },
+            "input": {
+              "simple" : { "match" : "true" }
+            },
+           "actions": {
+              "indexme" : {
+                "condition": {
+                  "compare": {
+                    "ctx.payload.match": {
+                      "eq": "true"
+                    }
+                  }
+                },
+                "index" : {
+                 "index" : "my_test_index",
+                 "doc_id": "my-id"
+                }
+              }
+            }
+          }
+
+  - do:
+      watcher.execute_watch:
+        id: "my_watch"
+        body: >
+          {
+            "record_execution" : true
+          }
+  - match: { watch_record.status.actions.indexme.ack.state: "ackable" }
+
+  - do:
+      watcher.ack_watch:
+        watch_id: "my_watch"
+  - match: { "status.actions.indexme.ack.state" : "acked" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { "status.actions.indexme.ack.state" : "acked" }
+
+  # having a false result will reset the ack state
+  - do:
+      watcher.execute_watch:
+        id: "my_watch"
+        body: >
+          {
+            "record_execution" : true,
+            "alternative_input" : {
+              "match" : "false"
+            },
+            "action_modes" : {
+              "indexme" : "force_execute"
+            }
+          }
+  - match: { watch_record.status.actions.indexme.ack.state: "awaits_successful_execution" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { "status.actions.indexme.ack.state" : "awaits_successful_execution" }
+
+  - do:
+      watcher.execute_watch:
+        id: "my_watch"
+        body: >
+          {
+            "record_execution" : true,
+            "action_modes" : {
+              "indexme" : "force_execute"
+            }
+          }
+  - match: { watch_record.status.actions.indexme.ack.state: "ackable" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { "status.actions.indexme.ack.state" : "ackable" }
+

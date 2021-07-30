@@ -1,24 +1,31 @@
 [[dynamic]]
 === `dynamic`
 
-By default, fields can be added _dynamically_ to a document, or to
-<<object,inner objects>> within a document, just by indexing a document
-containing the new field.  For instance:
+When you index a document containing a new field, {es} <<dynamic-mapping,adds the field dynamically>> to a document or to inner objects within a document. The
+following document adds the string field `username`, the object field
+`name`, and two string fields under the `name` object:
 
-[source,js]
---------------------------------------------------
-PUT my_index/_doc/1 <1>
+[source,console]
+----
+PUT my-index-000001/_doc/1
 {
   "username": "johnsmith",
-  "name": {
+  "name": { <1>
     "first": "John",
     "last": "Smith"
   }
 }
 
-GET my_index/_mapping <2>
+GET my-index-000001/_mapping <2>
+----
+<1> Refer to fields under the `name` object as `name.first` and `name.last`.
+<2> Check the mapping to view changes.
 
-PUT my_index/_doc/2 <3>
+The following document adds two string fields: `email` and `name.middle`:
+
+[source,console]
+----
+PUT my-index-000001/_doc/2
 {
   "username": "marywhite",
   "email": "mary@white.com",
@@ -29,61 +36,57 @@ PUT my_index/_doc/2 <3>
   }
 }
 
-GET my_index/_mapping <4>
---------------------------------------------------
-// CONSOLE
-<1> This document introduces the string field `username`, the object field
-    `name`, and two string fields under the `name` object which can be
-    referred to as `name.first` and `name.last`.
-<2> Check the mapping to verify the above.
-<3> This document adds two string fields: `email` and `name.middle`.
-<4> Check the mapping to verify the changes.
+GET my-index-000001/_mapping
+----
 
-The details of how new fields are detected and added to the mapping is explained in <<dynamic-mapping>>.
+[[dynamic-inner-objects]]
+==== Setting `dynamic` on inner objects
+<<object,Inner objects>> inherit the `dynamic` setting from their parent
+object or from the mapping type. In the following example, dynamic mapping is
+disabled at the type level, so no new top-level fields will be added
+dynamically.
 
-The `dynamic` setting controls whether new fields can be added dynamically or
-not.  It accepts three settings:
+However, the `user.social_networks` object enables dynamic mapping, so you can
+add fields to this inner object.
 
-[horizontal]
-`true`::    Newly detected fields are added to the mapping. (default)
-`false`::   Newly detected fields are ignored. These fields will not be indexed so will not be searchable 
-            but will still appear in the `_source` field of returned hits. These fields will not be added 
-            to the mapping,  new fields must be added explicitly.
-`strict`::  If new fields are detected, an exception is thrown and the document is rejected. New fields 
-            must be explicitly added to the mapping.
-
-The `dynamic` setting may be set at the mapping type level, and on each
-<<object,inner object>>.  Inner objects inherit the setting from their parent
-object or from the mapping type.  For instance:
-
-[source,js]
---------------------------------------------------
-PUT my_index
+[source,console]
+----
+PUT my-index-000001
 {
   "mappings": {
-    "_doc": {
-      "dynamic": false, <1>
-      "properties": {
-        "user": { <2>
-          "properties": {
-            "name": {
-              "type": "text"
-            },
-            "social_networks": { <3>
-              "dynamic": true,
-              "properties": {}
-            }
+    "dynamic": false, <1>
+    "properties": {
+      "user": { <2>
+        "properties": {
+          "name": {
+            "type": "text"
+          },
+          "social_networks": {
+            "dynamic": true, <3>
+            "properties": {}
           }
         }
       }
     }
   }
 }
---------------------------------------------------
-// CONSOLE
-<1> Dynamic mapping is disabled at the type level, so no new top-level fields will be added dynamically.
-<2> The `user` object inherits the type-level setting.
-<3> The `user.social_networks` object enables dynamic mapping, so new fields may be added to this inner object.
+----
 
-TIP: The `dynamic` setting can be updated on existing fields
-using the <<indices-put-mapping,PUT mapping API>>.
+<1> Disables dynamic mapping at the type level.
+<2> The `user` object inherits the type-level setting.
+<3> Enables dynamic mapping for this inner object.
+
+[[dynamic-parameters]]
+==== Parameters for `dynamic`
+The `dynamic` parameter controls whether new fields are added dynamically, and
+accepts the following parameters:
+
+[horizontal]
+`true`::    New fields are added to the mapping (default).
+`runtime`:: New fields are added to the mapping as <<runtime,runtime fields>>.
+            These fields are not indexed, and are loaded from `_source` at query time.
+`false`::   New fields are ignored. These fields will not be indexed
+            or searchable, but will still appear in the `_source` field of returned hits. These fields will not be added
+            to the mapping, and new fields must be added explicitly.
+`strict`::  If new fields are detected, an exception is thrown and the document
+            is rejected. New fields must be explicitly added to the mapping.

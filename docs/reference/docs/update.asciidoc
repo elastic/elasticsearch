@@ -1,190 +1,274 @@
 [[docs-update]]
-== Update API
+=== Update API
+++++
+<titleabbrev>Update</titleabbrev>
+++++
 
-The update API allows to update a document based on a script provided.
-The operation gets the document (collocated with the shard) from the
-index, runs the script (with optional script language and parameters),
-and index back the result (also allows to delete, or ignore the
-operation). It uses versioning to make sure no updates have happened
-during the "get" and "reindex".
+Updates a document using the specified script.
 
-Note, this operation still means full reindex of the document, it just
-removes some network roundtrips and reduces chances of version conflicts
-between the get and the index. The `_source` field needs to be enabled
-for this feature to work.
+[[docs-update-api-request]]
+==== {api-request-title}
 
-For example, let's index a simple doc:
+`POST /<index>/_update/<_id>`
 
-[source,js]
---------------------------------------------------
+[[docs-update-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `index` or
+`write` <<privileges-list-indices,index privilege>> for the target index or
+index alias.
+
+[[update-api-desc]]
+==== {api-description-title}
+
+Enables you to script document updates. The script can update, delete, or skip
+modifying the document. The update API also supports passing a partial document,
+which is merged into the existing document. To fully replace an existing
+document, use the <<docs-index_,`index` API>>.
+
+This operation:
+
+. Gets the document (collocated with the shard) from the index.
+. Runs the specified script.
+. Indexes the result.
+
+The document must still be reindexed, but using `update` removes some network
+roundtrips and reduces chances of version conflicts between the GET and the
+index operation.
+
+The `_source` field must be enabled to use `update`. In addition to `_source`,
+you can access the following variables through the `ctx` map: `_index`,
+`_type`, `_id`, `_version`, `_routing`, and `_now` (the current timestamp).
+
+[[docs-update-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Required, string) Name of the target index. By default, the index is created
+automatically if it doesn't exist. For more information, see <<index-creation>>.
+
+`<_id>`::
+(Required, string) Unique identifier for the document to be updated.
+
+[[docs-update-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
+
+`lang`::
+(Optional, string) The script language. Default: `painless`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=require-alias]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+
+`retry_on_conflict`::
+(Optional, integer) Specify how many times should the operation be retried when
+ a conflict occurs. Default: 0.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+
+`_source`::
+(Optional, list) Set to `false` to disable source retrieval (default: `true`).
+You can also specify a comma-separated list of the fields you want to retrieve.
+
+`_source_excludes`::
+(Optional, list) Specify the source fields you want to exclude.
+
+`_source_includes`::
+(Optional, list) Specify the source fields you want to retrieve.
+
+`timeout`::
++
+--
+(Optional, <<time-units, time units>>)
+Period to wait for the following operations:
+
+* <<dynamic-mapping,Dynamic mapping>> updates
+* <<index-wait-for-active-shards,Waiting for active shards>>
+
+Defaults to `1m` (one minute). This guarantees {es} waits for at least the
+timeout before failing. The actual wait time could be longer, particularly when
+multiple waits occur.
+--
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+
+[[update-api-example]]
+==== {api-examples-title}
+
+First, let's index a simple doc:
+
+[source,console]
+----
 PUT test/_doc/1
 {
-    "counter" : 1,
-    "tags" : ["red"]
+  "counter" : 1,
+  "tags" : ["red"]
 }
---------------------------------------------------
-// CONSOLE
+----
+// TESTSETUP
 
-[float]
-=== Scripted updates
+To increment the counter, you can submit an update request with the
+following script:
 
-Now, we can execute a script that would increment the counter:
-
-[source,js]
---------------------------------------------------
-POST test/_doc/1/_update
+[source,console]
+----
+POST test/_update/1
 {
-    "script" : {
-        "source": "ctx._source.counter += params.count",
-        "lang": "painless",
-        "params" : {
-            "count" : 4
-        }
+  "script" : {
+    "source": "ctx._source.counter += params.count",
+    "lang": "painless",
+    "params" : {
+      "count" : 4
     }
+  }
 }
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
+----
 
-We can add a tag to the list of tags (note, if the tag exists, it
-will still add it, since it's a list):
+Similarly, you could use and update script to add a tag to the list of tags
+(this is just a list, so the tag is added even it exists):
 
-[source,js]
---------------------------------------------------
-POST test/_doc/1/_update
+[source,console]
+----
+POST test/_update/1
 {
-    "script" : {
-        "source": "ctx._source.tags.add(params.tag)",
-        "lang": "painless",
-        "params" : {
-            "tag" : "blue"
-        }
+  "script": {
+    "source": "ctx._source.tags.add(params.tag)",
+    "lang": "painless",
+    "params": {
+      "tag": "blue"
     }
+  }
 }
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
+----
 
-We can remove a tag from the list of tags. Note that the Painless function to
-`remove` a tag takes as its parameter the array index of the element you wish
-to remove, so you need a bit more logic to locate it while avoiding a runtime
-error. Note that if the tag was present more than once in the list, this will
-remove only one occurrence of it:
+You could also remove a tag from the list of tags. The Painless
+function to `remove` a tag takes the array index of the element
+you want to remove. To avoid a possible runtime error, you first need to
+make sure the tag exists. If the list contains duplicates of the tag, this
+script just removes one occurrence.
 
-[source,js]
---------------------------------------------------
-POST test/_doc/1/_update
+[source,console]
+----
+POST test/_update/1
 {
-    "script" : {
-        "source": "if (ctx._source.tags.contains(params.tag)) { ctx._source.tags.remove(ctx._source.tags.indexOf(params.tag)) }",
-        "lang": "painless",
-        "params" : {
-            "tag" : "blue"
-        }
+  "script": {
+    "source": "if (ctx._source.tags.contains(params.tag)) { ctx._source.tags.remove(ctx._source.tags.indexOf(params.tag)) }",
+    "lang": "painless",
+    "params": {
+      "tag": "blue"
     }
+  }
 }
---------------------------------------------------
-// CONSOLE
+----
+
+You can also add and remove fields from a document. For example, this script
+adds the field `new_field`:
+
+[source,console]
+----
+POST test/_update/1
+{
+  "script" : "ctx._source.new_field = 'value_of_new_field'"
+}
+----
+
+Conversely, this script removes the field `new_field`:
+
+[source,console]
+----
+POST test/_update/1
+{
+  "script" : "ctx._source.remove('new_field')"
+}
+----
 // TEST[continued]
 
-In addition to `_source`, the following variables are available through
-the `ctx` map: `_index`, `_type`, `_id`, `_version`, `_routing`
-and `_now` (the current timestamp).
+The following script removes a subfield from an object field:
 
-We can also add a new field to the document:
-
-[source,js]
---------------------------------------------------
-POST test/_doc/1/_update
+////
+[source,console]
+----
+PUT test/_doc/1?refresh
 {
-    "script" : "ctx._source.new_field = 'value_of_new_field'"
+  "my-object": {
+    "my-subfield": true
+  }
 }
---------------------------------------------------
-// CONSOLE
+----
+////
+
+[source,console]
+----
+POST test/_update/1
+{
+  "script": "ctx._source['my-object'].remove('my-subfield')"
+}
+----
 // TEST[continued]
 
-Or remove a field from the document:
+Instead of updating the document, you can also change the operation that is
+executed from within the script. For example, this request deletes the doc if
+the `tags` field contains `green`, otherwise it does nothing (`noop`):
 
-[source,js]
---------------------------------------------------
-POST test/_doc/1/_update
+[source,console]
+----
+POST test/_update/1
 {
-    "script" : "ctx._source.remove('new_field')"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-And, we can even change the operation that is executed.  This example deletes
-the doc if the `tags` field contain `green`, otherwise it does nothing
-(`noop`):
-
-[source,js]
---------------------------------------------------
-POST test/_doc/1/_update
-{
-    "script" : {
-        "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'none' }",
-        "lang": "painless",
-        "params" : {
-            "tag" : "green"
-        }
+  "script": {
+    "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'none' }",
+    "lang": "painless",
+    "params": {
+      "tag": "green"
     }
+  }
 }
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
+----
 
-[float]
-=== Updates with a partial document
+[discrete]
+===== Update part of a document
 
-The update API also support passing a partial document,
-which will be merged into the existing document (simple recursive merge,
-inner merging of objects, replacing core "keys/values" and arrays).
-To fully replace the existing document, the <<docs-index_,`index` API>> should
-be used instead.
 The following partial update adds a new field to the
 existing document:
 
-[source,js]
---------------------------------------------------
-POST test/_doc/1/_update
+[source,console]
+----
+POST test/_update/1
 {
-    "doc" : {
-        "name" : "new_name"
-    }
+  "doc": {
+    "name": "new_name"
+  }
 }
---------------------------------------------------
-// CONSOLE
+----
+
+If both `doc` and `script` are specified, then `doc` is ignored. If you
+specify a scripted update, include the fields you want to update in the script.
+
+[discrete]
+===== Detect noop updates
+
+By default updates that don't change anything detect that they don't change
+anything and return `"result": "noop"`:
+
+[source,console]
+----
+POST test/_update/1
+{
+  "doc": {
+    "name": "new_name"
+  }
+}
+----
 // TEST[continued]
 
-If both `doc` and `script` are specified, then `doc` is ignored. Best is
-to put your field pairs of the partial document in the script itself.
+If the value of `name` is already `new_name`, the update
+request is ignored and the `result` element in the response returns `noop`:
 
-[float]
-=== Detecting noop updates
-
-If `doc` is specified its value is merged with the existing `_source`.
-By default updates that don't change anything detect that they don't change anything and return "result": "noop" like this:
-
-[source,js]
---------------------------------------------------
-POST test/_doc/1/_update
-{
-    "doc" : {
-        "name" : "new_name"
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-If `name` was `new_name` before the request was sent then the entire update
-request is ignored. The `result` element in the response returns `noop` if
-the request was ignored.
-
-[source,js]
---------------------------------------------------
+[source,console-result]
+----
 {
    "_shards": {
         "total": 0,
@@ -192,160 +276,99 @@ the request was ignored.
         "failed": 0
    },
    "_index": "test",
-   "_type": "_doc",
    "_id": "1",
-   "_version": 7,
+   "_version": 2,
+   "_primary_term": 1,
+   "_seq_no": 1,
    "result": "noop"
 }
---------------------------------------------------
-// TESTRESPONSE
+----
 
-You can disable this behavior by setting "detect_noop": false like this:
+You can disable this behavior by setting `"detect_noop": false`:
 
-[source,js]
---------------------------------------------------
-POST test/_doc/1/_update
+[source,console]
+----
+POST test/_update/1
 {
-    "doc" : {
-        "name" : "new_name"
-    },
-    "detect_noop": false
+  "doc": {
+    "name": "new_name"
+  },
+  "detect_noop": false
 }
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
+----
 
 [[upserts]]
-[float]
-=== Upserts
+[discrete]
+===== Upsert
 
 If the document does not already exist, the contents of the `upsert` element
-will be inserted as a new document.  If the document does exist, then the
-`script` will be executed instead:
+are inserted as a new document. If the document exists, the
+`script` is executed:
 
-[source,js]
---------------------------------------------------
-POST test/_doc/1/_update
+[source,console]
+----
+POST test/_update/1
 {
-    "script" : {
-        "source": "ctx._source.counter += params.count",
-        "lang": "painless",
-        "params" : {
-            "count" : 4
-        }
-    },
-    "upsert" : {
-        "counter" : 1
+  "script": {
+    "source": "ctx._source.counter += params.count",
+    "lang": "painless",
+    "params": {
+      "count": 4
     }
+  },
+  "upsert": {
+    "counter": 1
+  }
 }
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
+----
 
-[float]
-==== `scripted_upsert`
+[discrete]
+[[scripted_upsert]]
+===== Scripted upsert
 
-If you would like your script to run regardless of whether the document exists
-or not -- i.e. the script handles initializing the document instead of the
-`upsert` element -- then set `scripted_upsert` to `true`:
+To run the script whether or not the document exists, set `scripted_upsert` to
+`true`:
 
-[source,js]
---------------------------------------------------
-POST sessions/session/dh3sgudg8gsrgl/_update
+[source,console]
+----
+POST sessions/_update/dh3sgudg8gsrgl
 {
-    "scripted_upsert":true,
-    "script" : {
-        "id": "my_web_session_summariser",
-        "params" : {
-            "pageViewEvent" : {
-                "url":"foo.com/bar",
-                "response":404,
-                "time":"2014-01-01 12:32"
-            }
-        }
-    },
-    "upsert" : {}
+  "scripted_upsert": true,
+  "script": {
+    "id": "my_web_session_summariser",
+    "params": {
+      "pageViewEvent": {
+        "url": "foo.com/bar",
+        "response": 404,
+        "time": "2014-01-01 12:32"
+      }
+    }
+  },
+  "upsert": {}
 }
---------------------------------------------------
-// CONSOLE
+----
 // TEST[s/"id": "my_web_session_summariser"/"source": "ctx._source.page_view_event = params.pageViewEvent"/]
-// TEST[continued]
 
-[float]
-==== `doc_as_upsert`
+[discrete]
+[[doc_as_upsert]]
+===== Doc as upsert
 
-Instead of sending a partial `doc` plus an `upsert` doc, setting
-`doc_as_upsert` to `true` will use the contents of `doc` as the `upsert`
+Instead of sending a partial `doc` plus an `upsert` doc, you can set
+`doc_as_upsert` to `true` to use the contents of `doc` as the `upsert`
 value:
 
-[source,js]
---------------------------------------------------
-POST test/_doc/1/_update
+[source,console]
+----
+POST test/_update/1
 {
-    "doc" : {
-        "name" : "new_name"
-    },
-    "doc_as_upsert" : true
+  "doc": {
+    "name": "new_name"
+  },
+  "doc_as_upsert": true
 }
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-[float]
-=== Parameters
-
-The update operation supports the following query-string parameters:
-
-[horizontal]
-`retry_on_conflict`::
-
-In between the get and indexing phases of the update, it is possible that
-another process might have already updated the same document.  By default, the
-update will fail with a version conflict exception.  The `retry_on_conflict`
-parameter controls how many times to retry the update before finally throwing
-an exception.
-
-`routing`::
-
-Routing is used to route the update request to the right shard and sets the
-routing for the upsert request if the document being updated doesn't exist.
-Can't be used to update the routing of an existing document.
-
-`timeout`::
-
-Timeout waiting for a shard to become available.
-
-`wait_for_active_shards`::
-
-The number of shard copies required to be active before proceeding with the update operation.
-See <<index-wait-for-active-shards,here>> for details.
-
-`refresh`::
-
-Control when the changes made by this request are visible to search. See
-<<docs-refresh>>.
-
-`_source`::
-
-Allows to control if and how the updated source should be returned in the response.
-By default the updated source is not returned.
-See <<search-request-source-filtering, `source filtering`>> for details.
-
-
-`version`::
-
-The update API uses the Elasticsearch's versioning support internally to make
-sure the document doesn't change during the update. You can use the `version`
-parameter to specify that the document should only be updated if its version
-matches the one specified.
+----
 
 [NOTE]
-.The update API does not support versioning other than internal
-=====================================================
-
-External (version types `external` & `external_gte`) or forced (version type `force`)
-versioning is not supported by the update API as it would result in Elasticsearch 
-version numbers being out of sync with the external system.  Use the
-<<docs-index_,`index` API>> instead.
-
-=====================================================
+====
+Using <<ingest,ingest pipelines>> with `doc_as_upsert` is not supported.
+====

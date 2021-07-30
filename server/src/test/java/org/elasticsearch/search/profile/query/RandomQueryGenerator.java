@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.profile.query;
@@ -22,11 +11,9 @@ package org.elasticsearch.search.profile.query;
 import org.apache.lucene.util.English;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
-import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -72,7 +59,7 @@ public class RandomQueryGenerator {
     }
 
     private static QueryBuilder randomTerminalQuery(List<String> stringFields, List<String> numericFields, int numDocs) {
-        switch (randomIntBetween(0,6)) {
+        switch (randomIntBetween(0,5)) {
             case 0:
                 return randomTermQuery(stringFields, numDocs);
             case 1:
@@ -82,10 +69,8 @@ public class RandomQueryGenerator {
             case 3:
                 return QueryBuilders.matchAllQuery();
             case 4:
-                return randomCommonTermsQuery(stringFields, numDocs);
-            case 5:
                 return randomFuzzyQuery(stringFields);
-            case 6:
+            case 5:
                 return randomIDsQuery();
             default:
                 return randomTermQuery(stringFields, numDocs);
@@ -167,31 +152,6 @@ public class RandomQueryGenerator {
 
     private static QueryBuilder randomConstantScoreQuery(List<String> stringFields, List<String> numericFields, int numDocs, int depth) {
         return QueryBuilders.constantScoreQuery(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1));
-    }
-
-    private static QueryBuilder randomCommonTermsQuery(List<String> fields, int numDocs) {
-        int numTerms = randomInt(numDocs);
-
-        QueryBuilder q = QueryBuilders.commonTermsQuery(randomField(fields), randomQueryString(numTerms));
-        if (randomBoolean()) {
-            ((CommonTermsQueryBuilder)q).boost(randomFloat());
-        }
-
-        if (randomBoolean()) {
-            ((CommonTermsQueryBuilder)q).cutoffFrequency(randomFloat());
-        }
-
-        if (randomBoolean()) {
-            ((CommonTermsQueryBuilder)q).highFreqMinimumShouldMatch(Integer.toString(randomInt(numTerms)))
-                    .highFreqOperator(randomBoolean() ? Operator.AND : Operator.OR);
-        }
-
-        if (randomBoolean()) {
-            ((CommonTermsQueryBuilder)q).lowFreqMinimumShouldMatch(Integer.toString(randomInt(numTerms)))
-                    .lowFreqOperator(randomBoolean() ? Operator.AND : Operator.OR);
-        }
-
-        return q;
     }
 
     private static QueryBuilder randomFuzzyQuery(List<String> fields) {

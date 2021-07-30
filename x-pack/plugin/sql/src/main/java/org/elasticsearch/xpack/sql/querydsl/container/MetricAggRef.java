@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.xpack.sql.execution.search.AggRef;
+import org.elasticsearch.xpack.ql.execution.search.AggRef;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 
 /**
@@ -17,19 +19,21 @@ public class MetricAggRef extends AggRef {
     private final String name;
     private final String property;
     private final String innerKey;
+    private final DataType dataType;
 
-    public MetricAggRef(String name) {
-        this(name, "value");
+    public MetricAggRef(String name, DataType dataType) {
+        this(name, "value", dataType);
     }
 
-    public MetricAggRef(String name, String property) {
-        this(name, property, null);
+    public MetricAggRef(String name, String property, DataType dataType) {
+        this(name, property, null, dataType);
     }
 
-    public MetricAggRef(String name, String property, String innerKey) {
+    public MetricAggRef(String name, String property, String innerKey, DataType dataType) {
         this.name = name;
         this.property = property;
         this.innerKey = innerKey;
+        this.dataType = dataType;
     }
 
     public String name() {
@@ -42,6 +46,10 @@ public class MetricAggRef extends AggRef {
 
     public String innerKey() {
         return innerKey;
+    }
+
+    public DataType dataType() {
+        return dataType;
     }
 
     @Override

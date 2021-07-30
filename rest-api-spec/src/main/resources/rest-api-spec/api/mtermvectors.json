@@ -1,96 +1,102 @@
 {
-  "mtermvectors" : {
-    "documentation" : "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-multi-termvectors.html",
-    "methods" : ["GET", "POST"],
-    "url" : {
-      "path" : "/_mtermvectors",
-      "paths" : ["/_mtermvectors", "/{index}/_mtermvectors", "/{index}/{type}/_mtermvectors"],
-      "parts" : {
-        "index" : {
-         "type" : "string",
-         "description" : "The index in which the document resides."
+  "mtermvectors":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-multi-termvectors.html",
+      "description":"Returns multiple termvectors in one request."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_mtermvectors",
+          "methods":[
+            "GET",
+            "POST"
+          ]
         },
-        "type" : {
-          "type" : "string",
-          "description" : "The type of the document."
+        {
+          "path":"/{index}/_mtermvectors",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The index in which the document resides."
+            }
+          }
         }
+      ]
+    },
+    "params":{
+      "ids":{
+        "type":"list",
+        "description":"A comma-separated list of documents ids. You must define ids as parameter or set \"ids\" or \"docs\" in the request body"
       },
-      "params" : {
-        "ids" : {
-          "type" : "list",
-          "description" : "A comma-separated list of documents ids. You must define ids as parameter or set \"ids\" or \"docs\" in the request body",
-          "required" : false
-        },
-        "term_statistics" : {
-          "type" : "boolean",
-          "description" : "Specifies if total term frequency and document frequency should be returned. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-          "default" : false,
-          "required" : false
-        },
-        "field_statistics" : {
-           "type" : "boolean",
-           "description" : "Specifies if document count, sum of document frequencies and sum of total term frequencies should be returned. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-           "default" : true,
-           "required" : false
-        },
-        "fields" : {
-          "type" : "list",
-          "description" : "A comma-separated list of fields to return. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-          "required" : false
-        },
-        "offsets" : {
-          "type" : "boolean",
-          "description" : "Specifies if term offsets should be returned. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-          "default" : true,
-          "required" : false
-        },
-        "positions" : {
-          "type" : "boolean",
-          "description" : "Specifies if term positions should be returned. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-          "default" : true,
-          "required" : false
-        },
-        "payloads" : {
-          "type" : "boolean",
-          "description" : "Specifies if term payloads should be returned. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-          "default" : true,
-          "required" : false
-        },
-        "preference" : {
-          "type" : "string",
-          "description" : "Specify the node or shard the operation should be performed on (default: random) .Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-          "required" : false
-        },
-        "routing" : {
-          "type" : "string",
-          "description" : "Specific routing value. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-          "required" : false
-        },
-        "parent" : {
-          "type" : "string",
-          "description" : "Parent id of documents. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-          "required" : false
-        },
-        "realtime": {
-          "type": "boolean",
-          "description": "Specifies if requests are real-time as opposed to near-real-time (default: true).",
-          "required": false
-        },
-        "version" : {
-          "type" : "number",
-          "description" : "Explicit version number for concurrency control"
-        },
-        "version_type": {
-          "type" : "enum",
-          "options" : ["internal", "external", "external_gte", "force"],
-          "description" : "Specific version type"
-        }
+      "term_statistics":{
+        "type":"boolean",
+        "description":"Specifies if total term frequency and document frequency should be returned. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
+        "default":false
+      },
+      "field_statistics":{
+        "type":"boolean",
+        "description":"Specifies if document count, sum of document frequencies and sum of total term frequencies should be returned. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
+        "default":true
+      },
+      "fields":{
+        "type":"list",
+        "description":"A comma-separated list of fields to return. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\"."
+      },
+      "offsets":{
+        "type":"boolean",
+        "description":"Specifies if term offsets should be returned. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
+        "default":true
+      },
+      "positions":{
+        "type":"boolean",
+        "description":"Specifies if term positions should be returned. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
+        "default":true
+      },
+      "payloads":{
+        "type":"boolean",
+        "description":"Specifies if term payloads should be returned. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
+        "default":true
+      },
+      "preference":{
+        "type":"string",
+        "description":"Specify the node or shard the operation should be performed on (default: random) .Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\"."
+      },
+      "routing":{
+        "type":"string",
+        "description":"Specific routing value. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\"."
+      },
+      "realtime":{
+        "type":"boolean",
+        "description":"Specifies if requests are real-time as opposed to near-real-time (default: true)."
+      },
+      "version":{
+        "type":"number",
+        "description":"Explicit version number for concurrency control"
+      },
+      "version_type":{
+        "type":"enum",
+        "options":[
+          "internal",
+          "external",
+          "external_gte"
+        ],
+        "description":"Specific version type"
       }
     },
-    "body" : {
-        "description" : "Define ids, documents, parameters or a list of parameters per document here. You must at least provide a list of document ids. See documentation.",
-        "required" : false
-
+    "body":{
+      "description":"Define ids, documents, parameters or a list of parameters per document here. You must at least provide a list of document ids. See documentation.",
+      "required":false
     }
   }
 }

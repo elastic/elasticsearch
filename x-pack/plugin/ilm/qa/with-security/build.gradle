@@ -1,43 +1,24 @@
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 def clusterCredentials = [username: System.getProperty('tests.rest.cluster.username', 'test_admin'),
                           password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')]
 
-integTestRunner {
+tasks.named("javaRestTest").configure {
   systemProperty 'tests.rest.cluster.username', clusterCredentials.username
   systemProperty 'tests.rest.cluster.password', clusterCredentials.password
 }
 
-integTestCluster {
-  setting 'xpack.ilm.enabled', 'true'
+testClusters.all {
+  testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
-  extraConfigFile 'roles.yml', 'roles.yml'
-  setupCommand 'setupIlmUser',
-          'bin/elasticsearch-users',
-          'useradd', "test_ilm",
-          '-p', 'x-pack-test-password', '-r', "ilm"
-  setupCommand 'setupDummyUser',
-               'bin/elasticsearch-users',
-               'useradd', clusterCredentials.username,
-               '-p', clusterCredentials.password,
-               '-r', 'superuser'
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: clusterCredentials.username,
-            password: clusterCredentials.password,
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
-  }
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user clusterCredentials
+  user username: "test_ilm", password: "x-pack-test-password", role: "ilm"
 }

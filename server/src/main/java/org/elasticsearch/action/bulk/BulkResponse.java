@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -22,7 +11,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -52,11 +41,15 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
     public static final long NO_INGEST_TOOK = -1L;
 
-    private BulkItemResponse[] responses;
-    private long tookInMillis;
-    private long ingestTookInMillis;
+    private final BulkItemResponse[] responses;
+    private final long tookInMillis;
+    private final long ingestTookInMillis;
 
-    BulkResponse() {
+    public BulkResponse(StreamInput in) throws IOException {
+        super(in);
+        responses = in.readArray(BulkItemResponse::new, BulkItemResponse[]::new);
+        tookInMillis = in.readVLong();
+        ingestTookInMillis = in.readZLong();
     }
 
     public BulkResponse(BulkItemResponse[] responses, long tookInMillis) {
@@ -109,8 +102,8 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
             BulkItemResponse response = responses[i];
             if (response.isFailed()) {
                 sb.append("\n[").append(i)
-                        .append("]: index [").append(response.getIndex()).append("], type [")
-                        .append(response.getType()).append("], id [").append(response.getId())
+                        .append("]: index [").append(response.getIndex())
+                        .append("], id [").append(response.getId())
                         .append("], message [").append(response.getFailureMessage()).append("]");
             }
         }
@@ -130,23 +123,8 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        responses = new BulkItemResponse[in.readVInt()];
-        for (int i = 0; i < responses.length; i++) {
-            responses[i] = BulkItemResponse.readBulkItem(in);
-        }
-        tookInMillis = in.readVLong();
-        ingestTookInMillis = in.readZLong();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(responses.length);
-        for (BulkItemResponse response : responses) {
-            response.writeTo(out);
-        }
+        out.writeArray(responses);
         out.writeVLong(tookInMillis);
         out.writeZLong(ingestTookInMillis);
     }
@@ -175,7 +153,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
     public static BulkResponse fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         long took = -1L;
         long ingestTook = NO_INGEST_TOOK;

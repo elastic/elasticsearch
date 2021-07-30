@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -22,6 +11,12 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilderTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,15 +26,19 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.synchronizedList;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
 
 public class ReindexFromRemoteBuildRestClientTests extends RestClientBuilderTestCase {
+
+    private final BytesReference matchAll = new BytesArray(new MatchAllQueryBuilder().toString());
+
     public void testBuildRestClient() throws Exception {
         for(final String path: new String[]{"", null, "/", "path"}) {
-            RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, path, new BytesArray("ignored"), null, null, emptyMap(),
+            RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, path, matchAll, null, null, emptyMap(),
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
             long taskId = randomLong();
             List<Thread> threads = synchronizedList(new ArrayList<>());
-            RestClient client = TransportReindexAction.buildRestClient(remoteInfo, taskId, threads);
+            RestClient client = Reindexer.buildRestClient(remoteInfo, sslConfig(), taskId, threads);
             try {
                 assertBusy(() -> assertThat(threads, hasSize(2)));
                 int i = 0;
@@ -59,15 +58,22 @@ public class ReindexFromRemoteBuildRestClientTests extends RestClientBuilderTest
         for (int i = 0; i < numHeaders; ++i) {
             headers.put("header" + i, Integer.toString(i));
         }
-        RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, null, new BytesArray("ignored"), null, null,
+        RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, null, matchAll, null, null,
             headers, RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         long taskId = randomLong();
         List<Thread> threads = synchronizedList(new ArrayList<>());
-        RestClient client = TransportReindexAction.buildRestClient(remoteInfo, taskId, threads);
+        RestClient client = Reindexer.buildRestClient(remoteInfo, sslConfig(), taskId, threads);
         try {
             assertHeaders(client, headers);
         } finally {
             client.close();
         }
     }
+
+    private ReindexSslConfig sslConfig() {
+        final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        final ResourceWatcherService resourceWatcher = mock(ResourceWatcherService.class);
+        return new ReindexSslConfig(environment.settings(), environment, resourceWatcher);
+    }
+
 }

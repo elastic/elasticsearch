@@ -1,103 +1,61 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
 // Like a String mapper but with very few options. We just use it to test if highlighting on a custom string mapped field works as expected.
 public class FakeStringFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "fake_string";
 
-    public static class Defaults {
-
-        public static final MappedFieldType FIELD_TYPE = new FakeStringFieldType();
-
-        static {
-            FIELD_TYPE.freeze();
-        }
+    public static final FieldType FIELD_TYPE = new FieldType();
+    static {
+        FIELD_TYPE.setTokenized(true);
+        FIELD_TYPE.setStored(true);
+        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, FakeStringFieldMapper> {
+    public static class Builder extends FieldMapper.Builder {
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
+            super(name);
         }
 
         @Override
-        public FakeStringFieldType fieldType() {
-            return (FakeStringFieldType) super.fieldType();
+        protected List<Parameter<?>> getParameters() {
+            return Collections.emptyList();
         }
 
         @Override
-        public FakeStringFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
+        public FakeStringFieldMapper build(ContentPath contentPath) {
             return new FakeStringFieldMapper(
-                name, fieldType(), defaultFieldType,
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                new FakeStringFieldType(name, true,
+                    new TextSearchInfo(FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER)),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build());
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-
-        public TypeParser() {
-        }
-
-        @Override
-        public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            FakeStringFieldMapper.Builder builder = new FakeStringFieldMapper.Builder(fieldName);
-            parseTextField(builder, fieldName, node, parserContext);
-            return builder;
-        }
-    }
+    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     public static final class FakeStringFieldType extends StringFieldType {
 
-
-        public FakeStringFieldType() {
-        }
-
-        protected FakeStringFieldType(FakeStringFieldType ref) {
-            super(ref);
-        }
-
-        public FakeStringFieldType clone() {
-            return new FakeStringFieldType(this);
+        private FakeStringFieldType(String name, boolean stored, TextSearchInfo textSearchInfo) {
+            super(name, true, stored, true, textSearchInfo, Collections.emptyMap());
         }
 
         @Override
@@ -106,40 +64,26 @@ public class FakeStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return SourceValueFetcher.toString(name(), context, format);
         }
     }
 
-    protected FakeStringFieldMapper(String simpleName, FakeStringFieldType fieldType, MappedFieldType defaultFieldType,
-                                    Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+    protected FakeStringFieldMapper(MappedFieldType mappedFieldType,
+                                    MultiFields multiFields, CopyTo copyTo) {
+        super(mappedFieldType.name(), mappedFieldType, Lucene.STANDARD_ANALYZER, multiFields, copyTo);
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            value = context.parser().textOrNull();
-        }
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        String value = context.parser().textOrNull();
 
         if (value == null) {
             return;
         }
 
-        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            Field field = new Field(fieldType().name(), value, fieldType());
-            fields.add(field);
-        }
-        if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(value)));
-        }
+        Field field = new Field(fieldType().name(), value, FIELD_TYPE);
+        context.doc().add(field);
     }
 
     @Override
@@ -148,19 +92,7 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName()).init(this);
     }
-
-    @Override
-    public FakeStringFieldType fieldType() {
-        return (FakeStringFieldType) super.fieldType();
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-        doXContentAnalyzers(builder, includeDefaults);
-    }
-
 }

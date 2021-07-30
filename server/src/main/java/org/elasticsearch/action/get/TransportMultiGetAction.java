@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.get;
@@ -23,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -40,16 +30,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequest, MultiGetResponse> {
 
     private final ClusterService clusterService;
-    private final TransportShardMultiGetAction shardAction;
+    private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportMultiGetAction(TransportService transportService, ClusterService clusterService,
-                                   TransportShardMultiGetAction shardAction, ActionFilters actionFilters,
+                                   NodeClient client, ActionFilters actionFilters,
                                    IndexNameExpressionResolver resolver) {
         super(MultiGetAction.NAME, transportService, actionFilters, MultiGetRequest::new);
         this.clusterService = clusterService;
-        this.shardAction = shardAction;
+        this.client = client;
         this.indexNameExpressionResolver = resolver;
     }
 
@@ -68,14 +58,14 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
             try {
                 concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item).getName();
 
-                item.routing(clusterState.metaData().resolveIndexRouting(item.routing(), item.index()));
-                if ((item.routing() == null) && (clusterState.getMetaData().routingRequired(concreteSingleIndex))) {
-                    responses.set(i, newItemFailure(concreteSingleIndex, item.type(), item.id(),
-                        new RoutingMissingException(concreteSingleIndex, item.type(), item.id())));
+                item.routing(clusterState.metadata().resolveIndexRouting(item.routing(), item.index()));
+                if ((item.routing() == null) && (clusterState.getMetadata().routingRequired(concreteSingleIndex))) {
+                    responses.set(i, newItemFailure(concreteSingleIndex, item.id(),
+                        new RoutingMissingException(concreteSingleIndex, item.id())));
                     continue;
                 }
             } catch (Exception e) {
-                responses.set(i, newItemFailure(item.index(), item.type(), item.id(), e));
+                responses.set(i, newItemFailure(item.index(), item.id(), e));
                 continue;
             }
 
@@ -105,7 +95,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
 
         for (final MultiGetShardRequest shardRequest : shardRequests.values()) {
-            shardAction.execute(shardRequest, new ActionListener<MultiGetShardResponse>() {
+            client.executeLocally(TransportShardMultiGetAction.TYPE, shardRequest, new ActionListener.Delegating<>(listener) {
                 @Override
                 public void onResponse(MultiGetShardResponse response) {
                     for (int i = 0; i < response.locations.size(); i++) {
@@ -122,7 +112,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                     // create failures for all relevant requests
                     for (int i = 0; i < shardRequest.locations.size(); i++) {
                         MultiGetRequest.Item item = shardRequest.items.get(i);
-                        responses.set(shardRequest.locations.get(i), newItemFailure(shardRequest.index(), item.type(), item.id(), e));
+                        responses.set(shardRequest.locations.get(i), newItemFailure(shardRequest.index(), item.id(), e));
                     }
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -130,13 +120,13 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 }
 
                 private void finishHim() {
-                    listener.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
+                    delegate.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
                 }
             });
         }
     }
 
-    private static MultiGetItemResponse newItemFailure(String index, String type, String id, Exception exception) {
-        return new MultiGetItemResponse(null, new MultiGetResponse.Failure(index, type, id, exception));
+    private static MultiGetItemResponse newItemFailure(String index, String id, Exception exception) {
+        return new MultiGetItemResponse(null, new MultiGetResponse.Failure(index, id, exception));
     }
 }

@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.common.http;
 
 import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -26,10 +27,10 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static java.util.Collections.unmodifiableMap;
 
 public class HttpRequestTemplate implements ToXContentObject {
 
@@ -119,7 +120,7 @@ public class HttpRequestTemplate implements ToXContentObject {
         if (path != null) {
             request.path(engine.render(path, model));
         }
-        if (params != null && !params.isEmpty()) {
+        if (params != null && params.isEmpty() == false) {
             MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
             for (Map.Entry<String, TextTemplate> entry : params.entrySet()) {
                 mapBuilder.put(entry.getKey(), engine.render(entry.getValue(), model));
@@ -128,7 +129,7 @@ public class HttpRequestTemplate implements ToXContentObject {
         }
         if ((headers == null || headers.isEmpty()) && body != null && body.getContentType() != null) {
             request.setHeaders(singletonMap(HttpHeaders.Names.CONTENT_TYPE, body.getContentType().mediaType()));
-        } else if (headers != null && !headers.isEmpty()) {
+        } else if (headers != null && headers.isEmpty() == false) {
             MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
             if (body != null && body.getContentType() != null) {
                 // putting the content type first, so it can be overridden by custom headers
@@ -205,40 +206,30 @@ public class HttpRequestTemplate implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         HttpRequestTemplate that = (HttpRequestTemplate) o;
-
-        if (port != that.port) return false;
-        if (scheme != that.scheme) return false;
-        if (host != null ? !host.equals(that.host) : that.host != null) return false;
-        if (method != that.method) return false;
-        if (path != null ? !path.equals(that.path) : that.path != null) return false;
-        if (params != null ? !params.equals(that.params) : that.params != null) return false;
-        if (headers != null ? !headers.equals(that.headers) : that.headers != null) return false;
-        if (auth != null ? !auth.equals(that.auth) : that.auth != null) return false;
-        if (connectionTimeout != null ? !connectionTimeout.equals(that.connectionTimeout) : that.connectionTimeout != null) return false;
-        if (readTimeout != null ? !readTimeout.equals(that.readTimeout) : that.readTimeout != null) return false;
-        if (proxy != null ? !proxy.equals(that.proxy) : that.proxy != null) return false;
-        return body != null ? body.equals(that.body) : that.body == null;
+        return port == that.port
+            && scheme == that.scheme
+            && Objects.equals(host, that.host)
+            && method == that.method
+            && Objects.equals(path, that.path)
+            && Objects.equals(params, that.params)
+            && Objects.equals(headers, that.headers)
+            && Objects.equals(auth, that.auth)
+            && Objects.equals(connectionTimeout, that.connectionTimeout)
+            && Objects.equals(readTimeout, that.readTimeout)
+            && Objects.equals(proxy, that.proxy)
+            && Objects.equals(body, that.body);
     }
 
     @Override
     public int hashCode() {
-        int result = scheme != null ? scheme.hashCode() : 0;
-        result = 31 * result + (host != null ? host.hashCode() : 0);
-        result = 31 * result + port;
-        result = 31 * result + (method != null ? method.hashCode() : 0);
-        result = 31 * result + (path != null ? path.hashCode() : 0);
-        result = 31 * result + (params != null ? params.hashCode() : 0);
-        result = 31 * result + (headers != null ? headers.hashCode() : 0);
-        result = 31 * result + (auth != null ? auth.hashCode() : 0);
-        result = 31 * result + (body != null ? body.hashCode() : 0);
-        result = 31 * result + (connectionTimeout != null ? connectionTimeout.hashCode() : 0);
-        result = 31 * result + (readTimeout != null ? readTimeout.hashCode() : 0);
-        result = 31 * result + (proxy != null ? proxy.hashCode() : 0);
-        return result;
+        return Objects.hash(scheme, host, port, method, path, params, headers, auth, body, connectionTimeout, readTimeout, proxy);
     }
 
     @Override
@@ -469,8 +460,8 @@ public class HttpRequestTemplate implements ToXContentObject {
         }
 
         public HttpRequestTemplate build() {
-            return new HttpRequestTemplate(host, port, scheme, method, path, unmodifiableMap(new HashMap<>(params)),
-                    unmodifiableMap(new HashMap<>(headers)), auth, body, connectionTimeout, readTimeout, proxy);
+            return new HttpRequestTemplate(host, port, scheme, method, path, Map.copyOf(params),
+                    Map.copyOf(headers), auth, body, connectionTimeout, readTimeout, proxy);
         }
 
         public Builder fromUrl(String supposedUrl) {

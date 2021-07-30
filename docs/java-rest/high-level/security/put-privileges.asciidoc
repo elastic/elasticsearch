@@ -3,14 +3,14 @@
 :request: PutPrivilegesRequest
 :response: PutPrivilegesResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Put Privileges API
+=== Create or update privileges API
 
 Application privileges can be created or updated using this API.
 
 [id="{upid}-{api}-request"]
-==== Put Privileges Request
+==== Request
 A +{request}+ contains list of application privileges that
 need to be created or updated. Each application privilege
 consists of an application name, application privilege,
@@ -24,7 +24,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Put Privileges Response
+==== Response
 
 The returned +{response}+ contains the information about the status
 for each privilege present in the +{request}+. The status would be

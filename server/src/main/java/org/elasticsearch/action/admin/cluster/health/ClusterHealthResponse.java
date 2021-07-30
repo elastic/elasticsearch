@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.health;
@@ -24,11 +13,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
@@ -142,7 +131,18 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private ClusterStateHealth clusterStateHealth;
     private ClusterHealthStatus clusterHealthStatus;
 
-    ClusterHealthResponse() {
+    public ClusterHealthResponse() {}
+
+    public ClusterHealthResponse(StreamInput in) throws IOException {
+        super(in);
+        clusterName = in.readString();
+        clusterHealthStatus = ClusterHealthStatus.readFrom(in);
+        clusterStateHealth = new ClusterStateHealth(in);
+        numberOfPendingTasks = in.readInt();
+        timedOut = in.readBoolean();
+        numberOfInFlightFetch = in.readInt();
+        delayedUnassignedShards= in.readInt();
+        taskMaxWaitingTime = in.readTimeValue();
     }
 
     /** needed for plugins BWC */
@@ -277,27 +277,11 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     }
 
     public static ClusterHealthResponse readResponseFrom(StreamInput in) throws IOException {
-        ClusterHealthResponse response = new ClusterHealthResponse();
-        response.readFrom(in);
-        return response;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        clusterName = in.readString();
-        clusterHealthStatus = ClusterHealthStatus.fromValue(in.readByte());
-        clusterStateHealth = new ClusterStateHealth(in);
-        numberOfPendingTasks = in.readInt();
-        timedOut = in.readBoolean();
-        numberOfInFlightFetch = in.readInt();
-        delayedUnassignedShards= in.readInt();
-        taskMaxWaitingTime = in.readTimeValue();
+        return new ClusterHealthResponse(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(clusterName);
         out.writeByte(clusterHealthStatus.value());
         clusterStateHealth.writeTo(out);

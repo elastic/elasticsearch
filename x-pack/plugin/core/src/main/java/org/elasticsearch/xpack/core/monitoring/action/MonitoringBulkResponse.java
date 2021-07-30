@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.monitoring.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
@@ -26,9 +26,6 @@ public class MonitoringBulkResponse extends ActionResponse {
     private Error error;
     private boolean ignored;
 
-    public MonitoringBulkResponse() {
-    }
-
     public MonitoringBulkResponse(final long tookInMillis, final boolean ignored) {
         this.tookInMillis = tookInMillis;
         this.ignored = ignored;
@@ -37,6 +34,13 @@ public class MonitoringBulkResponse extends ActionResponse {
     public MonitoringBulkResponse(final long tookInMillis, final Error error) {
         this(tookInMillis, false);
         this.error = error;
+    }
+
+    public MonitoringBulkResponse(StreamInput in) throws IOException {
+        super(in);
+        tookInMillis = in.readVLong();
+        error = in.readOptionalWriteable(Error::new);
+        ignored = in.readBoolean();
     }
 
     public TimeValue getTook() {
@@ -77,25 +81,10 @@ public class MonitoringBulkResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        tookInMillis = in.readVLong();
-        error = in.readOptionalWriteable(Error::new);
-
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            ignored = in.readBoolean();
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVLong(tookInMillis);
         out.writeOptionalWriteable(error);
-
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeBoolean(ignored);
-        }
+        out.writeBoolean(ignored);
     }
 
     public static class Error implements Writeable, ToXContentObject {

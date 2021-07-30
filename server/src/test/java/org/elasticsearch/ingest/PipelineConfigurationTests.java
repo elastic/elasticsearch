@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
@@ -31,12 +20,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Predicate;
 
-public class PipelineConfigurationTests extends ESTestCase {
+public class PipelineConfigurationTests extends AbstractXContentTestCase<PipelineConfiguration> {
 
     public void testSerialization() throws IOException {
         PipelineConfiguration configuration = new PipelineConfiguration("1",
@@ -64,8 +54,34 @@ public class PipelineConfigurationTests extends ESTestCase {
         XContentParser xContentParser = xContentType.xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput());
         PipelineConfiguration parsed = parser.parse(xContentParser, null);
-        assertEquals(xContentType, parsed.getXContentType());
+        assertEquals(xContentType.canonical(), parsed.getXContentType());
         assertEquals("{}", XContentHelper.convertToJson(parsed.getConfig(), false, parsed.getXContentType()));
         assertEquals("1", parsed.getId());
+    }
+
+    @Override
+    protected PipelineConfiguration createTestInstance() {
+        BytesArray config;
+        if (randomBoolean()) {
+            config = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
+        } else {
+            config = new BytesArray("{\"foo\": \"bar\"}".getBytes(StandardCharsets.UTF_8));
+        }
+        return new PipelineConfiguration(randomAlphaOfLength(4), config, XContentType.JSON);
+    }
+
+    @Override
+    protected PipelineConfiguration doParseInstance(XContentParser parser) throws IOException {
+        return PipelineConfiguration.getParser().parse(parser, null);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.equals("config");
     }
 }

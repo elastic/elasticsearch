@@ -1,0 +1,105 @@
+# Integration tests for ICU analysis components
+#
+"Tokenizer":
+    - do:
+        indices.analyze:
+          body:
+            text:         Foo Bar
+            tokenizer:    icu_tokenizer
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: Foo }
+    - match:  { tokens.1.token: Bar }
+---
+"Normalization filter":
+    - do:
+        indices.analyze:
+          body:
+            filter:       [icu_normalizer]
+            text:         Foo Bar Ruß
+            tokenizer:    standard
+    - length: { tokens: 3 }
+    - match:  { tokens.0.token: foo}
+    - match:  { tokens.1.token: bar }
+    - match:  { tokens.2.token: russ }
+---
+"Normalization charfilter":
+    - do:
+        indices.analyze:
+          body:
+            char_filter:  [icu_normalizer]
+            text:         Foo Bar Ruß
+            tokenizer:    standard
+    - length: { tokens: 3 }
+    - match:  { tokens.0.token: foo }
+    - match:  { tokens.1.token: bar }
+    - match:  { tokens.2.token: russ }
+---
+"Folding filter":
+    - do:
+        indices.analyze:
+          body:
+            filter:       [icu_folding]
+            text:         Foo Bar résumé
+            tokenizer:    standard
+    - length: { tokens: 3 }
+    - match:  { tokens.0.token: foo }
+    - match:  { tokens.1.token: bar }
+    - match:  { tokens.2.token: resume }
+---
+"Normalization with unicode_set_filter":
+    - do:
+        indices.create:
+            index:  test
+            body:
+                settings:
+                    index:
+                        analysis:
+                            char_filter:
+                                charfilter_icu_normalizer:
+                                    type: icu_normalizer
+                                    unicode_set_filter: "[^ß]"
+                            filter:
+                                tokenfilter_icu_normalizer:
+                                    type: icu_normalizer
+                                    unicode_set_filter: "[^ßB]"
+                                tokenfilter_icu_folding:
+                                    type: icu_folding
+                                    unicode_set_filter: "[^â]"
+    - do:
+        indices.analyze:
+          index:    test
+          body:
+            char_filter: ["charfilter_icu_normalizer"]
+            tokenizer:  standard
+            text:     charfilter Föo Bâr Ruß
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: charfilter }
+    - match:  { tokens.1.token: föo }
+    - match:  { tokens.2.token: bâr }
+    - match:  { tokens.3.token: ruß }
+
+    - do:
+        indices.analyze:
+          index:    test
+          body:
+            tokenizer:  standard
+            filter: ["tokenfilter_icu_normalizer"]
+            text:     tokenfilter Föo Bâr Ruß
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: tokenfilter }
+    - match:  { tokens.1.token: föo }
+    - match:  { tokens.2.token: Bâr }
+    - match:  { tokens.3.token: ruß }
+
+    - do:
+        indices.analyze:
+          index:    test
+          body:
+            tokenizer:  standard
+            filter: ["tokenfilter_icu_folding"]
+            text:     icufolding Föo Bâr Ruß
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: icufolding }
+    - match:  { tokens.1.token: foo }
+    - match:  { tokens.2.token: bâr }
+    - match:  { tokens.3.token: russ }

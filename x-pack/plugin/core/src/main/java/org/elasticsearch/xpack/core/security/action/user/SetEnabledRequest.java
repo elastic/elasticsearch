@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
@@ -26,6 +27,15 @@ public class SetEnabledRequest extends ActionRequest implements UserRequest, Wri
     private Boolean enabled;
     private String username;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
+
+    public SetEnabledRequest() {}
+
+    public SetEnabledRequest(StreamInput in) throws IOException {
+        super(in);
+        this.enabled = in.readBoolean();
+        this.username = in.readString();
+        this.refreshPolicy = RefreshPolicy.readFrom(in);
+    }
 
     @Override
     public ActionRequestValidationException validate() {
@@ -86,14 +96,6 @@ public class SetEnabledRequest extends ActionRequest implements UserRequest, Wri
     public SetEnabledRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
         this.refreshPolicy = refreshPolicy;
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.enabled = in.readBoolean();
-        this.username = in.readString();
-        this.refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override

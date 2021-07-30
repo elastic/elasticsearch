@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.query;
 
@@ -32,11 +21,10 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
-import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -68,7 +56,7 @@ public class InnerHitBuilderTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
@@ -100,7 +88,7 @@ public class InnerHitBuilderTests extends ESTestCase {
      *
      * This is necessary to ensure because we use the serialized BytesReference
      * of this builder as part of the cacheKey in
-     * {@link ShardSearchLocalRequest} (via
+     * {@link ShardSearchRequest} (via
      * {@link SearchSourceBuilder#collapse(org.elasticsearch.search.collapse.CollapseBuilder)})
      */
     public void testSerializationOrder() throws Exception {
@@ -140,20 +128,27 @@ public class InnerHitBuilderTests extends ESTestCase {
         }
     }
 
+    public static InnerHitBuilder randomNestedInnerHits() {
+        InnerHitBuilder innerHitBuilder = randomInnerHits();
+        innerHitBuilder.setSeqNoAndPrimaryTerm(false); // not supported by nested queries
+        return innerHitBuilder;
+    }
     public static InnerHitBuilder randomInnerHits() {
         InnerHitBuilder innerHits = new InnerHitBuilder();
-        innerHits.setName(randomAlphaOfLengthBetween(1, 16));
+        innerHits.setName(randomAlphaOfLengthBetween(5, 16));
         innerHits.setFrom(randomIntBetween(0, 32));
         innerHits.setSize(randomIntBetween(0, 32));
         innerHits.setExplain(randomBoolean());
         innerHits.setVersion(randomBoolean());
+        innerHits.setSeqNoAndPrimaryTerm(randomBoolean());
         innerHits.setTrackScores(randomBoolean());
         if (randomBoolean()) {
             innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16)));
         }
         innerHits.setDocValueFields(randomListStuff(16,
-                () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16),
-                        randomBoolean() ? null : DocValueFieldsContext.USE_DEFAULT_FORMAT)));
+                () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null)));
+        innerHits.setFetchFields(randomListStuff(16,
+            () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null)));
         // Random script fields deduped on their field name.
         Map<String, SearchSourceBuilder.ScriptField> scriptFields = new HashMap<>();
         for (SearchSourceBuilder.ScriptField field: randomListStuff(16, InnerHitBuilderTests::randomScript)) {
@@ -187,17 +182,25 @@ public class InnerHitBuilderTests extends ESTestCase {
         List<Runnable> modifiers = new ArrayList<>(12);
         modifiers.add(() -> copy.setFrom(randomValueOtherThan(copy.getFrom(), () -> randomIntBetween(0, 128))));
         modifiers.add(() -> copy.setSize(randomValueOtherThan(copy.getSize(), () -> randomIntBetween(0, 128))));
-        modifiers.add(() -> copy.setExplain(!copy.isExplain()));
-        modifiers.add(() -> copy.setVersion(!copy.isVersion()));
-        modifiers.add(() -> copy.setTrackScores(!copy.isTrackScores()));
+        modifiers.add(() -> copy.setExplain(copy.isExplain() == false));
+        modifiers.add(() -> copy.setVersion(copy.isVersion() == false));
+        modifiers.add(() -> copy.setSeqNoAndPrimaryTerm(copy.isSeqNoAndPrimaryTerm() == false));
+        modifiers.add(() -> copy.setTrackScores(copy.isTrackScores() == false));
         modifiers.add(() -> copy.setName(randomValueOtherThan(copy.getName(), () -> randomAlphaOfLengthBetween(1, 16))));
         modifiers.add(() -> {
             if (randomBoolean()) {
                 copy.setDocValueFields(randomValueOtherThan(copy.getDocValueFields(),
-                        () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16),
-                                randomBoolean() ? null : DocValueFieldsContext.USE_DEFAULT_FORMAT))));
+                        () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null))));
             } else {
                 copy.addDocValueField(randomAlphaOfLengthBetween(1, 16));
+            }
+        });
+        modifiers.add(() -> {
+            if (randomBoolean()) {
+                copy.setFetchFields(randomValueOtherThan(copy.getFetchFields(),
+                    () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null))));
+            } else {
+                copy.addFetchField(randomAlphaOfLengthBetween(1, 16));
             }
         });
         modifiers.add(() -> {
@@ -287,5 +290,14 @@ public class InnerHitBuilderTests extends ESTestCase {
         assertEquals(
                 Arrays.asList(new FieldAndFormat("foo", null), new FieldAndFormat("@timestamp", "epoch_millis")),
                 innerHit.getDocValueFields());
+    }
+
+    public void testSetFetchFieldFormat() {
+        InnerHitBuilder innerHit = new InnerHitBuilder();
+        innerHit.addFetchField("foo");
+        innerHit.addFetchField("@timestamp", "epoch_millis");
+        assertEquals(
+            Arrays.asList(new FieldAndFormat("foo", null), new FieldAndFormat("@timestamp", "epoch_millis")),
+            innerHit.getFetchFields());
     }
 }

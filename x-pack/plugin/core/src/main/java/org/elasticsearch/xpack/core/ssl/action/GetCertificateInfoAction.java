@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,21 +26,22 @@ import java.util.Collection;
  * Action to obtain information about X.509 (SSL/TLS) certificates that are being used by X-Pack.
  * The primary use case is for tracking the expiry dates of certificates.
  */
-public class GetCertificateInfoAction extends Action<GetCertificateInfoAction.Response> {
+public class GetCertificateInfoAction extends ActionType<GetCertificateInfoAction.Response> {
 
     public static final GetCertificateInfoAction INSTANCE = new GetCertificateInfoAction();
     public static final String NAME = "cluster:monitor/xpack/ssl/certificates/get";
 
     private GetCertificateInfoAction() {
-        super(NAME);
-    }
-
-    @Override
-    public GetCertificateInfoAction.Response newResponse() {
-        return new GetCertificateInfoAction.Response();
+        super(NAME, GetCertificateInfoAction.Response::new);
     }
 
     public static class Request extends ActionRequest {
+
+        Request() {}
+
+        Request(StreamInput in) throws IOException {
+            super(in);
+        }
 
         @Override
         public ActionRequestValidationException validate() {
@@ -52,7 +54,13 @@ public class GetCertificateInfoAction extends Action<GetCertificateInfoAction.Re
 
         private Collection<CertificateInfo> certificates;
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            this.certificates = new ArrayList<>();
+            int count = in.readVInt();
+            for (int i = 0; i < count; i++) {
+                certificates.add(new CertificateInfo(in));
+            }
         }
 
         public Response(Collection<CertificateInfo> certificates) {
@@ -70,23 +78,13 @@ public class GetCertificateInfoAction extends Action<GetCertificateInfoAction.Re
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeVInt(certificates.size());
             for (CertificateInfo cert : certificates) {
                 cert.writeTo(out);
             }
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.certificates = new ArrayList<>();
-            int count = in.readVInt();
-            for (int i = 0; i < count; i++) {
-                certificates.add(new CertificateInfo(in));
-            }
         }
-    }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 

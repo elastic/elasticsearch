@@ -1,31 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -39,6 +29,8 @@ import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -211,7 +203,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
         Settings settings = Settings.builder()
             .loadFromStream(json, KuromojiAnalysisTests.class.getResourceAsStream(json), false)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         return createTestAnalysis(new Index("test", "_na_"), nodeSettings, settings, new AnalysisKuromojiPlugin());
@@ -306,5 +298,67 @@ public class KuromojiAnalysisTests extends ESTestCase {
         Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
         tokenizer.setReader(new StringReader(source));
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+    }
+
+    public void testKuromojiAnalyzerUserDict() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++,c++,w,w", "制限スピード,制限スピード,セイゲンスピード,テスト名詞")
+            .build();
+        TestAnalysis analysis = createTestAnalysis(settings);
+        Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
+        try (TokenStream stream = analyzer.tokenStream("", "制限スピード")) {
+            assertTokenStreamContents(stream, new String[]{"制限スピード"});
+        }
+
+        try (TokenStream stream = analyzer.tokenStream("", "c++world")) {
+            assertTokenStreamContents(stream, new String[]{"c++", "world"});
+        }
+    }
+
+    public void testKuromojiAnalyzerInvalidUserDictOption() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
+            .put("index.analysis.analyzer.my_analyzer.user_dictionary", "user_dict.txt")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++,c++,w,w")
+            .build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
+        assertThat(exc.getMessage(), containsString("It is not allowed to use [user_dictionary] in conjunction " +
+            "with [user_dictionary_rules]"));
+    }
+
+    public void testKuromojiAnalyzerDuplicateUserDictRule() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules",
+                "c++,c++,w,w", "#comment", "制限スピード,制限スピード,セイゲンスピード,テスト名詞", "制限スピード,制限スピード,セイゲンスピード,テスト名詞")
+            .build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
+        assertThat(exc.getMessage(), containsString("[制限スピード] in user dictionary at line [3]"));
+    }
+
+    public void testDiscardCompoundToken() throws Exception {
+        TestAnalysis analysis = createTestAnalysis();
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("kuromoji_discard_compound_token");
+        String source = "株式会社";
+        String[] expected = new String[] {"株式", "会社"};
+
+        Tokenizer tokenizer = tokenizerFactory.create();
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenizer, expected);
+    }
+
+    private TestAnalysis createTestAnalysis(Settings analysisSettings) throws IOException {
+        InputStream dict = KuromojiAnalysisTests.class.getResourceAsStream("user_dict.txt");
+        Path home = createTempDir();
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
+        Files.copy(dict, config.resolve("user_dict.txt"));
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), home)
+            .put(analysisSettings)
+            .build();
+        return AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new AnalysisKuromojiPlugin());
     }
 }

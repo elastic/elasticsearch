@@ -1,41 +1,44 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
-import org.elasticsearch.xpack.core.ml.job.results.AnomalyCause;
-import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
-import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
-import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
-import org.elasticsearch.xpack.core.ml.job.results.Forecast;
-import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
-import org.elasticsearch.xpack.core.ml.job.results.Influence;
-import org.elasticsearch.xpack.core.ml.job.results.Influencer;
-import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
-import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.plugins.MapperPlugin;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
- * Static methods to create Elasticsearch mappings for the autodetect
- * persisted objects/documents
+ * Static methods to create Elasticsearch index mappings for the autodetect
+ * persisted objects/documents and configurations
  * <p>
  * ElasticSearch automatically recognises array types so they are
  * not explicitly mapped as such. For arrays of objects the type
@@ -54,8 +57,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  */
 public class ElasticsearchMappings {
 
-    public static final String DOC_TYPE = "doc";
-
     /**
      * String constants used in mappings
      */
@@ -67,7 +68,6 @@ public class ElasticsearchMappings {
     public static final String PROPERTIES = "properties";
     public static final String TYPE = "type";
     public static final String DYNAMIC = "dynamic";
-    public static final String FIELDS = "fields";
 
     /**
      * Name of the custom 'all' field for results
@@ -80,6 +80,11 @@ public class ElasticsearchMappings {
     public static final String ES_DOC = "_doc";
 
     /**
+     * The configuration document type
+     */
+    public static final String CONFIG_TYPE = "config_type";
+
+    /**
      * Elasticsearch data types
      */
     public static final String BOOLEAN = "boolean";
@@ -90,609 +95,96 @@ public class ElasticsearchMappings {
     public static final String LONG = "long";
     public static final String TEXT = "text";
 
-    static final String RAW = "raw";
+    private static final Logger logger = LogManager.getLogger(ElasticsearchMappings.class);
 
     private ElasticsearchMappings() {
     }
 
-    /**
-     * Creates a default mapping which has a dynamic template that
-     * treats all dynamically added fields as keywords. This is needed
-     * so that the per-job term fields will not be automatically added
-     * as fields of type 'text' to the index mappings of newly rolled indices.
-     *
-     * @throws IOException On write error
-     */
-    public static void addDefaultMapping(XContentBuilder builder) throws IOException {
-        builder.startArray("dynamic_templates")
-                    .startObject()
-                        .startObject("strings_as_keywords")
-                            .field("match", "*")
-                            .startObject("mapping")
-                                .field(TYPE, KEYWORD)
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endArray();
-    }
+    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) {
+        List<String> indicesToUpdate = new ArrayList<>();
 
-    /**
-     * Inserts "_meta" containing useful information like the version into the mapping
-     * template.
-     *
-     * @param builder The builder for the mappings
-     * @throws IOException On write error
-     */
-    public static void addMetaInformation(XContentBuilder builder) throws IOException {
-        builder.startObject("_meta")
-                    .field("version", Version.CURRENT)
-               .endObject();
-    }
+        ImmutableOpenMap<String, MappingMetadata> currentMapping = state.metadata().findMappings(concreteIndices,
+                MapperPlugin.NOOP_FIELD_FILTER,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+        );
 
-    public static XContentBuilder docMapping() throws IOException {
-        return docMapping(Collections.emptyList());
-    }
+        for (String index : concreteIndices) {
+            MappingMetadata metadata = currentMapping.get(index);
+            if (metadata != null) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> meta = (Map<String, Object>) metadata.sourceAsMap().get("_meta");
+                    if (meta != null) {
+                        String versionString = (String) meta.get("version");
+                        if (versionString == null) {
+                            logger.info("Version of mappings for [{}] not found, recreating", index);
+                            indicesToUpdate.add(index);
+                            continue;
+                        }
 
-    public static XContentBuilder docMapping(Collection<String> extraTermFields) throws IOException {
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject();
-        builder.startObject(DOC_TYPE);
-        addMetaInformation(builder);
-        addDefaultMapping(builder);
-        builder.startObject(PROPERTIES);
+                        Version mappingVersion = Version.fromString(versionString);
 
-        // Add result all field for easy searches in kibana
-        builder.startObject(ALL_FIELD_VALUES)
-            .field(TYPE, TEXT)
-            .field(ANALYZER, WHITESPACE)
-        .endObject();
-
-        builder.startObject(Job.ID.getPreferredName())
-            .field(TYPE, KEYWORD)
-            .field(COPY_TO, ALL_FIELD_VALUES)
-        .endObject();
-
-        builder.startObject(Result.TIMESTAMP.getPreferredName())
-            .field(TYPE, DATE)
-        .endObject();
-
-        addResultsMapping(builder);
-        addCategoryDefinitionMapping(builder);
-        addDataCountsMapping(builder);
-        addModelSnapshotMapping(builder);
-
-        addTermFields(builder, extraTermFields);
-
-        // end properties
-        builder.endObject();
-        // end mapping
-        builder.endObject();
-        // end doc
-        builder.endObject();
-
-        return builder;
-    }
-
-    /**
-     * Create the Elasticsearch mapping for results objects
-     *  {@link Bucket}s, {@link AnomalyRecord}s, {@link Influencer} and
-     * {@link BucketInfluencer}
-     *
-     * The mapping has a custom all field containing the *_FIELD_VALUE fields
-     * e.g. BY_FIELD_VALUE, OVER_FIELD_VALUE, etc. The custom all field {@link #ALL_FIELD_VALUES}
-     * must be set in the index settings. A custom all field is preferred over the usual
-     * '_all' field as most fields do not belong in '_all', disabling '_all' and
-     * using a custom all field simplifies the mapping.
-     *
-     * These fields are copied to the custom all field
-     * <ul>
-     *     <li>by_field_value</li>
-     *     <li>partition_field_value</li>
-     *     <li>over_field_value</li>
-     *     <li>AnomalyCause.correlated_by_field_value</li>
-     *     <li>AnomalyCause.by_field_value</li>
-     *     <li>AnomalyCause.partition_field_value</li>
-     *     <li>AnomalyCause.over_field_value</li>
-     *     <li>AnomalyRecord.Influencers.influencer_field_values</li>
-     *     <li>Influencer.influencer_field_value</li>
-     * </ul>
-     *
-     * @throws IOException On write error
-     */
-    private static void addResultsMapping(XContentBuilder builder) throws IOException {
-        builder.startObject(Result.RESULT_TYPE.getPreferredName())
-                .field(TYPE, KEYWORD)
-            .endObject()
-            .startObject(Bucket.ANOMALY_SCORE.getPreferredName())
-                .field(TYPE, DOUBLE)
-            .endObject()
-            .startObject(BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName())
-                .field(TYPE, DOUBLE)
-            .endObject()
-            .startObject(Bucket.INITIAL_ANOMALY_SCORE.getPreferredName())
-                .field(TYPE, DOUBLE)
-            .endObject()
-            .startObject(Result.IS_INTERIM.getPreferredName())
-                .field(TYPE, BOOLEAN)
-            .endObject()
-            .startObject(Bucket.EVENT_COUNT.getPreferredName())
-                .field(TYPE, LONG)
-            .endObject()
-            .startObject(Bucket.BUCKET_SPAN.getPreferredName())
-                .field(TYPE, LONG)
-            .endObject()
-            .startObject(Bucket.PROCESSING_TIME_MS.getPreferredName())
-                .field(TYPE, LONG)
-            .endObject()
-            .startObject(Bucket.SCHEDULED_EVENTS.getPreferredName())
-                .field(TYPE, KEYWORD)
-            .endObject()
-
-            .startObject(Bucket.BUCKET_INFLUENCERS.getPreferredName())
-                .field(TYPE, NESTED)
-                .startObject(PROPERTIES)
-                    .startObject(Job.ID.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                    .startObject(Result.RESULT_TYPE.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                    .startObject(BucketInfluencer.INFLUENCER_FIELD_NAME.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                    .startObject(BucketInfluencer.INITIAL_ANOMALY_SCORE.getPreferredName())
-                        .field(TYPE, DOUBLE)
-                    .endObject()
-                    .startObject(BucketInfluencer.ANOMALY_SCORE.getPreferredName())
-                        .field(TYPE, DOUBLE)
-                    .endObject()
-                    .startObject(BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName())
-                        .field(TYPE, DOUBLE)
-                    .endObject()
-                    .startObject(BucketInfluencer.PROBABILITY.getPreferredName())
-                        .field(TYPE, DOUBLE)
-                    .endObject()
-                    .startObject(Result.TIMESTAMP.getPreferredName())
-                        .field(TYPE, DATE)
-                    .endObject()
-                    .startObject(BucketInfluencer.BUCKET_SPAN.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                    .startObject(Result.IS_INTERIM.getPreferredName())
-                        .field(TYPE, BOOLEAN)
-                    .endObject()
-                .endObject()
-            .endObject()
-
-            // Model Plot Output
-            .startObject(ModelPlot.MODEL_FEATURE.getPreferredName())
-                .field(TYPE, KEYWORD)
-            .endObject()
-            .startObject(ModelPlot.MODEL_LOWER.getPreferredName())
-                .field(TYPE, DOUBLE)
-            .endObject()
-            .startObject(ModelPlot.MODEL_UPPER.getPreferredName())
-                .field(TYPE, DOUBLE)
-            .endObject()
-            .startObject(ModelPlot.MODEL_MEDIAN.getPreferredName())
-                .field(TYPE, DOUBLE)
-            .endObject();
-
-        addForecastFieldsToMapping(builder);
-        addAnomalyRecordFieldsToMapping(builder);
-        addInfluencerFieldsToMapping(builder);
-        addModelSizeStatsFieldsToMapping(builder);
-    }
-
-    public static XContentBuilder termFieldsMapping(String type, Collection<String> termFields) {
-        try {
-            XContentBuilder builder = jsonBuilder().startObject();
-            if (type != null) {
-                builder.startObject(type);
-            }
-            builder.startObject(PROPERTIES);
-            addTermFields(builder, termFields);
-            builder.endObject();
-            if (type != null) {
-                builder.endObject();
-            }
-            return builder.endObject();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static void addTermFields(XContentBuilder builder, Collection<String> termFields) throws IOException {
-        for (String fieldName : termFields) {
-            if (ReservedFieldNames.isValidFieldName(fieldName)) {
-                builder.startObject(fieldName).field(TYPE, KEYWORD).endObject();
+                        if (mappingVersion.onOrAfter(minVersion)) {
+                            continue;
+                        } else {
+                            logger.info("Mappings for [{}] are outdated [{}], updating it[{}].", index, mappingVersion, Version.CURRENT);
+                            indicesToUpdate.add(index);
+                            continue;
+                        }
+                    } else {
+                        logger.info("Version of mappings for [{}] not found, recreating", index);
+                        indicesToUpdate.add(index);
+                        continue;
+                    }
+                } catch (Exception e) {
+                    logger.error(new ParameterizedMessage("Failed to retrieve mapping version for [{}], recreating", index), e);
+                    indicesToUpdate.add(index);
+                    continue;
+                }
+            } else {
+                logger.info("No mappings found for [{}], recreating", index);
+                indicesToUpdate.add(index);
             }
         }
+        return indicesToUpdate.toArray(new String[indicesToUpdate.size()]);
     }
 
-    private static void addForecastFieldsToMapping(XContentBuilder builder) throws IOException {
+    public static void addDocMappingIfMissing(String alias,
+                                              CheckedSupplier<String, IOException> mappingSupplier,
+                                              Client client, ClusterState state, TimeValue masterNodeTimeout,
+                                              ActionListener<Boolean> listener) {
+        IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(alias);
+        if (indexAbstraction == null) {
+            // The index has never been created yet
+            listener.onResponse(true);
+            return;
+        }
+        String[] concreteIndices = indexAbstraction.getIndices().stream().map(IndexMetadata::getIndex).map(Index::getName)
+            .toArray(String[]::new);
 
-        // Forecast Output
-        builder.startObject(Forecast.FORECAST_LOWER.getPreferredName())
-            .field(TYPE, DOUBLE)
-        .endObject()
-        .startObject(Forecast.FORECAST_UPPER.getPreferredName())
-            .field(TYPE, DOUBLE)
-        .endObject()
-        .startObject(Forecast.FORECAST_PREDICTION.getPreferredName())
-            .field(TYPE, DOUBLE)
-        .endObject()
-        .startObject(Forecast.FORECAST_ID.getPreferredName())
-            .field(TYPE, KEYWORD)
-        .endObject();
-
-        // Forecast Stats Output
-        // re-used: TIMESTAMP, PROCESSING_TIME_MS, PROCESSED_RECORD_COUNT, LATEST_RECORD_TIME
-        builder.startObject(ForecastRequestStats.START_TIME.getPreferredName())
-            .field(TYPE, DATE)
-        .endObject()
-        .startObject(ForecastRequestStats.END_TIME.getPreferredName())
-            .field(TYPE, DATE)
-        .endObject()
-        .startObject(ForecastRequestStats.CREATE_TIME.getPreferredName())
-            .field(TYPE, DATE)
-        .endObject()
-        .startObject(ForecastRequestStats.EXPIRY_TIME.getPreferredName())
-            .field(TYPE, DATE)
-        .endObject()
-        .startObject(ForecastRequestStats.MESSAGES.getPreferredName())
-            .field(TYPE, KEYWORD)
-        .endObject()
-        .startObject(ForecastRequestStats.PROGRESS.getPreferredName())
-            .field(TYPE, DOUBLE)
-        .endObject()
-        .startObject(ForecastRequestStats.STATUS.getPreferredName())
-            .field(TYPE, KEYWORD)
-        .endObject()
-        .startObject(ForecastRequestStats.MEMORY_USAGE.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject();
-    }
-
-    /**
-     * AnomalyRecord fields to be added under the 'properties' section of the mapping
-     * @param builder Add properties to this builder
-     * @throws IOException On write error
-     */
-    private static void addAnomalyRecordFieldsToMapping(XContentBuilder builder) throws IOException {
-        builder.startObject(Detector.DETECTOR_INDEX.getPreferredName())
-            .field(TYPE, INTEGER)
-        .endObject()
-        .startObject(AnomalyRecord.ACTUAL.getPreferredName())
-            .field(TYPE, DOUBLE)
-        .endObject()
-        .startObject(AnomalyRecord.TYPICAL.getPreferredName())
-            .field(TYPE, DOUBLE)
-        .endObject()
-        .startObject(AnomalyRecord.PROBABILITY.getPreferredName())
-            .field(TYPE, DOUBLE)
-        .endObject()
-        .startObject(AnomalyRecord.MULTI_BUCKET_IMPACT.getPreferredName())
-            .field(TYPE, DOUBLE)
-        .endObject()
-        .startObject(AnomalyRecord.FUNCTION.getPreferredName())
-            .field(TYPE, KEYWORD)
-        .endObject()
-        .startObject(AnomalyRecord.FUNCTION_DESCRIPTION.getPreferredName())
-            .field(TYPE, KEYWORD)
-        .endObject()
-        .startObject(AnomalyRecord.BY_FIELD_NAME.getPreferredName())
-            .field(TYPE, KEYWORD)
-        .endObject()
-        .startObject(AnomalyRecord.BY_FIELD_VALUE.getPreferredName())
-            .field(TYPE, KEYWORD)
-            .field(COPY_TO, ALL_FIELD_VALUES)
-        .endObject()
-        .startObject(AnomalyRecord.FIELD_NAME.getPreferredName())
-            .field(TYPE, KEYWORD)
-        .endObject()
-        .startObject(AnomalyRecord.PARTITION_FIELD_NAME.getPreferredName())
-            .field(TYPE, KEYWORD)
-        .endObject()
-        .startObject(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName())
-            .field(TYPE, KEYWORD)
-            .field(COPY_TO, ALL_FIELD_VALUES)
-        .endObject()
-        .startObject(AnomalyRecord.OVER_FIELD_NAME.getPreferredName())
-            .field(TYPE, KEYWORD)
-        .endObject()
-        .startObject(AnomalyRecord.OVER_FIELD_VALUE.getPreferredName())
-            .field(TYPE, KEYWORD)
-            .field(COPY_TO, ALL_FIELD_VALUES)
-        .endObject()
-        .startObject(AnomalyRecord.RECORD_SCORE.getPreferredName())
-            .field(TYPE, DOUBLE)
-        .endObject()
-        .startObject(AnomalyRecord.INITIAL_RECORD_SCORE.getPreferredName())
-            .field(TYPE, DOUBLE)
-        .endObject()
-        .startObject(AnomalyRecord.CAUSES.getPreferredName())
-            .field(TYPE, NESTED)
-            .startObject(PROPERTIES)
-                .startObject(AnomalyCause.ACTUAL.getPreferredName())
-                    .field(TYPE, DOUBLE)
-                .endObject()
-                .startObject(AnomalyCause.TYPICAL.getPreferredName())
-                    .field(TYPE, DOUBLE)
-                .endObject()
-                .startObject(AnomalyCause.PROBABILITY.getPreferredName())
-                    .field(TYPE, DOUBLE)
-                .endObject()
-                .startObject(AnomalyCause.FUNCTION.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AnomalyCause.FUNCTION_DESCRIPTION.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AnomalyCause.BY_FIELD_NAME.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AnomalyCause.BY_FIELD_VALUE.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                    .field(COPY_TO, ALL_FIELD_VALUES)
-                .endObject()
-                .startObject(AnomalyCause.CORRELATED_BY_FIELD_VALUE.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                    .field(COPY_TO, ALL_FIELD_VALUES)
-                .endObject()
-                .startObject(AnomalyCause.FIELD_NAME.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AnomalyCause.PARTITION_FIELD_NAME.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AnomalyCause.PARTITION_FIELD_VALUE.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                    .field(COPY_TO, ALL_FIELD_VALUES)
-                .endObject()
-                .startObject(AnomalyCause.OVER_FIELD_NAME.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AnomalyCause.OVER_FIELD_VALUE.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                    .field(COPY_TO, ALL_FIELD_VALUES)
-                .endObject()
-            .endObject()
-        .endObject()
-        .startObject(AnomalyRecord.INFLUENCERS.getPreferredName())
-            /* Array of influences */
-            .field(TYPE, NESTED)
-            .startObject(PROPERTIES)
-                .startObject(Influence.INFLUENCER_FIELD_NAME.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(Influence.INFLUENCER_FIELD_VALUES.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                    .field(COPY_TO, ALL_FIELD_VALUES)
-                .endObject()
-            .endObject()
-        .endObject();
-    }
-
-    private static void addInfluencerFieldsToMapping(XContentBuilder builder) throws IOException {
-        builder.startObject(Influencer.INFLUENCER_SCORE.getPreferredName())
-            .field(TYPE, DOUBLE)
-        .endObject()
-        .startObject(Influencer.INITIAL_INFLUENCER_SCORE.getPreferredName())
-            .field(TYPE, DOUBLE)
-        .endObject()
-        .startObject(Influencer.INFLUENCER_FIELD_NAME.getPreferredName())
-            .field(TYPE, KEYWORD)
-        .endObject()
-        .startObject(Influencer.INFLUENCER_FIELD_VALUE.getPreferredName())
-            .field(TYPE, KEYWORD)
-            .field(COPY_TO, ALL_FIELD_VALUES)
-        .endObject();
-    }
-
-    /**
-     * {@link DataCounts} mapping.
-     * The type is disabled so {@link DataCounts} aren't searchable and
-     * the '_all' field is disabled
-     *
-     * @throws IOException On builder write error
-     */
-    private static void addDataCountsMapping(XContentBuilder builder) throws IOException {
-        builder.startObject(DataCounts.PROCESSED_RECORD_COUNT.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(DataCounts.PROCESSED_FIELD_COUNT.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(DataCounts.INPUT_BYTES.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(DataCounts.INPUT_RECORD_COUNT.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(DataCounts.INPUT_FIELD_COUNT.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(DataCounts.INVALID_DATE_COUNT.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(DataCounts.MISSING_FIELD_COUNT.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(DataCounts.OUT_OF_ORDER_TIME_COUNT.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(DataCounts.EMPTY_BUCKET_COUNT.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(DataCounts.SPARSE_BUCKET_COUNT.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(DataCounts.BUCKET_COUNT.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(DataCounts.EARLIEST_RECORD_TIME.getPreferredName())
-            .field(TYPE, DATE)
-        .endObject()
-        .startObject(DataCounts.LATEST_RECORD_TIME.getPreferredName())
-            .field(TYPE, DATE)
-        .endObject()
-        .startObject(DataCounts.LATEST_EMPTY_BUCKET_TIME.getPreferredName())
-            .field(TYPE, DATE)
-        .endObject()
-        .startObject(DataCounts.LATEST_SPARSE_BUCKET_TIME.getPreferredName())
-            .field(TYPE, DATE)
-        .endObject()
-        .startObject(DataCounts.LAST_DATA_TIME.getPreferredName())
-            .field(TYPE, DATE)
-        .endObject();
-    }
-
-    /**
-     * Create the Elasticsearch mapping for {@linkplain CategoryDefinition}.
-     * The '_all' field is disabled as the document isn't meant to be searched.
-     *
-     * @throws IOException On builder error
-     */
-    private static void addCategoryDefinitionMapping(XContentBuilder builder) throws IOException {
-        builder.startObject(CategoryDefinition.CATEGORY_ID.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(CategoryDefinition.TERMS.getPreferredName())
-            .field(TYPE, TEXT)
-        .endObject()
-        .startObject(CategoryDefinition.REGEX.getPreferredName())
-            .field(TYPE, KEYWORD)
-        .endObject()
-        .startObject(CategoryDefinition.MAX_MATCHING_LENGTH.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(CategoryDefinition.EXAMPLES.getPreferredName())
-            .field(TYPE, TEXT)
-        .endObject();
-    }
-
-    /**
-     * Create the Elasticsearch mapping for state.  State could potentially be
-     * huge (target document size is 16MB and there can be many documents) so all
-     * analysis by Elasticsearch is disabled.  The only way to retrieve state is
-     * by knowing the ID of a particular document.
-     */
-    public static XContentBuilder stateMapping() throws IOException {
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject();
-        builder.startObject(DOC_TYPE);
-        addMetaInformation(builder);
-        builder.field(ENABLED, false);
-        builder.endObject();
-        builder.endObject();
-
-        return builder;
-    }
-
-    /**
-     * Create the Elasticsearch mapping for {@linkplain ModelSnapshot}.
-     * The '_all' field is disabled but the type is searchable
-     */
-    private static void addModelSnapshotMapping(XContentBuilder builder) throws IOException {
-        builder.startObject(ModelSnapshot.DESCRIPTION.getPreferredName())
-            .field(TYPE, TEXT)
-        .endObject()
-        .startObject(ModelSnapshotField.SNAPSHOT_ID.getPreferredName())
-            .field(TYPE, KEYWORD)
-        .endObject()
-        .startObject(ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName())
-            .field(TYPE, INTEGER)
-        .endObject()
-        .startObject(ModelSnapshot.RETAIN.getPreferredName())
-            .field(TYPE, BOOLEAN)
-        .endObject()
-        .startObject(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName())
-            .startObject(PROPERTIES)
-                .startObject(Job.ID.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(Result.RESULT_TYPE.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(ModelSizeStats.TIMESTAMP_FIELD.getPreferredName())
-                    .field(TYPE, DATE)
-                .endObject();
-
-        addModelSizeStatsFieldsToMapping(builder);
-
-        // end model size stats properties
-        builder.endObject();
-        // end model size stats mapping
-        builder.endObject();
-
-        builder.startObject(ModelSnapshot.QUANTILES.getPreferredName())
-            .field(ENABLED, false)
-        .endObject()
-        .startObject(ModelSnapshot.LATEST_RECORD_TIME.getPreferredName())
-            .field(TYPE, DATE)
-        .endObject()
-        .startObject(ModelSnapshot.LATEST_RESULT_TIME.getPreferredName())
-            .field(TYPE, DATE)
-        .endObject();
-    }
-
-    /**
-     * {@link ModelSizeStats} fields to be added under the 'properties' section of the mapping
-     * @param builder Add properties to this builder
-     * @throws IOException On write error
-     */
-    private static void addModelSizeStatsFieldsToMapping(XContentBuilder builder) throws IOException {
-        builder.startObject(ModelSizeStats.MODEL_BYTES_FIELD.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(ModelSizeStats.TOTAL_BY_FIELD_COUNT_FIELD.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(ModelSizeStats.TOTAL_OVER_FIELD_COUNT_FIELD.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(ModelSizeStats.TOTAL_PARTITION_FIELD_COUNT_FIELD.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(ModelSizeStats.BUCKET_ALLOCATION_FAILURES_COUNT_FIELD.getPreferredName())
-            .field(TYPE, LONG)
-        .endObject()
-        .startObject(ModelSizeStats.MEMORY_STATUS_FIELD.getPreferredName())
-            .field(TYPE, KEYWORD)
-        .endObject()
-        .startObject(ModelSizeStats.LOG_TIME_FIELD.getPreferredName())
-            .field(TYPE, DATE)
-        .endObject();
-    }
-
-    public static XContentBuilder auditMessageMapping() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                    .startObject(AuditMessage.TYPE.getPreferredName())
-                        .startObject(PROPERTIES)
-                            .startObject(Job.ID.getPreferredName())
-                                .field(TYPE, KEYWORD)
-                            .endObject()
-                            .startObject(AuditMessage.LEVEL.getPreferredName())
-                               .field(TYPE, KEYWORD)
-                            .endObject()
-                            .startObject(AuditMessage.MESSAGE.getPreferredName())
-                                .field(TYPE, TEXT)
-                                .startObject(FIELDS)
-                                    .startObject(RAW)
-                                        .field(TYPE, KEYWORD)
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                            .startObject(AuditMessage.TIMESTAMP.getPreferredName())
-                                .field(TYPE, DATE)
-                            .endObject()
-                            .startObject(AuditMessage.NODE_NAME.getPreferredName())
-                                .field(TYPE, KEYWORD)
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject();
+        final String[] indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT);
+        if (indicesThatRequireAnUpdate.length > 0) {
+            try {
+                String mapping = mappingSupplier.get();
+                PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
+                putMappingRequest.source(mapping, XContentType.JSON);
+                putMappingRequest.origin(ML_ORIGIN);
+                putMappingRequest.masterNodeTimeout(masterNodeTimeout);
+                executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest,
+                    ActionListener.wrap(response -> {
+                        if (response.isAcknowledged()) {
+                            listener.onResponse(true);
+                        } else {
+                            listener.onFailure(new ElasticsearchException("Attempt to put missing mapping in indices "
+                                + Arrays.toString(indicesThatRequireAnUpdate) + " was not acknowledged"));
+                        }
+                    }, listener::onFailure));
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
+        } else {
+            logger.trace("Mappings are up to date.");
+            listener.onResponse(true);
+        }
     }
 }

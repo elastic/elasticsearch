@@ -18,12 +18,18 @@ https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/htt
  as an argument and has the same return type. The request config builder can
 be modified and then returned. In the following example we increase the
 connect timeout (defaults to 1 second) and the socket timeout (defaults to 30
-seconds). Also we adjust the max retry timeout accordingly (defaults to 30
-seconds too).
+seconds).
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-timeouts]
+--------------------------------------------------
+
+Timeouts also can be set per request with RequestOptions, which overrides RestClient customizeRequestConfig.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-request-options-timeouts]
 --------------------------------------------------
 
 === Number of threads
@@ -65,22 +71,76 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-disa
 --------------------------------------------------
 <1> Disable preemptive authentication
 
+=== Other authentication methods
+
+==== Elasticsearch Token Service tokens
+
+If you want the client to authenticate with an Elasticsearch access token, set the relevant HTTP request header.
+If the client makes requests on behalf of a single user only, you can set the necessary `Authorization` header as a default header as shown
+in the following example:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-auth-bearer-token]
+--------------------------------------------------
+
+==== Elasticsearch API keys
+
+If you want the client to authenticate with an Elasticsearch API key, set the relevant HTTP request header.
+If the client makes requests on behalf of a single user only, you can set the necessary `Authorization` header as a default header as shown
+in the following example:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-auth-api-key]
+--------------------------------------------------
+
 === Encrypted communication
 
-Encrypted communication can also be configured through the
+Encrypted communication using TLS can also be configured through the
 `HttpClientConfigCallback`. The
 https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
  received as an argument exposes multiple methods to configure encrypted
  communication: `setSSLContext`, `setSSLSessionStrategy` and
  `setConnectionManager`, in order of precedence from the least important.
- The following is an example:
+
+When accessing an Elasticsearch cluster that is setup for TLS on the HTTP layer, the client needs to trust the certificate that
+Elasticsearch is using.
+ The following is an example of setting up the client to trust the CA that has signed the certificate that Elasticsearch is using, when
+ that CA certificate is available in a PKCS#12 keystore:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-encrypted-communication]
 --------------------------------------------------
 
-If no explicit configuration is provided, the http://docs.oracle.com/javase/7/docs/technotes/guides/security/jsse/JSSERefGuide.html#CustomizingStores[system default configuration]
+The following is an example of setting up the client to trust the CA that has signed the certificate that Elasticsearch is using, when
+that CA certificate is available as a PEM encoded file.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-trust-ca-pem]
+--------------------------------------------------
+
+When Elasticsearch is configured to require client TLS authentication, for example when a PKI realm is configured, the client needs to provide
+a client certificate during the TLS handshake in order to authenticate. The following is an example of setting up the client for TLS
+authentication with a certificate and a private key that are stored in a PKCS#12 keystore.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-mutual-tls-authentication]
+--------------------------------------------------
+
+If the client certificate and key are not available in a keystore but rather as PEM encoded files, you cannot use them
+directly to build an SSLContext. You must rely on external libraries to parse the PEM key into a PrivateKey instance. Alternatively, you
+can use external tools to build a keystore from your PEM files, as shown in the following example:
+
+```
+openssl pkcs12 -export -in client.crt -inkey private_key.pem \
+        -name "client" -out client.p12
+```
+
+If no explicit configuration is provided, the https://docs.oracle.com/javase/7/docs/technotes/guides/security/jsse/JSSERefGuide.html#CustomizingStores[system default configuration]
 will be used.
 
 === Others
@@ -90,15 +150,15 @@ should be consulted: https://hc.apache.org/httpcomponents-asyncclient-4.1.x/ .
 
 NOTE: If your application runs under the security manager you might be subject
 to the JVM default policies of caching positive hostname resolutions
-indefinitely and negative hostname resolutions for ten seconds.  If the resolved
+indefinitely and negative hostname resolutions for ten seconds. If the resolved
 addresses of the hosts to which you are connecting the client to vary with time
 then you might want to modify the default JVM behavior. These can be modified by
 adding
-http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.ttl=<timeout>`]
+https://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.ttl=<timeout>`]
 and
-http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.negative.ttl=<timeout>`]
+https://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.negative.ttl=<timeout>`]
 to your
-http://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html[Java
+https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html[Java
 security policy].
 
 === Node selector
@@ -106,7 +166,7 @@ security policy].
 The client sends each request to one of the configured nodes in round-robin
 fashion. Nodes can optionally be filtered through a node selector that needs
 to be provided when initializing the client. This is useful when sniffing is
-enabled, in case only dedicated master nodes should be hit by HTTP requests.
+enabled, in case no dedicated master nodes should be hit by HTTP requests.
 For each request the client will run the eventually configured node selector
 to filter the node candidates, then select the next one in the list out of the
 remaining ones.
@@ -124,6 +184,6 @@ whenever none of the nodes from the preferred rack is available.
 
 WARNING: Node selectors that do not consistently select the same set of nodes
 will make round-robin behaviour unpredictable and possibly unfair. The
-preference example  above is fine as it reasons about availability of nodes
+preference example above is fine as it reasons about availability of nodes
 which already affects the predictability of round-robin. Node selection should
 not depend on other external factors or round-robin will not work properly.

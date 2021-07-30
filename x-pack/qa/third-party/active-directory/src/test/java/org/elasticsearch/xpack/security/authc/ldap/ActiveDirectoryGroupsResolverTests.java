@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.Filter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
@@ -16,6 +17,7 @@ import org.junit.Before;
 
 import java.util.List;
 import java.util.regex.Pattern;
+
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -34,8 +36,6 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
         ldapConnection.getConnectionOptions().setFollowReferrals(AbstractActiveDirectoryTestCase.FOLLOW_REFERRALS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
-    @SuppressWarnings("unchecked")
     public void testResolveSubTree() throws Exception {
         Settings settings = Settings.builder()
                 .put("xpack.security.authc.realms.active_directory.ad.group_search.scope", LdapSearchScope.SUB_TREE)

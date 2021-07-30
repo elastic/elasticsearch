@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.builder;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -46,6 +35,7 @@ import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Map;
@@ -93,15 +83,25 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testSerialization() throws IOException {
-        SearchSourceBuilder testBuilder = createSearchSourceBuilder();
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            testBuilder.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                SearchSourceBuilder deserializedBuilder = new SearchSourceBuilder(in);
-                assertEquals(deserializedBuilder, testBuilder);
-                assertEquals(deserializedBuilder.hashCode(), testBuilder.hashCode());
-                assertNotSame(deserializedBuilder, testBuilder);
-            }
+        SearchSourceBuilder original = createSearchSourceBuilder();
+        SearchSourceBuilder copy = copyBuilder(original);
+        assertEquals(copy, original);
+        assertEquals(copy.hashCode(), original.hashCode());
+        assertNotSame(copy, original);
+    }
+
+    public void testSerializingWithRuntimeFieldsBeforeSupportedThrows() {
+        SearchSourceBuilder original = new SearchSourceBuilder().runtimeMappings(randomRuntimeMappings());
+        Version v = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_11_0));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> copyBuilder(original, v));
+        assertThat(e.getMessage(), equalTo("Versions before 7.11.0 don't support [runtime_mappings] and search was sent to [" + v + "]"));
+    }
+
+    public void testShallowCopy() {
+        for (int i = 0; i < 10; i++) {
+            SearchSourceBuilder original = createSearchSourceBuilder();
+            SearchSourceBuilder copy = original.shallowCopy();
+            assertEquals(original, copy);
         }
     }
 
@@ -110,9 +110,12 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(createSearchSourceBuilder(), this::copyBuilder);
     }
 
-    //we use the streaming infra to create a copy of the builder provided as argument
     private SearchSourceBuilder copyBuilder(SearchSourceBuilder original) throws IOException {
-        return ESTestCase.copyWriteable(original, namedWriteableRegistry, SearchSourceBuilder::new);
+        return copyBuilder(original, Version.CURRENT);
+    }
+
+    private SearchSourceBuilder copyBuilder(SearchSourceBuilder original, Version version) throws IOException {
+        return ESTestCase.copyWriteable(original, namedWriteableRegistry, SearchSourceBuilder::new, version);
     }
 
     public void testParseIncludeExclude() throws IOException {
@@ -352,7 +355,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
-    public void testToXContent() throws  IOException {
+    public void testToXContent() throws IOException {
         //verify that only what is set gets printed out through toXContent
         XContentType xContentType = randomFrom(XContentType.values());
         {
@@ -375,10 +378,32 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testToXContentWithPointInTime() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        TimeValue keepAlive = randomBoolean() ? TimeValue.timeValueHours(1) : null;
+        searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder("id").setKeepAlive(keepAlive));
+        XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+        searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        BytesReference bytes = BytesReference.bytes(builder);
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(bytes, false, xContentType).v2();
+        assertEquals(1, sourceAsMap.size());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pit = (Map<String, Object>) sourceAsMap.get("pit");
+        assertEquals("id", pit.get("id"));
+        if (keepAlive != null) {
+            assertEquals("1h", pit.get("keep_alive"));
+            assertEquals(2, pit.size());
+        } else {
+            assertNull(pit.get("keep_alive"));
+            assertEquals(1, pit.size());
+        }
+    }
+
     public void testParseIndicesBoost() throws IOException {
         {
             String restContent = " { \"indices_boost\": {\"foo\": 1.0, \"bar\": 2.0}}";
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, restContent, RestApiVersion.V_7)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
                 assertEquals(2, searchSourceBuilder.indexBoosts().size());
                 assertEquals(new SearchSourceBuilder.IndexBoost("foo", 1.0f), searchSourceBuilder.indexBoosts().get(0));
@@ -441,17 +466,58 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testNegativeFromErrors() {
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(-2));
-        assertEquals("[from] parameter cannot be negative", expected.getMessage());
+        int from = randomIntBetween(-10, -1);
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(from));
+        assertEquals("[from] parameter cannot be negative but was [" + from + "]", expected.getMessage());
     }
 
-    public void testNegativeSizeErrors() {
-        int randomSize = randomIntBetween(-100000, -2);
+    public void testNegativeSizeErrors() throws IOException {
+        int randomSize = randomIntBetween(-100000, -1);
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class,
                 () -> new SearchSourceBuilder().size(randomSize));
         assertEquals("[size] parameter cannot be negative, found [" + randomSize + "]", expected.getMessage());
         expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().size(-1));
         assertEquals("[size] parameter cannot be negative, found [-1]", expected.getMessage());
+
+        String restContent = "{\"size\" : " + randomSize + "}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            assertThat(ex.getMessage(), containsString(Integer.toString(randomSize)));
+        }
+
+        restContent = "{\"size\" : -1}";
+        try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, restContent, RestApiVersion.V_7)) {
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+            assertEquals(-1, searchSourceBuilder.size());
+        }
+        assertWarnings("Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` "
+            + "parameter if you don't want to set it explicitly.");
+    }
+
+    public void testNegativeTerminateAfter() throws IOException {
+        int randomNegativeValue = randomIntBetween(-100000, -1);
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class,
+                () -> new SearchSourceBuilder().terminateAfter(randomNegativeValue));
+        assertEquals("terminateAfter must be > 0", expected.getMessage());
+
+        String restContent = "{\"terminate_after\" :" + randomNegativeValue + "}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            assertThat(ex.getMessage(), containsString("terminateAfter must be > 0"));
+        }
+    }
+
+    public void testNegativeTrackTotalHits() throws IOException {
+        int randomNegativeValue = randomIntBetween(-100000, -2);
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class,
+                () -> new SearchSourceBuilder().trackTotalHitsUpTo(randomNegativeValue));
+        assertEquals("[track_total_hits] parameter must be positive or equals to -1, got " + randomNegativeValue, expected.getMessage());
+
+        String restContent = "{\"track_total_hits\" :" + randomNegativeValue + "}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            assertEquals("[track_total_hits] parameter must be positive or equals to -1, got " + randomNegativeValue, ex.getMessage());
+        }
     }
 
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {

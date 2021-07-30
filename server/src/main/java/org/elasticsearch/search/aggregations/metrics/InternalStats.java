@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -23,12 +12,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class InternalStats extends InternalNumericMetricsAggregation.MultiValue implements Stats {
     enum Metrics {
@@ -40,14 +32,18 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         }
     }
 
+    static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
+        Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toSet())
+    );
+
     protected final long count;
     protected final double min;
     protected final double max;
     protected final double sum;
 
     public InternalStats(String name, long count, double sum, double min, double max, DocValueFormat formatter,
-                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                         Map<String, Object> metadata) {
+        super(name, metadata);
         this.count = count;
         this.sum = sum;
         this.min = min;
@@ -145,12 +141,17 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    public InternalStats doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public Iterable<String> valueNames() {
+        return METRIC_NAMES;
+    }
+
+    @Override
+    public InternalStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long count = 0;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
-        double sum = 0;
-        double compensation = 0;
+        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+
         for (InternalAggregation aggregation : aggregations) {
             InternalStats stats = (InternalStats) aggregation;
             count += stats.getCount();
@@ -158,17 +159,9 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             max = Math.max(max, stats.getMax());
             // Compute the sum of double values with Kahan summation algorithm which is more
             // accurate than naive summation.
-            double value = stats.getSum();
-            if (Double.isFinite(value) == false) {
-                sum += value;
-            } else if (Double.isFinite(sum)) {
-                double corrected = value - compensation;
-                double newSum = sum + corrected;
-                compensation = (newSum - sum) - corrected;
-                sum = newSum;
-            }
+            kahanSummation.add(stats.getSum());
         }
-        return new InternalStats(name, count, sum, min, max, format, pipelineAggregators(), getMetaData());
+        return new InternalStats(name, count, kahanSummation.value(), min, max, format, getMetadata());
     }
 
     static class Fields {
@@ -212,12 +205,16 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(count, min, max, sum);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), count, min, max, sum);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalStats other = (InternalStats) obj;
         return count == other.count &&
             Double.compare(min, other.min) == 0 &&

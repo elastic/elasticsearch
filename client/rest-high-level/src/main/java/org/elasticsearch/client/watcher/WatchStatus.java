@@ -1,31 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,15 +25,14 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.client.watcher.WatchStatusDateParser.parseDate;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class WatchStatus {
 
     private final State state;
 
     private final ExecutionState executionState;
-    private final DateTime lastChecked;
-    private final DateTime lastMetCondition;
+    private final ZonedDateTime lastChecked;
+    private final ZonedDateTime lastMetCondition;
     private final long version;
     private final Map<String, ActionStatus> actions;
     @Nullable private Map<String, String> headers;
@@ -51,8 +40,8 @@ public class WatchStatus {
     public WatchStatus(long version,
                        State state,
                        ExecutionState executionState,
-                       DateTime lastChecked,
-                       DateTime lastMetCondition,
+                       ZonedDateTime lastChecked,
+                       ZonedDateTime lastMetCondition,
                        Map<String, ActionStatus> actions,
                        Map<String, String> headers) {
         this.version = version;
@@ -72,11 +61,11 @@ public class WatchStatus {
         return lastChecked != null;
     }
 
-    public DateTime lastChecked() {
+    public ZonedDateTime lastChecked() {
         return lastChecked;
     }
 
-    public DateTime lastMetCondition() {
+    public ZonedDateTime lastMetCondition() {
         return lastMetCondition;
     }
 
@@ -123,13 +112,13 @@ public class WatchStatus {
     public static WatchStatus parse(XContentParser parser) throws IOException {
         State state = null;
         ExecutionState executionState = null;
-        DateTime lastChecked = null;
-        DateTime lastMetCondition = null;
+        ZonedDateTime lastChecked = null;
+        ZonedDateTime lastMetCondition = null;
         Map<String, ActionStatus> actions = null;
         Map<String, String> headers = Collections.emptyMap();
         long version = -1;
 
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -203,9 +192,9 @@ public class WatchStatus {
     public static class State {
 
         private final boolean active;
-        private final DateTime timestamp;
+        private final ZonedDateTime timestamp;
 
-        public State(boolean active, DateTime timestamp) {
+        public State(boolean active, ZonedDateTime timestamp) {
             this.active = active;
             this.timestamp = timestamp;
         }
@@ -214,7 +203,7 @@ public class WatchStatus {
             return active;
         }
 
-        public DateTime getTimestamp() {
+        public ZonedDateTime getTimestamp() {
             return timestamp;
         }
 
@@ -223,7 +212,7 @@ public class WatchStatus {
                 throw new ElasticsearchParseException("expected an object but found [{}] instead", parser.currentToken());
             }
             boolean active = true;
-            DateTime timestamp = DateTime.now(UTC);
+            ZonedDateTime timestamp = ZonedDateTime.now(ZoneOffset.UTC);
             String currentFieldName = null;
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

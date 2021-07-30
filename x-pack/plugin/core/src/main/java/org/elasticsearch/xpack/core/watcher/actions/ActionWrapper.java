@@ -1,19 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.actions;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.ThrottlerField;
@@ -25,14 +30,21 @@ import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 public class ActionWrapper implements ToXContentObject {
 
@@ -40,19 +52,26 @@ public class ActionWrapper implements ToXContentObject {
     @Nullable
     private final ExecutableCondition condition;
     @Nullable
-    private final ExecutableTransform<Transform, Transform.Result> transform;
+    private final ExecutableTransform<? extends Transform, ? extends Transform.Result> transform;
     private final ActionThrottler throttler;
     private final ExecutableAction<? extends Action> action;
+    @Nullable
+    private String path;
+    private final Integer maxIterations;
 
     public ActionWrapper(String id, ActionThrottler throttler,
                          @Nullable ExecutableCondition condition,
-                         @Nullable ExecutableTransform<Transform, Transform.Result> transform,
-                         ExecutableAction<? extends Action> action) {
+                         @Nullable ExecutableTransform<? extends Transform, ? extends Transform.Result> transform,
+                         ExecutableAction<? extends Action> action,
+                         @Nullable String path,
+                         @Nullable Integer maxIterations) {
         this.id = id;
         this.condition = condition;
         this.throttler = throttler;
         this.transform = transform;
         this.action = action;
+        this.path = path;
+        this.maxIterations = (maxIterations != null) ? maxIterations : 100;
     }
 
     public String id() {
@@ -63,7 +82,7 @@ public class ActionWrapper implements ToXContentObject {
         return condition;
     }
 
-    public ExecutableTransform<Transform, Transform.Result> transform() {
+    public ExecutableTransform<? extends Transform, ? extends Transform.Result> transform() {
         return transform;
     }
 
@@ -89,12 +108,13 @@ public class ActionWrapper implements ToXContentObject {
      * @param ctx The current watch's context
      * @return Never {@code null}
      */
+    @SuppressWarnings("unchecked")
     public ActionWrapperResult execute(WatchExecutionContext ctx) {
         ActionWrapperResult result = ctx.actionsResults().get(id);
         if (result != null) {
             return result;
         }
-        if (!ctx.skipThrottling(id)) {
+        if (ctx.skipThrottling(id) == false) {
             Throttler.Result throttleResult = throttler.throttle(id, ctx);
             if (throttleResult.throttle()) {
                 if (throttleResult.type() == Throttler.Type.ACK) {
@@ -109,7 +129,7 @@ public class ActionWrapper implements ToXContentObject {
             try {
                 conditionResult = condition.execute(ctx);
                 if (conditionResult.met() == false) {
-                    ctx.watch().status().actionStatus(id).resetAckStatus(DateTime.now(DateTimeZone.UTC));
+                    ctx.watch().status().actionStatus(id).resetAckStatus(ZonedDateTime.now(ZoneOffset.UTC));
                     return new ActionWrapperResult(id, conditionResult, null,
                                                     new Action.Result.ConditionFailed(action.type(), "condition not met. skipping"));
                 }
@@ -140,14 +160,89 @@ public class ActionWrapper implements ToXContentObject {
                 return new ActionWrapperResult(id, conditionResult, null, new Action.Result.FailureWithException(action.type(), e));
             }
         }
-        try {
-            Action.Result actionResult = action.execute(id, ctx, payload);
-            return new ActionWrapperResult(id, conditionResult, transformResult, actionResult);
-        } catch (Exception e) {
-            action.logger().error(
+        if (Strings.isEmpty(path)) {
+            try {
+                Action.Result actionResult = action.execute(id, ctx, payload);
+                return new ActionWrapperResult(id, conditionResult, transformResult, actionResult);
+            } catch (Exception e) {
+                action.logger().error(
+                        (Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), id), e);
+                return new ActionWrapperResult(id, new Action.Result.FailureWithException(action.type(), e));
+            }
+        } else {
+            try {
+                List<Action.Result> results = new ArrayList<>();
+                Object object = ObjectPath.eval(path, toMap(ctx));
+                int runs = 0;
+                if (object instanceof Collection) {
+                    Collection<?> collection = (Collection<?>) object;
+                    if (collection.isEmpty()) {
+                        throw new ElasticsearchException("foreach object [{}] was an empty list, could not run any action", path);
+                    } else {
+                        for (Object o : collection) {
+                            if (runs >= maxIterations) {
+                                break;
+                            }
+                            if (o instanceof Map) {
+                                results.add(action.execute(id, ctx, new Payload.Simple((Map<String, Object>) o)));
+                            } else {
+                                results.add(action.execute(id, ctx, new Payload.Simple("_value", o)));
+                            }
+                            runs++;
+                        }
+                    }
+                } else if (object == null) {
+                    throw new ElasticsearchException("specified foreach object was null: [{}]", path);
+                } else {
+                    throw new ElasticsearchException("specified foreach object was not a an array/collection: [{}]", path);
+                }
+
+                // check if we have mixed results, then set to partial failure
+                final Set<Action.Result.Status> statuses = results.stream().map(Action.Result::status).collect(Collectors.toSet());
+                Action.Result.Status status;
+                if (statuses.size() == 1) {
+                    status = statuses.iterator().next();
+                } else {
+                    status = Action.Result.Status.PARTIAL_FAILURE;
+                }
+
+                final int numberOfActionsExecuted = runs;
+                return new ActionWrapperResult(id, conditionResult, transformResult,
+                    new Action.Result(action.type(), status) {
+                        @Override
+                        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                            builder.field("number_of_actions_executed", numberOfActionsExecuted);
+                            builder.startArray(WatchField.FOREACH.getPreferredName());
+                            for (Action.Result result : results) {
+                                builder.startObject();
+                                result.toXContent(builder, params);
+                                builder.endObject();
+                            }
+                            builder.endArray();
+                            builder.field(WatchField.MAX_ITERATIONS.getPreferredName(), maxIterations);
+                            return builder;
+                        }
+                });
+            } catch (Exception e) {
+                action.logger().error(
                     (Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), id), e);
-            return new ActionWrapperResult(id, new Action.Result.FailureWithException(action.type(), e));
+                return new ActionWrapperResult(id, new Action.Result.FailureWithException(action.type(), e));
+            }
         }
+    }
+
+    private Map<String, Object> toMap(WatchExecutionContext ctx) {
+        Map<String, Object> model = new HashMap<>();
+        model.put("id", ctx.id().value());
+        model.put("watch_id", ctx.id().watchId());
+        model.put("execution_time", new JodaCompatibleZonedDateTime(ctx.executionTime().toInstant(), ZoneOffset.UTC));
+        model.put("trigger", ctx.triggerEvent().data());
+        model.put("metadata", ctx.watch().metadata());
+        model.put("vars", ctx.vars());
+        if (ctx.payload().data() != null) {
+            model.put("payload", ctx.payload().data());
+        }
+        return Map.of("ctx", model);
     }
 
     @Override
@@ -186,6 +281,11 @@ public class ActionWrapper implements ToXContentObject {
                     .field(transform.type(), transform, params)
                     .endObject();
         }
+        if (Strings.isEmpty(path) == false) {
+            builder.field(WatchField.FOREACH.getPreferredName(), path);
+            builder.field(WatchField.MAX_ITERATIONS.getPreferredName(), maxIterations);
+        }
+
         builder.field(action.type(), action, params);
         return builder.endObject();
     }
@@ -196,9 +296,11 @@ public class ActionWrapper implements ToXContentObject {
         assert parser.currentToken() == XContentParser.Token.START_OBJECT;
 
         ExecutableCondition condition = null;
-        ExecutableTransform<Transform, Transform.Result> transform = null;
+        ExecutableTransform<? extends Transform, ? extends Transform.Result> transform = null;
         TimeValue throttlePeriod = null;
+        String path = null;
         ExecutableAction<? extends Action> action = null;
+        Integer maxIterations = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -208,6 +310,8 @@ public class ActionWrapper implements ToXContentObject {
             } else {
                 if (WatchField.CONDITION.match(currentFieldName, parser.getDeprecationHandler())) {
                     condition = actionRegistry.getConditionRegistry().parseExecutable(watchId, parser);
+                } else if (WatchField.FOREACH.match(currentFieldName, parser.getDeprecationHandler())) {
+                    path = parser.text();
                 } else if (Transform.TRANSFORM.match(currentFieldName, parser.getDeprecationHandler())) {
                     transform = actionRegistry.getTransformRegistry().parse(watchId, parser);
                 } else if (ThrottlerField.THROTTLE_PERIOD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -219,6 +323,8 @@ public class ActionWrapper implements ToXContentObject {
                         throw new ElasticsearchParseException("could not parse action [{}/{}]. failed to parse field [{}] as time value",
                                 pe, watchId, actionId, currentFieldName);
                     }
+                } else if (WatchField.MAX_ITERATIONS.match(currentFieldName, parser.getDeprecationHandler())) {
+                    maxIterations = parser.intValue();
                 } else {
                     // it's the type of the action
                     ActionFactory actionFactory = actionRegistry.factory(currentFieldName);
@@ -235,7 +341,7 @@ public class ActionWrapper implements ToXContentObject {
         }
 
         ActionThrottler throttler = new ActionThrottler(clock, throttlePeriod, licenseState);
-        return new ActionWrapper(actionId, throttler, condition, transform, action);
+        return new ActionWrapper(actionId, throttler, condition, transform, action, path, maxIterations);
     }
 
 }

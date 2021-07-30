@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
@@ -27,7 +16,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -35,28 +24,10 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Comparator;
 
 public class IpRangeAggregatorTests extends AggregatorTestCase {
-
-    private static InetAddress randomIp(boolean v4) {
-        try {
-            if (v4) {
-                byte[] ipv4 = new byte[4];
-                random().nextBytes(ipv4);
-                return InetAddress.getByAddress(ipv4);
-            } else {
-                byte[] ipv6 = new byte[16];
-                random().nextBytes(ipv6);
-                return InetAddress.getByAddress(ipv6);
-            }
-        } catch (UnknownHostException e) {
-            throw new AssertionError();
-        }
-    }
-
 
     private static boolean isInRange(BytesRef value, BytesRef from, BytesRef to) {
         if ((to == null || to.compareTo(value) > 0) && (from == null || from.compareTo(value) <= 0)) {
@@ -128,11 +99,10 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
                 }
                 w.addDocument(doc);
             }
-            MappedFieldType fieldType = new IpFieldMapper.IpFieldType();
-            fieldType.setName("field");
+            MappedFieldType fieldType = new IpFieldMapper.IpFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalBinaryRange range = search(searcher, new MatchAllDocsQuery(), builder, fieldType);
+                InternalBinaryRange range = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, fieldType);
                 assertEquals(numRanges, range.getBuckets().size());
                 for (int i = 0; i < range.getBuckets().size(); i++) {
                     Tuple<BytesRef, BytesRef> expected = requestedRanges[i];
@@ -149,6 +119,45 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
                     }
                     assertEquals(expectedCounts[i], bucket.getDocCount());
                 }
+            }
+        }
+    }
+
+    public void testMissingUnmapped() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            for (int i = 0; i < 7; i++) {
+                Document doc = new Document();
+                w.addDocument(doc);
+            }
+
+            IpRangeAggregationBuilder builder = new IpRangeAggregationBuilder("test_agg")
+                .field("field")
+                .addRange(new IpRangeAggregationBuilder.Range("foo", "192.168.100.0", "192.168.100.255"))
+                .missing("192.168.100.42"); // Apparently we expect a string here
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                InternalBinaryRange range = searchAndReduce(searcher, new MatchAllDocsQuery(), builder);
+                assertEquals(1, range.getBuckets().size());
+            }
+        }
+    }
+
+    public void testMissingUnmappedBadType() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            for (int i = 0; i < 7; i++) {
+                Document doc = new Document();
+                w.addDocument(doc);
+            }
+
+            IpRangeAggregationBuilder builder = new IpRangeAggregationBuilder("test_agg")
+                .field("field")
+                .addRange(new IpRangeAggregationBuilder.Range("foo", "192.168.100.0", "192.168.100.255"))
+                .missing(1234);
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                expectThrows(IllegalArgumentException.class, () -> searchAndReduce(searcher, new MatchAllDocsQuery(), builder));
             }
         }
     }

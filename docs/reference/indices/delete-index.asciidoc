@@ -1,22 +1,62 @@
 [[indices-delete-index]]
-== Delete Index
+=== Delete index API
+++++
+<titleabbrev>Delete index</titleabbrev>
+++++
 
-The delete index API allows to delete an existing index.
+Deletes an existing index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-DELETE /twitter
+DELETE /my-index-000001
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-The above example deletes an index called `twitter`. Specifying an index or a
-wildcard expression is required. Aliases cannot be used to delete an index.
-Wildcard expressions are resolved to matching concrete indices only.
 
-The delete index API can also be applied to more than one index, by either
-using a comma separated list, or on all indices (be careful!) by using `_all` or `*` as index.
+[[delete-index-api-request]]
+==== {api-request-title}
 
-In order to disable allowing to delete indices via wildcards or `_all`,
-set `action.destructive_requires_name` setting in the config to `true`.
-This setting can also be changed via the cluster update settings api.
+`DELETE /<index>`
+
+[[delete-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `delete_index`
+or `manage` <<privileges-list-indices,index privilege>> for the target index.
+
+[[delete-index-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
++
+--
+(Required, string) Comma-separated list of indices to delete. You cannot specify
+<<alias,index aliases>>.
+
+By default, this parameter does not support wildcards (`*`) or `_all`. To use
+wildcards or `_all`, change the `action.destructive_requires_name` setting to
+`false`. You can update this setting in the `elasticsearch.yml` file or using
+the <<cluster-update-settings,cluster update settings>> API. Wildcard patterns
+only match open, concrete indices.
+
+NOTE: You cannot delete the current write index of a data stream. To delete the
+index, you must <<data-streams-rollover,roll over>> the data stream so a new
+write index is created. You can then use the delete index API to delete the
+previous write index.
+--
+
+
+[[delete-index-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

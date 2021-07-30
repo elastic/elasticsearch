@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.protocol.xpack.graph;
 
@@ -10,10 +11,10 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,7 +36,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * Graph explore response holds a graph of {@link Vertex} and {@link Connection} objects
  * (nodes and edges in common graph parlance).
- * 
+ *
  * @see GraphExploreRequest
  */
 public class GraphExploreResponse extends ActionResponse implements ToXContentObject {
@@ -48,7 +49,40 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
     private boolean returnDetailedInfo;
     static final String RETURN_DETAILED_INFO_PARAM = "returnDetailedInfo";
 
-    public GraphExploreResponse() {
+    public GraphExploreResponse() {}
+
+    public GraphExploreResponse(StreamInput in) throws IOException {
+        super(in);
+        tookInMillis = in.readVLong();
+        timedOut = in.readBoolean();
+
+        int size = in.readVInt();
+        if (size == 0) {
+            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
+        } else {
+            shardFailures = new ShardSearchFailure[size];
+            for (int i = 0; i < shardFailures.length; i++) {
+                shardFailures[i] = readShardSearchFailure(in);
+            }
+        }
+        // read vertices
+        size = in.readVInt();
+        vertices = new HashMap<>();
+        for (int i = 0; i < size; i++) {
+            Vertex n = Vertex.readFrom(in);
+            vertices.put(n.getId(), n);
+        }
+
+        size = in.readVInt();
+
+        connections = new HashMap<>();
+        for (int i = 0; i < size; i++) {
+            Connection e = new Connection(in, vertices);
+            connections.put(e.getId(), e);
+        }
+
+        returnDetailedInfo = in.readBoolean();
+
     }
 
     public GraphExploreResponse(long tookInMillis, boolean timedOut, ShardOperationFailedException[] shardFailures,
@@ -81,41 +115,6 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         return shardFailures;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        tookInMillis = in.readVLong();
-        timedOut = in.readBoolean();
-
-        int size = in.readVInt();
-        if (size == 0) {
-            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
-        } else {
-            shardFailures = new ShardSearchFailure[size];
-            for (int i = 0; i < shardFailures.length; i++) {
-                shardFailures[i] = readShardSearchFailure(in);
-            }
-        }
-        // read vertices
-        size = in.readVInt();
-        vertices = new HashMap<>();
-        for (int i = 0; i < size; i++) {
-            Vertex n = Vertex.readFrom(in);
-            vertices.put(n.getId(), n);
-        }
-
-        size = in.readVInt();
-
-        connections = new HashMap<>();
-        for (int i = 0; i < size; i++) {
-            Connection e = new Connection(in, vertices);
-            connections.put(e.getId(), e);
-        }
-        
-        returnDetailedInfo = in.readBoolean();
-
-    }
-
     public Collection<Connection> getConnections() {
         return connections.values();
     }
@@ -123,14 +122,13 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
     public Collection<Vertex> getVertices() {
         return vertices.values();
     }
-    
+
     public Vertex getVertex(VertexId id) {
         return vertices.get(id);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVLong(tookInMillis);
         out.writeBoolean(timedOut);
 
@@ -148,7 +146,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         for (Connection connection : connections.values()) {
             connection.writeTo(out);
         }
-        
+
         out.writeBoolean(returnDetailedInfo);
 
     }
@@ -168,24 +166,22 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         builder.startArray(FAILURES.getPreferredName());
         if (shardFailures != null) {
             for (ShardOperationFailedException shardFailure : shardFailures) {
-                builder.startObject();
                 shardFailure.toXContent(builder, params);
-                builder.endObject();
             }
         }
         builder.endArray();
 
         ObjectIntHashMap<Vertex> vertexNumbers = new ObjectIntHashMap<>(vertices.size());
-        
+
         Map<String, String> extraParams = new HashMap<>();
         extraParams.put(RETURN_DETAILED_INFO_PARAM, Boolean.toString(returnDetailedInfo));
         Params extendedParams = new DelegatingMapParams(extraParams, params);
-        
+
         builder.startArray(VERTICES.getPreferredName());
         for (Vertex vertex : vertices.values()) {
             builder.startObject();
             vertexNumbers.put(vertex, vertexNumbers.size());
-            vertex.toXContent(builder, extendedParams);            
+            vertex.toXContent(builder, extendedParams);
             builder.endObject();
         }
         builder.endArray();
@@ -204,13 +200,13 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
     private static final ConstructingObjectParser<GraphExploreResponse, Void> PARSER = new ConstructingObjectParser<>(
             "GraphExploreResponsenParser", true,
             args -> {
-                GraphExploreResponse result = new GraphExploreResponse();  
+                GraphExploreResponse result = new GraphExploreResponse();
                 result.vertices = new HashMap<>();
                 result.connections = new HashMap<>();
-                
+
                 result.tookInMillis = (Long) args[0];
                 result.timedOut = (Boolean) args[1];
-                
+
                 @SuppressWarnings("unchecked")
                 List<Vertex> vertices = (List<Vertex>) args[2];
                 @SuppressWarnings("unchecked")
@@ -229,7 +225,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
                 }
                 if (failures.size() > 0) {
                     result.shardFailures = failures.toArray(new ShardSearchFailure[failures.size()]);
-                }      
+                }
                 return result;
             });
 
@@ -239,8 +235,8 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> Vertex.fromXContent(p), VERTICES);
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> UnresolvedConnection.fromXContent(p), CONNECTIONS);
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ShardSearchFailure.fromXContent(p), FAILURES);
-    } 
-    
+    }
+
     public static GraphExploreResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }

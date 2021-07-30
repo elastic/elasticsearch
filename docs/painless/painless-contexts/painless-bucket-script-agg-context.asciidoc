@@ -18,13 +18,13 @@ numeric::
 
 ==== API
 
-The standard <<painless-api-reference, Painless API>> is available.
+The standard <<painless-api-reference-shared, Painless API>> is available.
 
 ==== Example
 
 To run this example, first follow the steps in <<painless-context-examples, context examples>>.
 
-The painless context in a `bucket_script` aggregation provides a `params` map.  This map contains both
+The painless context in a `bucket_script` aggregation provides a `params` map. This map contains both
 user-specified custom values, as well as the values from other aggregations specified in the `buckets_path`
 property.
 
@@ -36,9 +36,9 @@ and adds the user-specified base_cost to the result:
 (params.max - params.min) + params.base_cost
 --------------------------------------------------
 
-Note that the values are extracted from the `params` map.  In context, the aggregation looks like this:
+Note that the values are extracted from the `params` map. In context, the aggregation looks like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /seats/_search
 {
@@ -79,8 +79,8 @@ GET /seats/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:seats]
+
 <1> The `buckets_path` points to two aggregations (`min_cost`, `max_cost`) and adds `min`/`max` variables
 to the `params` map
 <2> The user-specified `base_cost` is also added to the script's `params` map

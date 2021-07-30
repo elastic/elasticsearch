@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -14,6 +15,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -28,23 +30,14 @@ public class TransportUpdateJobAction extends TransportMasterNodeAction<UpdateJo
     public TransportUpdateJobAction(TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager) {
-        super(UpdateJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, UpdateJobAction.Request::new);
+        super(UpdateJobAction.NAME, transportService, clusterService, threadPool, actionFilters, UpdateJobAction.Request::new,
+                indexNameExpressionResolver, PutJobAction.Response::new, ThreadPool.Names.SAME);
         this.jobManager = jobManager;
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PutJobAction.Response newResponse() {
-        return new PutJobAction.Response();
-    }
-
-    @Override
-    protected void masterOperation(UpdateJobAction.Request request, ClusterState state, ActionListener<PutJobAction.Response> listener) {
+    protected void masterOperation(Task task, UpdateJobAction.Request request, ClusterState state,
+                                   ActionListener<PutJobAction.Response> listener) {
         jobManager.updateJob(request, listener);
     }
 

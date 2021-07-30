@@ -1,47 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -56,10 +36,21 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -70,31 +61,31 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
-import static org.elasticsearch.search.fetch.subphase.highlight.HighlightField.readHighlightField;
 
 /**
  * A single search hit.
  *
  * @see SearchHits
  */
-public final class SearchHit implements Streamable, ToXContentObject, Iterable<DocumentField> {
+public final class SearchHit implements Writeable, ToXContentObject, Iterable<DocumentField> {
 
-    private transient int docId;
+    private final transient int docId;
 
     private static final float DEFAULT_SCORE = Float.NaN;
     private float score = DEFAULT_SCORE;
 
-    private Text id;
-    private Text type;
+    private final Text id;
 
-    private NestedIdentity nestedIdentity;
+    private final NestedIdentity nestedIdentity;
 
     private long version = -1;
+    private long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+    private long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
     private BytesReference source;
 
-    private Map<String, DocumentField> fields = emptyMap();
+    private Map<String, DocumentField> documentFields;
+    private final Map<String, DocumentField> metaFields;
 
     private Map<String, HighlightField> highlightFields = null;
 
@@ -117,28 +108,183 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     private Map<String, SearchHits> innerHits;
 
-    SearchHit() {
-
-    }
-
+    //used only in tests
     public SearchHit(int docId) {
         this(docId, null, null, null);
     }
 
-    public SearchHit(int docId, String id, Text type, Map<String, DocumentField> fields) {
-        this(docId, id, type, null, fields);
+    public SearchHit(int docId, String id, Map<String, DocumentField> documentFields, Map<String, DocumentField> metaFields) {
+        this(docId, id, null, documentFields, metaFields);
     }
 
-    public SearchHit(int nestedTopDocId, String id, Text type, NestedIdentity nestedIdentity, Map<String, DocumentField> fields) {
+    public SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity,
+                     Map<String, DocumentField> documentFields, Map<String, DocumentField> metaFields) {
         this.docId = nestedTopDocId;
         if (id != null) {
             this.id = new Text(id);
         } else {
             this.id = null;
         }
-        this.type = type;
         this.nestedIdentity = nestedIdentity;
-        this.fields = fields;
+        this.documentFields = documentFields == null ? emptyMap() : documentFields;
+        this.metaFields = metaFields == null ? emptyMap() : metaFields;
+    }
+
+    public SearchHit(StreamInput in) throws IOException {
+        docId = -1;
+        score = in.readFloat();
+        id = in.readOptionalText();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readOptionalText();
+        }
+        nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
+        version = in.readLong();
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
+        source = in.readBytesReference();
+        if (source.length() == 0) {
+            source = null;
+        }
+        if (in.readBoolean()) {
+            explanation = readExplanation(in);
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            documentFields = in.readMap(StreamInput::readString, DocumentField::new);
+            metaFields = in.readMap(StreamInput::readString, DocumentField::new);
+        } else {
+            Map<String, DocumentField> fields = readFields(in);
+            documentFields = new HashMap<>();
+            metaFields = new HashMap<>();
+            fields.forEach((fieldName, docField) ->
+                (MapperService.isMetadataFieldStatic(fieldName) ? metaFields : documentFields).put(fieldName, docField));
+        }
+
+        int size = in.readVInt();
+        if (size == 0) {
+            highlightFields = emptyMap();
+        } else if (size == 1) {
+            HighlightField field = new HighlightField(in);
+            highlightFields = singletonMap(field.name(), field);
+        } else {
+            Map<String, HighlightField> highlightFields = new HashMap<>();
+            for (int i = 0; i < size; i++) {
+                HighlightField field = new HighlightField(in);
+                highlightFields.put(field.name(), field);
+            }
+            this.highlightFields = unmodifiableMap(highlightFields);
+        }
+
+        sortValues = new SearchSortValues(in);
+
+        size = in.readVInt();
+        if (size > 0) {
+            matchedQueries = new String[size];
+            for (int i = 0; i < size; i++) {
+                matchedQueries[i] = in.readString();
+            }
+        }
+        // we call the setter here because that also sets the local index parameter
+        shard(in.readOptionalWriteable(SearchShardTarget::new));
+        size = in.readVInt();
+        if (size > 0) {
+            innerHits = new HashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                String key = in.readString();
+                SearchHits value = new SearchHits(in);
+                innerHits.put(key, value);
+            }
+        } else {
+            innerHits = null;
+        }
+    }
+
+    private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
+
+
+    private Map<String, DocumentField> readFields(StreamInput in) throws IOException {
+        Map<String, DocumentField> fields;
+        int size = in.readVInt();
+        if (size == 0) {
+            fields = emptyMap();
+        } else if (size == 1) {
+            DocumentField hitField = new DocumentField(in);
+            fields = singletonMap(hitField.getName(), hitField);
+        }  else {
+            fields = new HashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                DocumentField field = new DocumentField(in);
+                fields.put(field.getName(), field);
+            }
+            fields = unmodifiableMap(fields);
+        }
+        return fields;
+    }
+
+    private void writeFields(StreamOutput out,  Map<String, DocumentField> fields) throws IOException {
+        if (fields == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(fields.size());
+            for (DocumentField field : fields.values()) {
+                field.writeTo(out);
+            }
+        }
+    }
+
+
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeFloat(score);
+        out.writeOptionalText(id);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeOptionalText(SINGLE_MAPPING_TYPE);
+        }
+        out.writeOptionalWriteable(nestedIdentity);
+        out.writeLong(version);
+        out.writeZLong(seqNo);
+        out.writeVLong(primaryTerm);
+        out.writeBytesReference(source);
+        if (explanation == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            writeExplanation(out, explanation);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            out.writeMap(documentFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+            out.writeMap(metaFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+        } else {
+            writeFields(out, this.getFields());
+        }
+        if (highlightFields == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(highlightFields.size());
+            for (HighlightField highlightField : highlightFields.values()) {
+                highlightField.writeTo(out);
+            }
+        }
+        sortValues.writeTo(out);
+
+        if (matchedQueries.length == 0) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(matchedQueries.length);
+            for (String matchedFilter : matchedQueries) {
+                out.writeString(matchedFilter);
+            }
+        }
+        out.writeOptionalWriteable(shard);
+        if (innerHits == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(innerHits.size());
+            for (Map.Entry<String, SearchHits> entry : innerHits.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
+        }
     }
 
     public int docId() {
@@ -167,6 +313,30 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         return this.version;
     }
 
+
+    public void setSeqNo(long seqNo) {
+        this.seqNo = seqNo;
+    }
+
+    public void setPrimaryTerm(long primaryTerm) {
+        this.primaryTerm = primaryTerm;
+    }
+
+    /**
+     * returns the sequence number of the last modification to the document, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
+     * if not requested.
+     **/
+    public long getSeqNo() {
+        return this.seqNo;
+    }
+
+    /**
+     * returns the primary term of the last modification to the document, or {@link SequenceNumbers#UNASSIGNED_PRIMARY_TERM}
+     * if not requested. */
+    public long getPrimaryTerm() {
+        return this.primaryTerm;
+    }
+
     /**
      * The index of the hit.
      */
@@ -179,17 +349,6 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
      */
     public String getId() {
         return id != null ? id.string() : null;
-    }
-
-    /**
-     * The type of the document.
-     *
-     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
-     * filter on a field on the document.
-     */
-    @Deprecated
-    public String getType() {
-        return type != null ? type.string() : null;
     }
 
     /**
@@ -264,14 +423,30 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     @Override
     public Iterator<DocumentField> iterator() {
-        return fields.values().iterator();
+        // need to join the fields and metadata fields
+        Map<String, DocumentField> allFields = this.getFields();
+        return allFields.values().iterator();
     }
 
     /**
      * The hit field matching the given field name.
      */
     public DocumentField field(String fieldName) {
-        return getFields().get(fieldName);
+        DocumentField result = documentFields.get(fieldName);
+        if (result != null) {
+            return result;
+        } else {
+            return metaFields.get(fieldName);
+        }
+    }
+
+    /*
+    * Adds a new DocumentField to the map in case both parameters are not null.
+    * */
+    public void setDocumentField(String fieldName, DocumentField field) {
+        if (fieldName == null || field == null) return;
+        if (documentFields.size() == 0) this.documentFields = new HashMap<>();
+        this.documentFields.put(fieldName, field);
     }
 
     /**
@@ -279,16 +454,14 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
      * were required to be loaded.
      */
     public Map<String, DocumentField> getFields() {
-        return fields == null ? emptyMap() : fields;
-    }
-
-    // returns the fields without handling null cases
-    public Map<String, DocumentField> fieldsOrNull() {
-        return fields;
-    }
-
-    public void fields(Map<String, DocumentField> fields) {
-        this.fields = fields;
+        if (metaFields.size() > 0 || documentFields.size() > 0) {
+            final Map<String, DocumentField> fields = new HashMap<>();
+            fields.putAll(metaFields);
+            fields.putAll(documentFields);
+            return fields;
+        } else {
+            return emptyMap();
+        }
     }
 
     /**
@@ -311,10 +484,17 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
     }
 
     /**
-     * An array of the sort values used.
+     * An array of the (formatted) sort values used.
      */
     public Object[] getSortValues() {
-        return sortValues.sortValues();
+        return sortValues.getFormattedSortValues();
+    }
+
+    /**
+     * An array of the (raw) sort values used.
+     */
+    public Object[] getRawSortValues() {
+        return sortValues.getRawSortValues();
     }
 
     /**
@@ -382,9 +562,10 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     public static class Fields {
         static final String _INDEX = "_index";
-        static final String _TYPE = "_type";
         static final String _ID = "_id";
         static final String _VERSION = "_version";
+        static final String _SEQ_NO = "_seq_no";
+        static final String _PRIMARY_TERM = "_primary_term";
         static final String _SCORE = "_score";
         static final String FIELDS = "fields";
         static final String HIGHLIGHT = "highlight";
@@ -399,6 +580,12 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         static final String _NODE = "_node";
     }
 
+    // Following are the keys for storing the metadata fields and regular fields in the aggregation map.
+    // These do not influence the structure of json serialization: document fields are still stored
+    // under FIELDS and metadata are still scattered at the root level.
+    static final String DOCUMENT_FIELDS = "document_fields";
+    static final String METADATA_FIELDS = "metadata_fields";
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -409,21 +596,6 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     // public because we render hit as part of completion suggestion option
     public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
-        List<DocumentField> metaFields = new ArrayList<>();
-        List<DocumentField> otherFields = new ArrayList<>();
-        if (fields != null && !fields.isEmpty()) {
-            for (DocumentField field : fields.values()) {
-                if (field.getValues().isEmpty()) {
-                    continue;
-                }
-                if (field.isMetadataField()) {
-                    metaFields.add(field);
-                } else {
-                    otherFields.add(field);
-                }
-            }
-        }
-
         // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
         // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
         if (getExplanation() != null && shard != null) {
@@ -433,8 +605,8 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         if (index != null) {
             builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
         }
-        if (type != null) {
-            builder.field(Fields._TYPE, type);
+        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
         }
         if (id != null) {
             builder.field(Fields._ID, id);
@@ -445,12 +617,23 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         if (version != -1) {
             builder.field(Fields._VERSION, version);
         }
+
+        if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            builder.field(Fields._SEQ_NO, seqNo);
+            builder.field(Fields._PRIMARY_TERM, primaryTerm);
+        }
+
         if (Float.isNaN(score)) {
             builder.nullField(Fields._SCORE);
         } else {
             builder.field(Fields._SCORE, score);
         }
-        for (DocumentField field : metaFields) {
+
+        for (DocumentField field : metaFields.values()) {
+            // ignore empty metadata fields
+            if (field.getValues().size() == 0) {
+                continue;
+            }
             // _ignored is the only multi-valued meta field
             // TODO: can we avoid having an exception here?
             if (field.getName().equals(IgnoredFieldMapper.NAME)) {
@@ -462,14 +645,19 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         if (source != null) {
             XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
         }
-        if (!otherFields.isEmpty()) {
+        if (documentFields.isEmpty() == false &&
+                // ignore fields all together if they are all empty
+                documentFields.values().stream()
+                    .anyMatch(df -> df.getValues().size() > 0)) {
             builder.startObject(Fields.FIELDS);
-            for (DocumentField field : otherFields) {
-                field.toXContent(builder, params);
+            for (DocumentField field : documentFields.values()) {
+                if (field.getValues().size() > 0) {
+                    field.toXContent(builder, params);
+                }
             }
             builder.endObject();
         }
-        if (highlightFields != null && !highlightFields.isEmpty()) {
+        if (highlightFields != null && highlightFields.isEmpty() == false) {
             builder.startObject(Fields.HIGHLIGHT);
             for (HighlightField field : highlightFields.values()) {
                 field.toXContent(builder, params);
@@ -500,6 +688,19 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         return builder;
     }
 
+    // All fields on the root level of the parsed SearhHit are interpreted as metadata fields
+    // public because we use it in a completion suggestion option
+    @SuppressWarnings("unchecked")
+    public static final ObjectParser.UnknownFieldConsumer<Map<String, Object>> unknownMetaFieldConsumer = (map, fieldName, fieldValue) -> {
+        Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(
+            METADATA_FIELDS, v -> new HashMap<String, DocumentField>());
+        if (fieldName.equals(IgnoredFieldMapper.NAME)) {
+            fieldMap.put(fieldName, new DocumentField(fieldName, (List<Object>) fieldValue));
+        } else {
+            fieldMap.put(fieldName, new DocumentField(fieldName, Collections.singletonList(fieldValue)));
+        }
+    };
+
     /**
      * This parser outputs a temporary map of the objects needed to create the
      * SearchHit instead of directly creating the SearchHit. The reason for this
@@ -510,7 +711,8 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
      * of the included search hit. The output of the map is used to create the
      * actual SearchHit instance via {@link #createFromMap(Map)}
      */
-    private static ObjectParser<Map<String, Object>, Void> MAP_PARSER = new ObjectParser<>("innerHitParser", true, HashMap::new);
+    private static final ObjectParser<Map<String, Object>, Void> MAP_PARSER = new ObjectParser<>("innerHitParser",
+        unknownMetaFieldConsumer, HashMap::new);
 
     static {
         declareInnerHitsParseFields(MAP_PARSER);
@@ -521,14 +723,14 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
     }
 
     public static void declareInnerHitsParseFields(ObjectParser<Map<String, Object>, Void> parser) {
-        declareMetaDataFields(parser);
-        parser.declareString((map, value) -> map.put(Fields._TYPE, new Text(value)), new ParseField(Fields._TYPE));
         parser.declareString((map, value) -> map.put(Fields._INDEX, value), new ParseField(Fields._INDEX));
         parser.declareString((map, value) -> map.put(Fields._ID, value), new ParseField(Fields._ID));
         parser.declareString((map, value) -> map.put(Fields._NODE, value), new ParseField(Fields._NODE));
         parser.declareField((map, value) -> map.put(Fields._SCORE, value), SearchHit::parseScore, new ParseField(Fields._SCORE),
                 ValueType.FLOAT_OR_NULL);
         parser.declareLong((map, value) -> map.put(Fields._VERSION, value), new ParseField(Fields._VERSION));
+        parser.declareLong((map, value) -> map.put(Fields._SEQ_NO, value), new ParseField(Fields._SEQ_NO));
+        parser.declareLong((map, value) -> map.put(Fields._PRIMARY_TERM, value), new ParseField(Fields._PRIMARY_TERM));
         parser.declareField((map, value) -> map.put(Fields._SHARD, value), (p, c) -> ShardId.fromString(p.text()),
                 new ParseField(Fields._SHARD), ValueType.STRING);
         parser.declareObject((map, value) -> map.put(SourceFieldMapper.NAME, value), (p, c) -> parseSourceBytes(p),
@@ -538,7 +740,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         parser.declareObject((map, value) -> {
             Map<String, DocumentField> fieldMap = get(Fields.FIELDS, map, new HashMap<String, DocumentField>());
             fieldMap.putAll(value);
-            map.put(Fields.FIELDS, fieldMap);
+            map.put(DOCUMENT_FIELDS, fieldMap);
         }, (p, c) -> parseFields(p), new ParseField(Fields.FIELDS));
         parser.declareObject((map, value) -> map.put(Fields._EXPLANATION, value), (p, c) -> parseExplanation(p),
                 new ParseField(Fields._EXPLANATION));
@@ -553,11 +755,11 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     public static SearchHit createFromMap(Map<String, Object> values) {
         String id = get(Fields._ID, values, null);
-        Text type = get(Fields._TYPE, values, null);
         NestedIdentity nestedIdentity = get(NestedIdentity._NESTED, values, null);
-        Map<String, DocumentField> fields = get(Fields.FIELDS, values, Collections.emptyMap());
+        Map<String, DocumentField> metaFields = get(METADATA_FIELDS, values, Collections.emptyMap());
+        Map<String, DocumentField> documentFields = get(DOCUMENT_FIELDS, values, Collections.emptyMap());
 
-        SearchHit searchHit = new SearchHit(-1, id, type, nestedIdentity, fields);
+        SearchHit searchHit = new SearchHit(-1, id, nestedIdentity, documentFields, metaFields);
         String index = get(Fields._INDEX, values, null);
         String clusterAlias = null;
         if (index != null) {
@@ -580,6 +782,8 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         }
         searchHit.score(get(Fields._SCORE, values, DEFAULT_SCORE));
         searchHit.version(get(Fields._VERSION, values, -1L));
+        searchHit.setSeqNo(get(Fields._SEQ_NO, values, SequenceNumbers.UNASSIGNED_SEQ_NO));
+        searchHit.setPrimaryTerm(get(Fields._PRIMARY_TERM, values, SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
         searchHit.sortValues(get(Fields.SORT, values, SearchSortValues.EMPTY));
         searchHit.highlightFields(get(Fields.HIGHLIGHT, values, null));
         searchHit.sourceRef(get(SourceFieldMapper.NAME, values, null));
@@ -615,36 +819,6 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         }
     }
 
-    /**
-     * we need to declare parse fields for each metadata field, except for _ID, _INDEX and _TYPE which are
-     * handled individually. All other fields are parsed to an entry in the fields map
-     */
-    private static void declareMetaDataFields(ObjectParser<Map<String, Object>, Void> parser) {
-        for (String metadatafield : MapperService.getAllMetaFields()) {
-            if (metadatafield.equals(Fields._ID) == false && metadatafield.equals(Fields._INDEX) == false
-                    && metadatafield.equals(Fields._TYPE) == false) {
-                if (metadatafield.equals(IgnoredFieldMapper.NAME)) {
-                    parser.declareObjectArray((map, list) -> {
-                            @SuppressWarnings("unchecked")
-                            Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(Fields.FIELDS,
-                                v -> new HashMap<String, DocumentField>());
-                            DocumentField field = new DocumentField(metadatafield, list);
-                            fieldMap.put(field.getName(), field);
-                        }, (p, c) -> parseFieldsValue(p),
-                        new ParseField(metadatafield));
-                } else {
-                    parser.declareField((map, field) -> {
-                            @SuppressWarnings("unchecked")
-                            Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(Fields.FIELDS,
-                                v -> new HashMap<String, DocumentField>());
-                            fieldMap.put(field.getName(), field);
-                        }, (p, c) -> new DocumentField(metadatafield, Collections.singletonList(parseFieldsValue(p))),
-                        new ParseField(metadatafield), ValueType.VALUE);
-                }
-            }
-        }
-    }
-
     private static Map<String, DocumentField> parseFields(XContentParser parser) throws IOException {
         Map<String, DocumentField> fields = new HashMap<>();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -657,12 +831,12 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
     private static Map<String, SearchHits> parseInnerHits(XContentParser parser) throws IOException {
         Map<String, SearchHits> innerHits = new HashMap<>();
         while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             String name = parser.currentName();
-            ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser);
             ensureFieldName(parser, parser.nextToken(), SearchHits.Fields.HITS);
             innerHits.put(name, SearchHits.fromXContent(parser));
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         }
         return innerHits;
     }
@@ -677,13 +851,13 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
     }
 
     private static Explanation parseExplanation(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         XContentParser.Token token;
         Float value = null;
         String description = null;
         List<Explanation> details = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             String currentFieldName = parser.currentName();
             token = parser.nextToken();
             if (Fields.VALUE.equals(currentFieldName)) {
@@ -691,7 +865,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
             } else if (Fields.DESCRIPTION.equals(currentFieldName)) {
                 description = parser.textOrNull();
             } else if (Fields.DETAILS.equals(currentFieldName)) {
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     details.add(parseExplanation(parser));
                 }
@@ -723,132 +897,6 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         builder.endObject();
     }
 
-    public static SearchHit readSearchHit(StreamInput in) throws IOException {
-        SearchHit hit = new SearchHit();
-        hit.readFrom(in);
-        return hit;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        score = in.readFloat();
-        id = in.readOptionalText();
-        type = in.readOptionalText();
-        nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
-        version = in.readLong();
-        source = in.readBytesReference();
-        if (source.length() == 0) {
-            source = null;
-        }
-        if (in.readBoolean()) {
-            explanation = readExplanation(in);
-        }
-        int size = in.readVInt();
-        if (size == 0) {
-            fields = emptyMap();
-        } else if (size == 1) {
-            DocumentField hitField = DocumentField.readDocumentField(in);
-            fields = singletonMap(hitField.getName(), hitField);
-        } else {
-            Map<String, DocumentField> fields = new HashMap<>();
-            for (int i = 0; i < size; i++) {
-                DocumentField hitField = DocumentField.readDocumentField(in);
-                fields.put(hitField.getName(), hitField);
-            }
-            this.fields = unmodifiableMap(fields);
-        }
-
-        size = in.readVInt();
-        if (size == 0) {
-            highlightFields = emptyMap();
-        } else if (size == 1) {
-            HighlightField field = readHighlightField(in);
-            highlightFields = singletonMap(field.name(), field);
-        } else {
-            Map<String, HighlightField> highlightFields = new HashMap<>();
-            for (int i = 0; i < size; i++) {
-                HighlightField field = readHighlightField(in);
-                highlightFields.put(field.name(), field);
-            }
-            this.highlightFields = unmodifiableMap(highlightFields);
-        }
-
-        sortValues = new SearchSortValues(in);
-
-        size = in.readVInt();
-        if (size > 0) {
-            matchedQueries = new String[size];
-            for (int i = 0; i < size; i++) {
-                matchedQueries[i] = in.readString();
-            }
-        }
-        // we call the setter here because that also sets the local index parameter
-        shard(in.readOptionalWriteable(SearchShardTarget::new));
-        size = in.readVInt();
-        if (size > 0) {
-            innerHits = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                String key = in.readString();
-                SearchHits value = SearchHits.readSearchHits(in);
-                innerHits.put(key, value);
-            }
-        } else {
-            innerHits = null;
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeFloat(score);
-        out.writeOptionalText(id);
-        out.writeOptionalText(type);
-        out.writeOptionalWriteable(nestedIdentity);
-        out.writeLong(version);
-        out.writeBytesReference(source);
-        if (explanation == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            writeExplanation(out, explanation);
-        }
-        if (fields == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(fields.size());
-            for (DocumentField hitField : getFields().values()) {
-                hitField.writeTo(out);
-            }
-        }
-        if (highlightFields == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(highlightFields.size());
-            for (HighlightField highlightField : highlightFields.values()) {
-                highlightField.writeTo(out);
-            }
-        }
-        sortValues.writeTo(out);
-
-        if (matchedQueries.length == 0) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(matchedQueries.length);
-            for (String matchedFilter : matchedQueries) {
-                out.writeString(matchedFilter);
-            }
-        }
-        out.writeOptionalWriteable(shard);
-        if (innerHits == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(innerHits.size());
-            for (Map.Entry<String, SearchHits> entry : innerHits.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
-        }
-    }
-
     @Override
     public boolean equals(Object obj) {
         if (obj == null || getClass() != obj.getClass()) {
@@ -856,11 +904,13 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         }
         SearchHit other = (SearchHit) obj;
         return Objects.equals(id, other.id)
-                && Objects.equals(type, other.type)
                 && Objects.equals(nestedIdentity, other.nestedIdentity)
                 && Objects.equals(version, other.version)
+                && Objects.equals(seqNo, other.seqNo)
+                && Objects.equals(primaryTerm, other.primaryTerm)
                 && Objects.equals(source, other.source)
-                && Objects.equals(fields, other.fields)
+                && Objects.equals(documentFields, other.documentFields)
+                && Objects.equals(metaFields, other.metaFields)
                 && Objects.equals(getHighlightFields(), other.getHighlightFields())
                 && Arrays.equals(matchedQueries, other.matchedQueries)
                 && Objects.equals(explanation, other.explanation)
@@ -872,8 +922,8 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, type, nestedIdentity, version, source, fields, getHighlightFields(), Arrays.hashCode(matchedQueries),
-                explanation, shard, innerHits, index, clusterAlias);
+        return Objects.hash(id, nestedIdentity, version, seqNo, primaryTerm, source, documentFields, metaFields, getHighlightFields(),
+            Arrays.hashCode(matchedQueries), explanation, shard, innerHits, index, clusterAlias);
     }
 
     /**
@@ -935,6 +985,11 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(_NESTED);
             return innerToXContent(builder, params);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
 
         /**

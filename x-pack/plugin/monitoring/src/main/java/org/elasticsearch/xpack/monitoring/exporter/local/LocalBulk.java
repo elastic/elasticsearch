@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
@@ -14,13 +15,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
-import org.joda.time.format.DateTimeFormatter;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -30,20 +31,20 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * LocalBulk exports monitoring data in the local cluster using bulk requests. Its usage is not thread safe since the
- * {@link LocalBulk#add(Collection)}, {@link LocalBulk#flush(org.elasticsearch.action.ActionListener)} and
- * {@link LocalBulk#doClose(ActionListener)} methods are not synchronized.
+ * {@link LocalBulk#add(Collection)} and {@link LocalBulk#flush(org.elasticsearch.action.ActionListener)}
+ * methods are not synchronized.
  */
 public class LocalBulk extends ExportBulk {
 
     private final Logger logger;
     private final Client client;
-    private final DateTimeFormatter formatter;
+    private final DateFormatter formatter;
     private final boolean usePipeline;
 
     private BulkRequestBuilder requestBuilder;
 
 
-    LocalBulk(String name, Logger logger, Client client, DateTimeFormatter dateTimeFormatter, boolean usePipeline) {
+    LocalBulk(String name, Logger logger, Client client, DateFormatter dateTimeFormatter, boolean usePipeline) {
         super(name, client.threadPool().getThreadContext());
         this.logger = logger;
         this.client = client;
@@ -52,13 +53,10 @@ public class LocalBulk extends ExportBulk {
     }
 
     @Override
-    public void doAdd(Collection<MonitoringDoc> docs) throws ExportException {
+    protected void doAdd(Collection<MonitoringDoc> docs) throws ExportException {
         ExportException exception = null;
 
         for (MonitoringDoc doc : docs) {
-            if (isClosed()) {
-                return;
-            }
             if (requestBuilder == null) {
                 requestBuilder = client.prepareBulk();
             }
@@ -66,7 +64,7 @@ public class LocalBulk extends ExportBulk {
             try {
                 final String index = MonitoringTemplateUtils.indexName(formatter, doc.getSystem(), doc.getTimestamp());
 
-                final IndexRequest request = new IndexRequest(index, "doc");
+                final IndexRequest request = new IndexRequest(index);
                 if (Strings.hasText(doc.getId())) {
                     request.id(doc.getId());
                 }
@@ -82,8 +80,8 @@ public class LocalBulk extends ExportBulk {
                 requestBuilder.add(request);
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("local exporter [{}] - added index request [index={}, type={}, id={}, pipeline={}]",
-                                 name, request.index(), request.type(), request.id(), request.getPipeline());
+                    logger.trace("local exporter [{}] - added index request [index={}, id={}, pipeline={}, monitoring data type={}]",
+                                 name, request.index(), request.id(), request.getPipeline(), doc.getType());
                 }
             } catch (Exception e) {
                 if (exception == null) {
@@ -99,8 +97,8 @@ public class LocalBulk extends ExportBulk {
     }
 
     @Override
-    public void doFlush(ActionListener<Void> listener) {
-        if (requestBuilder == null || requestBuilder.numberOfActions() == 0 || isClosed()) {
+    protected void doFlush(ActionListener<Void> listener) {
+        if (requestBuilder == null || requestBuilder.numberOfActions() == 0) {
             listener.onResponse(null);
         } else {
             try {
@@ -138,11 +136,4 @@ public class LocalBulk extends ExportBulk {
         }
     }
 
-    @Override
-    protected void doClose(ActionListener<Void> listener) {
-        if (isClosed() == false) {
-            requestBuilder = null;
-        }
-        listener.onResponse(null);
-    }
 }

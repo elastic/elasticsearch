@@ -1,0 +1,56 @@
+[role="xpack"]
+[[idp-saml-metadata]]
+=== Generate SAML metadata for the IDP
+++++
+<titleabbrev>Generate SAML metadata for the IDP</titleabbrev>
+++++
+Generates a SAML metadata document for the Identity Provider, describing its configuration and capabilities.
+
+[[idp-saml-metadata-request]]
+==== {api-request-title}
+
+`GET /_idp/saml/metadata/{sp_entity_id}`
+
+[[idp-saml-metadata-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have a role that grants the `cluster:admin/idp/saml/metadata` privilege.
+
+[[idp-saml-metadata-desc]]
+==== {api-description-title}
+
+This API generates a SAML metadata XML Document that can be consumed by a service provider in order
+to be configured to work with this identity provider
+
+[[idp-saml-metadata-path-params]]
+==== {api-path-parms-title}
+
+`sp_entity_id::
+(string) The SAML entity Id of the service provider that will consume this SAML metadata document.
+
+`acs`::
+(Optional, string) The SAML Assertion Consumer Service URL of the service provider that will consume this SAML.
+If this is not set, then this API will ignore any wildcard services and will fail if `sp_entity_id` is not a directly registered Service Provider.
+metadata document.
+
+[[idp-saml-metadata-example]]
+==== {api-examples-title}
+
+The following example generates a SAML metadata document to be consumed by the service provider with
+entity Id `https://some.sp.org/`.
+
+[source, console]
+--------------------------------------------------------------------
+GET /_idp/saml/metadata/https%3A%2F%2Fsome.sp.org%2F?acs=https%3A%2F%2Fsome.sp.org%2Fsaml%2Facs
+--------------------------------------------------------------------
+// TEST[skip:Do not enable identity provider for the docs cluster, at least not yet]
+
+a successful call returns the SAML metadata as an XML String
+
+[source, console-result]
+--------------------------------------------------------------------
+{
+  "metadata" : "<?xml version="1.0" encoding="UTF-8"?><md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://idp.org"><md:IDPSSODescriptor WantAuthnRequestsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"><md:KeyDescriptor use="signing"><ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:X509Data><ds:X509Certificate>MIIDYzCCAkugAwIBAgIVAITQVqXYYUT0w04Z2gWAZ6pv7gwbMA0GCSqGSIb3DQEBCwUAMDQxMjAwBgNVBAMTKUVsYXN0aWMgQ2VydGlmaWNhdGUgVG9vbCBBdXRvZ2VuZXJhdGVkIENBMCAXDTIwMDEyODA2MzczNloYDzIxNjgxMDE5MDYzNzM2WjBRMRMwEQYKCZImiZPyLGQBGRYDb3JnMR0wGwYKCZImiZPyLGQBGRYNZWxhc3RpY3NlYXJjaDEMMAoGA1UECxMDaWRwMQ0wCwYDVQQDEwR0ZXN0MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAujk+mVzI+qmf4gSJZdVVDdhFTi06kikb7FxG5JPu+gmU9Ke0LVEpP7Jp3gmhwsa18JUuvaepL1jnKmbbepKkEsvqUj4FuI/gImvFwb7X+xUwzNTYZAEvnZ4n16k0sBPuDuDibF0MGniVeLG3bD2VF3crFQrphFr+GZSXbVk5zIcSf6D6nSDcKmCNpVAK3jX9iV0nkr8cPtHOgprv1Y7mZgk5jwli9to0QD7r7OG5Db34R06JTMGTji+RULPISH1bc8FHdurRASkGmsei5GlJqPSuKdViuaKPmDrvKR8OK6gMzUd3pikJgD8veLxEuZ640FHPndPlvwJrSLwhitRgPQIDAQABo00wSzAdBgNVHQ4EFgQUD87H31WVQNfCc85/H2qhpzs3XfowHwYDVR0jBBgwFoAUVenAN+T06rqNDxjMcvgimnTw+FgwCQYDVR0TBAIwADANBgkqhkiG9w0BAQsFAAOCAQEAIvHYxT30cvoHWUE2saDVJ4qs/e0G3WusDyem3e4HkqwLEah06RDSgVCaOfW3ey5Q6CIQW3HHGUYqO0nU8JVCWdAk3+bUYJJOeLnwD+SbDxxKBhxLdx+BjWata85lfJTR9+dXs0RXAAN8dSiIaj9NSgnwiJqQQZf7i66S7XB58TDTdZlV3d26STLy5h7Uy6vyCka8Xu8HFQ4hH2qf2L6EhBbzVTB6tuyPQOQwrlLE65nhUNkfBbjZlre45UMc9GuxzHkbvd3HEQaroMHZxnu+/n/JDlgsrCYUEXnZnOXvgUPupPynoRdDN1F6r95TLyU9pYjDf/6zNPE854VF6y1TqQ==</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor><md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://idp.org/slo/post"/><md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:persistent</md:NameIDFormat><md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat><md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.org/sso/redirect"/></md:IDPSSODescriptor></md:EntityDescriptor>"
+}
+--------------------------------------------------------------------
+// TESTRESPONSE[skip:Do not enable identity provider for the docs cluster, at least not yet]

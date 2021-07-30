@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
@@ -25,14 +14,15 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -45,10 +35,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.DelayedAllocationService.CLUSTER_UPDATE_TASK_SOURCE;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -56,6 +45,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class DelayedAllocationServiceTests extends ESAllocationTestCase {
 
@@ -69,8 +59,10 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         threadPool = new TestThreadPool(getTestName());
         clusterService = mock(ClusterService.class);
         allocationService = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
-        delayedAllocationService = new TestDelayAllocationService(Settings.EMPTY, threadPool, clusterService, allocationService);
+        when(clusterService.getSettings()).thenReturn(NodeRoles.masterOnlyNode());
+        delayedAllocationService = new TestDelayAllocationService(threadPool, clusterService, allocationService);
         verify(clusterService).addListener(delayedAllocationService);
+        verify(clusterService).getSettings();
     }
 
     @After
@@ -79,22 +71,22 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
     }
 
     public void testNoDelayedUnassigned() throws Exception {
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0"))
                 .numberOfShards(1).numberOfReplicas(1))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(metaData)
-            .routingTable(RoutingTable.builder().addAsNew(metaData.index("test")).build()).build();
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build()).build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1").masterNodeId("node1"))
             .build();
         clusterState = allocationService.reroute(clusterState, "reroute");
         // starting primaries
-        clusterState = allocationService.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         // starting replicas
-        clusterState = allocationService.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         ClusterState prevState = clusterState;
         // remove node2 and reroute
@@ -104,7 +96,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             nodes.add(newNode("node3"));
         }
         clusterState = ClusterState.builder(clusterState).nodes(nodes).build();
-        clusterState = allocationService.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute");
         ClusterState newState = clusterState;
         List<ShardRouting> unassignedShards = newState.getRoutingTable().shardsWithState(ShardRoutingState.UNASSIGNED);
         if (nodeAvailableForAllocation) {
@@ -121,14 +113,14 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
 
     public void testDelayedUnassignedScheduleReroute() throws Exception {
         TimeValue delaySetting = timeValueMillis(100);
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delaySetting))
                 .numberOfShards(1).numberOfReplicas(1))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(metaData)
-            .routingTable(RoutingTable.builder().addAsNew(metaData.index("test")).build()).build();
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build()).build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1").masterNodeId("node1"))
             .build();
@@ -136,9 +128,9 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         allocationService.setNanoTimeOverride(baseTimestampNanos);
         clusterState = allocationService.reroute(clusterState, "reroute");
         // starting primaries
-        clusterState = allocationService.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         // starting replicas
-        clusterState = allocationService.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         assertFalse("no shards should be unassigned", clusterState.getRoutingNodes().unassigned().size() > 0);
         String nodeId = null;
         final List<ShardRouting> allShards = clusterState.getRoutingTable().allShards("test");
@@ -153,7 +145,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
 
         // remove node that has replica and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(nodeId)).build();
-        clusterState = allocationService.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute");
         ClusterState stateWithDelayedShard = clusterState;
         // make sure the replica is marked as delayed (i.e. not reallocated)
         assertEquals(1, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithDelayedShard));
@@ -212,25 +204,25 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
     public void testDelayedUnassignedScheduleRerouteAfterDelayedReroute() throws Exception {
         TimeValue shortDelaySetting = timeValueMillis(100);
         TimeValue longDelaySetting = TimeValue.timeValueSeconds(1);
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("short_delay")
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("short_delay")
                 .settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), shortDelaySetting))
                 .numberOfShards(1).numberOfReplicas(1))
-            .put(IndexMetaData.builder("long_delay")
+            .put(IndexMetadata.builder("long_delay")
                 .settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), longDelaySetting))
                 .numberOfShards(1).numberOfReplicas(1))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData)
-            .routingTable(RoutingTable.builder().addAsNew(metaData.index("short_delay")).addAsNew(metaData.index("long_delay")).build())
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(metadata.index("short_delay")).addAsNew(metadata.index("long_delay")).build())
             .nodes(DiscoveryNodes.builder()
-                .add(newNode("node0", singleton(DiscoveryNode.Role.MASTER))).localNodeId("node0").masterNodeId("node0")
+                .add(newNode("node0", singleton(DiscoveryNodeRole.MASTER_ROLE))).localNodeId("node0").masterNodeId("node0")
                 .add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).add(newNode("node4"))).build();
         // allocate shards
         clusterState = allocationService.reroute(clusterState, "reroute");
         // start primaries
-        clusterState = allocationService.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         // start replicas
-        clusterState = allocationService.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         assertThat("all shards should be started", clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(4));
 
         // find replica of short_delay
@@ -264,7 +256,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .build();
         // make sure both replicas are marked as delayed (i.e. not reallocated)
         allocationService.setNanoTimeOverride(baseTimestampNanos);
-        clusterState = allocationService.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute");
         final ClusterState stateWithDelayedShards = clusterState;
         assertEquals(2, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithDelayedShards));
         RoutingNodes.UnassignedShards.UnassignedIterator iter = stateWithDelayedShards.getRoutingNodes().unassigned().iterator();
@@ -362,19 +354,19 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
     public void testDelayedUnassignedScheduleRerouteRescheduledOnShorterDelay() throws Exception {
         TimeValue delaySetting = timeValueSeconds(30);
         TimeValue shorterDelaySetting = timeValueMillis(100);
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("foo").settings(settings(Version.CURRENT)
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("foo").settings(settings(Version.CURRENT)
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delaySetting))
                 .numberOfShards(1).numberOfReplicas(1))
-            .put(IndexMetaData.builder("bar").settings(settings(Version.CURRENT)
+            .put(IndexMetadata.builder("bar").settings(settings(Version.CURRENT)
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), shorterDelaySetting))
                 .numberOfShards(1).numberOfReplicas(1))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(metaData)
+            .metadata(metadata)
             .routingTable(RoutingTable.builder()
-                .addAsNew(metaData.index("foo"))
-                .addAsNew(metaData.index("bar"))
+                .addAsNew(metadata.index("foo"))
+                .addAsNew(metadata.index("bar"))
                 .build()).build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder()
@@ -385,9 +377,9 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         allocationService.setNanoTimeOverride(nodeLeftTimestampNanos);
         clusterState = allocationService.reroute(clusterState, "reroute");
         // starting primaries
-        clusterState = allocationService.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         // starting replicas
-        clusterState = allocationService.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         assertFalse("no shards should be unassigned", clusterState.getRoutingNodes().unassigned().size() > 0);
         String nodeIdOfFooReplica = null;
         for (ShardRouting shardRouting : clusterState.getRoutingTable().allShards("foo")) {
@@ -401,7 +393,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         // remove node that has replica and reroute
         clusterState = ClusterState.builder(clusterState).nodes(
             DiscoveryNodes.builder(clusterState.nodes()).remove(nodeIdOfFooReplica)).build();
-        clusterState = allocationService.deassociateDeadNodes(clusterState, true, "fake node left");
+        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "fake node left");
         ClusterState stateWithDelayedShard = clusterState;
         // make sure the replica is marked as delayed (i.e. not reallocated)
         assertEquals(1, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithDelayedShard));
@@ -424,8 +416,8 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
 
         if (randomBoolean()) {
             // update settings with shorter delay
-            ClusterState stateWithShorterDelay = ClusterState.builder(stateWithDelayedShard).metaData(MetaData.builder(
-                stateWithDelayedShard.metaData()).updateSettings(Settings.builder().put(
+            ClusterState stateWithShorterDelay = ClusterState.builder(stateWithDelayedShard).metadata(Metadata.builder(
+                stateWithDelayedShard.metadata()).updateSettings(Settings.builder().put(
                 UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), shorterDelaySetting).build(), "foo")).build();
             delayedAllocationService.setNanoTimeOverride(clusterChangeEventTimestampNanos);
             delayedAllocationService.clusterChanged(
@@ -444,7 +436,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             // remove node that has replica and reroute
             clusterState = ClusterState.builder(stateWithDelayedShard).nodes(
                 DiscoveryNodes.builder(stateWithDelayedShard.nodes()).remove(nodeIdOfBarReplica)).build();
-            ClusterState stateWithShorterDelay = allocationService.deassociateDeadNodes(clusterState, true, "fake node left");
+            ClusterState stateWithShorterDelay = allocationService.disassociateDeadNodes(clusterState, true, "fake node left");
             delayedAllocationService.setNanoTimeOverride(clusterChangeEventTimestampNanos);
             delayedAllocationService.clusterChanged(
                 new ClusterChangedEvent("fake node left", stateWithShorterDelay, stateWithDelayedShard));
@@ -464,9 +456,9 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
     private static class TestDelayAllocationService extends DelayedAllocationService {
         private volatile long nanoTimeOverride = -1L;
 
-        TestDelayAllocationService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                   AllocationService allocationService) {
-            super(settings, threadPool, clusterService, allocationService);
+        private TestDelayAllocationService(ThreadPool threadPool, ClusterService clusterService,
+                                           AllocationService allocationService) {
+            super(threadPool, clusterService, allocationService);
         }
 
         @Override

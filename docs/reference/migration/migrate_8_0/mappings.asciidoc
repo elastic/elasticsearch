@@ -1,0 +1,111 @@
+[discrete]
+[[breaking_80_mappings_changes]]
+==== Mapping changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+.The maximum number of completion contexts per field is now 10.
+[%collapsible]
+====
+*Details* +
+The number of completion contexts within a single completion field
+has been limited to 10.
+
+*Impact* +
+Use a maximum of 10 completion contexts in a completion field. Specifying more
+than 10 completion contexts will return an error.
+====
+
+
+.Mapping API endpoints containing mapping types have been removed.
+[%collapsible]
+====
+*Details* +
+The typed REST endpoints of the update mapping, get mapping and get field mapping
+APIs have been removed in favour of their typeless REST endpoints, since indexes
+no longer contain types, these typed endpoints are obsolete.
+
+*Impact* +
+Use the typeless REST endpoints to update and retrieve mappings. Requests
+submitted to the typed mapping API endpoints will return an error.
+====
+
+.Multi-fields within multi-fields is no longer supported.
+[%collapsible]
+====
+*Details* +
+Previously, it was possible to define a multi-field within a multi-field.
+Defining chained multi-fields was deprecated in 7.3 and is now no longer
+supported.
+
+*Impact* +
+To migrate mappings, all instances of `fields` that occur within
+a `fields` block should be removed, either by flattening the chained `fields`
+blocks into a single level, or by switching to `copy_to` if appropriate.
+====
+
+[[fieldnames-enabling]]
+.The `_field_names` metadata field's `enabled` parameter has been removed.
+[%collapsible]
+====
+*Details* +
+The setting has been deprecated with 7.5 and is no longer supported on new indices.
+Mappings for older indices will continue to work but emit a deprecation warning.
+
+*Impact* +
+The `enabled` setting for `_field_names` should be removed from templates and mappings.
+Disabling _field_names is not necessary because it no longer carries a large index overhead.
+====
+
+[[mapping-boosts]]
+.The `boost` parameter on field mappings has been removed.
+[%collapsible]
+====
+*Details* +
+Index-time boosts have been deprecated since the 5x line, but it was still possible
+to declare field-specific boosts in the mappings. This is now removed completely.
+Indexes built in 7x that contain mapping boosts will emit warnings, and the boosts
+will have no effect in 8.0. New indexes will not permit boosts to be set in their
+mappings at all.
+
+*Impact* +
+The `boost` setting should be removed from templates and mappings. Use boosts
+directly on queries instead.
+====
+
+.Java-time date formats replace joda-time formats.
+[%collapsible]
+====
+*Details* +
+In 7.0, {es} switched from joda time to java time for date-related parsing,
+formatting, and calculations. Indices created in 7.0 and later versions are
+already required to use mappings with java-time date formats. However,
+earlier indices using joda-time formats must be reindexed to use
+mappings with java-time formats.
+
+*Impact* +
+For a detailed migration guide, see the {ref}/migrate-to-java-time.html[Java
+time migration guide].
+====
+
+[[geo-shape-strategy]]
+.Several `geo_shape` mapping parameters have been removed.
+[%collapsible]
+====
+*Details* +
+The following `geo_shape` mapping parameters were deprecated in 6.6:
+
+* `tree`
+* `tree_levels`
+* `strategy`
+* `distance_error_pct`
+
+These parameters have been removed in 8.0.0.
+
+*Impact* +
+In 8.0, you can no longer create mappings that include these parameters.
+However, 7.x indices that use these mapping parameters will continue to work.
+====
+// end::notable-breaking-changes[]

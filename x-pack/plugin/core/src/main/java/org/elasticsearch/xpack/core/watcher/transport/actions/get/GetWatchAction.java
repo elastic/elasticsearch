@@ -1,24 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.get;
+
+import org.elasticsearch.action.ActionType;
 
 /**
  * This action gets an watch by name
  */
-public class GetWatchAction extends org.elasticsearch.action.Action<GetWatchResponse> {
+public class GetWatchAction extends ActionType<GetWatchResponse> {
 
     public static final GetWatchAction INSTANCE = new GetWatchAction();
     public static final String NAME = "cluster:monitor/xpack/watcher/watch/get";
 
     private GetWatchAction() {
-        super(NAME);
-    }
-
-    @Override
-    public GetWatchResponse newResponse() {
-        return new GetWatchResponse();
+        super(NAME, GetWatchResponse::new);
     }
 }

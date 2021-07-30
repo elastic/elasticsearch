@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.history;
 
@@ -9,26 +10,23 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.ioException;
 
 public class HistoryStore {
-
-    public static final String DOC_TYPE = "doc";
 
     private static final Logger logger = LogManager.getLogger(HistoryStore.class);
 
@@ -43,11 +41,10 @@ public class HistoryStore {
      * If the specified watchRecord already was stored this call will fail with a version conflict.
      */
     public void put(WatchRecord watchRecord) throws Exception {
-        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
-            IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value()).source(builder);
+            IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM).id(watchRecord.id().value()).source(builder);
             request.opType(IndexRequest.OpType.CREATE);
             bulkProcessor.add(request);
         } catch (IOException ioe) {
@@ -60,11 +57,11 @@ public class HistoryStore {
      * Any existing watchRecord will be overwritten.
      */
     public void forcePut(WatchRecord watchRecord) {
-        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
-                IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value()).source(builder);
+                IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM).id(watchRecord.id().value()).source(builder);
+                request.opType(DocWriteRequest.OpType.CREATE);
                 bulkProcessor.add(request);
         } catch (IOException ioe) {
             final WatchRecord wr = watchRecord;
@@ -80,9 +77,12 @@ public class HistoryStore {
      * @return true, if history store is ready to be started
      */
     public static boolean validate(ClusterState state) {
-        String currentIndex = HistoryStoreField.getHistoryIndexNameForTime(DateTime.now(DateTimeZone.UTC));
-        IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(currentIndex, state.metaData());
-        return indexMetaData == null || (indexMetaData.getState() == IndexMetaData.State.OPEN &&
-            state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive());
+        IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(HistoryStoreField.DATA_STREAM, state.metadata());
+        return indexMetadata == null || (indexMetadata.getState() == IndexMetadata.State.OPEN &&
+            state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());
+    }
+
+    public void flush() {
+        bulkProcessor.flush();
     }
 }

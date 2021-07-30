@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -33,11 +22,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -53,9 +42,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.fieldFromSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasIndex;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasType;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
@@ -70,7 +57,8 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
     private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
         return BulkProcessor.builder(
-                (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener);
+                (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT,
+                       bulkListener), listener, "BulkProcessorIT");
     }
 
     public void testThatBulkProcessorCountIsCorrect() throws Exception {
@@ -163,7 +151,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         for (BulkItemResponse bulkItemResponse : listener.bulkItems) {
             assertThat(bulkItemResponse.getFailureMessage(), bulkItemResponse.isFailed(), equalTo(false));
             assertThat(bulkItemResponse.getIndex(), equalTo("test"));
-            assertThat(bulkItemResponse.getType(), equalTo("_doc"));
             //with concurrent requests > 1 we can't rely on the order of the bulk requests
             assertThat(Integer.valueOf(bulkItemResponse.getId()), both(greaterThan(0)).and(lessThanOrEqualTo(numDocs)));
             //we do want to check that we don't get duplicate ids back
@@ -238,14 +225,15 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
 
             for (int i = 1; i <= numDocs; i++) {
-                if (randomBoolean()) {
+                // let's make sure we get at least 1 item in the MultiGetRequest regardless of the randomising roulette
+                if (randomBoolean() || multiGetRequest.getItems().size() == 0) {
                     testDocs++;
-                    processor.add(new IndexRequest("test", "_doc", Integer.toString(testDocs))
+                    processor.add(new IndexRequest("test").id(Integer.toString(testDocs))
                             .source(XContentType.JSON, "field", "value"));
                     multiGetRequest.add("test", Integer.toString(testDocs));
                 } else {
                     testReadOnlyDocs++;
-                    processor.add(new IndexRequest("test-ro", "_doc", Integer.toString(testReadOnlyDocs))
+                    processor.add(new IndexRequest("test-ro").id(Integer.toString(testReadOnlyDocs))
                             .source(XContentType.JSON, "field", "value"));
                 }
             }
@@ -262,7 +250,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         Set<String> readOnlyIds = new HashSet<>();
         for (BulkItemResponse bulkItemResponse : listener.bulkItems) {
             assertThat(bulkItemResponse.getIndex(), either(equalTo("test")).or(equalTo("test-ro")));
-            assertThat(bulkItemResponse.getType(), equalTo("_doc"));
             if (bulkItemResponse.getIndex().equals("test")) {
                 assertThat(bulkItemResponse.isFailed(), equalTo(false));
                 //with concurrent requests > 1 we can't rely on the order of the bulk requests
@@ -281,7 +268,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         assertMultiGetResponse(highLevelClient().mget(multiGetRequest, RequestOptions.DEFAULT), testDocs);
     }
 
-    @SuppressWarnings("unchecked")
     public void testGlobalParametersAndSingleRequest() throws Exception {
         createIndexWithMultipleShards("test");
 
@@ -292,7 +278,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         // tag::bulk-processor-mix-parameters
         try (BulkProcessor processor = initBulkProcessorBuilder(listener)
                 .setGlobalIndex("tweets")
-                .setGlobalType("_doc")
                 .setGlobalRouting("routing")
                 .setGlobalPipeline("pipeline_id")
                 .build()) {
@@ -300,7 +285,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
             processor.add(new IndexRequest() // <1>
                 .source(XContentType.JSON, "user", "some user"));
-            processor.add(new IndexRequest("blogs", "post_type", "1") // <2>
+            processor.add(new IndexRequest("blogs").id("1") // <2>
                 .source(XContentType.JSON, "title", "some title"));
         }
         // end::bulk-processor-mix-parameters
@@ -316,38 +301,38 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         assertThat(blogs, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGlobalParametersAndBulkProcessor() throws Exception {
         createIndexWithMultipleShards("test");
 
-        final CountDownLatch latch = new CountDownLatch(1);
-        BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);
         createFieldAddingPipleine("pipeline_id", "fieldNameXYZ", "valueXYZ");
 
         int numDocs = randomIntBetween(10, 10);
-        try (BulkProcessor processor = initBulkProcessorBuilder(listener)
-                //let's make sure that the bulk action limit trips, one single execution will index all the documents
-                .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
-                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
-                .setGlobalIndex("test")
-                .setGlobalType("_doc")
-                .setGlobalRouting("routing")
-                .setGlobalPipeline("pipeline_id")
-                .build()) {
+        {
+            final CountDownLatch latch = new CountDownLatch(1);
+            BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);
+            try (BulkProcessor processor = initBulkProcessorBuilder(listener)
+                    //let's make sure that the bulk action limit trips, one single execution will index all the documents
+                    .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
+                    .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                    .setGlobalIndex("test")
+                    .setGlobalRouting("routing")
+                    .setGlobalPipeline("pipeline_id")
+                    .build()) {
 
-            indexDocs(processor, numDocs, null, null, "test", "pipeline_id");
-            latch.await();
+                indexDocs(processor, numDocs, null, "test", "pipeline_id");
+                latch.await();
 
-            assertThat(listener.beforeCounts.get(), equalTo(1));
-            assertThat(listener.afterCounts.get(), equalTo(1));
-            assertThat(listener.bulkFailures.size(), equalTo(0));
-            assertResponseItems(listener.bulkItems, numDocs);
+                assertThat(listener.beforeCounts.get(), equalTo(1));
+                assertThat(listener.afterCounts.get(), equalTo(1));
+                assertThat(listener.bulkFailures.size(), equalTo(0));
+                assertResponseItems(listener.bulkItems, numDocs);
 
-            Iterable<SearchHit> hits = searchAll(new SearchRequest("test").routing("routing"));
+                Iterable<SearchHit> hits = searchAll(new SearchRequest("test").routing("routing"));
 
-            assertThat(hits, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
-            assertThat(hits, everyItem(Matchers.allOf(hasIndex("test"), hasType("_doc"))));
-            assertThat(hits, containsInAnyOrder(expectedIds(numDocs)));
+                assertThat(hits, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
+                assertThat(hits, containsInAnyOrder(expectedIds(numDocs)));
+            }
+
         }
     }
 
@@ -359,44 +344,43 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
             .<Matcher<SearchHit>>toArray(Matcher[]::new);
     }
 
-    private static MultiGetRequest indexDocs(BulkProcessor processor, int numDocs, String localIndex,
-                                             String globalIndex, String globalType, String globalPipeline) throws Exception {
+    private MultiGetRequest indexDocs(BulkProcessor processor, int numDocs, String localIndex,
+                                      String globalIndex, String globalPipeline) throws Exception {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         for (int i = 1; i <= numDocs; i++) {
             if (randomBoolean()) {
-                processor.add(new IndexRequest(localIndex, "_doc", Integer.toString(i))
+                processor.add(new IndexRequest(localIndex).id(Integer.toString(i))
                     .source(XContentType.JSON, "field", randomRealisticUnicodeOfLengthBetween(1, 30)));
             } else {
-                BytesArray data = bytesBulkRequest(localIndex, "_doc", i);
-                processor.add(data, globalIndex, globalType, globalPipeline, null, XContentType.JSON);
+                BytesArray data = bytesBulkRequest(localIndex, i);
+                processor.add(data, globalIndex, globalPipeline, XContentType.JSON);
             }
             multiGetRequest.add(localIndex, Integer.toString(i));
         }
         return multiGetRequest;
     }
 
-    private static BytesArray bytesBulkRequest(String localIndex, String localType, int id) throws IOException {
-        String action = Strings.toString(jsonBuilder()
-            .startObject()
-                .startObject("index")
-                    .field("_index", localIndex)
-                    .field("_type", localType)
-                    .field("_id", Integer.toString(id))
-                .endObject()
-            .endObject()
-        );
-        String source = Strings.toString(jsonBuilder()
+    private static BytesArray bytesBulkRequest(String localIndex, int id) throws IOException {
+        XContentBuilder action = jsonBuilder().startObject().startObject("index");
+
+        if (localIndex != null) {
+            action.field("_index", localIndex);
+        }
+
+        action.field("_id", Integer.toString(id));
+        action.endObject().endObject();
+
+        XContentBuilder source = jsonBuilder()
             .startObject()
                 .field("field", randomRealisticUnicodeOfLengthBetween(1, 30))
-            .endObject()
-        );
+            .endObject();
 
-        String request = action + "\n" + source + "\n";
+        String request = Strings.toString(action) + "\n" + Strings.toString(source) + "\n";
         return new BytesArray(request);
     }
 
-    private static MultiGetRequest indexDocs(BulkProcessor processor, int numDocs) throws Exception {
-        return indexDocs(processor, numDocs, "test", null, null, null);
+    private MultiGetRequest indexDocs(BulkProcessor processor, int numDocs) throws Exception {
+        return indexDocs(processor, numDocs, "test", null, null);
     }
 
     private static void assertResponseItems(List<BulkItemResponse> bulkItemResponses, int numDocs) {
@@ -404,7 +388,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         int i = 1;
         for (BulkItemResponse bulkItemResponse : bulkItemResponses) {
             assertThat(bulkItemResponse.getIndex(), equalTo("test"));
-            assertThat(bulkItemResponse.getType(), equalTo("_doc"));
             assertThat(bulkItemResponse.getId(), equalTo(Integer.toString(i++)));
             assertThat("item " + i + " failed with cause: " + bulkItemResponse.getFailureMessage(),
                     bulkItemResponse.isFailed(), equalTo(false));
@@ -416,7 +399,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         int i = 1;
         for (MultiGetItemResponse multiGetItemResponse : multiGetResponse) {
             assertThat(multiGetItemResponse.getIndex(), equalTo("test"));
-            assertThat(multiGetItemResponse.getType(), equalTo("_doc"));
             assertThat(multiGetItemResponse.getId(), equalTo(Integer.toString(i++)));
         }
     }

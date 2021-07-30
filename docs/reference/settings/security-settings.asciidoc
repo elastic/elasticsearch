@@ -9,23 +9,24 @@ By default, the {es} {security-features} are disabled when you have a basic or
 trial license. To enable {security-features}, use the `xpack.security.enabled`
 setting.
 
-You configure `xpack.security` settings  to
-<<anonymous-access-settings, enable anonymous access>>
-and perform message authentication,
-<<field-document-security-settings, set up document and field level security>>,
-<<realm-settings, configure realms>>,
-<<ssl-tls-settings, encrypt communications with SSL>>, and
-<<auditing-settings, audit security events>>.
+You configure `xpack.security` settings to
+<<anonymous-access-settings,enable anonymous access>> and perform message
+authentication,
+<<field-document-security-settings,set up document and field level security>>,
+<<realm-settings,configure realms>>,
+<<ssl-tls-settings,encrypt communications with SSL>>,and
+<<auditing-settings,audit security events>>.
 
 All of these settings can be added to the `elasticsearch.yml` configuration file,
 with the exception of the secure settings, which you add to the {es} keystore.
 For more information about creating and updating the {es} keystore, see
 <<secure-settings>>.
 
-[float]
+[discrete]
 [[general-security-settings]]
 ==== General security settings
 `xpack.security.enabled`::
+(<<static-cluster-setting,Static>>)
 Set to `true` to enable {es} {security-features} on the node. +
 +
 --
@@ -36,50 +37,51 @@ those `kibana.yml` files. For more information about disabling {security-feature
 in specific {kib} instances, see
 {kibana-ref}/security-settings-kb.html[{kib} security settings].
 
-TIP: If you have gold or higher licenses, the default value is `true`; we 
-recommend that you explicitly add this setting to avoid confusion.  
+TIP: If you have gold or higher licenses, the default value is `true`; we
+recommend that you explicitly add this setting to avoid confusion.
 
 --
 
 `xpack.security.hide_settings`::
+(<<static-cluster-setting,Static>>)
 A comma-separated list of settings that are omitted from the results of the
 <<cluster-nodes-info,cluster nodes info API>>. You can use wildcards to include
-multiple settings in the list.  For example, the following value hides all the
+multiple settings in the list. For example, the following value hides all the
 settings for the ad1 active_directory realm:
 `xpack.security.authc.realms.active_directory.ad1.*`.
 The API already omits all `ssl` settings, `bind_dn`, and `bind_password` due to
 the sensitive nature of the information.
 
 `xpack.security.fips_mode.enabled`::
-Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more information, see <<fips-140-compliance>>. Defaults to `false`.
+(<<static-cluster-setting,Static>>)
+Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM. For more information, see <<fips-140-compliance>>. Defaults to `false`.
 
-[float]
-[[password-security-settings]]
-==== Default password security settings
-`xpack.security.authc.accept_default_password`::
-In `elasticsearch.yml`, set this to `false` to disable support for the default "changeme" password.
-
-[float]
+[discrete]
 [[password-hashing-settings]]
 ==== Password hashing settings
+
 `xpack.security.authc.password_hashing.algorithm`::
-Specifies the hashing algorithm that is used for secure user credential storage. 
+(<<static-cluster-setting,Static>>)
+Specifies the hashing algorithm that is used for secure user credential storage.
 See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
 
-[float]
+[discrete]
 [[anonymous-access-settings]]
 ==== Anonymous access settings
+
 You can configure the following anonymous access settings in
-`elasticsearch.yml`.  For more information, see {stack-ov}/anonymous-access.html[
-Enabling anonymous access].
+`elasticsearch.yml`. For more information, see <<anonymous-access>>.
 
 `xpack.security.authc.anonymous.username`::
+(<<static-cluster-setting,Static>>)
 The username (principal) of the anonymous user. Defaults to `_es_anonymous_user`.
 
 `xpack.security.authc.anonymous.roles`::
+(<<static-cluster-setting,Static>>)
 The roles to associate with the anonymous user. Required.
 
 `xpack.security.authc.anonymous.authz_exception`::
+(<<static-cluster-setting,Static>>)
 When `true`, an HTTP 403 response is returned if the anonymous user
 does not have the appropriate permissions for the requested action. The
 user is not prompted to provide credentials to access the requested
@@ -87,47 +89,67 @@ resource. When set to `false`, an HTTP 401 response is returned and the user
 can provide credentials with the appropriate permissions to gain
 access. Defaults to `true`.
 
-[float]
+[discrete]
 [[security-automata-settings]]
 ==== Automata Settings
-In places where {security} accepts wildcard patterns (e.g. index patterns in
-roles, group matches in the role mapping API), each pattern is compiled into
-an Automaton. The follow settings are available to control this behaviour.
+
+In places where the {security-features} accept wildcard patterns (e.g. index
+patterns in roles, group matches in the role mapping API), each pattern is
+compiled into an Automaton. The follow settings are available to control this
+behaviour.
 
 `xpack.security.automata.max_determinized_states`::
+(<<static-cluster-setting,Static>>)
 The upper limit on how many automaton states may be created by a single pattern.
 This protects against too-difficult (e.g. exponentially hard) patterns.
 Defaults to `100,000`.
 
 `xpack.security.automata.cache.enabled`::
+(<<static-cluster-setting,Static>>)
 Whether to cache the compiled automata. Compiling automata can be CPU intensive
 and may slowdown some operations. The cache reduces the frequency with which
 automata need to be compiled.
 Defaults to `true`.
 
 `xpack.security.automata.cache.size`::
+(<<static-cluster-setting,Static>>)
 The maximum number of items to retain in the automata cache.
 Defaults to `10,000`.
 
 `xpack.security.automata.cache.ttl`::
+(<<static-cluster-setting,Static>>)
 The length of time to retain in an item in the automata cache (based on most
 recent usage).
 Defaults to `48h` (48 hours).
 
-[float]
+[discrete]
 [[field-document-security-settings]]
 ==== Document and field level security settings
 
 You can set the following document and field level security
 settings in `elasticsearch.yml`. For more information, see
-{stack-ov}/field-and-document-access-control.html[Setting up document and field
-level security].
+<<field-and-document-access-control>>.
 
 `xpack.security.dls_fls.enabled`::
+(<<static-cluster-setting,Static>>)
 Set to `false` to prevent document and field level security
 from being configured. Defaults to `true`.
 
-[float]
+`xpack.security.dls.bitset.cache.ttl`::
+(<<static-cluster-setting,Static>>)
+The time-to-live for cached `BitSet` entries for document level security.
+Document level security queries may depend on Lucene BitSet objects, and these are
+automatically cached to improve performance. Defaults to expire entries that are
+unused for `168h` (7 days).
+
+`xpack.security.dls.bitset.cache.size`::
+(<<static-cluster-setting,Static>>)
+The maximum memory usage of cached `BitSet` entries for document level security.
+Document level security queries may depend on Lucene BitSet objects, and these are
+automatically cached to improve performance. Defaults to `50mb`, after which
+least-recently-used entries will be evicted.
+
+[discrete]
 [[token-service-settings]]
 ==== Token service settings
 
@@ -135,26 +157,66 @@ You can set the following token service settings in
 `elasticsearch.yml`.
 
 `xpack.security.authc.token.enabled`::
+(<<static-cluster-setting,Static>>)
 Set to `false` to disable the built-in token service. Defaults to `true` unless
  `xpack.security.http.ssl.enabled` is `false`. This prevents sniffing the token
   from a connection over plain http.
 
 `xpack.security.authc.token.timeout`::
+(<<static-cluster-setting,Static>>)
 The length of time that a token is valid for. By default this value is `20m` or
 20 minutes. The maximum value is 1 hour.
 
-[float]
+[discrete]
+[[api-key-service-settings]]
+==== API key service settings
+
+You can set the following API key service settings in
+`elasticsearch.yml`.
+
+`xpack.security.authc.api_key.enabled`::
+(<<static-cluster-setting,Static>>)
+Set to `false` to disable the built-in API key service. Defaults to `true` unless
+ `xpack.security.http.ssl.enabled` is `false`. This prevents sniffing the API key
+  from a connection over plain http.
+
+`xpack.security.authc.api_key.hashing.algorithm`::
+(<<static-cluster-setting,Static>>)
+Specifies the hashing algorithm that is used for securing API key credentials.
+See <<password-hashing-algorithms>>. Defaults to `pbkdf2`.
+
+`xpack.security.authc.api_key.cache.ttl`::
+(<<static-cluster-setting,Static>>)
+The time-to-live for cached API key entries. A API key id and a hash of its
+API key are cached for this period of time. Specify the time period using
+the standard {es} <<time-units,time units>>. Defaults to `1d`.
+
+`xpack.security.authc.api_key.cache.max_keys`::
+(<<static-cluster-setting,Static>>)
+The maximum number of API key entries that can live in the
+cache at any given time. Defaults to 10,000.
+
+`xpack.security.authc.api_key.cache.hash_algo`::
+(<<static-cluster-setting,Static>>, Expert)
+The hashing algorithm that is used for the
+in-memory cached API key credentials. For possible values, see <<cache-hash-algo>>.
+Defaults to `ssha256`.
+
+[discrete]
 [[realm-settings]]
 ==== Realm settings
+// tag::realm-settings-description-tag[]
 You configure realm settings in the `xpack.security.authc.realms`
-namespace in `elasticsearch.yml`. For example:
+namespace in `elasticsearch.yml`.
+
+For example:
 
 [source,yaml]
 ----------------------------------------
 xpack.security.authc.realms:
 
-    native.realm1:
-        order: 0
+    native.realm1: <1>
+        order: 0 <2>
         ...
 
     ldap.realm2:
@@ -166,408 +228,496 @@ xpack.security.authc.realms:
         ...
     ...
 ----------------------------------------
+<1> Specifies the type of realm (for example, `native`, `ldap`,
+`active_directory`, `pki`, `file`, `kerberos`, `saml`) and the realm name. This
+information is required.
+<2> Specifies priority of a realm in the realm chain. This information
+is required.
 
 The valid settings vary depending on the realm type. For more
-information, see {stack-ov}/setting-up-authentication.html[Setting up authentication].
+information, see <<setting-up-authentication>>.
+// end::realm-settings-description-tag[]
 
-[float]
+[discrete]
 [[ref-realm-settings]]
 ===== Settings valid for all realms
-
-`type`::
-The type of the realm: `native, `ldap`, `active_directory`, `pki`, or `file`. Required.
-
+// tag::realm-order-tag[]
 `order`::
+(<<static-cluster-setting,Static>>)
 The priority of the realm within the realm chain. Realms with a lower order are
-consulted first. Although not required, use of this setting is strongly
-recommended when you configure multiple realms. Defaults to `Integer.MAX_VALUE`.
+consulted first. The value must be unique for each realm. This setting is required.
+// end::realm-order-tag[]
 
 `enabled`::
+(<<static-cluster-setting,Static>>)
 Indicates whether a realm is enabled. You can use this setting to disable a
 realm without removing its configuration information. Defaults to `true`.
 
 [[ref-native-settings]]
-[float]
+[discrete]
 ===== Native realm settings
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>,
+you can specify the following optional settings:
 
-For a native realm, the `type` must be set to `native`. In addition to the 
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify  
-the following optional settings: 
-
-`cache.ttl`:: The time-to-live for cached user entries. A user and a hash of its 
-credentials are cached for this period of time. Specify the time period using 
+`cache.ttl`::
+(<<static-cluster-setting,Static>>)
+The time-to-live for cached user entries. A user and a hash of its
+credentials are cached for this period of time. Specify the time period using
 the standard {es} <<time-units,time units>>. Defaults to `20m`.
 
-`cache.max_users`:: The maximum number of user entries that can live in the 
+`cache.max_users`::
+(<<static-cluster-setting,Static>>)
+The maximum number of user entries that can live in the
 cache at any given time. Defaults to 100,000.
 
-`cache.hash_algo`:: (Expert Setting) The hashing algorithm that is used for the 
-in-memory cached user credentials. For possible values, see <<cache-hash-algo>>. 
+`cache.hash_algo`::
+(<<static-cluster-setting,Static>>, Expert)
+The hashing algorithm that is used for the
+in-memory cached user credentials. For possible values, see <<cache-hash-algo>>.
 Defaults to `ssha256`.
 
-`authentication.enabled`:: If set to `false`, disables authentication support in
+`authentication.enabled`::
+(<<static-cluster-setting,Static>>)
+If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {stack-ov}/run-as-privilege.html[run as] and
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+(See the <<run-as-privilege,run as>> and
+<<authorization_realms,authorization realms>> features).
 Defaults to `true`.
 
 [[ref-users-settings]]
 
-[float]
+[discrete]
 ===== File realm settings
 
-The `type` setting must be set to `file`. In addition to the 
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify  
-the following settings: 
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you can specify
+the following settings:
 
 `cache.ttl`::
-The time-to-live for cached user entries. A user and a hash of its credentials 
-are cached for this configured period of time. Defaults to `20m`. Specify values 
-using the standard {es} {ref}/common-options.html#time-units[time units].
+(<<static-cluster-setting,Static>>)
+The time-to-live for cached user entries. A user and a hash of its credentials
+are cached for this configured period of time. Defaults to `20m`. Specify values
+using the standard {es} <<time-units,time units>>.
 Defaults to `20m`.
 
 `cache.max_users`::
+(<<static-cluster-setting,Static>>)
 The maximum number of user entries that can live in the cache at a given time.
 Defaults to 100,000.
 
 `cache.hash_algo`::
-(Expert Setting) The hashing algorithm that is used for the in-memory cached
+(<<static-cluster-setting,Static>>, Expert)
+The hashing algorithm that is used for the in-memory cached
 user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
-`authentication.enabled`:: If set to `false`, disables authentication support in
+`authentication.enabled`::
+(<<static-cluster-setting,Static>>)
+If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {stack-ov}/run-as-privilege.html[run as] and
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+(See the <<run-as-privilege,run as>> and
+<<authorization_realms,authorization realms>> features).
 Defaults to `true`.
 
 [[ref-ldap-settings]]
-[float]
+[discrete]
 ===== LDAP realm settings
 
-The `type` setting must be set to `ldap`. In addition to the 
-<<ref-realm-settings>>, you can specify the following settings: 
+In addition to the <<ref-realm-settings>>, you can specify the following settings:
 
-`url`:: Specifies one or more LDAP URLs in the format  
-`ldap[s]://<server>:<port>`. Multiple URLs can be defined using a comma 
-separated value or array syntax: `[ "ldaps://server1:636", "ldaps://server2:636" ]`. 
-`ldaps` and `ldap` URL protocols cannot be mixed in the same realm. Required.
+`url`::
+(<<static-cluster-setting,Static>>)
+One or more LDAP URLs in the `ldap[s]://<server>:<port>` format. Required.
++
+To provide multiple URLs, use a YAML array (`["ldap://server1:636", "ldap://server2:636"]`)
+or comma-separated string (`"ldap://server1:636, ldap://server2:636"`).
++
+While both are supported, you can't mix the `ldap` and `ldaps` protocols.
 
 `load_balance.type`::
+(<<static-cluster-setting,Static>>)
 The behavior to use when there are multiple LDAP URLs defined. For supported
 values see <<load-balancing,load balancing and failover types>>.
 Defaults to `failover`.
 
 `load_balance.cache_ttl`::
+(<<static-cluster-setting,Static>>)
 When using `dns_failover` or `dns_round_robin` as the load balancing type,
 this setting controls the amount of time to cache DNS lookups. Defaults
 to `1h`.
 
 `bind_dn`::
+(<<static-cluster-setting,Static>>)
 The DN of the user that is used to bind to the LDAP and perform searches.
 Only applicable in user search mode.
 If not specified, an anonymous bind is attempted.
-Defaults to Empty. Due to its potential security impact, `bind_dn` is not 
+Defaults to Empty. Due to its potential security impact, `bind_dn` is not
 exposed via the <<cluster-nodes-info,nodes info API>>.
 
 `bind_password`::
-deprecated[6.3] Use `secure_bind_password` instead. The password for the user 
+(<<static-cluster-setting,Static>>)
+deprecated[6.3] Use `secure_bind_password` instead. The password for the user
 that is used to bind to the LDAP directory.
-Defaults to Empty. Due to its potential security impact, `bind_password` is not 
+Defaults to Empty. Due to its potential security impact, `bind_password` is not
 exposed via the <<cluster-nodes-info,nodes info API>>.
 
-
-`secure_bind_password` (<<secure-settings,Secure>>)::
+`secure_bind_password`::
+(<<secure-settings,Secure>>)
 The password for the user that is used to bind to the LDAP directory.
 Defaults to Empty.
 
 `user_dn_templates`::
+(<<static-cluster-setting,Static>>)
 The DN template that replaces the user name with the string `{0}`.
 This setting is multivalued; you can specify multiple user contexts.
-Required to operate in user template mode. If `user_search.base_dn` is specified, 
+Required to operate in user template mode. If `user_search.base_dn` is specified,
 this setting is not valid. For more information on
-the different modes, see {stack-ov}/ldap-realm.html[LDAP realms].
+the different modes, see <<ldap-realm>>.
 
 `authorization_realms`::
+(<<static-cluster-setting,Static>>)
 The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the LDAP realm does not perform role mapping and
 instead loads the user from the listed realms. The referenced realms are
 consulted in the order that they are defined in this list.
-See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
+See <<authorization_realms>>.
 +
 --
-NOTE: If any settings starting with `user_search` are specified, the 
+NOTE: If any settings starting with `user_search` are specified, the
 `user_dn_templates` settings are ignored.
 
 --
 
 `user_group_attribute`::
+(<<static-cluster-setting,Static>>)
 Specifies the attribute to examine on the user for group membership.
-If any `group_search` settings are specified, this setting is ignored. Defaults 
+If any `group_search` settings are specified, this setting is ignored. Defaults
 to `memberOf`.
 
 `user_search.base_dn`::
+(<<static-cluster-setting,Static>>)
 Specifies a container DN to search for users. Required
-to operated in user search mode. If `user_dn_templates` is specified, this 
+to operated in user search mode. If `user_dn_templates` is specified, this
 setting is not valid. For more information on
-the different modes, see {stack-ov}/ldap-realm.html[LDAP realms].
+the different modes, see <<ldap-realm>>.
 
 `user_search.scope`::
+(<<static-cluster-setting,Static>>)
 The scope of the user search. Valid values are `sub_tree`, `one_level` or
 `base`. `one_level` only searches objects directly contained within the
 `base_dn`. `sub_tree` searches all objects contained under `base_dn`.
 `base` specifies that the `base_dn` is the user object, and that it is
-the only user considered. Defaults to  `sub_tree`.
+the only user considered. Defaults to `sub_tree`.
 
 `user_search.filter`::
+(<<static-cluster-setting,Static>>)
 Specifies the filter used to search the directory in attempts to match
 an entry with the username provided by the user. Defaults to `(uid={0})`.
 `{0}` is substituted with the username provided when searching.
 
 `user_search.attribute`::
+(<<static-cluster-setting,Static>>)
 deprecated[5.6] Use `user_search.filter` instead.
 The attribute to match with the username sent with the request. Defaults to `uid`.
 
 `user_search.pool.enabled`::
-Enables or disables connection pooling for user search. If set to `false`, a new 
+(<<static-cluster-setting,Static>>)
+Enables or disables connection pooling for user search. If set to `false`, a new
 connection is created for every search. The
 default is `true` when `bind_dn` is set.
 
 `user_search.pool.size`::
+(<<static-cluster-setting,Static>>)
 The maximum number of connections to the LDAP server to allow in the
 connection pool. Defaults to `20`.
 
 `user_search.pool.initial_size`::
+(<<static-cluster-setting,Static>>)
 The initial number of connections to create to the LDAP server on startup.
-Defaults to `0`. If the LDAP server is down, values greater than `0` could cause 
+Defaults to `0`. If the LDAP server is down, values greater than `0` could cause
 startup failures.
 
 `user_search.pool.health_check.enabled`::
+(<<static-cluster-setting,Static>>)
 Enables or disables a health check on LDAP connections in the connection
 pool. Connections are checked in the background at the specified interval.
 Defaults to `true`.
 
 `user_search.pool.health_check.dn`::
+(<<static-cluster-setting,Static>>)
 The distinguished name that is retrieved as part of the health check.
 Defaults to the value of `bind_dn` if present; if
 not, falls back to `user_search.base_dn`.
 
 `user_search.pool.health_check.interval`::
+(<<static-cluster-setting,Static>>)
 The interval to perform background checks of connections in the pool.
 Defaults to `60s`.
 
 `group_search.base_dn`::
+(<<static-cluster-setting,Static>>)
 The container DN to search for groups in which the user has membership. When
-this element is absent, {security} searches for the attribute specified by
+this element is absent, {es} searches for the attribute specified by
 `user_group_attribute` set on the user in order to determine group membership.
 
 `group_search.scope`::
+(<<static-cluster-setting,Static>>)
 Specifies whether the group search should be `sub_tree`, `one_level` or
 `base`.  `one_level` only searches objects directly contained within the
 `base_dn`. `sub_tree` searches all objects contained under `base_dn`.
 `base` specifies that the `base_dn` is a group object, and that it is the
 only group considered. Defaults to  `sub_tree`.
 
-`group_search.filter`:: 
-Specifies a filter to use to look up a group. 
+`group_search.filter`::
+(<<static-cluster-setting,Static>>)
+Specifies a filter to use to look up a group.
 When not set, the realm searches for `group`, `groupOfNames`, `groupOfUniqueNames`,
-or `posixGroup` with the attributes `member`, `memberOf`, or `memberUid`.  Any
+or `posixGroup` with the attributes `member`, `memberOf`, or `memberUid`. Any
 instance of `{0}` in the filter is replaced by the user attribute defined in
 `group_search.user_attribute`.
 
 `group_search.user_attribute`::
+(<<static-cluster-setting,Static>>)
 Specifies the user attribute that is fetched and provided as a parameter to
-the filter.  If not set, the user DN is passed into the filter. Defaults to Empty.
+the filter. If not set, the user DN is passed into the filter. Defaults to Empty.
 
 `unmapped_groups_as_roles`::
-If set to `true`, the names of any unmapped LDAP groups are used as role names 
-and assigned to the user. A group is considered to be _unmapped_ if it is not 
-referenced in a
-{stack-ov}/mapping-roles.html#mapping-roles-file[role-mapping file]. API-based 
+(<<static-cluster-setting,Static>>)
+If set to `true`, the names of any unmapped LDAP groups are used as role names
+and assigned to the user. A group is considered to be _unmapped_ if it is not
+referenced in a <<mapping-roles-file,role-mapping file>>. API-based
 role mappings are not considered. Defaults to `false`.
 
 `files.role_mapping`::
-The <<security-files,location>> for the {stack-ov}/mapping-roles.html#mapping-roles[
-YAML role mapping configuration file]. Defaults to
+(<<static-cluster-setting,Static>>)
+The <<security-files,location>> for the
+<<mapping-roles,YAML role mapping configuration file>>. Defaults to
 `ES_PATH_CONF/role_mapping.yml`.
 
 `follow_referrals`::
-Specifies whether {security} should follow referrals returned
+(<<static-cluster-setting,Static>>)
+Specifies whether {es} should follow referrals returned
 by the LDAP server. Referrals are URLs returned by the server that are to be
 used to continue the LDAP operation (for example, search). Defaults to `true`.
 
 `metadata`::
+(<<static-cluster-setting,Static>>)
 A list of additional LDAP attributes that should be loaded from the
 LDAP server and stored in the authenticated user's metadata field.
 
 `timeout.tcp_connect`::
+(<<static-cluster-setting,Static>>)
 The TCP connect timeout period for establishing an LDAP connection.
 An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `timeout.tcp_read`::
-The TCP read timeout period after establishing an LDAP connection.
-An `s` at the end indicates seconds, or `ms` indicates milliseconds.
-Defaults to `5s` (5 seconds ).
+(<<static-cluster-setting,Static>>)
+deprecated[7.7] The TCP read timeout period after establishing an LDAP
+connection. This is equivalent to and is deprecated in favor of
+`timeout.response` and they cannot be used simultaneously. An `s` at the end
+indicates seconds, or `ms` indicates milliseconds.
+
+`timeout.response`::
+(<<static-cluster-setting,Static>>)
+The time interval to wait for the response from the LDAP server. An `s` at the
+end indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
+`timeout.ldap_search`.
 
 `timeout.ldap_search`::
-The LDAP Server enforced timeout period for an LDAP search.
+(<<static-cluster-setting,Static>>)
+The timeout period for an LDAP search. The value is specified in the request
+and is enforced by the receiving LDAP Server.
 An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `ssl.key`::
-Path to a PEM encoded file containing the private key, which is used if the 
-LDAP server requires client authentication. `ssl.key` and `ssl.keystore.path` 
-cannot be used at the same time.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
++
+If the LDAP server requires client authentication, it uses this file. You cannot
+use this setting and `ssl.keystore.path` at the same time.
 
 `ssl.key_passphrase`::
-The passphrase that is used to decrypt the private key. This value is
-optional as the key may not be encrypted.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
 
-`ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
-The passphrase that is used to decrypt the private key.
+`ssl.secure_key_passphrase`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 
 `ssl.certificate`::
-Path to a PEM encoded file containing the certificate (or certificate chain)
-that will be presented to clients when they connect.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
++
+This certificate is presented to clients when they connect.
 
 `ssl.certificate_authorities`::
-List of paths to PEM encoded certificate files that should be trusted. 
-`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the 
-same time.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
++
+You cannot use this setting and `ssl.truststore.path` at the same time.
 
 `ssl.keystore.path`::
-The path to the Java Keystore file that contains a private key and certificate.
-`ssl.key` and `ssl.keystore.path` may not be used at the same time.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
++
+You cannot use this setting and `ssl.key` at the same time.
 
 `ssl.keystore.type`::
-The format of the keystore file. Should be `jks` to use the Java
-Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
-The default is `jks`.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
 `ssl.keystore.password`::
-The password to the keystore.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 
-`ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
-The password to the keystore.
+`ssl.keystore.secure_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 
 `ssl.keystore.key_password`::
-The password for the key in the keystore. Defaults to the keystore password.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 
 `ssl.keystore.secure_key_password`::
-The password for the key in the keystore. Defaults to the keystore password.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 `ssl.truststore.path`::
-The path to the Java Keystore file that contains the certificates to trust.
-`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the same time.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
++
+You cannot use this setting and `ssl.certificate_authorities` at the same time.
 
 `ssl.truststore.password`::
-The password to the truststore.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 
-`ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
-The password to the truststore.
+`ssl.truststore.secure_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
 `ssl.truststore.type`::
-The format of the keystore file. Should be `jks` to use the Java
-Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
-The default is `jks`.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 
 `ssl.verification_mode`::
+(<<static-cluster-setting,Static>>)
 Indicates the type of verification when using `ldaps` to protect against man
-in the middle attacks and certificate forgery. Values are `none`, `certificate`,
-and `full`. Defaults to the value of `xpack.ssl.verification_mode`.
-+
-See <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for an explanation of
-these values.
+in the middle attacks and certificate forgery.
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 
 `ssl.supported_protocols`::
-Supported protocols for TLS/SSL (with versions). Defaults to the value of
-`xpack.ssl.supported_protocols`.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
-`ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
-communicating with the LDAP server. 
-Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
-Java Cryptography Architecture documentation]. Defaults to the value of
-`xpack.ssl.cipher_suites`.
+`ssl.cipher_suites`::
+(<<static-cluster-setting,Static>>)
+Specifies the cipher suites that should be supported when
+communicating with the LDAP server.
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+//TBD: Can this be updated to using the Java 11 URL instead or does it have to stay java8?
 
 `cache.ttl`::
-Specifies the time-to-live for cached user entries. A user and a hash of its 
+(<<static-cluster-setting,Static>>)
+Specifies the time-to-live for cached user entries. A user and a hash of its
 credentials are cached for this period of time. Use the standard {es}
 <<time-units,time units>>. Defaults to  `20m`.
 
 `cache.max_users`::
+(<<static-cluster-setting,Static>>)
 Specifies the maximum number of user entries that the cache can contain.
 Defaults to `100000`.
 
 `cache.hash_algo`::
-(Expert Setting) Specifies the hashing algorithm that is used for the
+(<<static-cluster-setting,Static>>, Expert)
+Specifies the hashing algorithm that is used for the
 in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
-`authentication.enabled`:: If set to `false`, disables authentication support in
+`authentication.enabled`::
+(<<static-cluster-setting,Static>>)
+If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {stack-ov}/run-as-privilege.html[run as] and
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+(See the <<run-as-privilege,run as>> and
+<<authorization_realms,authorization realms>> features).
 Defaults to `true`.
 
 [[ref-ad-settings]]
-[float]
+[discrete]
 ===== Active Directory realm settings
 
-The `type` setting must be set to `active_directory`. In addition to the 
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify  
-the following settings: 
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>,
+you can specify the following settings:
 
 `url`::
-An LDAP URL of the form `ldap[s]://<server>:<port>`. {security} attempts to 
-authenticate against this URL. If the URL is not specified, it is derived from 
-the `domain_name` setting and assumes an unencrypted connection to port 389. 
-Defaults to `ldap://<domain_name>:389`. This setting is required when connecting 
-using SSL/TLS or when using a custom port.
+(<<static-cluster-setting,Static>>)
+One or more LDAP URLs in the `ldap[s]://<server>:<port>` format. Defaults to
+`ldap://<domain_name>:389`. This setting is required when connecting using
+SSL/TLS or when using a custom port.
++
+To provide multiple URLs, use a YAML array (`["ldap://server1:636", "ldap://server2:636"]`)
+or comma-separated string (`"ldap://server1:636, ldap://server2:636"`).
++
+While both are supported, you can't mix the `ldap` and `ldaps` protocols.
++
+If no URL is provided, {es} uses a default of `ldap://<domain_name>:389`. This
+default uses the `domain_name` setting value and assumes an unencrypted
+connection to port 389.
 
 `load_balance.type`::
+(<<static-cluster-setting,Static>>)
 The behavior to use when there are multiple LDAP URLs defined. For supported
 values see <<load-balancing,load balancing and failover types>>.
 Defaults to `failover`.
 
 `load_balance.cache_ttl`::
+(<<static-cluster-setting,Static>>)
 When using `dns_failover` or `dns_round_robin` as the load balancing type,
 this setting controls the amount of time to cache DNS lookups. Defaults
 to `1h`.
 
 `domain_name`::
-The domain name of Active Directory. If the `url` and the `user_search_dn`
-settings are not specified, the cluster can derive those values from this 
+(<<static-cluster-setting,Static>>)
+The domain name of Active Directory. If the `url` and the `user_search.base_dn`
+settings are not specified, the cluster can derive those values from this
 setting. Required.
 
 `bind_dn`::
+(<<static-cluster-setting,Static>>)
 The DN of the user that is used to bind to Active Directory and perform searches.
-Defaults to Empty. Due to its potential security impact, `bind_dn` is not 
+Defaults to Empty. Due to its potential security impact, `bind_dn` is not
 exposed via the <<cluster-nodes-info,nodes info API>>.
 
 `bind_password`::
-deprecated[6.3] Use `secure_bind_password` instead. The password for the user 
-that is used to bind to Active Directory. Defaults to Empty. Due to its 
-potential security impact, `bind_password` is not exposed via the 
+(<<static-cluster-setting,Static>>)
+deprecated[6.3] Use `secure_bind_password` instead. The password for the user
+that is used to bind to Active Directory. Defaults to Empty. Due to its
+potential security impact, `bind_password` is not exposed via the
 <<cluster-nodes-info,nodes info API>>.
 
-`secure_bind_password` (<<secure-settings,Secure>>)::
+`secure_bind_password`::
+(<<secure-settings,Secure>>)
 The password for the user that is used to bind to Active Directory.
 Defaults to Empty.
 
 `unmapped_groups_as_roles`::
-If set to `true`, the names of any unmapped Active Directory groups are used as 
-role names and assigned to the user. A group is considered _unmapped_ when it 
-is not referenced in any role-mapping files. API-based role mappings are not 
+(<<static-cluster-setting,Static>>)
+If set to `true`, the names of any unmapped Active Directory groups are used as
+role names and assigned to the user. A group is considered _unmapped_ when it
+is not referenced in any role-mapping files. API-based role mappings are not
 considered. Defaults to `false`.
 
 `files.role_mapping`::
+(<<static-cluster-setting,Static>>)
 The <<security-files,location>> for the YAML
 role mapping configuration file. Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `user_search.base_dn`::
+(<<static-cluster-setting,Static>>)
 The context to search for a user. Defaults to the root
 of the Active Directory domain.
 
 `user_search.scope`::
+(<<static-cluster-setting,Static>>)
 Specifies whether the user search should be `sub_tree`, `one_level` or `base`.
 `one_level` only searches users directly contained within the `base_dn`.
 `sub_tree` searches all objects contained under `base_dn`. `base`
@@ -575,63 +725,74 @@ specifies that the `base_dn` is a user object, and that it is the
 only user considered. Defaults to `sub_tree`.
 
 `user_search.filter`::
-Specifies a filter to use to lookup a user given a username.  The default
+(<<static-cluster-setting,Static>>)
+Specifies a filter to use to lookup a user given a username. The default
 filter looks up `user` objects with either `sAMAccountName` or
-`userPrincipalName`. If specified, this must be a valid LDAP user search filter. 
-For example `(&(objectClass=user)(sAMAccountName={0}))`. For more information, 
-see 
+`userPrincipalName`. If specified, this must be a valid LDAP user search filter.
+For example `(&(objectClass=user)(sAMAccountName={0}))`. For more information,
+see
 https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax].
 
 `user_search.upn_filter`::
+(<<static-cluster-setting,Static>>)
 Specifies a filter to use to lookup a user given a user principal name.
 The default filter looks up `user` objects with
 a matching `userPrincipalName`. If specified, this
 must be a valid LDAP user search filter. For example,
 `(&(objectClass=user)(userPrincipalName={1}))`. `{1}` is the full user principal name
-provided by the user. For more information, see 
+provided by the user. For more information, see
 https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax].
 
 `user_search.down_level_filter`::
+(<<static-cluster-setting,Static>>)
 Specifies a filter to use to lookup a user given a down level logon name
 (DOMAIN\user). The default filter looks up `user` objects with a matching
 `sAMAccountName` in the domain provided. If specified, this
 must be a valid LDAP user search filter. For example,
-`(&(objectClass=user)(sAMAccountName={0}))`. For more information, see 
-https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax]. 
+`(&(objectClass=user)(sAMAccountName={0}))`. For more information, see
+https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax].
 
 `user_search.pool.enabled`::
+(<<static-cluster-setting,Static>>)
 Enables or disables connection pooling for user search. When
 disabled a new connection is created for every search. The
 default is `true` when `bind_dn` is provided.
 
 `user_search.pool.size`::
+(<<static-cluster-setting,Static>>)
 The maximum number of connections to the Active Directory server to allow in the
 connection pool. Defaults to `20`.
 
 `user_search.pool.initial_size`::
+(<<static-cluster-setting,Static>>)
 The initial number of connections to create to the Active Directory server on startup.
-Defaults to `0`. If the LDAP server is down, values greater than 0 
-could cause startup failures. 
+Defaults to `0`. If the LDAP server is down, values greater than 0
+could cause startup failures.
 
 `user_search.pool.health_check.enabled`::
+(<<static-cluster-setting,Static>>)
 Enables or disables a health check on Active Directory connections in the connection
 pool. Connections are checked in the background at the specified interval.
 Defaults to `true`.
 
 `user_search.pool.health_check.dn`::
+(<<static-cluster-setting,Static>>)
 The distinguished name to be retrieved as part of the health check.
-Defaults to the value of `bind_dn` if that setting is present. Otherwise, it 
-defaults to the value of the `user_search.base_dn` setting. 
+Defaults to the value of `bind_dn` if that setting is present. Otherwise, it
+defaults to the value of the `user_search.base_dn` setting.
 
 `user_search.pool.health_check.interval`::
+(<<static-cluster-setting,Static>>)
 The interval to perform background checks of connections in the pool.
 Defaults to `60s`.
 
 `group_search.base_dn`::
-The context to search for groups in which the user has membership.  Defaults
+(<<static-cluster-setting,Static>>)
+The context to search for groups in which the user has membership. Defaults
 to the root of the Active Directory domain.
 
 `group_search.scope`::
+(<<static-cluster-setting,Static>>)
 Specifies whether the group search should be `sub_tree`, `one_level` or
 `base`.  `one_level` searches for groups directly contained within the
 `base_dn`. `sub_tree` searches all objects contained under `base_dn`.
@@ -639,736 +800,1209 @@ Specifies whether the group search should be `sub_tree`, `one_level` or
 the only group considered. Defaults to `sub_tree`.
 
 `metadata`::
+(<<static-cluster-setting,Static>>)
 A list of additional LDAP attributes that should be loaded from the
 LDAP server and stored in the authenticated user's metadata field.
 
 `timeout.tcp_connect`::
+(<<static-cluster-setting,Static>>)
 The TCP connect timeout period for establishing an LDAP connection.
 An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `timeout.tcp_read`::
-The TCP read timeout period after establishing an LDAP connection.
-An `s` at the end indicates seconds, or `ms` indicates milliseconds.
-Defaults to `5s` (5 seconds ).
+(<<static-cluster-setting,Static>>)
+deprecated[7.7] The TCP read timeout period after establishing an LDAP
+connection. This is equivalent to and is deprecated in favor of
+`timeout.response` and they cannot be used simultaneously. An `s` at the end
+indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
+`timeout.ldap_search`.
+
+`timeout.response`::
+(<<static-cluster-setting,Static>>)
+The time interval to wait for the response from the AD server. An `s` at the
+end indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
+`timeout.ldap_search`.
 
 `timeout.ldap_search`::
-The LDAP Server enforced timeout period for an LDAP search.
+(<<static-cluster-setting,Static>>)
+The timeout period for an LDAP search. The value is specified in the request
+and is enforced by the receiving LDAP Server.
 An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `ssl.certificate`::
-Path to a PEM encoded file containing the certificate (or certificate chain)
-that will be presented to clients when they connect. 
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
++
+This certificate is presented to clients when they connect.
 
 `ssl.certificate_authorities`::
-List of paths to PEM encoded certificate files that should be trusted. 
-`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the 
-same time.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
++
+You cannot use this setting and `ssl.truststore.path` at the same time.
 
 `ssl.key`::
-Path to the PEM encoded file containing the private key, which is used when the 
-Active Directory server requires client authentication. `ssl.key` and 
-`ssl.keystore.path` cannot be used at the same time.
-
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
++
+If the Active Directory server requires client authentication, it uses this file.
+You cannot use this setting and `ssl.keystore.path` at the same time.
 
 `ssl.key_passphrase`::
-The passphrase that is used to decrypt the private key. This value is
-optional as the key might not be encrypted.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
 
-`ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
-The passphrase that is used to decrypt the private key. This value is
-optional as the key might not be encrypted.
+`ssl.secure_key_passphrase`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 
 `ssl.keystore.key_password`::
-The password for the key in the keystore. Defaults to the keystore password.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 
-`ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
-The password for the key in the keystore. Defaults to the keystore password.
+`ssl.keystore.secure_key_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 `ssl.keystore.password`::
-The password to the keystore.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 
-`ssl.secure_keystore.password` (<<secure-settings,Secure>>)::
-The password to the keystore.
+`ssl.secure_keystore.password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
+//TBD: Why/how is this different than `ssl.keystore.secure_password`?
 
 `ssl.keystore.path`::
-The path to the Java Keystore file that contains a private key and certificate.
-`ssl.key` and `ssl.keystore.path` cannot be used at the same time.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
++
+You cannot use this setting and `ssl.key` at the same time.
 
 `ssl.keystore.type`::
-The format of the keystore file. Should be `jks` to use the Java
-Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
-The default is `jks`.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
 `ssl.truststore.password`::
-The password to the truststore.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 
-`ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
-The password to the truststore.
+`ssl.truststore.secure_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
 `ssl.truststore.path`::
-The path to the Java Keystore file that contains the certificates to trust.
-`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the 
-same time.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
++
+You cannot use this setting and `ssl.certificate_authorities` at the same time.
 
 `ssl.truststore.type`::
-The format of the truststore file. Should be `jks` to use the Java
-Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
-The default is `jks`.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 
 `ssl.verification_mode`::
+(<<static-cluster-setting,Static>>)
 Indicates the type of verification when using `ldaps` to protect against man
-in the middle attacks and certificate forgery. Values are `none`, `certificate`,
-and `full`. Defaults to the value of `xpack.ssl.verification_mode`.
-+
-See <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for an explanation of
-these values.
+in the middle attacks and certificate forgery.
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 
 `ssl.supported_protocols`::
-Supported protocols for TLS/SSL (with versions). Defaults to the value of
-`xpack.ssl.supported_protocols`.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
-`ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
-communicating with the Active Directory server. 
-Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
-Java Cryptography Architecture documentation]. Defaults to the value of
-`xpack.ssl.cipher_suites`.
+`ssl.cipher_suites`::
+(<<static-cluster-setting,Static>>)
+Specifies the cipher suites that should be supported when
+communicating with the Active Directory server.
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+//TBD: Can this be updated to using the Java 11 URL instead or does it have to stay java8?
 
 `cache.ttl`::
-Specifies the time-to-live for cached user entries. A user and a hash of its 
+(<<static-cluster-setting,Static>>)
+Specifies the time-to-live for cached user entries. A user and a hash of its
 credentials are cached for this configured period of time. Use the
-standard Elasticsearch {ref}/common-options.html#time-units[time units]).
+standard Elasticsearch <<time-units,time units>>).
 Defaults to `20m`.
 
 `cache.max_users`::
+(<<static-cluster-setting,Static>>)
 Specifies the maximum number of user entries that the cache can contain.
 Defaults to `100000`.
 
 `cache.hash_algo`::
-(Expert Setting) Specifies the hashing algorithm that is used for
+(<<static-cluster-setting,Static>>, Expert)
+Specifies the hashing algorithm that is used for
 the in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
-`authentication.enabled`:: If set to `false`, disables authentication support in
+`authentication.enabled`::
+(<<static-cluster-setting,Static>>)
+If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {stack-ov}/run-as-privilege.html[run as] and
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+(See the <<run-as-privilege,run as>> and
+<<authorization_realms,authorization realms>> features).
 Defaults to `true`.
 
 `follow_referrals`::
-If set to `true` {security} follows referrals returned by the LDAP server. 
-Referrals are URLs returned by the server that are to be used to continue the 
+(<<static-cluster-setting,Static>>)
+If set to `true`, {es} follows referrals returned by the LDAP server.
+Referrals are URLs returned by the server that are to be used to continue the
 LDAP operation (such as `search`). Defaults to `true`.
 
 [[ref-pki-settings]]
-[float]
+[discrete]
 ===== PKI realm settings
 
-The `type` setting must be set to `pki`. In addition to the 
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify  
-the following settings: 
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you can specify
+the following settings:
 
 `username_pattern`::
+(<<static-cluster-setting,Static>>)
 The regular expression pattern used to extract the username from the
 certificate DN. The first match group is the used as the username.
 Defaults to `CN=(.*?)(?:,\|$)`.
 
 `certificate_authorities`::
+(<<static-cluster-setting,Static>>)
 List of paths to the PEM certificate files that should be used to authenticate a
 user's certificate as trusted. Defaults to the trusted certificates configured
-for SSL. This setting cannot be used with `truststore.path`. 
+for SSL. This setting cannot be used with `truststore.path`.
 
 `truststore.algorithm`::
+(<<static-cluster-setting,Static>>)
 Algorithm for the truststore. Defaults to `SunX509`.
 
 `truststore.password`::
-The password for the truststore. Must be provided if `truststore.path` is set.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+If `truststore.path` is set, this setting is required.
 
-`truststore.secure_password` (<<secure-settings,Secure>>)::
-The password for the truststore.
+`truststore.secure_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
 `truststore.path`::
+(<<static-cluster-setting,Static>>)
 The path of a truststore to use. Defaults to the trusted certificates configured
 for SSL. This setting cannot be used with `certificate_authorities`.
 
 `files.role_mapping`::
+(<<static-cluster-setting,Static>>)
 Specifies the <<security-files,location>> of the
-{stack-ov}/mapping-roles.html[YAML role  mapping configuration file].
+<<mapping-roles,YAML role mapping configuration file>>.
 Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `authorization_realms`::
+(<<static-cluster-setting,Static>>)
 The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the PKI realm does not perform role mapping and
 instead loads the user from the listed realms.
-See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
+See <<authorization_realms>>.
 
 `cache.ttl`::
-Specifies the time-to-live for cached user entries. A user and a hash of its 
+(<<static-cluster-setting,Static>>)
+Specifies the time-to-live for cached user entries. A user and a hash of its
 credentials are cached for this period of time. Use the
-standard {es} {ref}/common-options.html#time-units[time units]).
+standard {es} <<time-units,time units>>).
 Defaults to `20m`.
 
 `cache.max_users`::
+(<<static-cluster-setting,Static>>)
 Specifies the maximum number of user entries that the cache can contain.
 Defaults to `100000`.
 
+`delegation.enabled`::
+(<<static-cluster-setting,Static>>)
+Generally, in order for the clients to be authenticated by the PKI realm they
+must connect directly to {es}. That is, they must not pass through proxies
+which terminate the TLS connection. In order to allow for a *trusted* and
+*smart* proxy, such as Kibana, to sit before {es} and terminate TLS
+connections, but still allow clients to be authenticated on {es} by this realm,
+you need to toggle this to `true`. Defaults to `false`. If delegation is
+enabled, then either `truststore.path` or `certificate_authorities` setting
+must be defined. For more details, see <<pki-realm-for-proxied-clients,
+Configuring authentication delegation for PKI realms>>.
+
 [[ref-saml-settings]]
-[float]
+[discrete]
 ===== SAML realm settings
+// tag::saml-description-tag[]
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you can specify
+the following settings.
+// end::saml-description-tag[]
 
-The `type` setting must be set to `saml`. In addition to the 
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify  
-the following settings: 
-
-`idp.entity_id`::
-The Entity ID of the SAML Identity Provider. An Entity ID is a URI with a 
-maximum length of 1024 characters. It can be a URL (https://idp.example.com/) or 
-a URN (`urn:example.com:idp`) and can be found in the configuration or the SAML 
+// tag::saml-idp-entity-id-tag[]
+`idp.entity_id` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The Entity ID of the SAML Identity Provider. An Entity ID is a URI with a
+maximum length of 1024 characters. It can be a URL (https://idp.example.com/) or
+a URN (`urn:example.com:idp`) and can be found in the configuration or the SAML
 metadata of the Identity Provider.
+// end::saml-idp-entity-id-tag[]
 
-`idp.metadata.path`::
+// tag::saml-idp-metadata-path-tag[]
+`idp.metadata.path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 The path _(recommended)_ or URL to a SAML 2.0 metadata file describing the
 capabilities and configuration of the Identity Provider.
 If a path is provided, then it is resolved relative to the {es} config
 directory.
 If a URL is provided, then it must be either a `file` URL or a `https` URL.
-{security} automatically polls this metadata resource and reloads 
+{es} automatically polls this metadata resource and reloads
 the IdP configuration when changes are detected.
 File based resources are polled at a frequency determined by the global {es}
 `resource.reload.interval.high` setting, which defaults to 5 seconds.
 HTTPS resources are polled at a frequency determined by the realm's
 `idp.metadata.http.refresh` setting.
+// end::saml-idp-metadata-path-tag[]
 
-`idp.metadata.http.refresh`::
+// tag::saml-idp-metadata-http-refresh-tag[]
+`idp.metadata.http.refresh` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 Controls the frequency with which `https` metadata is checked for changes.
 Defaults to `1h` (1 hour).
+// end::saml-idp-metadata-http-refresh-tag[]
 
-`idp.use_single_logout`::
+// tag::saml-idp-use-single-logout-tag[]
+`idp.use_single_logout` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 Indicates whether to utilise the Identity Provider's Single Logout service
 (if one exists in the IdP metadata file).
 Defaults to `true`.
+// end::saml-idp-use-single-logout-tag[]
 
-`sp.entity_id`::
-The Entity ID to use for this SAML Service Provider. This should be entered as a 
-URI. We recommend that you use the base URL of your Kibana instance. For example, 
-`https://kibana.example.com/`. 
+// tag::saml-sp-entity-id-tag[]
+`sp.entity_id` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The Entity ID to use for this SAML Service Provider. This should be entered as a
+URI. We recommend that you use the base URL of your Kibana instance. For example,
+`https://kibana.example.com/`.
+// end::saml-sp-entity-id-tag[]
 
-`sp.acs`::
-The URL of the Assertion Consumer Service within {kib}. Typically this is the 
-"api/security/v1/saml" endpoint of your Kibana server. For example, 
-`https://kibana.example.com/api/security/v1/saml`. 
+// tag::saml-sp-acs-tag[]
+`sp.acs` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The URL of the Assertion Consumer Service within {kib}. Typically this is the
+"api/security/saml/callback" endpoint of your Kibana server. For example,
+`https://kibana.example.com/api/security/saml/callback`.
+// end::saml-sp-acs-tag[]
 
-`sp.logout`::
-The URL of the Single Logout service within {kib}. Typically this is the 
-"logout" endpoint of your Kibana server. For example, 
+// tag::saml-sp-logout-tag[]
+`sp.logout` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The URL of the Single Logout service within {kib}. Typically this is the
+"logout" endpoint of your Kibana server. For example,
 `https://kibana.example.com/logout`.
+// end::saml-sp-logout-tag[]
 
-`attributes.principal`::
-The Name of the SAML attribute that should be used as the {security} user's
-principal (username).
+// tag::saml-attributes-principal-tag[]
+`attributes.principal` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The Name of the SAML attribute that contains the user's principal (username).
+// end::saml-attributes-principal-tag[]
 
-`attributes.groups`::
-The Name of the SAML attribute that should be used to populate {security}
-user's groups. 
+// tag::saml-attributes-groups-tag[]
+`attributes.groups` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The Name of the SAML attribute that contains the user's groups.
+// end::saml-attributes-groups-tag[]
 
-`attributes.name`::
-The Name of the SAML attribute that should be used to populate {security}
-user's full name. 
+// tag::saml-attributes-name-tag[]
+`attributes.name` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The Name of the SAML attribute that contains the user's full name.
+// end::saml-attributes-name-tag[]
 
-`attributes.mail`::
-The Name of the SAML attribute that should be used to populate {security}
-user's email address. 
+// tag::saml-attributes-mail-tag[]
+`attributes.mail` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The Name of the SAML attribute that contains the user's email address.
+// end::saml-attributes-mail-tag[]
 
-`attributes.dn`::
-The Name of the SAML attribute that should be used to populate {security}
-user's X.500 _Distinguished Name_. 
+// tag::saml-attributes-dn-tag[]
+`attributes.dn` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The Name of the SAML attribute that contains the user's X.50
+_Distinguished Name_.
+// end::saml-attributes-dn-tag[]
 
-`attribute_patterns.principal`::
+// tag::saml-attributes-patterns-principal-tag[]
+`attribute_patterns.principal` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 A Java regular expression that is matched against the SAML attribute specified
 by `attributes.pattern` before it is applied to the user's _principal_ property.
 The attribute value must match the pattern and the value of the first
-_capturing group_ is used as the principal. For example, `^([^@]+)@example\\.com$` 
-matches email addresses from the "example.com" domain and uses the local-part as 
+_capturing group_ is used as the principal. For example, `^([^@]+)@example\\.com$`
+matches email addresses from the "example.com" domain and uses the local-part as
 the principal.
+// end::saml-attributes-patterns-principal-tag[]
 
-`attribute_patterns.groups`::
+// tag::saml-attributes-patterns-groups-tag[]
+`attribute_patterns.groups` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 As per `attribute_patterns.principal`, but for the _group_ property.
+// end::saml-attributes-patterns-groups-tag[]
 
-`attribute_patterns.name`::
+// tag::saml-attributes-patterns-name-tag[]
+`attribute_patterns.name` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 As per `attribute_patterns.principal`, but for the _name_ property.
+// end::saml-attributes-patterns-name-tag[]
 
-`attribute_patterns.mail`::
+// tag::saml-attributes-patterns-mail-tag[]
+`attribute_patterns.mail` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 As per `attribute_patterns.principal`, but for the _mail_ property.
+// end::saml-attributes-patterns-mail-tag[]
 
-`attribute_patterns.dn`::
+// tag::saml-attributes-patterns-dn-tag[]
+`attribute_patterns.dn` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 As per `attribute_patterns.principal`, but for the _dn_ property.
+// end::saml-attributes-patterns-dn-tag[]
 
-`nameid_format`::
+// tag::saml-nameid-format-tag[]
+`nameid_format` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 The NameID format that should be requested when asking the IdP to authenticate
-the current user. Defaults to requesting _transient_ names 
-(`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`). 
+the current user. The default is to not include the `nameid_format` attribute.
+// end::saml-nameid-format-tag[]
 
-`nameid.allow_create`:: The value of the `AllowCreate` attribute of the 
-`NameIdPolicy` element in an authentication request. Defaults to `false`. 
+// tag::saml-nameid-allow-create-tag[]
+`nameid.allow_create` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The value of the `AllowCreate` attribute of the
+`NameIdPolicy` element in an authentication request. The default value is false.
+// end::saml-nameid-allow-create-tag[]
 
-`nameid.sp_qualifier`:: The value of the `SPNameQualifier` attribute of the 
-`NameIdPolicy` element in an authentication request. The default is to not 
+// tag::saml-nameid-sp-qualifier-tag[]
+`nameid.sp_qualifier` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The value of the `SPNameQualifier` attribute of the
+`NameIdPolicy` element in an authentication request. The default is to not
 include the `SPNameQualifier` attribute.
+// end::saml-nameid-sp-qualifier-tag[]
 
-`force_authn`::
+// tag::saml-force-authn-tag[]
+`force_authn` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 Specifies whether to set the `ForceAuthn` attribute when requesting that the IdP
-authenticate the current user. If set to `true`, the IdP is required to verify 
-the user’s identity, irrespective of any existing sessions they might have. 
+authenticate the current user. If set to `true`, the IdP is required to verify
+the user’s identity, irrespective of any existing sessions they might have.
 Defaults to `false`.
+// end::saml-force-authn-tag[]
 
-`populate_user_metadata`::
-Specifies whether to populate the {es} user's metadata with the values that are 
+// tag::saml-populate-user-metadata-tag[]
+`populate_user_metadata` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies whether to populate the {es} user's metadata with the values that are
 provided by the SAML attributes. Defaults to `true`.
+// end::saml-populate-user-metadata-tag[]
 
 `authorization_realms`::
+(<<static-cluster-setting,Static>>)
 The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the SAML realm does not perform role mapping and
 instead loads the user from the listed realms.
-See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
+See <<authorization_realms>>.
 
-`allowed_clock_skew`::
+// tag::saml-allowed-clock-skew-tag[]
+`allowed_clock_skew` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 The maximum amount of skew that can be tolerated between the IdP's clock and the
 {es} node's clock.
 Defaults to `3m` (3 minutes).
+// end::saml-allowed-clock-skew-tag[]
 
-`req_authn_context_class_ref`::
+// tag::saml-req-authn-context-tag[]
+`req_authn_context_class_ref` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 A comma separated list of Authentication Context Class Reference values to be
 included in the Requested Authentication Context when requesting the IdP to
 authenticate the current user. The Authentication Context of the corresponding
 authentication response should contain at least one of the requested values.
 +
 For more information, see
-{stack-ov}/saml-guide-authentication.html#req-authn-context[Requesting specific authentication methods].
+<<req-authn-context>>.
+// end::saml-req-authn-context-tag[]
 
-[float]
+[discrete]
 [[ref-saml-signing-settings]]
 ===== SAML realm signing settings
-
-If a signing key is configured (that is, either `signing.key` or 
-`signing.keystore.path` is set), then {security} signs outgoing SAML messages. 
+// tag::saml-signing-description-tag[]
+If a signing key is configured (that is, either `signing.key` or
+`signing.keystore.path` is set), then {es} signs outgoing SAML messages.
 Signing can be configured using the following settings:
+// end::saml-signing-description-tag[]
 
-`signing.saml_messages`::
+// tag::saml-signing-messages-tag[]
+`signing.saml_messages` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 A list of SAML message types that should be signed or `*` to sign all messages.
 Each element in the list should be the local name of a SAML XML Element.
 Supported element types are `AuthnRequest`, `LogoutRequest` and `LogoutResponse`.
 Only valid if `signing.key` or `signing.keystore.path` is also specified.
 Defaults to `*`.
+// end::saml-signing-messages-tag[]
 
-`signing.key`::
+// tag::saml-signing-key-tag[]
+`signing.key` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 Specifies the path to the PEM encoded private key to use for SAML message signing.
 `signing.key` and `signing.keystore.path` cannot be used at the same time.
+// end::saml-signing-key-tag[]
 
-`signing.secure_key_passphrase` (<<secure-settings,Secure>>)::
+`signing.secure_key_passphrase` {ess-icon}::
+(<<secure-settings,Secure>>)
 Specifies the passphrase to decrypt the PEM encoded private key (`signing.key`)
 if it is encrypted.
 
-`signing.certificate`::
-Specifies the path to the PEM encoded certificate (or certificate chain) that 
-corresponds to the `signing.key`. This certificate must also be included in the 
-Service Provider metadata or manually configured within the IdP to allow for 
+// tag::saml-signing-certificate-tag[]
+`signing.certificate` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies the path to the PEM encoded certificate (or certificate chain) that
+corresponds to the `signing.key`. This certificate must also be included in the
+Service Provider metadata or manually configured within the IdP to allow for
 signature validation. This setting can only be used if `signing.key` is set.
+// end::saml-signing-certificate-tag[]
 
-`signing.keystore.path`::
-The path to the keystore that contains a private key and certificate.
-Must be either a Java Keystore (jks) or a PKCS#12 file.
-`signing.key` and `signing.keystore.path` cannot be used at the same time.
+// tag::saml-signing-keystore-path-tag[]
+`signing.keystore.path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The path to the keystore that contains a private key and certificate. It must be
+either a Java keystore (jks) or a PKCS#12 file. You cannot use this setting and
+`signing.key` at the same time.
+// end::saml-signing-keystore-path-tag[]
 
-`signing.keystore.type`::
+// tag::saml-signing-keystore-type-tag[]
+`signing.keystore.type` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 The type of the keystore in `signing.keystore.path`.
-Must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", 
+Must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx",
 or "pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
+// end::saml-signing-keystore-type-tag[]
 
-`signing.keystore.alias`::
+// tag::saml-signing-keystore-alias-tag[]
+`signing.keystore.alias` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 Specifies the alias of the key within the keystore that should be
-used for SAML message signing. If the keystore contains more than one private 
-key, this setting must be specified. 
+used for SAML message signing. If the keystore contains more than one private
+key, this setting must be specified.
+// end::saml-signing-keystore-alias-tag[]
 
-`signing.keystore.secure_password` (<<secure-settings,Secure>>)::
+`signing.keystore.secure_password` {ess-icon}::
+(<<secure-settings,Secure>>)
 The password to the keystore in `signing.keystore.path`.
 
-`signing.keystore.secure_key_password` (<<secure-settings,Secure>>)::
+`signing.keystore.secure_key_password` {ess-icon}::
+(<<secure-settings,Secure>>)
 The password for the key in the keystore (`signing.keystore.path`).
 Defaults to the keystore password.
 
-[float]
+[discrete]
 [[ref-saml-encryption-settings]]
 ===== SAML realm encryption settings
-
-If an encryption key is configured (that is, either `encryption.key` or 
-`encryption.keystore.path` is set), then {security} publishes an encryption 
-certificate when generating metadata and attempts to decrypt incoming SAML 
+// tag::saml-encryption-description-tag[]
+If an encryption key is configured (that is, either `encryption.key` or
+`encryption.keystore.path` is set), then {es} publishes an encryption
+certificate when generating metadata and attempts to decrypt incoming SAML
 content. Encryption can be configured using the following settings:
+// end::saml-encryption-description-tag[]
 
-`encryption.key`::
+// tag::saml-encryption-key-tag[]
+`encryption.key` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 Specifies the path to the PEM encoded private key to use for SAML message
 decryption.
 `encryption.key` and `encryption.keystore.path` cannot be used at the same time.
+// end::saml-encryption-key-tag[]
 
-`encryption.secure_key_passphrase` (<<secure-settings,Secure>>)::
+`encryption.secure_key_passphrase`::
+(<<secure-settings,Secure>>)
 Specifies the passphrase to decrypt the PEM encoded private key
 (`encryption.key`) if it is encrypted.
 
-`encryption.certificate`::
-Specifies the path to the PEM encoded certificate (or certificate chain) that is 
-associated with the `encryption.key`. This certificate must also be included in 
-the Service Provider metadata or manually configured within the IdP to enable 
+// tag::saml-encryption-certificate-tag[]
+`encryption.certificate` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies the path to the PEM encoded certificate (or certificate chain) that is
+associated with the `encryption.key`. This certificate must also be included in
+the Service Provider metadata or manually configured within the IdP to enable
 message encryption. This setting can be used only if `encryption.key` is set.
+// end::saml-encryption-certificate-tag[]
 
-`encryption.keystore.path`::
-The path to the keystore that contains a private key and certificate.
-Must be either a Java Keystore (jks) or a PKCS#12 file.
-`encryption.key` and `encryption.keystore.path` cannot be used at the same time.
+// tag::saml-encryption-keystore-path-tag[]
+`encryption.keystore.path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The path to the keystore that contains a private key and certificate. It must be
+either a Java keystore (jks) or a PKCS#12 file. You cannot use this setting and
+`encryption.key` at the same time.
+// end::saml-encryption-keystore-path-tag[]
 
-`encryption.keystore.type`::
+// tag::saml-encryption-keystore-type-tag[]
+`encryption.keystore.type` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 The type of the keystore (`encryption.keystore.path`).
-Must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", 
+Must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx",
 or "pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
+// end::saml-encryption-keystore-type-tag[]
 
-`encryption.keystore.alias`::
+// tag::saml-encryption-keystore-alias-tag[]
+`encryption.keystore.alias` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 Specifies the alias of the key within the keystore (`encryption.keystore.path`)
 that should be used for SAML message decryption. If not specified, all compatible
 key pairs from the keystore are considered as candidate keys for decryption.
+// end::saml-encryption-keystore-alias-tag[]
 
-`encryption.keystore.secure_password` (<<secure-settings,Secure>>)::
+`encryption.keystore.secure_password`::
+(<<secure-settings,Secure>>)
 The password to the keystore (`encryption.keystore.path`).
 
-`encryption.keystore.secure_key_password` (<<secure-settings,Secure>>)::
+`encryption.keystore.secure_key_password`::
+(<<secure-settings,Secure>>)
 The password for the key in the keystore (`encryption.keystore.path`). Only a
-single password is supported. If you are using multiple decryption keys, 
+single password is supported. If you are using multiple decryption keys,
 they cannot have individual passwords.
 
-[float]
+[discrete]
 [[ref-saml-ssl-settings]]
 ===== SAML realm SSL settings
+// tag::saml-ssl-description-tag[]
+If you are loading the IdP metadata over SSL/TLS (that is, `idp.metadata.path`
+is a URL using the `https` protocol), the following settings can be used to
+configure SSL.
 
-If you are loading the IdP metadata over SSL/TLS (that is, `idp.metadata.path` 
-is a URL using the `https` protocol), the following settings can be used to 
-configure SSL. If these are not specified, then the 
-<<ssl-tls-settings,default SSL settings>> are used.
-
-NOTE: These settings are not used for any purpose other than loading metadata 
+NOTE: These settings are not used for any purpose other than loading metadata
 over https.
 
-`ssl.key`::
-Specifies the path to the PEM encoded private key to use for http client 
-authentication (if required). `ssl.key` and `ssl.keystore.path` cannot be used 
-at the same time.
+// end::saml-ssl-description-tag[]
 
-`ssl.key_passphrase`::
-Specifies the
-passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
-encrypted. Cannot be used with `ssl.secure_key_passphrase`. 
+// tag::saml-ssl-key-tag[]
+`ssl.key` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
+// end::saml-ssl-key-tag[]
 
-`ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
-Specifies the
-passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
-encrypted. Cannot be used with `ssl.key_passphrase`. 
+// tag::saml-ssl-key-passphrase-tag[]
+`ssl.key_passphrase` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
+// end::saml-ssl-key-passphrase-tag[]
 
-`ssl.certificate`::
-Specifies the
-path to the PEM encoded certificate (or certificate chain) that is associated
-with the key (`ssl.key`). This setting can be used only if `ssl.key` is set.
+`ssl.secure_key_passphrase`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
++
+You cannot use this setting and `ssl.key_passphrase` at the same time.
 
-`ssl.certificate_authorities`::
-Specifies the
-paths to the PEM encoded certificate authority certificates that should be
-trusted. `ssl.certificate_authorities` and `ssl.truststore.path` cannot be
-used at the same time.
+// tag::saml-ssl-certificate-tag[]
+`ssl.certificate` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
+// end::saml-ssl-certificate-tag[]
 
-`ssl.keystore.path`::
-Specifies the path to
-the keystore that contains a private key and certificate.
-Must be either a Java Keystore (jks) or a PKCS#12 file.
-`ssl.key` and `ssl.keystore.path` cannot be used at the same time.
+// tag::saml-ssl-certificate-authorities-tag[]
+`ssl.certificate_authorities` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
+// end::saml-ssl-certificate-authorities-tag[]
 
-`ssl.keystore.type`::
-The type of the keystore (`ssl.keystore.path`). Must be either `jks` or `PKCS12`.
-If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting defaults 
-to `PKCS12`. Otherwise, it defaults to `jks`.
+// tag::saml-ssl-keystore-path-tag[]
+`ssl.keystore.path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
+// end::saml-ssl-keystore-path-tag[]
 
-`ssl.keystore.password`::
-The password to the keystore (`ssl.keystore.path`). This setting cannot be used 
-with `ssl.keystore.secure_password`.
+// tag::saml-ssl-keystore-type[]
+`ssl.keystore.type` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
+// end::saml-ssl-keystore-type[]
 
-`ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
-The password to the keystore (`ssl.keystore.path`).
-This setting cannot be used with `ssl.keystore.password`.
+// tag::saml-ssl-keystore-password-tag[]
+`ssl.keystore.password` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+// end::saml-ssl-keystore-password-tag[]
+
+`ssl.keystore.secure_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
++
+You cannot use this setting and `ssl.keystore.password` at the same time.
+//TBD: Why is this different name than `ssl.secure_keystore.password` elsewhere in this file?
 
 `ssl.keystore.key_password`::
-The password for the key in the keystore (`ssl.keystore.path`).
-Defaults to the keystore password. This setting cannot be used with 
-`ssl.keystore.secure_key_password`.
-
-`ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
-The password for the key in the keystore (`ssl.keystore.path`).
-Defaults to the keystore password. This setting cannot be used with 
-`ssl.keystore.key_password`.
-
-`ssl.truststore.path`::
-The path to the
-keystore that contains the certificates to trust.
-Must be either a Java Keystore (jks) or a PKCS#12 file.
-`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the
-same time.
-
-`ssl.truststore.type`::
-The type of the truststore (`ssl.truststore.path`). Must be either `jks` or
-`PKCS12`. If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting 
-defaults to `PKCS12`. Otherwise, it defaults to `jks`.
-
-`ssl.truststore.password`::
-The password to the truststore (`ssl.truststore.path`). This setting cannot be 
-used with `ssl.truststore.secure_password`.
-
-`ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
-The password to the truststore (`ssl.truststore.path`). This setting cannot be 
-used with `ssl.truststore.password`.
-
-`ssl.verification_mode`::
-One of `full`
-(verify the hostname and the certificate path), `certificate` (verify the
-certificate path, but not the hostname) or `none` (perform no verification).
-Defaults to `full`.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 +
-See <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for a more detailed
-explanation of these values.
+You cannot use this setting and `ssl.keystore.secure_key_password` at the same
+time.
 
-`ssl.supported_protocols`::
-Specifies the supported protocols for TLS/SSL.
+`ssl.keystore.secure_key_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
+You cannot use this setting and `ssl.keystore.key_password` at the same time.
 
-`ssl.cipher_suites`::
-Specifies the
-cipher suites that should be supported.
+// tag::saml-ssl-truststore-path-tag[]
+`ssl.truststore.path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
+// end::saml-ssl-truststore-path-tag[]
 
-[float]
+// tag::saml-ssl-truststore-type-tag[]
+`ssl.truststore.type` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
+// end::saml-ssl-truststore-type-tag[]
+
+// tag::saml-ssl-truststore-password-tag[]
+`ssl.truststore.password` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+// end::saml-ssl-truststore-password-tag[]
+
+`ssl.truststore.secure_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
++
+This setting cannot be used with `ssl.truststore.password`.
+
+// tag::saml-ssl-verification-mode-tag[]
+`ssl.verification_mode` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
+// end::saml-ssl-verification-mode-tag[]
+
+// tag::saml-ssl-supported-prototols-tag[]
+`ssl.supported_protocols` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
+// end::saml-ssl-supported-prototols-tag[]
+
+// tag::saml-ssl-cipher-suites-tag[]
+`ssl.cipher_suites` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+// end::saml-ssl-cipher-suites-tag[]
+
+[discrete]
 [[ref-kerberos-settings]]
 ===== Kerberos realm settings
-
-For a Kerberos realm, the `type` must be set to `kerberos`. In addition to the
+// tag::kerberos-description-tag[]
+In addition to the
 <<ref-realm-settings,settings that are valid for all realms>>, you can specify
 the following settings:
+// end::kerberos-description-tag[]
 
-`keytab.path`:: Specifies the path to the Kerberos keytab file that contains the 
+// tag::kerberos-keytab-path-tag[]
+`keytab.path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies the path to the Kerberos keytab file that contains the
 service principal used by this {es} node. This must be a location within the
 {es} configuration directory and the file must have read permissions. Required.
+// end::kerberos-keytab-path-tag[]
 
-`remove_realm_name`:: Set to `true` to remove the realm part of principal names. 
-Principal names in Kerberos have the form `user/instance@REALM`. If this option 
+// tag::kerberos-remove-realm-name-tag[]
+`remove_realm_name` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Set to `true` to remove the realm part of principal names.
+Principal names in Kerberos have the form `user/instance@REALM`. If this option
 is `true`, the realm part (`@REALM`) will not be included in the username.
 Defaults to `false`.
+// end::kerberos-remove-realm-name-tag[]
 
-`krb.debug`:: Set to `true` to enable debug logs for the Java login module that
+`krb.debug`::
+(<<static-cluster-setting,Static>>)
+Set to `true` to enable debug logs for the Java login module that
 provides support for Kerberos authentication. Defaults to `false`.
 
-`cache.ttl`:: The time-to-live for cached user entries. A user is cached for
+// tag::kerberos-cache-ttl-tag[]
+`cache.ttl` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The time-to-live for cached user entries. A user is cached for
 this period of time. Specify the time period using the standard {es}
 <<time-units,time units>>. Defaults to `20m`.
+// end::kerberos-cache-ttl-tag[]
 
-`cache.max_users`:: The maximum number of user entries that can live in the
+// tag::kerberos-cache-max-users-tag[]
+`cache.max_users` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The maximum number of user entries that can live in the
 cache at any given time. Defaults to 100,000.
+// end::kerberos-cache-max-users-tag[]
 
-`authorization_realms`::
+// tag::kerberos-authorization-realms-tag[]
+`authorization_realms` {ess-icon}::
+(<<static-cluster-setting,Static>>)
 The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the Kerberos realm does not perform role mapping and
 instead loads the user from the listed realms.
-See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm]
+See <<authorization_realms>>.
+// end::kerberos-authorization-realms-tag[]
 
-[float]
+[[ref-oidc-settings]]
+[discrete]
+===== OpenID Connect realm settings
+// tag::oidc-description-tag[]
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you
+can specify the following settings.
+// end::oidc-description-tag[]
+
+// tag::oidc-op-issuer-tag[]
+`op.issuer` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+A verifiable Identifier for your OpenID Connect Provider. An Issuer
+Identifier is usually a case sensitive URL using the https scheme that contains
+scheme, host, and optionally, port number and path components and no query or
+fragment components. The value for this setting should be provided by your OpenID
+Connect Provider.
+// end::oidc-op-issuer-tag[]
+
+// tag::oidc-op-auth-endpoint-tag[]
+`op.authorization_endpoint` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The URL for the Authorization Endpoint at the
+OpenID Connect Provider. The value for this setting should be provided by your OpenID
+Connect Provider.
+// end::oidc-op-auth-endpoint-tag[]
+
+// tag::oidc-token-endpoint-tag[]
+`op.token_endpoint` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The URL for the Token Endpoint at the OpenID Connect Provider.
+The value for this setting should be provided by your OpenID Connect Provider.
+// end::oidc-token-endpoint-tag[]
+
+// tag::oidc-userinfo-endpoint-tag[]
+`op.userinfo_endpoint` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The URL for the User Info Endpoint at the OpenID Connect Provider.
+The value for this setting should be provided by your OpenID Connect Provider.
+// end::oidc-userinfo-endpoint-tag[]
+
+// tag::oidc-endsession-endpoint-tag[]
+`op.endsession_endpoint` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The URL for the End Session Endpoint at the OpenID Connect
+Provider. The value for this setting should be provided by your OpenID Connect Provider.
+// end::oidc-endsession-endpoint-tag[]
+
+// tag::oidc-op-jwkset-path-tag[]
+`op.jwkset_path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The path or URL to a JSON Web Key Set with the key material that the OpenID Connect
+Provider uses for signing tokens and claims responses.
+If a path is provided, then it is resolved relative to the {es} config
+directory.
+If a URL is provided, then it must be either a `file` URL or a `https` URL.
+{es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
+requests but will attempt to refresh the JWK upon signature verification
+failure, as this might indicate that the OpenID Connect Provider has
+rotated the signing keys.
++
+File-based resources are polled at a frequency determined by the global {es}
+`resource.reload.interval.high` setting, which defaults to 5 seconds.
+// end::oidc-op-jwkset-path-tag[]
+
+`authorization_realms`::
+(<<static-cluster-setting,Static>>)
+The names of the realms that should be consulted for delegated authorization.
+If this setting is used, then the OpenID Connect realm does not perform role
+mapping and instead loads the user from the listed realms.
+See <<authorization_realms>>.
+
+// tag::rp-client-id-tag[]
+`rp.client_id` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The OAuth 2.0 Client Identifier that was assigned to {es} during registration
+at the OpenID Connect Provider.
+// end::rp-client-id-tag[]
+
+`rp.client_secret`::
+(<<secure-settings,Secure>>)
+The OAuth 2.0 Client Secret that was assigned to {es} during registration
+at the OpenID Connect Provider.
+
+// tag::rp-client-auth-method-tag[]
+`rp.client_auth_method` {ess-icon}::
+(<<static-cluster-setting, Static>>)
+The client authentication method used by {es} to authenticate
+to the OpenID Connect Provider. Can be `client_secret_basic`, `client_secret_post`,
+or `client_secret_jwt`. Defaults to `client_secret_basic`.
+// end::rp-client-auth-method-tag[]
+
+// tag::rp-client-auth-jwt-signature-algorithm[]
+`rp.client_auth_signature_algorithm` {ess-icon}::
+(<<static-cluster-setting, Static>>)
+The signature algorithm that {es} uses to sign the JWT with which it authenticates
+as a client to the OpenID Connect Provider when `client_secret_jwt` is selected for
+`rp.client_auth_method`. Can be either `HS256`, `HS384`, or `HS512`. Defaults to 
+`HS384`. 
+// end::rp-client-auth-jwt-signature-algorithm[]
+
+// tag::rp-redirect-uri-tag[]
+`rp.redirect_uri` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The Redirect URI within {kib}. If you want to use the authorization code flow, this is the
+`api/security/oidc/callback` endpoint of your {kib} server. If you want to use the implicit flow,  it is the `api/security/oidc/implicit` endpoint.
+For example, `https://kibana.example.com/api/security/oidc/callback`.
+// end::rp-redirect-uri-tag[]
+
+// tag::rp-response-type-tag[]
+`rp.response_type` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+OAuth 2.0 Response Type value that determines the authorization
+processing flow to be used. Can be `code` for authorization code grant flow,
+or one of `id_token`, `id_token token` for the implicit flow.
+// end::rp-response-type-tag[]
+
+// tag::rp-signature-algorithm-tag[]
+`rp.signature_algorithm` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The signature algorithm that will be used by {es} in order to verify the
+signature of the id tokens it will receive from the OpenID Connect Provider.
+Defaults to `RSA256`.
+// end::rp-signature-algorithm-tag[]
+
+// tag::rp-requested-scopes-tag[]
+`rp.requested_scopes` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The scope values that will be requested by the OpenID Connect Provider as
+part of the Authentication Request. Optional, defaults to `openid`
+// end::rp-requested-scopes-tag[]
+
+// tag::rp-post-logout-redirect-url-tag[]
+`rp.post_logout_redirect_uri` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The Redirect URI (usually within {kib}) that the OpenID Connect Provider
+should redirect the browser to after a successful Single Logout.
+// end::rp-post-logout-redirect-url-tag[]
+
+// tag::oidc-claims-principal-tag[]
+`claims.principal`::
+(<<static-cluster-setting,Static>>)
+The name of the OpenID Connect claim that contains the user's principal (username).
+// end::oidc-claims-principal-tag[]
+
+// tag::oidc-claims-groups-tag[]
+`claims.groups` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The name of the OpenID Connect claim that contains the user's groups.
+// end::oidc-claims-groups-tag[]
+
+// tag::oidc-claims-mail-tag[]
+`claims.name` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The name of the OpenID Connect claim that contains the user's full name.
+// end::oidc-claims-mail-tag[]
+
+// tag::oidc-claims-mail-tag[]
+`claims.mail` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The name of the OpenID Connect claim that contains the user's email address.
+// end::oidc-claims-mail-tag[]
+
+// tag::oidc-claims-dn-tag[]
+`claims.dn` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The name of the OpenID Connect claim that contains the user's X.509
+_Distinguished Name_.
+// end::oidc-claims-dn-tag[]
+
+// tag::oidc-claim-pattern-principal-tag[]
+`claim_patterns.principal` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+A Java regular expression that is matched against the OpenID Connect claim specified
+by `claims.principal` before it is applied to the user's _principal_ property.
+The attribute value must match the pattern and the value of the first
+_capturing group_ is used as the principal. For example, `^([^@]+)@example\\.com$`
+matches email addresses from the "example.com" domain and uses the local-part as
+the principal.
+// end::oidc-claim-pattern-principal-tag[]
+
+// tag::oidc-claim-pattern-groups-tag[]
+`claim_patterns.groups` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+As per `claim_patterns.principal`, but for the _group_ property.
+// end::oidc-claim-pattern-groups-tag[]
+
+// tag::oidc-claim-pattern-name-tag[]
+`claim_patterns.name` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+As per `claim_patterns.principal`, but for the _name_ property.
+// end::oidc-claim-pattern-name-tag[]
+
+// tag::oidc-claim-pattern-mail-tag[]
+`claim_patterns.mail` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+As per `claim_patterns.principal`, but for the _mail_ property.
+// end::oidc-claim-pattern-mail-tag[]
+
+// tag::oidc-claim-pattern-dn-tag[]
+`claim_patterns.dn` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+As per `claim_patterns.principal`, but for the _dn_ property.
+// end::oidc-claim-pattern-dn-tag[]
+
+// tag::oidc-allowed-clock-skew-tag[]
+`allowed_clock_skew` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The maximum allowed clock skew to be taken into consideration when validating
+id tokens with regards to their creation and expiration times.
+// end::oidc-allowed-clock-skew-tag[]
+
+// tag::oidc-populate-user-metadata-tag[]
+`populate_user_metadata` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies whether to populate the {es} user's metadata with the values that are
+provided by the OpenID Connect claims. Defaults to `true`.
+// end::oidc-populate-user-metadata-tag[]
+
+`http.proxy.host`::
+(<<static-cluster-setting,Static>>)
+Specifies the address of the proxy server that will be used by the internal
+http client for all back-channel communication to the OpenID Connect Provider
+endpoints. This includes requests to the Token Endpoint, the Userinfo Endpoint
+and requests to fetch the JSON Web Key Set from the OP if `op.jwkset_path` is
+set as a URL.
+
+`http.proxy.scheme`::
+(<<static-cluster-setting,Static>>)
+Specifies the protocol to use to connect to the proxy server that will be
+used by the http client for all back-channel communication to the OpenID
+Connect Provider endpoints. Defaults to `http`. Allowed values are
+`http` or `https`.
+
+`http.proxy.port`::
+(<<static-cluster-setting,Static>>)
+Specifies the port of the proxy server that will be used by the http
+client for all backchannel communication to the OpenID Connect Provider
+endpoints. Defaults to `80`.
+
+// tag::oidc-http-connect-timeout-tag[]
+`http.connect_timeout` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the behavior of the http client used for back-channel communication to
+the OpenID Connect Provider endpoints. Specifies the timeout until a connection
+ is established. A value of zero means the timeout is not used. Defaults to `5s`.
+// end::oidc-http-connect-timeout-tag[]
+
+// tag::oidc-http-read-timeout-tag[]
+`http.connection_read_timeout` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the behavior of the http client used for back-channel communication to
+the OpenID Connect Provider endpoints. Specifies the timeout used when
+requesting a connection from the connection manager. Defaults to `5s`
+// end::oidc-http-read-timeout-tag[]
+
+// tag::oidc-http-socket-timeout[]
+`http.socket_timeout` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the behavior of the http client used for back-channel communication to
+the OpenID Connect Provider endpoints. Specifies the socket timeout (SO_TIMEOUT)
+in milliseconds, which is the timeout for waiting for data or, put differently,
+a maximum period inactivity between two consecutive data packets). Defaults to
+`5s`.
+// end::oidc-http-socket-timeout[]
+
+// tag::oidc-http-max-connections-tag[]
+`http.max_connections` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the behavior of the http client used for back-channel communication to
+the OpenID Connect Provider endpoints. Specifies the maximum number of
+connections allowed across all endpoints.
+// end::oidc-http-max-connections-tag[]
+
+// tag::oidc-http-max-endpoint-connections-tag[]
+`http.max_endpoint_connections` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the behavior of the http client used for back-channel communication to
+the OpenID Connect Provider endpoints. Specifies the maximum number of
+connections allowed per endpoint.
+// end::oidc-http-max-endpoint-connections-tag[]
+
+[discrete]
+[[ref-oidc-ssl-settings]]
+===== OpenID Connect realm SSL settings
+// tag::oidc-ssl-description-tag[]
+The following settings can be used to configure SSL for all outgoing http connections
+to the OpenID Connect Provider endpoints.
+
+NOTE: These settings are _only_ used for the back-channel communication between
+{es} and the OpenID Connect Provider
+
+// end::oidc-ssl-description-tag[]
+
+// tag::oidc-ssl-key-tag[]
+`ssl.key` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
+// end::oidc-ssl-key-tag[]
+
+// tag::oidc-ssl-key-passphrase-tag[]
+`ssl.key_passphrase` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
+// end::oidc-ssl-key-passphrase-tag[]
+
+`ssl.secure_key_passphrase`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
++
+You cannot use this setting and `ssl.key_passphrase` at the same time.
+
+// tag::oidc-ssl-certificate-tag[]
+`ssl.certificate` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
+// end::oidc-ssl-certificate-tag[]
+
+// tag::oidc-ssl-certificate-authorities-tag[]
+`ssl.certificate_authorities` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
+// end::oidc-ssl-certificate-authorities-tag[]
+
+// tag::oidc-ssl-keystore-path-tag[]
+`ssl.keystore.path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
+// end::oidc-ssl-keystore-path-tag[]
+
+// tag::oidc-ssl-keystore-type-tag[]
+`ssl.keystore.type` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
+// end::oidc-ssl-keystore-type-tag[]
+
+// tag::oidc-ssl-keystore-password-tag[]
+`ssl.keystore.password` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+// end::oidc-ssl-keystore-password-tag[]
+
+`ssl.keystore.secure_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
++
+You cannot use this setting and `ssl.keystore.password` at the same time.
+
+`ssl.keystore.key_password`::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
++
+You cannot use this setting and `ssl.keystore.secure_key_password` at the same
+time.
+
+`ssl.keystore.secure_key_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
++
+You cannot use this setting and `ssl.keystore.key_password` at the same time.
+
+// tag::oidc-ssl-truststore-path-tag[]
+`ssl.truststore.path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
+// end::oidc-ssl-truststore-path-tag[]
+
+// tag::oidc-ssl-truststore-type-tag[]
+`ssl.truststore.type` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
+// end::oidc-ssl-truststore-type-tag[]
+
+// tag::oidc-ssl-truststore-password-tag[]
+`ssl.truststore.password` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+// end::oidc-ssl-truststore-password-tag[]
+
+`ssl.truststore.secure_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
++
+You cannot use this setting and `ssl.truststore.password` at the same time.
+
+// tag::oidc-ssl-verification-mode-tag[]
+`ssl.verification_mode` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the verification of certificates.
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
+// end::oidc-ssl-verification-mode-tag[]
+
+// tag::oidc-ssl-supported-protocols-tag[]
+`ssl.supported_protocols` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
+// end::oidc-ssl-supported-protocols-tag[]
+
+// tag::oidc-ssl-cipher-suites-tag[]
+`ssl.cipher_suites` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+// end::oidc-ssl-cipher-suites-tag[]
+
+[discrete]
 [[load-balancing]]
 ===== Load balancing and failover
 
-The `load_balance.type` setting can have the following values: 
+The <<static-cluster-setting,static>> `load_balance.type` setting can have the
+following values:
 
-* `failover`: The URLs specified are used in the order that they are specified. 
-The first server that can be connected to will be used for all subsequent 
-connections. If a connection to that server fails then the next server that a 
+* `failover`: The URLs specified are used in the order that they are specified.
+The first server that can be connected to will be used for all subsequent
+connections. If a connection to that server fails then the next server that a
 connection can be established to will be used for subsequent connections.
 * `dns_failover`: In this mode of operation, only a single URL may be specified.
-This URL must contain a DNS name. The system will be queried for all IP 
-addresses that correspond to this DNS name. Connections to the Active Directory 
-or LDAP server will always be tried in the order in which they were retrieved. 
-This differs from `failover` in that there is no reordering of the list and if a 
-server has failed at the beginning of the list, it will still be tried for each 
+This URL must contain a DNS name. The system will be queried for all IP
+addresses that correspond to this DNS name. Connections to the Active Directory
+or LDAP server will always be tried in the order in which they were retrieved.
+This differs from `failover` in that there is no reordering of the list and if a
+server has failed at the beginning of the list, it will still be tried for each
 subsequent connection.
-* `round_robin`: Connections will continuously iterate through the list of 
-provided URLs. If a server is unavailable, iterating through the list of URLs 
+* `round_robin`: Connections will continuously iterate through the list of
+provided URLs. If a server is unavailable, iterating through the list of URLs
 will continue until a successful connection is made.
-* `dns_round_robin`: In this mode of operation, only a single URL may be 
-specified. This URL must contain a DNS name. The system will be queried for all 
-IP addresses that correspond to this DNS name. Connections will continuously 
-iterate through the list of addresses. If a server is unavailable, iterating 
+* `dns_round_robin`: In this mode of operation, only a single URL may be
+specified. This URL must contain a DNS name. The system will be queried for all
+IP addresses that correspond to this DNS name. Connections will continuously
+iterate through the list of addresses. If a server is unavailable, iterating
 through the list of URLs will continue until a successful connection is made.
 
-[float]
+[discrete]
 [[ssl-tls-settings]]
-==== Default TLS/SSL settings
-You can configure the following TLS/SSL settings in
-`elasticsearch.yml`. For more information, see
-{stack-ov}/encrypting-communications.html[Encrypting communications]. These settings will be used
-for all of {xpack} unless they have been overridden by more specific
-settings such as those for HTTP or Transport.
+==== General TLS settings
+`xpack.security.ssl.diagnose.trust`::
+(<<static-cluster-setting,Static>>)
+Controls whether to output diagnostic messages for SSL/TLS trust failures.
+If this is `true` (the default), a message will be printed to the Elasticsearch
+log whenever an SSL connection (incoming or outgoing) is rejected due to a failure
+to establish trust.
+This diagnostic message contains information that can be used to determine the
+cause of the failure and assist with resolving the problem.
+Set to `false` to disable these messages.
 
-`xpack.ssl.supported_protocols`::
-Supported protocols with versions. Valid protocols: `SSLv2Hello`,
-`SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`. Defaults to `TLSv1.2`, `TLSv1.1`,
-`TLSv1`. 
-+
---
-NOTE: If `xpack.security.fips_mode.enabled` is `true`, you cannot use `SSLv2Hello` 
-or `SSLv3`. See <<fips-140-compliance>>.
---
-
-`xpack.ssl.client_authentication`::
-Controls the server's behavior in regard to requesting a certificate
-from client connections. Valid values are `required`, `optional`, and `none`.
-`required` forces a client to present a certificate, while `optional`
-requests a client certificate but the client is not required to present one.
-Defaults to `required`. This global setting is not applicable for HTTP, see
- <<http-tls-ssl-settings>>.
-
-`xpack.ssl.verification_mode`::
-Controls the verification of certificates. Valid values are:
-- `full`, which verifies that the provided certificate is signed by a trusted
-       authority (CA) and also verifies that the server's hostname (or IP
-       address) matches the names identified within the certificate.
-- `certificate`, which verifies that the provided certificate is signed by a
-       trusted authority (CA), but does not perform any hostname verification.
-- `none`, which performs _no verification_ of the server's certificate. This mode
-       disables many of the security benefits of SSL/TLS and should only be
-       used after very careful consideration. It is primarily intended as a
-       temporary diagnostic mechanism when attempting to resolve TLS errors,
-       and its use on production clusters is strongly discouraged.
-+
-The default value is `full`.
-
-`xpack.ssl.cipher_suites`::
-Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
-Java Cryptography Architecture documentation]. Defaults to `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`,
-`TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`,
-`TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA`. If the _Java Cryptography Extension (JCE) Unlimited Strength
-Jurisdiction Policy Files_ has been installed, the default value also includes `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`,
-`TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`,
-`TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`.
-
-[float]
+[discrete]
 [[tls-ssl-key-settings]]
-===== Default TLS/SSL key and trusted certificate settings
+===== TLS/SSL key and trusted certificate settings
 
 The following settings are used to specify a private key, certificate, and the
-trusted certificates that should be used when communicating over an SSL/TLS connection.
-If none of the settings below are specified, this will default to the <<ssl-tls-settings, {xpack}
-defaults>>. If no trusted certificates are configured, the default certificates that are trusted by the JVM will be
-trusted along with the certificate(s) from the <<tls-ssl-key-settings, key settings>>. The key and certificate must be in place
-for connections that require client authentication or when acting as a SSL enabled server.
-
-[float]
-===== PEM encoded files
-
-When using PEM encoded files, use the following settings:
-
-`xpack.ssl.key`::
-Path to the PEM encoded file containing the private key.
-
-`xpack.ssl.key_passphrase`::
-The passphrase that is used to decrypt the private key. This value is
-optional as the key might not be encrypted.
-
-`xpack.ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
-The passphrase that is used to decrypt the private key. This value is
-optional as the key might not be encrypted.
-
-`xpack.ssl.certificate`::
-Path to a PEM encoded file containing the certificate (or certificate chain)
-that will be presented to clients when they connect.
-
-`xpack.ssl.certificate_authorities`::
-List of paths to the PEM encoded certificate files that should be trusted.
-
-[float]
-===== Java keystore files
-
-When using Java keystore files (JKS), which contain the private key, certificate
-and certificates that should be trusted, use the following settings:
-
-`xpack.ssl.keystore.path`::
-Path to the keystore that holds the private key and certificate.
-
-`xpack.ssl.keystore.password`::
-Password to the keystore.
-
-`xpack.ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
-Password to the keystore.
-
-`xpack.ssl.keystore.key_password`::
-Password for the private key in the keystore. Defaults to the
-same value as `xpack.ssl.keystore.password`.
-
-`xpack.ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
-Password for the private key in the keystore.
-
-`xpack.ssl.truststore.path`::
-Path to the truststore file.
-
-`xpack.ssl.truststore.password`::
-Password to the truststore.
-
-`xpack.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
-Password to the truststore.
-
-WARNING: If `xpack.security.fips_mode.enabled` is `true`, you cannot use Java 
-keystore files. See <<fips-140-compliance>>. 
-
-[float]
-===== PKCS#12 files
-
-When using PKCS#12 container files (`.p12` or `.pfx`), which contain the
-private key, certificate, and certificates that should be trusted, use
-the following settings:
-
-`xpack.ssl.keystore.path`::
-Path to the PKCS#12 file that holds the private key and certificate.
-
-`xpack.ssl.keystore.type`::
-Set this to `PKCS12`.
-
-`xpack.ssl.keystore.password`::
-Password to the PKCS#12 file.
-
-`xpack.ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
-Password to the PKCS#12 file.
-
-`xpack.ssl.keystore.key_password`::
-Password for the private key in the PKCS12 file.
-Defaults to the same value as `xpack.ssl.keystore.password`.
-
-`xpack.ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
-Password for the private key in the PKCS12 file.
-
-`xpack.ssl.truststore.path`::
-Path to the truststore file.
-
-`xpack.ssl.truststore.type`::
-Set this to `PKCS12`.
-
-`xpack.ssl.truststore.password`::
-Password to the truststore.
-
-`xpack.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
-Password to the truststore.
-
-WARNING: If `xpack.security.fips_mode.enabled` is `true`, you cannot use PKCS#12 
-keystore files. See <<fips-140-compliance>>. 
+trusted certificates that should be used when communicating over an SSL/TLS
+connection. If no trusted certificates are configured, the default certificates
+that are trusted by the JVM will be trusted along with the certificate(s)
+associated with a key in the same context. The key and certificate must be in
+place for connections that require client authentication or when acting as a
+SSL enabled server.
 
 [[pkcs12-truststore-note]]
 [NOTE]
 Storing trusted certificates in a PKCS#12 file, although supported, is
-uncommon in practice. The {ref}/certutil.html[`elasticsearch-certutil`] tool,
+uncommon in practice. The <<certutil,`elasticsearch-certutil` tool>>,
 as well as Java's `keytool`, are designed to generate PKCS#12 files that
 can be used both as a keystore and as a truststore, but this may not be the
 case for container files that are created using other tools. Usually,
@@ -1378,39 +2012,13 @@ a PKCS#12 container includes trusted certificate ("anchor") entries look for
 `openssl pkcs12 -info` output, or `trustedCertEntry` in the
 `keytool -list` output.
 
-[float]
-===== PKCS#11 tokens
-
-When using a PKCS#11 cryptographic token, which contains the
-private key, certificate, and certificates that should be trusted, use
-the following settings:
-
-`xpack.ssl.keystore.type`::
-Set this to `PKCS11`.
-
-`xpack.ssl.truststore.type`::
-Set this to `PKCS11`.
-
-
-[[pkcs11-truststore-note]]
-[NOTE]
-When configuring the PKCS#11 token that your JVM is configured to use as
-a keystore or a truststore for Elasticsearch, the PIN for the token can be
-configured by setting the appropriate value to `xpack.ssl.truststore.password`
-or `xpack.ssl.truststore.secure_password`. In the absence of the above, {es} will
-fallback to use he appropriate JVM setting (`-Djavax.net.ssl.trustStorePassword`)
-if that is set.
-Since there can only be one PKCS#11 token configured, only one keystore and
-truststore will be usable for configuration in {es}. This in turn means
-that only one certificate can be used for TLS both in the transport and the
-http layer.
-
 [[http-tls-ssl-settings]]
 :ssl-prefix:             xpack.security.http
 :component:              HTTP
 :client-auth-default:    none
 :verifies!:
 :server:
+:ssl-context:            security-http
 
 include::ssl-settings.asciidoc[]
 
@@ -1420,11 +2028,12 @@ include::ssl-settings.asciidoc[]
 :client-auth-default!:
 :verifies:
 :server:
+:ssl-context:            security-transport
 
 include::ssl-settings.asciidoc[]
 
 [[ssl-tls-profile-settings]]
-[float]
+[discrete]
 ===== Transport profile TLS/SSL settings
 The same settings that are available for the <<transport-tls-ssl-settings, default transport>>
 are also available for each transport profile. By default, the settings for a
@@ -1437,37 +2046,33 @@ transport profile, use the prefix `transport.profiles.$PROFILE.xpack.security.` 
 append the portion of the setting after `xpack.security.transport.`. For the key
 setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.key`.
 
-[[auditing-tls-ssl-settings]]
-:ssl-prefix:             xpack.security.audit.index.client.xpack
-:component:              Auditing
-:client-auth-default!:
-:server!:
-
-include::ssl-settings.asciidoc[]
-
-See also <<remote-audit-settings>>. 
-
-[float]
+[discrete]
 [[ip-filtering-settings]]
 ==== IP filtering settings
-You can configure the following settings for {stack-ov}/ip-filtering.html[IP filtering].
+You can configure the following settings for <<ip-filtering,IP filtering>>.
 
 `xpack.security.transport.filter.allow`::
+(<<dynamic-cluster-setting,Dynamic>>)
 List of IP addresses to allow.
 
 `xpack.security.transport.filter.deny`::
+(<<dynamic-cluster-setting,Dynamic>>)
 List of IP addresses to deny.
 
 `xpack.security.http.filter.allow`::
+(<<dynamic-cluster-setting,Dynamic>>)
 List of IP addresses to allow just for HTTP.
 
 `xpack.security.http.filter.deny`::
+(<<dynamic-cluster-setting,Dynamic>>)
 List of IP addresses to deny just for HTTP.
 
 `transport.profiles.$PROFILE.xpack.security.filter.allow`::
+(<<dynamic-cluster-setting,Dynamic>>)
 List of IP addresses to allow for this profile.
 
 `transport.profiles.$PROFILE.xpack.security.filter.deny`::
+(<<dynamic-cluster-setting,Dynamic>>)
 List of IP addresses to deny for this profile.
 
 include::security-hash-settings.asciidoc[]

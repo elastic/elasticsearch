@@ -1,17 +1,15 @@
 ---
 "CRUD watch APIs":
-
   # no need to put watch, exists already
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { found : true}
   - match: { _id: "my_watch" }
 
-
   # execute watch
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
         body:  >
           {
@@ -24,6 +22,32 @@
   - match: { watch_record.status.execution_state: "executed" }
   - match: { watch_record.status.state.active: true }
 
+  # deactivate watch, check with GET API as well
+  - do:
+      watcher.deactivate_watch:
+        watch_id: "my_watch"
+  - match: { status.state.active : false }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { found : true}
+  - match: { _id: "my_watch" }
+  - match: { status.state.active: false }
+
+  # activate watch again, check with GET API as well
+  - do:
+      watcher.activate_watch:
+        watch_id: "my_watch"
+  - match: { status.state.active : true }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { found : true}
+  - match: { _id: "my_watch" }
+  - match: { status.state.active: true }
+
   # check watch history entry
   - do:
       indices.refresh:
@@ -35,41 +59,13 @@
         index: .watcher-history-*
         body:
           {
-            "query" : { "term" : { "_id" : "$record_id" } }
+            "query": { "term": { "_id": "$record_id" } }
           }
   - match: { hits.total: 1 }
-
-  # deactivate watch, check with GET API as well
-  - do:
-      xpack.watcher.deactivate_watch:
-        watch_id: "my_watch"
-  - match: { status.state.active : false }
-  
-  - do:
-      xpack.watcher.get_watch:
-        id: "my_watch"
-  - match: { found : true}
-  - match: { _id: "my_watch" }
-  - match: { status.state.active: false }
-
-
-  # activate watch again, check with GET API as well
-  - do:
-      xpack.watcher.activate_watch:
-        watch_id: "my_watch"
-  - match: { status.state.active : true }
-  
-  - do:
-      xpack.watcher.get_watch:
-        id: "my_watch"
-  - match: { found : true}
-  - match: { _id: "my_watch" }
-  - match: { status.state.active: true }
-
 
 ---
 "Test watcher stats output":
   - do:
-      xpack.watcher.stats: {}
+      watcher.stats: {}
   - match: { "manually_stopped": false }
   - match: { "stats.0.watcher_state": "started" }

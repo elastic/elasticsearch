@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -22,6 +11,8 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpDelete;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.security.AuthenticateResponse;
+import org.elasticsearch.client.security.CreateServiceAccountTokenRequest;
+import org.elasticsearch.client.security.CreateServiceAccountTokenResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
@@ -42,8 +33,9 @@ import org.elasticsearch.client.security.user.privileges.GlobalPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.Role;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -52,9 +44,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityIT extends ESRestHighLevelClientTestCase {
 
@@ -71,10 +66,8 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         final PutUserResponse updateUserResponse = execute(updateUserRequest, securityClient::putUser, securityClient::putUserAsync);
         // assert user not created
         assertThat(updateUserResponse.isCreated(), is(false));
-        // delete user
-        final Request deleteUserRequest = new Request(HttpDelete.METHOD_NAME,
-            "/_security/user/" + putUserRequest.getUser().getUsername());
-        highLevelClient().getLowLevelClient().performRequest(deleteUserRequest);
+        // cleanup
+        deleteUser(putUserRequest.getUser());
     }
 
     public void testGetUser() throws Exception {
@@ -91,6 +84,8 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         ArrayList<User> users = new ArrayList<>();
         users.addAll(getUsersResponse.getUsers());
         assertThat(users.get(0), is(putUserRequest.getUser()));
+
+        deleteUser(putUserRequest.getUser());
     }
 
     public void testAuthenticate() throws Exception {
@@ -107,6 +102,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
 
         assertThat(authenticateResponse.getUser(), is(putUserRequest.getUser()));
         assertThat(authenticateResponse.enabled(), is(true));
+        assertThat(authenticateResponse.getAuthenticationType(), is("realm"));
 
         // get user
         final GetUsersRequest getUsersRequest =
@@ -134,6 +130,41 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         final DeleteUserResponse deleteUserResponse2 =
             execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
         assertThat(deleteUserResponse2.isAcknowledged(), is(false));
+
+        // Test the authenticate response for a service token
+        {
+            RestHighLevelClient client = highLevelClient();
+            CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token1");
+            CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
+                client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
+
+            AuthenticateResponse response = client.security().authenticate(
+                RequestOptions.DEFAULT.toBuilder().addHeader(
+                    "Authorization", "Bearer " + createServiceAccountTokenResponse.getValue().toString()).build());
+
+            User user = response.getUser();
+            boolean enabled = response.enabled();
+            final String authenticationRealmName = response.getAuthenticationRealm().getName();
+            final String authenticationRealmType = response.getAuthenticationRealm().getType();
+            final String lookupRealmName = response.getLookupRealm().getName();
+            final String lookupRealmType = response.getLookupRealm().getType();
+            final String authenticationType = response.getAuthenticationType();
+            final Map<String, Object> token = response.getToken();
+
+            assertThat(user.getUsername(), is("elastic/fleet-server"));
+            assertThat(user.getRoles(), empty());
+            assertThat(user.getFullName(), equalTo("Service account - elastic/fleet-server"));
+            assertThat(user.getEmail(), nullValue());
+            assertThat(user.getMetadata(), equalTo(Map.of("_elastic_service_account", true)));
+            assertThat(enabled, is(true));
+            assertThat(authenticationRealmName, is("_service_account"));
+            assertThat(authenticationRealmType, is("_service_account"));
+            assertThat(lookupRealmName, is("_service_account"));
+            assertThat(lookupRealmType, is("_service_account"));
+            assertThat(authenticationType, is("token"));
+            assertThat(token, equalTo(Map.of("name", "token1", "type", "_service_account_index")));
+        }
     }
 
     public void testPutRole() throws Exception {
@@ -161,12 +192,17 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(deleteRoleResponse.isFound(), is(true));
     }
 
-    private static User randomUser() {
+    private void deleteUser(User user) throws IOException {
+        final Request deleteUserRequest = new Request(HttpDelete.METHOD_NAME, "/_security/user/" + user.getUsername());
+        highLevelClient().getLowLevelClient().performRequest(deleteUserRequest);
+    }
+
+    private User randomUser() {
         final String username = randomAlphaOfLengthBetween(1, 4);
         return randomUser(username);
     }
 
-    private static User randomUser(String username) {
+    private User randomUser(String username) {
         final List<String> roles = Arrays.asList(generateRandomStringArray(3, 3, false, true));
         final String fullName = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 3));
         final String email = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 3));
@@ -182,6 +218,8 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         } else {
             metadata.put("string_list", Arrays.asList(generateRandomStringArray(4, 4, false, true)));
         }
+        metadata.put("test-case", getTestName());
+
         return new User(username, roles, metadata, fullName, email);
     }
 
@@ -190,7 +228,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
                 .name(roleName)
                 .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ALL_ARRAY))
                 .indicesPrivileges(
-                        randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom(randomAlphaOfLength(3))))
+                        randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom("{\"match_all\": {}}")))
                 .applicationResourcePrivileges(randomArray(3, ApplicationResourcePrivileges[]::new,
                         () -> ApplicationResourcePrivilegesTests.createNewRandom(randomAlphaOfLength(3).toLowerCase(Locale.ROOT))))
                 .runAsPrivilege(randomArray(3, String[]::new, () -> randomAlphaOfLength(3)));
@@ -207,13 +245,13 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         return roleBuilder.build();
     }
 
-    private static PutUserRequest randomPutUserRequest(boolean enabled) {
+    private PutUserRequest randomPutUserRequest(boolean enabled) {
         final User user = randomUser();
         return randomPutUserRequest(user, enabled);
     }
 
     private static PutUserRequest randomPutUserRequest(User user, boolean enabled) {
-        final char[] password = randomAlphaOfLengthBetween(6, 10).toCharArray();
+        final char[] password = randomAlphaOfLengthBetween(14, 19).toCharArray();
         return new PutUserRequest(user, password, enabled, RefreshPolicy.IMMEDIATE);
     }
 

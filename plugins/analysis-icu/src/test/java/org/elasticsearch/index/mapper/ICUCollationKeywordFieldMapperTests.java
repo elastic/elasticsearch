@@ -1,28 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
-
-import static org.hamcrest.Matchers.equalTo;
 
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.util.ULocale;
+
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -30,55 +18,56 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
-public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+
+public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
 
     private static final String FIELD_TYPE = "icu_collation_keyword";
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(AnalysisICUPlugin.class, InternalSettingsPlugin.class);
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new AnalysisICUPlugin());
     }
 
-    IndexService indexService;
-    DocumentMapperParser parser;
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("strength", b -> b.field("strength", "secondary"));
+        checker.registerConflictCheck("decomposition", b -> b.field("decomposition", "canonical"));
+        checker.registerConflictCheck("alternate", b -> b.field("alternate", "non-ignorable"));
+        checker.registerConflictCheck("case_level", b -> b.field("case_level", true));
+        checker.registerConflictCheck("case_first", b -> b.field("case_first", "lower"));
+        checker.registerConflictCheck("numeric", b -> b.field("numeric", true));
+        checker.registerConflictCheck("variable_top", b -> b.field("variable_top", ":"));
+        checker.registerConflictCheck("hiragana_quaternary_mode", b -> b.field("hiragana_quaternary_mode", true));
+    }
 
-    @Before
-    public void setup() {
-        indexService = createIndex("test");
-        parser = indexService.mapperService().documentMapperParser();
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", FIELD_TYPE);
+    }
+
+    @Override
+    protected Object getSampleValueForDocument() {
+        return 1234;
     }
 
     public void testDefaults() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", FIELD_TYPE).endObject().endObject()
-            .endObject().endObject());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", "1234")
-                        .endObject()),
-            XContentType.JSON));
-
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
 
@@ -105,31 +94,12 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testNullValue() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", FIELD_TYPE).endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .nullField("field")
-                        .endObject()),
-            XContentType.JSON));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", FIELD_TYPE)
-            .field("null_value", "1234").endObject().endObject()
-            .endObject().endObject());
-
-        mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("null_value", "1234")));
+        doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .endObject()),
@@ -138,13 +108,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
 
-        doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .nullField("field")
-                        .endObject()),
-            XContentType.JSON));
-
+        doc = mapper.parse(source(b -> b.nullField("field")));
         Collator collator = Collator.getInstance(ULocale.ROOT);
         RawCollationKey key = collator.getRawCollationKey("1234", null);
         BytesRef expected = new BytesRef(key.bytes, 0, key.size);
@@ -155,44 +119,16 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testEnableStore() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", FIELD_TYPE)
-            .field("store", true).endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", "1234")
-                        .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("store", true)));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         assertTrue(fields[0].fieldType().stored());
     }
 
     public void testDisableIndex() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", FIELD_TYPE)
-            .field("index", false).endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", "1234")
-                        .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("index", false)));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertEquals(IndexOptions.NONE, fields[0].fieldType().indexOptions());
@@ -200,43 +136,17 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDisableDocValues() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", FIELD_TYPE)
-            .field("doc_values", false).endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", "1234")
-                        .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("doc_values", false)));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
     }
 
     public void testMultipleValues() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", FIELD_TYPE).endObject().endObject()
-            .endObject().endObject());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", Arrays.asList("1234", "5678"))
-                        .endObject()),
-            XContentType.JSON));
-
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", List.of("1234", "5678"))));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(4, fields.length);
 
@@ -284,79 +194,35 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexOptions() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", FIELD_TYPE)
-            .field("index_options", "freqs").endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", "1234")
-                        .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("index_options", "freqs")));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         assertEquals(IndexOptions.DOCS_AND_FREQS, fields[0].fieldType().indexOptions());
 
         for (String indexOptions : Arrays.asList("positions", "offsets")) {
-            final String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", FIELD_TYPE)
-                .field("index_options", indexOptions).endObject().endObject()
-                .endObject().endObject());
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> parser.parse("type", new CompressedXContent(mapping2)));
-            assertEquals("The [" + FIELD_TYPE + "] field does not support positions, got [index_options]=" + indexOptions,
-                e.getMessage());
+            Exception e = expectThrows(MapperParsingException.class,
+                () -> createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("index_options", indexOptions))));
+            assertThat(
+                e.getMessage(),
+                containsString("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [docs, freqs]")
+            );
         }
     }
 
     public void testEnableNorms() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", FIELD_TYPE)
-            .field("norms", true).endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", "1234")
-                        .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("norms", true)));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         assertFalse(fields[0].fieldType().omitNorms());
     }
 
     public void testCollator() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field")
-            .field("type", FIELD_TYPE)
-            .field("language", "tr")
-            .field("strength", "primary")
-            .endObject().endObject().endObject().endObject());
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", "I WİLL USE TURKİSH CASING")
-                        .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", FIELD_TYPE).field("language", "tr").field("strength", "primary"))
+        );
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "I WİLL USE TURKİSH CASING")));
         Collator collator = Collator.getInstance(new ULocale("tr"));
         collator.setStrength(Collator.PRIMARY);
         RawCollationKey key = collator.getRawCollationKey("ı will use turkish casıng", null); // should collate to same value
@@ -384,23 +250,49 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testUpdateCollator() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field")
-            .field("type", FIELD_TYPE)
-            .field("language", "tr")
-            .field("strength", "primary")
-            .endObject().endObject().endObject().endObject());
-        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", FIELD_TYPE).field("language", "tr").field("strength", "primary"))
+        );
 
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field")
-            .field("type", FIELD_TYPE)
-            .field("language", "en")
-            .endObject().endObject().endObject().endObject());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> indexService.mapperService().merge("type",
-                new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
-        assertEquals("Can't merge because of conflicts: [Cannot update language setting for [" + FIELD_TYPE
-            + "], Cannot update strength setting for [" + FIELD_TYPE + "]]", e.getMessage());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, fieldMapping(b -> b.field("type", FIELD_TYPE).field("language", "en")))
+        );
+        assertThat(e.getMessage(), containsString("Cannot update parameter [language] from [tr] to [en]"));
+    }
+
+
+    public void testIgnoreAbove() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("ignore_above", 5)));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "elk")));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        fields = doc.rootDoc().getFields("_ignored");
+        assertEquals(0, fields.length);
+
+        doc = mapper.parse(source(b -> b.field("field", "elasticsearch")));
+        fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.length);
+        fields = doc.rootDoc().getFields("_ignored");
+        assertEquals(1, fields.length);
+        assertEquals("field", fields[0].stringValue());
+    }
+
+    public void testUpdateIgnoreAbove() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        merge(mapperService, fieldMapping(b -> b.field("type", FIELD_TYPE).field("ignore_above", 5)));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "elasticsearch")));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.length);
+    }
+
+    @Override
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("docvalue_fields is broken", true);
+        // https://github.com/elastic/elasticsearch/issues/70276
+        /*
+         * docvalue_fields loads garbage bytes.
+         */
+        return null;
     }
 }

@@ -1,36 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
@@ -48,18 +45,13 @@ import java.util.function.LongSupplier;
  * the interval.
  * </p>
  */
-public class GetOverallBucketsAction extends Action<GetOverallBucketsAction.Response> {
+public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.Response> {
 
     public static final GetOverallBucketsAction INSTANCE = new GetOverallBucketsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/overall_buckets/get";
 
     private GetOverallBucketsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -70,7 +62,9 @@ public class GetOverallBucketsAction extends Action<GetOverallBucketsAction.Resp
         public static final ParseField EXCLUDE_INTERIM = new ParseField("exclude_interim");
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");
-        public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
+        @Deprecated
+        public static final String ALLOW_NO_JOBS = "allow_no_jobs";
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match", ALLOW_NO_JOBS);
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -84,14 +78,14 @@ public class GetOverallBucketsAction extends Action<GetOverallBucketsAction.Resp
                     startTime, START, System::currentTimeMillis)), START);
             PARSER.declareString((request, endTime) -> request.setEnd(parseDateOrThrow(
                     endTime, END, System::currentTimeMillis)), END);
-            PARSER.declareBoolean(Request::setAllowNoJobs, ALLOW_NO_JOBS);
+            PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
         }
 
         static long parseDateOrThrow(String date, ParseField paramName, LongSupplier now) {
             DateMathParser dateMathParser = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
 
             try {
-                return dateMathParser.parse(date, now);
+                return dateMathParser.parse(date, now).toEpochMilli();
             } catch (Exception e) {
                 String msg = Messages.getMessage(Messages.REST_INVALID_DATETIME_PARAMS, paramName.getPreferredName(), date);
                 throw new ElasticsearchParseException(msg, e);
@@ -113,9 +107,21 @@ public class GetOverallBucketsAction extends Action<GetOverallBucketsAction.Resp
         private boolean excludeInterim = false;
         private Long start;
         private Long end;
-        private boolean allowNoJobs = true;
+        private boolean allowNoMatch = true;
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            topN = in.readVInt();
+            bucketSpan = in.readOptionalTimeValue();
+            overallScore = in.readDouble();
+            excludeInterim = in.readBoolean();
+            start = in.readOptionalLong();
+            end = in.readOptionalLong();
+            allowNoMatch = in.readBoolean();
         }
 
         public Request(String jobId) {
@@ -189,30 +195,17 @@ public class GetOverallBucketsAction extends Action<GetOverallBucketsAction.Resp
             setEnd(parseDateOrThrow(end, END, System::currentTimeMillis));
         }
 
-        public boolean allowNoJobs() {
-            return allowNoJobs;
+        public boolean allowNoMatch() {
+            return allowNoMatch;
         }
 
-        public void setAllowNoJobs(boolean allowNoJobs) {
-            this.allowNoJobs = allowNoJobs;
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
         }
 
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            topN = in.readVInt();
-            bucketSpan = in.readOptionalTimeValue();
-            overallScore = in.readDouble();
-            excludeInterim = in.readBoolean();
-            start = in.readOptionalLong();
-            end = in.readOptionalLong();
-            allowNoJobs = in.readBoolean();
         }
 
         @Override
@@ -225,7 +218,7 @@ public class GetOverallBucketsAction extends Action<GetOverallBucketsAction.Resp
             out.writeBoolean(excludeInterim);
             out.writeOptionalLong(start);
             out.writeOptionalLong(end);
-            out.writeBoolean(allowNoJobs);
+            out.writeBoolean(allowNoMatch);
         }
 
         @Override
@@ -244,14 +237,14 @@ public class GetOverallBucketsAction extends Action<GetOverallBucketsAction.Resp
             if (end != null) {
                 builder.field(END.getPreferredName(), String.valueOf(end));
             }
-            builder.field(ALLOW_NO_JOBS.getPreferredName(), allowNoJobs);
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, topN, bucketSpan, overallScore, excludeInterim, start, end, allowNoJobs);
+            return Objects.hash(jobId, topN, bucketSpan, overallScore, excludeInterim, start, end, allowNoMatch);
         }
 
         @Override
@@ -270,73 +263,27 @@ public class GetOverallBucketsAction extends Action<GetOverallBucketsAction.Resp
                     this.overallScore == that.overallScore &&
                     Objects.equals(start, that.start) &&
                     Objects.equals(end, that.end) &&
-                    this.allowNoJobs == that.allowNoJobs;
+                    this.allowNoMatch == that.allowNoMatch;
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
+    public static class Response extends AbstractGetResourcesResponse<OverallBucket> implements ToXContentObject {
 
-        RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
-        }
-    }
-
-    public static class Response extends ActionResponse implements ToXContentObject {
-
-        private QueryPage<OverallBucket> overallBuckets;
-
-        public Response() {
-            overallBuckets = new QueryPage<>(Collections.emptyList(), 0, OverallBucket.RESULTS_FIELD);
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Response(QueryPage<OverallBucket> overallBuckets) {
-            this.overallBuckets = overallBuckets;
+            super(overallBuckets);
         }
 
         public QueryPage<OverallBucket> getOverallBuckets() {
-            return overallBuckets;
+            return getResources();
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            overallBuckets = new QueryPage<>(in, OverallBucket::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            overallBuckets.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            overallBuckets.doXContentBody(builder, params);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(overallBuckets);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Response other = (Response) obj;
-            return Objects.equals(overallBuckets, other.overallBuckets);
-        }
-
-        @Override
-        public final String toString() {
-            return Strings.toString(this);
+        protected Reader<OverallBucket> getReader() {
+            return OverallBucket::new;
         }
     }
 

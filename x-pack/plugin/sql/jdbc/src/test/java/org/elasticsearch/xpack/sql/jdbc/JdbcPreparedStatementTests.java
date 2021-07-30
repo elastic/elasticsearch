@@ -1,14 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.jdbc.EsType;
-import org.elasticsearch.xpack.sql.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.jdbc.JdbcPreparedStatement;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -20,7 +19,6 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.Date;
@@ -28,10 +26,11 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.lang.String.format;
+import static java.time.ZoneOffset.UTC;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.BINARY;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.BYTE;
-import static org.elasticsearch.xpack.sql.jdbc.EsType.DATE;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.DATETIME;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.DOUBLE;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.FLOAT;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.HALF_FLOAT;
@@ -39,6 +38,7 @@ import static org.elasticsearch.xpack.sql.jdbc.EsType.INTEGER;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.KEYWORD;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.LONG;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.SHORT;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
 
 public class JdbcPreparedStatementTests extends ESTestCase {
 
@@ -287,12 +287,12 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         Float floatNotInt =  5_155_000_000f;
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, floatNotInt, Types.INTEGER));
-        assertEquals(String.format(Locale.ROOT, "Numeric %s out of range",
-                Long.toString(Math.round(floatNotInt.doubleValue()))), sqle.getMessage());
+        assertEquals(LoggerMessageFormat.format("Numeric {} out of range",
+            Math.round(floatNotInt.doubleValue())), sqle.getMessage());
 
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, floatNotInt, Types.SMALLINT));
-        assertEquals(String.format(Locale.ROOT, "Numeric %s out of range",
-                Long.toString(Math.round(floatNotInt.doubleValue()))), sqle.getMessage());
+        assertEquals(LoggerMessageFormat.format("Numeric {} out of range",
+                Math.round(floatNotInt.doubleValue())), sqle.getMessage());
     }
 
     public void testSettingDoubleValues() throws SQLException {
@@ -328,8 +328,8 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         Double doubleNotInt = 5_155_000_000d;
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, doubleNotInt, Types.INTEGER));
-        assertEquals(String.format(Locale.ROOT, "Numeric %s out of range",
-                Long.toString(((Number) doubleNotInt).longValue())), sqle.getMessage());
+        assertEquals(LoggerMessageFormat.format("Numeric {} out of range",
+                ((Number) doubleNotInt).longValue()), sqle.getMessage());
     }
 
     public void testUnsupportedClasses() throws SQLException {
@@ -370,21 +370,32 @@ public class JdbcPreparedStatementTests extends ESTestCase {
     public void testSettingTimestampValues() throws SQLException {
         JdbcPreparedStatement jps = createJdbcPreparedStatement();
 
+        int randomNanos = randomInt(999999999);
+
         Timestamp someTimestamp = new Timestamp(randomLong());
+        someTimestamp.setNanos(randomNanos);
         jps.setTimestamp(1, someTimestamp);
-        assertEquals(someTimestamp.getTime(), ((Date)value(jps)).getTime());
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(someTimestamp.getTime(), ((ZonedDateTime) value(jps)).toInstant().toEpochMilli());
+        assertEquals(someTimestamp.getNanos(), ((ZonedDateTime) value(jps)).getNano());
+        assertEquals(DATETIME, jdbcType(jps));
 
         Calendar nonDefaultCal = randomCalendar();
         // February 29th, 2016. 01:17:55 GMT = 1456708675000 millis since epoch
-        jps.setTimestamp(1, new Timestamp(1456708675000L), nonDefaultCal);
-        assertEquals(1456708675000L, convertFromUTCtoCalendar(((Date)value(jps)), nonDefaultCal));
-        assertEquals(DATE, jdbcType(jps));
+        Timestamp someTimestamp2 = new Timestamp(1456708675000L);
+        someTimestamp2.setNanos(randomNanos);
+        jps.setTimestamp(1, someTimestamp2, nonDefaultCal);
+        ZonedDateTime zdt = (ZonedDateTime) value(jps);
+        assertEquals(someTimestamp2.getTime(), convertFromUTCtoCalendar(zdt, nonDefaultCal));
+        assertEquals(someTimestamp2.getNanos(), zdt.getNano());
+        assertEquals(DATETIME, jdbcType(jps));
 
         long beforeEpochTime = randomLongBetween(Long.MIN_VALUE, 0);
-        jps.setTimestamp(1, new Timestamp(beforeEpochTime), nonDefaultCal);
-        assertEquals(beforeEpochTime, convertFromUTCtoCalendar(((Date)value(jps)), nonDefaultCal));
-        assertTrue(value(jps) instanceof java.util.Date);
+        Timestamp someTimestamp3 = new Timestamp(beforeEpochTime);
+        someTimestamp3.setNanos(randomNanos);
+        jps.setTimestamp(1, someTimestamp3, nonDefaultCal);
+        zdt = (ZonedDateTime) value(jps);
+        assertEquals(someTimestamp3.getTime(), convertFromUTCtoCalendar(zdt, nonDefaultCal));
+        assertEquals(someTimestamp3.getNanos(), zdt.getNano());
 
         jps.setObject(1, someTimestamp, Types.VARCHAR);
         assertEquals(someTimestamp.toString(), value(jps).toString());
@@ -403,10 +414,15 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         JdbcPreparedStatement jps = createJdbcPreparedStatement();
 
         Time time = new Time(4675000);
+        jps.setTime(1, time);
+        assertEquals(time, value(jps));
+        assertEquals(TIME, jdbcType(jps));
+        assertTrue(value(jps) instanceof java.util.Date);
+
         Calendar nonDefaultCal = randomCalendar();
         jps.setTime(1, time, nonDefaultCal);
         assertEquals(4675000, convertFromUTCtoCalendar(((Date)value(jps)), nonDefaultCal));
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(TIME, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, time, Types.VARCHAR);
@@ -428,13 +444,13 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         java.sql.Date someSqlDate = new java.sql.Date(randomLong());
         jps.setDate(1, someSqlDate);
         assertEquals(someSqlDate.getTime(), ((Date)value(jps)).getTime());
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(DATETIME, jdbcType(jps));
 
         someSqlDate = new java.sql.Date(randomLong());
         Calendar nonDefaultCal = randomCalendar();
         jps.setDate(1, someSqlDate, nonDefaultCal);
         assertEquals(someSqlDate.getTime(), convertFromUTCtoCalendar(((Date)value(jps)), nonDefaultCal));
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(DATETIME, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, someSqlDate, Types.VARCHAR);
@@ -458,7 +474,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setObject(1, someCalendar);
         assertEquals(someCalendar.getTime(), value(jps));
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(DATETIME, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, someCalendar, Types.VARCHAR);
@@ -468,7 +484,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         Calendar nonDefaultCal = randomCalendar();
         jps.setObject(1, nonDefaultCal);
         assertEquals(nonDefaultCal.getTime(), value(jps));
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(DATETIME, jdbcType(jps));
     }
 
     public void testThrownExceptionsWhenSettingCalendarValues() throws SQLException {
@@ -485,7 +501,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setObject(1, someDate);
         assertEquals(someDate, value(jps));
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(DATETIME, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, someDate, Types.VARCHAR);
@@ -507,7 +523,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setObject(1, ldt);
         assertEquals(Date.class, value(jps).getClass());
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(DATETIME, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, ldt, Types.VARCHAR);
@@ -585,13 +601,20 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         return Calendar.getInstance(randomTimeZone(), Locale.ROOT);
     }
 
-    /*
+    /**
+     * @see #convertFromUTCtoCalendar(ZonedDateTime, Calendar)
+     */
+    private long convertFromUTCtoCalendar(Date date, Calendar nonDefaultCal) {
+        return convertFromUTCtoCalendar(ZonedDateTime.ofInstant(date.toInstant(), UTC), nonDefaultCal);
+    }
+
+    /**
      * Converts from UTC to the provided Calendar.
      * Helps checking if the converted date/time values using Calendars in set*(...,Calendar) methods did convert
      * the values correctly to UTC.
      */
-    private long convertFromUTCtoCalendar(Date date, Calendar nonDefaultCal) throws SQLException {
-        return ZonedDateTime.ofInstant(date.toInstant(), ZoneOffset.UTC)
+    private long convertFromUTCtoCalendar(ZonedDateTime zdt, Calendar nonDefaultCal) {
+        return zdt.withZoneSameInstant(UTC)
                 .withZoneSameLocal(nonDefaultCal.getTimeZone().toZoneId())
                 .toInstant().toEpochMilli();
     }

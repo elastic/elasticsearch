@@ -1,46 +1,43 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -52,6 +49,8 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PublicationTests extends ESTestCase {
@@ -61,8 +60,9 @@ public class PublicationTests extends ESTestCase {
         MockNode(Settings settings, DiscoveryNode localNode) {
             this.localNode = localNode;
             ClusterState initialState = CoordinationStateTests.clusterState(0L, 0L, localNode,
-                CoordinationMetaData.VotingConfiguration.EMPTY_CONFIG, CoordinationMetaData.VotingConfiguration.EMPTY_CONFIG, 0L);
-            coordinationState = new CoordinationState(settings, localNode, new InMemoryPersistedState(0L, initialState));
+                CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG, CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG, 0L);
+            coordinationState = new CoordinationState(localNode, new InMemoryPersistedState(0L, initialState),
+                ElectionStrategy.DEFAULT_INSTANCE);
         }
 
         final DiscoveryNode localNode;
@@ -97,8 +97,8 @@ public class PublicationTests extends ESTestCase {
 
         boolean committed;
 
-        Map<DiscoveryNode, ActionListener<PublishWithJoinResponse>> pendingPublications = new HashMap<>();
-        Map<DiscoveryNode, ActionListener<TransportResponse.Empty>> pendingCommits = new HashMap<>();
+        Map<DiscoveryNode, ActionListener<PublishWithJoinResponse>> pendingPublications = new LinkedHashMap<>();
+        Map<DiscoveryNode, ActionListener<TransportResponse.Empty>> pendingCommits = new LinkedHashMap<>();
         Map<DiscoveryNode, Join> joins = new HashMap<>();
         Set<DiscoveryNode> missingJoins = new HashSet<>();
 
@@ -156,7 +156,7 @@ public class PublicationTests extends ESTestCase {
     Function<DiscoveryNode, MockNode> nodeResolver = dn -> nodes.stream().filter(mn -> mn.localNode.equals(dn)).findFirst().get();
 
     private void initializeCluster(VotingConfiguration initialConfig) {
-        node1.coordinationState.setInitialState(CoordinationStateTests.clusterState(0L, 1L, n1, initialConfig, initialConfig, 0L));
+        node1.coordinationState.setInitialState(CoordinationStateTests.clusterState(0L, 0L, n1, initialConfig, initialConfig, 0L));
         StartJoinRequest startJoinRequest = new StartJoinRequest(n1, 1L);
         node1.coordinationState.handleJoin(node1.coordinationState.handleStartJoin(startJoinRequest));
         node1.coordinationState.handleJoin(node2.coordinationState.handleStartJoin(startJoinRequest));
@@ -165,7 +165,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testSimpleClusterStatePublishing() throws InterruptedException {
-        VotingConfiguration singleNodeConfig = new VotingConfiguration(Sets.newHashSet(n1.getId()));
+        VotingConfiguration singleNodeConfig = VotingConfiguration.of(n1);
         initializeCluster(singleNodeConfig);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
@@ -174,6 +174,7 @@ public class PublicationTests extends ESTestCase {
             discoveryNodes, singleNodeConfig, singleNodeConfig, 42L), ackListener, Collections.emptySet());
 
         assertThat(publication.pendingPublications.keySet(), equalTo(discoNodes));
+        assertThat(publication.completedNodes(), empty());
         assertTrue(publication.pendingCommits.isEmpty());
         AtomicBoolean processedNode1PublishResponse = new AtomicBoolean();
         boolean delayProcessingNode2PublishResponse = randomBoolean();
@@ -228,17 +229,19 @@ public class PublicationTests extends ESTestCase {
 
             assertFalse(publication.completed);
             assertFalse(publication.committed);
+            assertThat(publication.completedNodes(), containsInAnyOrder(n1, n3));
             publication.pendingCommits.get(n2).onResponse(TransportResponse.Empty.INSTANCE);
         }
 
         assertTrue(publication.completed);
+        assertThat(publication.completedNodes(), containsInAnyOrder(n1, n2, n3));
         assertTrue(publication.committed);
 
         assertThat(ackListener.await(0L, TimeUnit.SECONDS), containsInAnyOrder(n1, n2, n3));
     }
 
     public void testClusterStatePublishingWithFaultyNodeBeforeCommit() throws InterruptedException {
-        VotingConfiguration singleNodeConfig = new VotingConfiguration(Sets.newHashSet(n1.getId()));
+        VotingConfiguration singleNodeConfig = VotingConfiguration.of(n1);
         initializeCluster(singleNodeConfig);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
@@ -281,7 +284,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testClusterStatePublishingWithFaultyNodeAfterCommit() throws InterruptedException {
-        VotingConfiguration singleNodeConfig = new VotingConfiguration(Sets.newHashSet(n1.getId()));
+        VotingConfiguration singleNodeConfig = VotingConfiguration.of(n1);
         initializeCluster(singleNodeConfig);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
@@ -334,7 +337,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testClusterStatePublishingFailsOrTimesOutBeforeCommit() throws InterruptedException {
-        VotingConfiguration config = new VotingConfiguration(Sets.newHashSet(n1.getId(), n2.getId()));
+        VotingConfiguration config = VotingConfiguration.of(n1, n2);
         initializeCluster(config);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
@@ -346,7 +349,7 @@ public class PublicationTests extends ESTestCase {
         publication.pendingPublications.entrySet().stream().collect(shuffle()).forEach(e -> {
             if (e.getKey().equals(n2)) {
                 if (timeOut) {
-                    publication.onTimeout();
+                    publication.cancel("timed out");
                 } else {
                     e.getValue().onFailure(new TransportException(new Exception("dummy failure")));
                 }
@@ -372,9 +375,24 @@ public class PublicationTests extends ESTestCase {
                 tuple.v1().equals(n2) ? "dummy failure" : "non-failed nodes do not form a quorum")));
     }
 
+    public void testPublishingToMastersFirst() {
+        VotingConfiguration singleNodeConfig = VotingConfiguration.of(n1);
+        initializeCluster(singleNodeConfig);
+
+        DiscoveryNodes.Builder discoNodesBuilder = DiscoveryNodes.builder();
+        randomNodes(10).forEach(dn -> discoNodesBuilder.add(dn));
+        DiscoveryNodes discoveryNodes = discoNodesBuilder.add(n1).localNodeId(n1.getId()).build();
+        MockPublication publication = node1.publish(CoordinationStateTests.clusterState(1L, 2L,
+            discoveryNodes, singleNodeConfig, singleNodeConfig, 42L), null, Collections.emptySet());
+
+        List<DiscoveryNode> publicationTargets = new ArrayList<>(publication.pendingPublications.keySet());
+        List<DiscoveryNode> sortedPublicationTargets = new ArrayList<>(publicationTargets);
+        Collections.sort(sortedPublicationTargets, Comparator.comparing(n -> n.isMasterNode() == false));
+        assertEquals(sortedPublicationTargets, publicationTargets);
+    }
+
     public void testClusterStatePublishingTimesOutAfterCommit() throws InterruptedException {
-        VotingConfiguration config = new VotingConfiguration(randomBoolean() ?
-            Sets.newHashSet(n1.getId(), n2.getId()) : Sets.newHashSet(n1.getId(), n2.getId(), n3.getId()));
+        VotingConfiguration config = randomBoolean() ? VotingConfiguration.of(n1, n2): VotingConfiguration.of(n1, n2, n3);
         initializeCluster(config);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
@@ -407,7 +425,7 @@ public class PublicationTests extends ESTestCase {
             }
         });
 
-        publication.onTimeout();
+        publication.cancel("timed out");
         assertTrue(publication.completed);
         assertTrue(publication.committed);
         assertEquals(committingNodes, ackListener.await(0L, TimeUnit.SECONDS));
@@ -428,11 +446,69 @@ public class PublicationTests extends ESTestCase {
         assertEquals(discoNodes, ackListener.await(0L, TimeUnit.SECONDS));
     }
 
+    private static List<DiscoveryNode> randomNodes(final int numNodes) {
+        List<DiscoveryNode> nodesList = new ArrayList<>();
+        for (int i = 0; i < numNodes; i++) {
+            Map<String, String> attributes = new HashMap<>();
+            if (frequently()) {
+                attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
+            }
+            final DiscoveryNode node = newNode(i, attributes,
+                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())));
+            nodesList.add(node);
+        }
+        return nodesList;
+    }
+
+    private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
+        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles,
+            Version.CURRENT);
+    }
+
     public static <T> Collector<T, ?, Stream<T>> shuffle() {
         return Collectors.collectingAndThen(Collectors.toList(),
             ts -> {
                 Collections.shuffle(ts, random());
                 return ts.stream();
             });
+    }
+
+    public static class AssertingAckListener implements Discovery.AckListener {
+        private final List<Tuple<DiscoveryNode, Throwable>> errors = new CopyOnWriteArrayList<>();
+        private final Set<DiscoveryNode> successfulAcks = Collections.synchronizedSet(new HashSet<>());
+        private final CountDownLatch countDown;
+        private final CountDownLatch commitCountDown;
+
+        public AssertingAckListener(int nodeCount) {
+            countDown = new CountDownLatch(nodeCount);
+            commitCountDown = new CountDownLatch(1);
+        }
+
+        @Override
+        public void onCommit(TimeValue commitTime) {
+            commitCountDown.countDown();
+        }
+
+        @Override
+        public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
+            if (e != null) {
+                errors.add(new Tuple<>(node, e));
+            } else {
+                successfulAcks.add(node);
+            }
+            countDown.countDown();
+        }
+
+        public Set<DiscoveryNode> await(long timeout, TimeUnit unit) throws InterruptedException {
+            assertThat(awaitErrors(timeout, unit), emptyIterable());
+            assertTrue(commitCountDown.await(timeout, unit));
+            return new HashSet<>(successfulAcks);
+        }
+
+        public List<Tuple<DiscoveryNode, Throwable>> awaitErrors(long timeout, TimeUnit unit) throws InterruptedException {
+            countDown.await(timeout, unit);
+            return errors;
+        }
+
     }
 }

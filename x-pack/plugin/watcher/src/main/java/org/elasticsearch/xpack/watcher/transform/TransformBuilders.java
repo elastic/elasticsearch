@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transform;
 
@@ -32,7 +33,7 @@ public final class TransformBuilders {
         return ScriptTransform.builder(script);
     }
 
-    public static ChainTransform.Builder chainTransform(Transform.Builder... transforms) {
+    public static ChainTransform.Builder chainTransform(Transform.Builder<?>... transforms) {
         return ChainTransform.builder().add(transforms);
     }
 

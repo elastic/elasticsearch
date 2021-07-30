@@ -1,29 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,7 +37,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
@@ -50,8 +50,9 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -60,10 +61,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -75,8 +75,8 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.weightFactorFunction;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -87,7 +87,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(TestPlugin.class);
+        return Arrays.asList(TestPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override
@@ -115,11 +115,15 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     @Override
-    protected Set<String> getObjectsHoldingArbitraryContent() {
+    protected Map<String, String> getObjectsHoldingArbitraryContent() {
         //script_score.script.params can contain arbitrary parameters. no error is expected when adding additional objects
         //within the params object. Score functions get parsed in the data nodes, so they are not validated in the coord node.
-        return new HashSet<>(Arrays.asList(Script.PARAMS_PARSE_FIELD.getPreferredName(), ExponentialDecayFunctionBuilder.NAME,
-                LinearDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder.NAME));
+        final Map<String, String> objects = new HashMap<>();
+        objects.put(Script.PARAMS_PARSE_FIELD.getPreferredName(), null);
+        objects.put(ExponentialDecayFunctionBuilder.NAME, null);
+        objects.put(LinearDecayFunctionBuilder.NAME, null);
+        objects.put(GaussDecayFunctionBuilder.NAME, null);
+        return objects;
     }
 
     /**
@@ -251,8 +255,14 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     @Override
-    protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        assertThat(query, either(instanceOf(FunctionScoreQuery.class)).or(instanceOf(FunctionScoreQuery.class)));
+    protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query,
+                                       SearchExecutionContext context) throws IOException {
+        Query wrappedQuery = queryBuilder.query().rewrite(context).toQuery(context);
+        if (wrappedQuery instanceof MatchNoDocsQuery) {
+            assertThat(query, CoreMatchers.instanceOf(MatchNoDocsQuery.class));
+        } else {
+            assertThat(query, CoreMatchers.instanceOf(FunctionScoreQuery.class));
+        }
     }
 
     public void testIllegalArguments() {
@@ -502,7 +512,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertThat(fieldValueFactorFunctionBuilder.getWeight(), equalTo(1f));
         assertThat(fieldValueFactorFunctionBuilder.missing(), nullValue());
 
-        Query luceneQuery = query.toQuery(createShardContext());
+        Query luceneQuery = query.toQuery(createSearchExecutionContext());
         assertThat(luceneQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) luceneQuery;
         assertThat(functionScoreQuery.getFunctions().length, equalTo(1));
@@ -551,16 +561,17 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testCustomWeightFactorQueryBuilderWithFunctionScore() throws IOException {
-        Query parsedQuery = parseQuery(functionScoreQuery(termQuery("name.last", "banon"), weightFactorFunction(1.3f)))
-                .toQuery(createShardContext());
+        SearchExecutionContext context = createSearchExecutionContext();
+        Query parsedQuery = parseQuery(functionScoreQuery(termQuery(KEYWORD_FIELD_NAME, "banon"), weightFactorFunction(1.3f)))
+                .rewrite(context).toQuery(context);
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
-        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term(KEYWORD_FIELD_NAME, "banon")));
         assertThat((double) (functionScoreQuery.getFunctions()[0]).getWeight(), closeTo(1.3, 0.001));
     }
 
     public void testCustomWeightFactorQueryBuilderWithFunctionScoreWithoutQueryGiven() throws IOException {
-        Query parsedQuery = parseQuery(functionScoreQuery(weightFactorFunction(1.3f))).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(functionScoreQuery(weightFactorFunction(1.3f))).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
         assertThat(functionScoreQuery.getSubQuery() instanceof MatchAllDocsQuery, equalTo(true));
@@ -641,14 +652,14 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     public void testRewrite() throws IOException {
         FunctionScoreQueryBuilder functionScoreQueryBuilder =
-            new FunctionScoreQueryBuilder(new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()))
+            new FunctionScoreQueryBuilder(new WrapperQueryBuilder(new TermQueryBuilder(TEXT_FIELD_NAME, "bar").toString()))
                 .boostMode(CombineFunction.REPLACE)
                 .scoreMode(FunctionScoreQuery.ScoreMode.SUM)
                 .setMinScore(1)
                 .maxBoost(100);
-        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
+        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createSearchExecutionContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
-        assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
+        assertEquals(rewrite.query(), new TermQueryBuilder(TEXT_FIELD_NAME, "bar"));
         assertEquals(rewrite.boostMode(), CombineFunction.REPLACE);
         assertEquals(rewrite.scoreMode(), FunctionScoreQuery.ScoreMode.SUM);
         assertEquals(rewrite.getMinScore(), 1f, 0.0001);
@@ -656,27 +667,39 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testRewriteWithFunction() throws IOException {
-        QueryBuilder firstFunction = new WrapperQueryBuilder(new TermQueryBuilder("tq", "1").toString());
-        TermQueryBuilder secondFunction = new TermQueryBuilder("tq", "2");
-        QueryBuilder queryBuilder = randomBoolean() ? new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString())
-                : new TermQueryBuilder("foo", "bar");
+        QueryBuilder firstFunction = new WrapperQueryBuilder(new TermQueryBuilder(KEYWORD_FIELD_NAME, "1").toString());
+        TermQueryBuilder secondFunction = new TermQueryBuilder(KEYWORD_FIELD_NAME, "2");
+        QueryBuilder queryBuilder = randomBoolean() ? new WrapperQueryBuilder(new TermQueryBuilder(TEXT_FIELD_NAME, "bar").toString())
+                : new TermQueryBuilder(TEXT_FIELD_NAME, "bar");
         FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder,
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(firstFunction, new RandomScoreFunctionBuilder()),
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(secondFunction, new RandomScoreFunctionBuilder()) });
-        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
+        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createSearchExecutionContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
-        assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
-        assertEquals(rewrite.filterFunctionBuilders()[0].getFilter(), new TermQueryBuilder("tq", "1"));
+        assertEquals(rewrite.query(), new TermQueryBuilder(TEXT_FIELD_NAME, "bar"));
+        assertEquals(rewrite.filterFunctionBuilders()[0].getFilter(), new TermQueryBuilder(KEYWORD_FIELD_NAME, "1"));
         assertSame(rewrite.filterFunctionBuilders()[1].getFilter(), secondFunction);
+    }
+
+    public void testRewriteToMatchNone() throws IOException {
+        FunctionScoreQueryBuilder functionScoreQueryBuilder =
+            new FunctionScoreQueryBuilder(new TermQueryBuilder("unmapped_field", "value"))
+                .boostMode(CombineFunction.REPLACE)
+                .scoreMode(FunctionScoreQuery.ScoreMode.SUM)
+                .setMinScore(1)
+                .maxBoost(100);
+
+        QueryBuilder rewrite = functionScoreQueryBuilder.rewrite(createSearchExecutionContext());
+        assertThat(rewrite, instanceOf(MatchNoneQueryBuilder.class));
     }
 
     /**
      * Please see https://github.com/elastic/elasticsearch/issues/35123 for context.
      */
     public void testSingleScriptFunction() throws IOException {
-        QueryBuilder queryBuilder = RandomQueryBuilder.createQuery(random());
-        ScoreFunctionBuilder functionBuilder = new ScriptScoreFunctionBuilder(
+        QueryBuilder queryBuilder = termQuery(KEYWORD_FIELD_NAME, "value");
+        ScoreFunctionBuilder<ScriptScoreFunctionBuilder> functionBuilder = new ScriptScoreFunctionBuilder(
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap()));
 
         FunctionScoreQueryBuilder builder = functionScoreQuery(queryBuilder, functionBuilder);
@@ -684,7 +707,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             builder.boostMode(randomFrom(CombineFunction.values()));
         }
 
-        Query query = builder.toQuery(createShardContext());
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        Query query = builder.rewrite(searchExecutionContext).toQuery(searchExecutionContext);
         assertThat(query, instanceOf(FunctionScoreQuery.class));
 
         CombineFunction expectedBoostMode = builder.boostMode() != null
@@ -796,17 +820,111 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
     }
 
+    /**
+     * Check that this query is generally cacheable except for builders using {@link ScriptScoreFunctionBuilder} or
+     * {@link RandomScoreFunctionBuilder} without a seed
+     */
     @Override
-    protected boolean isCachable(FunctionScoreQueryBuilder queryBuilder) {
+    public void testCacheability() throws IOException {
+        Directory directory = newDirectory();
+        RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+        iw.addDocument(new Document());
+        final IndexSearcher searcher = new IndexSearcher(iw.getReader());
+        iw.close();
+        assertThat(searcher.getIndexReader().leaves().size(), greaterThan(0));
+
+        FunctionScoreQueryBuilder queryBuilder = createTestQueryBuilder();
+        boolean requestCache = isCacheable(queryBuilder);
+        SearchExecutionContext context = createSearchExecutionContext(searcher);
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        // we occasionally need to update the expected request cache flag after rewrite to MatchNoneQueryBuilder
+        if (rewriteQuery instanceof MatchNoneQueryBuilder) {
+            requestCache = true;
+        }
+        assertEquals("query should " + (requestCache ? "" : "not") + " be eligible for the request cache: " + queryBuilder.toString(),
+            requestCache, context.isCacheable());
+
+        // test query cache
+        if (rewriteQuery instanceof MatchNoneQueryBuilder == false) {
+            Query luceneQuery = rewriteQuery.toQuery(context);
+            Weight queryWeight = context.searcher().createWeight(searcher.rewrite(luceneQuery), ScoreMode.COMPLETE, 1.0f);
+            for (LeafReaderContext ctx : context.getIndexReader().leaves()) {
+                assertFalse(queryWeight.isCacheable(ctx));
+            }
+        }
+
+        ScoreFunctionBuilder<?> scriptScoreFunction = new ScriptScoreFunctionBuilder(
+                new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap()));
+        queryBuilder = new FunctionScoreQueryBuilder(new FilterFunctionBuilder[] {
+            new FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), scriptScoreFunction) });
+        context = createSearchExecutionContext(searcher);
+        rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertTrue("function script query should be eligible for the request cache: " + queryBuilder.toString(),
+            context.isCacheable());
+
+        // test query cache
+        if (rewriteQuery instanceof MatchNoneQueryBuilder == false) {
+            Query luceneQuery = rewriteQuery.toQuery(context);
+            Weight queryWeight = context.searcher().createWeight(searcher.rewrite(luceneQuery), ScoreMode.COMPLETE, 1.0f);
+            for (LeafReaderContext ctx : context.getIndexReader().leaves()) {
+                assertFalse(queryWeight.isCacheable(ctx));
+            }
+        }
+
+        RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilderWithFixedSeed();
+        queryBuilder = new FunctionScoreQueryBuilder(new FilterFunctionBuilder[] {
+            new FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), randomScoreFunctionBuilder) });
+        context = createSearchExecutionContext(searcher);
+        rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertFalse("function random query should not be eligible for the request cache: " + queryBuilder.toString(),
+            context.isCacheable());
+
+        // test query cache
+        if (rewriteQuery instanceof MatchNoneQueryBuilder == false) {
+            Query luceneQuery = rewriteQuery.toQuery(context);
+            Weight queryWeight = context.searcher().createWeight(searcher.rewrite(luceneQuery), ScoreMode.COMPLETE, 1.0f);
+            for (LeafReaderContext ctx : context.getIndexReader().leaves()) {
+                assertFalse(queryWeight.isCacheable(ctx));
+            }
+        }
+        searcher.getIndexReader().close();
+        directory.close();
+    }
+
+    private boolean isCacheable(FunctionScoreQueryBuilder queryBuilder) {
         FilterFunctionBuilder[] filterFunctionBuilders = queryBuilder.filterFunctionBuilders();
         for (FilterFunctionBuilder builder : filterFunctionBuilders) {
-            if (builder.getScoreFunction() instanceof ScriptScoreFunctionBuilder) {
-                return false;
-            } else if (builder.getScoreFunction() instanceof RandomScoreFunctionBuilder
+            if (builder.getScoreFunction() instanceof RandomScoreFunctionBuilder
                 && ((RandomScoreFunctionBuilder) builder.getScoreFunction()).getSeed() == null) {
                 return false;
             }
         }
         return true;
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        context.setAllowUnmappedFields(true);
+        TermQueryBuilder termQueryBuilder = new TermQueryBuilder("unmapped_field", "foo");
+
+        // main query needs rewriting
+        FunctionScoreQueryBuilder functionQueryBuilder1 = new FunctionScoreQueryBuilder(termQueryBuilder);
+        functionQueryBuilder1.setMinScore(1);
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> functionQueryBuilder1.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+
+        // filter needs rewriting
+        FunctionScoreQueryBuilder functionQueryBuilder2 = new FunctionScoreQueryBuilder(new MatchAllQueryBuilder(),
+                new FilterFunctionBuilder[] {
+                        new FilterFunctionBuilder(termQueryBuilder, new RandomScoreFunctionBuilder())
+                });
+        e = expectThrows(IllegalStateException.class,
+                () -> functionQueryBuilder2.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
     }
 }

@@ -1,33 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.physical;
+
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.tree.Location;
-
-abstract class UnaryExec extends PhysicalPlan {
+public abstract class UnaryExec extends PhysicalPlan {
 
     private final PhysicalPlan child;
 
-    UnaryExec(Location location, PhysicalPlan child) {
-        super(location, Collections.singletonList(child));
+    protected UnaryExec(Source source, PhysicalPlan child) {
+        super(source, Collections.singletonList(child));
         this.child = child;
     }
 
     @Override
     public final PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
         return replaceChild(newChildren.get(0));
     }
+
     protected abstract UnaryExec replaceChild(PhysicalPlan newChild);
 
     public PhysicalPlan child() {

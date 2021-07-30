@@ -1,36 +1,18 @@
-Project idpFixtureProject = xpackProject("test:idp-fixture")
-evaluationDependsOn(idpFixtureProject.path)
-
 apply plugin: 'elasticsearch.standalone-test'
-apply plugin: 'elasticsearch.vagrantsupport'
+apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    testCompile project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-task openLdapFixture {
-    dependsOn "vagrantCheckVersion", "virtualboxCheckVersion", idpFixtureProject.up
-}
+testFixtures.useFixture ":x-pack:test:idp-fixture", "openldap"
 
+Project idpFixtureProject = xpackProject("test:idp-fixture")
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
-task copyIdpTrust(type: Copy) {
-    from idpFixtureProject.file('src/main/resources/certs/idptrust.jks');
-    from idpFixtureProject.file('src/main/resources/certs/ca.crt');
-    into outputDir
+def copyIdpTrust = tasks.register("copyIdpTrust", Copy) {
+  from idpFixtureProject.file('openldap/certs/ca.jks');
+  from idpFixtureProject.file('openldap/certs/ca_server.pem');
+  into outputDir
 }
-if (project.rootProject.vagrantSupported) {
-  project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpTrust)
-  test.dependsOn openLdapFixture
-  test.finalizedBy idpFixtureProject.halt
-} else {
-  test.enabled = false
-  testingConventions.enabled = false
-}
-
-namingConventions {
-    // integ tests use Tests instead of IT
-    skipIntegTestInDisguise = true
-}
+project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpTrust)

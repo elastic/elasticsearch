@@ -1,65 +1,124 @@
 {
-  "cat.indices": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-indices.html",
-    "methods": ["GET"],
-    "url": {
-      "path": "/_cat/indices",
-      "paths": ["/_cat/indices", "/_cat/indices/{index}"],
-      "parts": {
-        "index": {
-          "type" : "list",
-          "description": "A comma-separated list of index names to limit the returned information"
-        }
-      },
-      "params": {
-        "format": {
-          "type" : "string",
-          "description" : "a short version of the Accept header, e.g. json, yaml"
-        },
-        "bytes": {
-          "type": "enum",
-          "description" : "The unit in which to display byte values",
-          "options": [ "b", "k", "m", "g" ]
-        },
-        "local": {
-          "type" : "boolean",
-          "description" : "Return local information, do not retrieve the state from master node (default: false)"
-        },
-        "master_timeout": {
-          "type" : "time",
-          "description" : "Explicit operation timeout for connection to master node"
-        },
-        "h": {
-            "type": "list",
-            "description" : "Comma-separated list of column names to display"
-        },
-        "health": {
-          "type" : "enum",
-          "options" : ["green","yellow","red"],
-          "default" : null,
-          "description" : "A health status (\"green\", \"yellow\", or \"red\" to filter only indices matching the specified health status"
-        },
-        "help": {
-          "type": "boolean",
-          "description": "Return help information",
-          "default": false
-        },
-        "pri" : {
-          "type": "boolean",
-          "description": "Set to true to return stats only for primary shards",
-          "default": false
-        },
-        "s": {
-          "type": "list",
-          "description" : "Comma-separated list of column names or column aliases to sort by"
-        },
-        "v": {
-          "type": "boolean",
-          "description": "Verbose mode. Display column headers",
-          "default": false
-        }
-      }
+  "cat.indices":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-indices.html",
+      "description":"Returns information about indices: number of primaries and replicas, document counts, disk size, ..."
     },
-    "body": null
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_cat/indices",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_cat/indices/{index}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "index":{
+              "type":"list",
+              "description":"A comma-separated list of index names to limit the returned information"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "format":{
+        "type":"string",
+        "description":"a short version of the Accept header, e.g. json, yaml"
+      },
+      "bytes":{
+        "type":"enum",
+        "description":"The unit in which to display byte values",
+        "options":[
+          "b",
+          "k",
+          "kb",
+          "m",
+          "mb",
+          "g",
+          "gb",
+          "t",
+          "tb",
+          "p",
+          "pb"
+        ]
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout for connection to master node"
+      },
+      "h":{
+        "type":"list",
+        "description":"Comma-separated list of column names to display"
+      },
+      "health":{
+        "type":"enum",
+        "options":[
+          "green",
+          "yellow",
+          "red"
+        ],
+        "description":"A health status (\"green\", \"yellow\", or \"red\" to filter only indices matching the specified health status"
+      },
+      "help":{
+        "type":"boolean",
+        "description":"Return help information",
+        "default":false
+      },
+      "pri":{
+        "type":"boolean",
+        "description":"Set to true to return stats only for primary shards",
+        "default":false
+      },
+      "s":{
+        "type":"list",
+        "description":"Comma-separated list of column names or column aliases to sort by"
+      },
+      "time":{
+        "type":"enum",
+        "description":"The unit in which to display time values",
+        "options":[
+          "d",
+          "h",
+          "m",
+          "s",
+          "ms",
+          "micros",
+          "nanos"
+        ]
+      },
+      "v":{
+        "type":"boolean",
+        "description":"Verbose mode. Display column headers",
+        "default":false
+      },
+      "include_unloaded_segments":{
+        "type":"boolean",
+        "description":"If set to true segment stats will include stats for segments that are not currently loaded into memory",
+        "default":false
+      },
+      "expand_wildcards":{
+        "type":"enum",
+        "options":[
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "all",
+        "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      }
+    }
   }
 }

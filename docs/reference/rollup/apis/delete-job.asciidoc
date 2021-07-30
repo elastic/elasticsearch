@@ -1,27 +1,48 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-delete-job]]
-=== Delete Job API
+=== Delete {rollup-jobs} API
+[subs="attributes"]
 ++++
-<titleabbrev>Delete Job</titleabbrev>
+<titleabbrev>Delete {rollup-jobs}</titleabbrev>
 ++++
+
+Deletes an existing {rollup-job}. 
 
 experimental[]
 
-This API deletes an existing rollup job.  A job must be *stopped* first before it can be deleted.  Attempting to delete
-a started job will result in an error. Similarly, attempting to delete a nonexistent job will throw an exception.
+[[rollup-delete-job-request]]
+==== {api-request-title}
 
-.Deleting the job does not delete rolled up data
-**********************************
-When a job is deleted, that only removes the process that is actively monitoring and rolling up data.
-It does not delete any previously rolled up data.  This is by design; a user may wish to roll up a static dataset.  Because
-the dataset is static, once it has been fully rolled up there is no need to keep the indexing Rollup job around (as there
-will be no new data).  So the job may be deleted, leaving behind the rolled up data for analysis.
+`DELETE _rollup/job/<job_id>`
 
-If you wish to also remove the rollup data, and the rollup index only contains the data for a single job, you can simply
-delete the whole rollup index.  If the rollup index stores data from several jobs, you must issue a Delete-By-Query that
-targets the Rollup job's ID in the rollup index:
+[[rollup-delete-job-prereqs]]
+==== {api-prereq-title}
 
+* If the {es} {security-features} are enabled, you must have `manage` or
+`manage_rollup` cluster privileges to use this API. For more information, see
+<<security-privileges>>.
+
+[[rollup-delete-job-desc]]
+==== {api-description-title}
+
+A job must be *stopped* first before it can be deleted. If you attempt to delete
+a started job, an error occurs. Similarly, if you attempt to delete a
+nonexistent job, an exception occurs.
+
+[IMPORTANT]
+===============================
+When a job is deleted, that only removes the process that is actively monitoring
+and rolling up data. It does not delete any previously rolled up data. This is
+by design; a user may wish to roll up a static dataset. Because the dataset is
+static, once it has been fully rolled up there is no need to keep the indexing
+rollup job around (as there will be no new data). So the job can be deleted,
+leaving behind the rolled up data for analysis.
+
+If you wish to also remove the rollup data, and the rollup index only contains
+the data for a single job, you can simply delete the whole rollup index. If the
+rollup index stores data from several jobs, you must issue a delete-by-query
+that targets the rollup job's ID in the rollup index.
 
 [source,js]
 --------------------------------------------------
@@ -35,79 +56,37 @@ POST my_rollup_index/_delete_by_query
 }
 --------------------------------------------------
 // NOTCONSOLE
+===============================
 
-**********************************
-==== Request
+[[rollup-delete-job-path-params]]
+==== {api-path-parms-title}
 
-`DELETE _rollup/job/<job_id>`
+`<job_id>`::
+  (Required, string) Identifier for the job.
 
-//===== Description
+[[rollup-delete-job-response-codes]]
+==== {api-response-codes-title}
 
-==== Path Parameters
+`404` (Missing resources)::
+  This code indicates that there are no resources that match the request. It
+  occurs if you try to delete a job that doesn't exist.
 
-`job_id` (required)::
-  (string) Identifier for the job
-
-
-==== Request Body
-
-There is no request body for the Delete Job API.
-
-==== Authorization
-
-You must have `manage` or `manage_rollup` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
-
-
-==== Examples
+[[rollup-delete-job-example]]
+==== {api-example-title}
 
 If we have a rollup job named `sensor`, it can be deleted with:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _rollup/job/sensor
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_rollup_job]
 
 Which will return the response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE
-
-If however we try to delete a job which doesn't exist:
-
-[source,js]
---------------------------------------------------
-DELETE _rollup/job/does_not_exist
---------------------------------------------------
-// CONSOLE
-// TEST[catch:missing]
-
-A 404 `resource_not_found` exception will be thrown:
-
-[source,js]
-----
-{
-    "error" : {
-        "root_cause" : [
-            {
-                "type" : "resource_not_found_exception",
-                "reason" : "the task with id [does_not_exist] doesn't exist",
-                "stack_trace": ...
-            }
-        ],
-        "type" : "resource_not_found_exception",
-        "reason" : "the task with id [does_not_exist] doesn't exist",
-        "stack_trace": ...
-    },
-    "status": 404
-}
-----
-// TESTRESPONSE[s/"stack_trace": .../"stack_trace": $body.$_path/]

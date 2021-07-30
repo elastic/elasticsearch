@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
@@ -20,23 +20,13 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import java.io.IOException;
 import java.util.Objects;
 
-public class CcrStatsAction extends Action<CcrStatsAction.Response> {
+public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
 
     public static final String NAME = "cluster:monitor/ccr/stats";
     public static final CcrStatsAction INSTANCE = new CcrStatsAction();
 
     private CcrStatsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, CcrStatsAction.Response::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -85,7 +75,6 @@ public class CcrStatsAction extends Action<CcrStatsAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             autoFollowStats.writeTo(out);
             followStats.writeTo(out);
         }

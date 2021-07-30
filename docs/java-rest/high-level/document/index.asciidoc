@@ -17,9 +17,8 @@ An +{request}+ requires the following arguments:
 include-tagged::{doc-tests-file}[{api}-request-string]
 --------------------------------------------------
 <1> Index
-<2> Type
-<3> Document id
-<4> Document source provided as a `String`
+<2> Document id for the request
+<3> Document source provided as a `String`
 
 ==== Providing the document source
 The document source can be provided in different ways in addition to the
@@ -86,7 +85,7 @@ include-tagged::{doc-tests-file}[{api}-request-version-type]
 include-tagged::{doc-tests-file}[{api}-request-op-type]
 --------------------------------------------------
 <1> Operation type provided as an `DocWriteRequest.OpType` value
-<2> Operation type provided as a `String`: can be `create` or `update` (default)
+<2> Operation type provided as a `String`: can be `create` or `index` (default)
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -124,7 +123,7 @@ include-tagged::{doc-tests-file}[{api}-conflict]
 <1> The raised exception indicates that a version conflict error was returned
 
 Same will happen in case `opType` was set to `create` and a document with
-same index, type and id already existed:
+same index and id already existed:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

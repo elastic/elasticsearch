@@ -1,0 +1,27 @@
+[[backup-cluster-data]]
+=== Back up a cluster's data
+++++
+<titleabbrev>Back up the data</titleabbrev>
+++++
+
+To back up your cluster's data, you can use the <<modules-snapshots,snapshot API>>.
+
+include::../snapshot-restore/index.asciidoc[tag=snapshot-intro]
+
+[TIP]
+====
+If your cluster has {es} {security-features} enabled, when you back up your data
+the snapshot API call must be authorized.
+
+The `snapshot_user` role is a reserved role that can be assigned to the user
+who is calling the snapshot endpoint. This is the only role necessary if all the user
+does is periodic snapshots as part of the backup procedure. This role includes
+the privileges to list all the existing snapshots (of any repository) as
+well as list and view settings of all indices, including the `.security` index.
+It does *not* grant privileges to create repositories, restore snapshots, or
+search within indices. Hence, the user can view and snapshot all indices, but cannot
+access or modify any data.
+
+For more information, see <<security-privileges>>
+and <<built-in-roles>>.
+====

@@ -1,0 +1,270 @@
+
+---
+"Search by suggestion and by keyword sub-field should work":
+
+  - do:
+      indices.create:
+        index: completion_with_sub_keyword
+        body:
+          mappings:
+            "properties":
+              "suggest_1":
+                "type" : "completion"
+                "fields":
+                  "text_raw":
+                    "type"  : "keyword"
+
+  - do:
+      index:
+        index: completion_with_sub_keyword
+        id:    1
+        body:
+          suggest_1: "bar"
+
+  - do:
+      index:
+        index: completion_with_sub_keyword
+        id:    2
+        body:
+          suggest_1: "baz"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index:   completion_with_sub_keyword
+        body:
+          suggest:
+            result:
+              text: "b"
+              completion:
+                field: suggest_1
+
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 2  }
+
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index:   completion_with_sub_keyword
+        body:
+          query:   { term: { suggest_1.text_raw: "bar" }}
+
+  - match: { hits.total: 1 }
+
+
+
+---
+"Search by suggestion on sub field should work":
+
+  - do:
+      indices.create:
+        index: completion_with_sub_completion
+        body:
+          mappings:
+            "properties":
+              "suggest_1":
+                "type": "completion"
+                "fields":
+                  "suggest_2":
+                    "type": "completion"
+
+  - do:
+      index:
+        index: completion_with_sub_completion
+        id:    1
+        body:
+          suggest_1: "bar"
+
+  - do:
+      index:
+        index: completion_with_sub_completion
+        id:    2
+        body:
+          suggest_1: "baz"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: completion_with_sub_completion
+        body:
+          suggest:
+            result:
+              text: "b"
+              completion:
+                field: suggest_1.suggest_2
+
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 2  }
+
+---
+"Search by suggestion on sub field with context should work":
+
+  - do:
+      indices.create:
+        index: completion_with_context
+        body:
+          mappings:
+            "properties":
+              "suggest_1":
+                "type": "completion"
+                "contexts":
+                  -
+                    "name": "color"
+                    "type": "category"
+                "fields":
+                  "suggest_2":
+                    "type": "completion"
+                    "contexts":
+                      -
+                        "name": "color"
+                        "type": "category"
+
+
+  - do:
+      index:
+        index: completion_with_context
+        id:    1
+        body:
+          suggest_1:
+            input: "foo red"
+            contexts:
+              color: "red"
+
+  - do:
+      index:
+        index: completion_with_context
+        id:    2
+        body:
+          suggest_1:
+            input: "foo blue"
+            contexts:
+              color: "blue"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: completion_with_context
+        body:
+          suggest:
+            result:
+              prefix: "foo"
+              completion:
+                field: suggest_1.suggest_2
+                contexts:
+                  color: "red"
+
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "foo red" }
+
+
+---
+"Search by suggestion on sub field with weight should work":
+
+  - do:
+      indices.create:
+        index: completion_with_weight
+        body:
+          mappings:
+            "properties":
+              "suggest_1":
+                "type": "completion"
+                "fields":
+                  "suggest_2":
+                    "type": "completion"
+
+  - do:
+      index:
+        index: completion_with_weight
+        id:    1
+        body:
+          suggest_1:
+            input: "bar"
+            weight: 2
+
+  - do:
+      index:
+        index: completion_with_weight
+        id:    2
+        body:
+          suggest_1:
+            input: "baz"
+            weight: 3
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: completion_with_weight
+        body:
+          suggest:
+            result:
+              text: "b"
+              completion:
+                field: suggest_1.suggest_2
+
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 2  }
+  - match:  { suggest.result.0.options.0.text: "baz" }
+  - match:  { suggest.result.0.options.1.text: "bar" }
+
+---
+"Search by suggestion on geofield-hash on sub field should work":
+
+  - do:
+      indices.create:
+        index: geofield_with_completion
+        body:
+          mappings:
+            "properties":
+              "geofield":
+                "type": "geo_point"
+                "fields":
+                  "suggest_1":
+                    "type": "completion"
+
+  - do:
+      index:
+        index: geofield_with_completion
+        id:    1
+        body:
+          geofield: "hgjhrwysvqw7"
+        #41.12,-72.34,12
+
+  - do:
+      index:
+        index: geofield_with_completion
+        id:    1
+        body:
+          geofield: "hgm4psywmkn7"
+        #41.12,-71.34,12
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: geofield_with_completion
+        body:
+          suggest:
+            result:
+              prefix: "hgm"
+              completion:
+                field: geofield.suggest_1
+
+
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }

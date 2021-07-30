@@ -1,31 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.yaml.section.AbstractClientYamlTestFragmentParserTestCase;
 
+import java.util.Iterator;
+
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseRestSpecIndexApi() throws Exception {
@@ -34,22 +26,31 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
 
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("index"));
-        assertThat(restApi.getMethods().size(), equalTo(2));
-        assertThat(restApi.getMethods().get(0), equalTo("POST"));
-        assertThat(restApi.getMethods().get(1), equalTo("PUT"));
         assertThat(restApi.getPaths().size(), equalTo(2));
-        assertThat(restApi.getPaths().get(0), equalTo("/{index}/{type}"));
-        assertThat(restApi.getPaths().get(1), equalTo("/{index}/{type}/{id}"));
-        assertThat(restApi.getPathParts().size(), equalTo(3));
-        assertThat(restApi.getPathParts().keySet(), containsInAnyOrder("id", "index", "type"));
-        assertThat(restApi.getPathParts(), hasEntry("index", true));
-        assertThat(restApi.getPathParts(), hasEntry("type", true));
-        assertThat(restApi.getPathParts(), hasEntry("id", false));
+        Iterator<ClientYamlSuiteRestApi.Path> iterator = restApi.getPaths().iterator();
+        {
+            ClientYamlSuiteRestApi.Path next = iterator.next();
+            assertThat(next.getPath(), equalTo("/{index}/{type}"));
+            assertThat(next.getMethods().length, equalTo(1));
+            assertThat(next.getMethods()[0], equalTo("POST"));
+            assertThat(next.getParts().size(), equalTo(2));
+            assertThat(next.getParts(), containsInAnyOrder("index", "type"));
+        }
+        {
+            ClientYamlSuiteRestApi.Path next = iterator.next();
+            assertThat(next.getPath(), equalTo("/{index}/{type}/{id}"));
+            assertThat(next.getMethods().length, equalTo(1));
+            assertThat(next.getMethods()[0], equalTo("PUT"));
+            assertThat(next.getParts().size(), equalTo(3));
+            assertThat(next.getParts(), containsInAnyOrder("id", "index", "type"));
+        }
         assertThat(restApi.getParams().size(), equalTo(4));
-        assertThat(restApi.getParams().keySet(), containsInAnyOrder("wait_for_active_shards", "op_type", "parent", "refresh"));
-        restApi.getParams().entrySet().forEach(e -> assertThat(e.getValue(), equalTo(false)));
+        assertThat(restApi.getParams().keySet(), containsInAnyOrder("wait_for_active_shards", "op_type", "routing", "refresh"));
+        restApi.getParams().forEach((key, value) -> assertThat(value, equalTo(false)));
         assertThat(restApi.isBodySupported(), equalTo(true));
         assertThat(restApi.isBodyRequired(), equalTo(true));
+        assertThat(restApi.getRequestMimeTypes(), containsInAnyOrder("application/json", "a/mime-type"));
+        assertThat(restApi.getResponseMimeTypes(), containsInAnyOrder("application/json"));
     }
 
     public void testParseRestSpecGetTemplateApi() throws Exception {
@@ -57,16 +58,28 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("indices.get_template.json", parser);
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("indices.get_template"));
-        assertThat(restApi.getMethods().size(), equalTo(1));
-        assertThat(restApi.getMethods().get(0), equalTo("GET"));
         assertThat(restApi.getPaths().size(), equalTo(2));
-        assertThat(restApi.getPaths().get(0), equalTo("/_template"));
-        assertThat(restApi.getPaths().get(1), equalTo("/_template/{name}"));
-        assertThat(restApi.getPathParts().size(), equalTo(1));
-        assertThat(restApi.getPathParts(), hasEntry("name", false));
+        Iterator<ClientYamlSuiteRestApi.Path> iterator = restApi.getPaths().iterator();
+        {
+            ClientYamlSuiteRestApi.Path next = iterator.next();
+            assertThat(next.getPath(), equalTo("/_template"));
+            assertThat(next.getMethods().length, equalTo(1));
+            assertThat(next.getMethods()[0], equalTo("GET"));
+            assertEquals(0, next.getParts().size());
+        }
+        {
+            ClientYamlSuiteRestApi.Path next = iterator.next();
+            assertThat(next.getPath(), equalTo("/_template/{name}"));
+            assertThat(next.getMethods().length, equalTo(1));
+            assertThat(next.getMethods()[0], equalTo("GET"));
+            assertThat(next.getParts().size(), equalTo(1));
+            assertThat(next.getParts(), contains("name"));
+        }
         assertThat(restApi.getParams().size(), equalTo(0));
         assertThat(restApi.isBodySupported(), equalTo(false));
         assertThat(restApi.isBodyRequired(), equalTo(false));
+        assertThat(restApi.getRequestMimeTypes(), nullValue());
+        assertThat(restApi.getResponseMimeTypes(), containsInAnyOrder("application/json"));
     }
 
     public void testParseRestSpecCountApi() throws Exception {
@@ -74,16 +87,33 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("count.json", parser);
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("count"));
-        assertThat(restApi.getMethods().size(), equalTo(2));
-        assertThat(restApi.getMethods().get(0), equalTo("POST"));
-        assertThat(restApi.getMethods().get(1), equalTo("GET"));
         assertThat(restApi.getPaths().size(), equalTo(3));
-        assertThat(restApi.getPaths().get(0), equalTo("/_count"));
-        assertThat(restApi.getPaths().get(1), equalTo("/{index}/_count"));
-        assertThat(restApi.getPaths().get(2), equalTo("/{index}/{type}/_count"));
-        assertThat(restApi.getPathParts().size(), equalTo(2));
-        assertThat(restApi.getPathParts().keySet(), containsInAnyOrder("index", "type"));
-        restApi.getPathParts().entrySet().forEach(e -> assertThat(e.getValue(), equalTo(false)));
+        Iterator<ClientYamlSuiteRestApi.Path> iterator = restApi.getPaths().iterator();
+        {
+            ClientYamlSuiteRestApi.Path next = iterator.next();
+            assertThat(next.getPath(), equalTo("/_count"));
+            assertThat(next.getMethods().length, equalTo(2));
+            assertThat(next.getMethods()[0], equalTo("POST"));
+            assertThat(next.getMethods()[1], equalTo("GET"));
+            assertEquals(0, next.getParts().size());
+        }
+        {
+            ClientYamlSuiteRestApi.Path next = iterator.next();
+            assertThat(next.getPath(), equalTo("/{index}/_count"));
+            assertThat(next.getMethods().length, equalTo(2));
+            assertThat(next.getMethods()[0], equalTo("POST"));
+            assertThat(next.getMethods()[1], equalTo("GET"));
+            assertEquals(1, next.getParts().size());
+            assertThat(next.getParts(), contains("index"));
+        }
+        {
+            ClientYamlSuiteRestApi.Path next = iterator.next();
+            assertThat(next.getPath(), equalTo("/{index}/{type}/_count"));
+            assertThat(next.getMethods().length, equalTo(2));
+            assertThat(next.getMethods()[0], equalTo("POST"));
+            assertThat(next.getMethods()[1], equalTo("GET"));
+            assertThat(next.getParts(), containsInAnyOrder("index", "type"));
+        }
         assertThat(restApi.getParams().size(), equalTo(1));
         assertThat(restApi.getParams().keySet(), contains("ignore_unavailable"));
         assertThat(restApi.getParams(), hasEntry("ignore_unavailable", false));
@@ -95,10 +125,18 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         String spec = "{\n" +
             "  \"count\": {\n" +
             "    \"documentation\": \"whatever\",\n" +
-            "    \"methods\": [ \"GET\", \"POST\" ],\n" +
+            "    \"stability\": \"stable\",\n" +
+            "    \"visibility\": \"public\",\n" +
             "    \"url\": {\n" +
-            "      \"path\": \"/whatever\",\n" +
-            "      \"paths\": [ \"/whatever\" ]\n" +
+            "      \"paths\": [ \n" +
+            "        {\n" +
+            "          \"path\":\"/whatever\",\n" +
+            "          \"methods\":[\n" +
+            "            \"POST\",\n" +
+            "            \"GET\"\n" +
+            "          ]\n" +
+            "        }\n" +
+            "      ]\n" +
             "    },\n" +
             "    \"body\": {\n" +
             "      \"description\" : \"whatever\",\n" +
@@ -111,110 +149,201 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("count.json", parser);
 
         assertThat(restApi, notNullValue());
-        assertThat(restApi.getPathParts().isEmpty(), equalTo(true));
+        assertThat(restApi.getPaths().size(), equalTo(1));
+        assertThat(restApi.getPaths().iterator().next().getParts().isEmpty(), equalTo(true));
         assertThat(restApi.getParams().isEmpty(), equalTo(true));
         assertThat(restApi.isBodyRequired(), equalTo(true));
     }
 
     private static final String REST_SPEC_COUNT_API = "{\n" +
-            "  \"count\": {\n" +
-            "    \"documentation\": \"http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-count.html\",\n" +
-            "    \"methods\": [\"POST\", \"GET\"],\n" +
-            "    \"url\": {\n" +
-            "      \"path\": \"/_count\",\n" +
-            "      \"paths\": [\"/_count\", \"/{index}/_count\", \"/{index}/{type}/_count\"],\n" +
-            "      \"parts\": {\n" +
-            "        \"index\": {\n" +
-            "          \"type\" : \"list\",\n" +
-            "          \"description\" : \"A comma-separated list of indices to restrict the results\"\n" +
-            "        },\n" +
-            "        \"type\": {\n" +
-            "          \"type\" : \"list\",\n" +
-            "          \"description\" : \"A comma-separated list of types to restrict the results\"\n" +
-            "        }\n" +
-            "      },\n" +
-            "      \"params\": {\n" +
-            "        \"ignore_unavailable\": {\n" +
-            "          \"type\" : \"boolean\",\n" +
-            "          \"description\" : \"Whether specified concrete indices should be ignored when unavailable (missing or closed)\"\n" +
-            "        } \n" +
-            "      }\n" +
-            "    },\n" +
-            "    \"body\": {\n" +
-            "      \"description\" : \"A query to restrict the results specified with the Query DSL (optional)\"\n" +
-            "    }\n" +
-            "  }\n" +
-            "}\n";
+        "  \"count\":{\n" +
+        "    \"documentation\":{\n" +
+        "      \"url\":\"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-count.html\",\n" +
+        "      \"description\":\"Returns number of documents matching a query.\"\n" +
+        "    },\n" +
+        "    \"stability\": \"stable\",\n" +
+        "    \"visibility\": \"public\",\n" +
+        "    \"headers\": { \"accept\": [\"application/json\"] },\n" +
+        "    \"url\":{\n" +
+        "      \"paths\":[\n" +
+        "        {\n" +
+        "          \"path\":\"/_count\",\n" +
+        "          \"methods\":[\n" +
+        "            \"POST\",\n" +
+        "            \"GET\"\n" +
+        "          ]\n" +
+        "        },\n" +
+        "        {\n" +
+        "          \"path\":\"/{index}/_count\",\n" +
+        "          \"methods\":[\n" +
+        "            \"POST\",\n" +
+        "            \"GET\"\n" +
+        "          ],\n" +
+        "          \"parts\":{\n" +
+        "            \"index\":{\n" +
+        "              \"type\":\"list\",\n" +
+        "              \"description\":\"A comma-separated list of indices to restrict the results\"\n" +
+        "            }\n" +
+        "          }\n" +
+        "        },\n" +
+        "        {\n" +
+        "          \"path\":\"/{index}/{type}/_count\",\n" +
+        "          \"methods\":[\n" +
+        "            \"POST\",\n" +
+        "            \"GET\"\n" +
+        "          ],\n" +
+        "          \"parts\":{\n" +
+        "            \"index\":{\n" +
+        "              \"type\":\"list\",\n" +
+        "              \"description\":\"A comma-separated list of indices to restrict the results\"\n" +
+        "            },\n" +
+        "            \"type\":{\n" +
+        "              \"type\":\"list\",\n" +
+        "              \"description\":\"A comma-separated list of types to restrict the results\",\n" +
+        "              \"deprecated\":true\n" +
+        "            }\n" +
+        "          }\n" +
+        "        }\n" +
+        "      ]\n" +
+        "    },\n" +
+        "    \"params\":{\n" +
+        "      \"ignore_unavailable\":{\n" +
+        "        \"type\":\"boolean\",\n" +
+        "        \"description\":\"Whether specified concrete indices should be ignored when unavailable (missing or closed)\"\n" +
+        "      }\n" +
+        "    },\n" +
+        "    \"body\":{\n" +
+        "      \"description\":\"A query to restrict the results specified with the Query DSL (optional)\",\n" +
+        "      \"content_type\": [\"application/json\"]\n" +
+        "    }\n" +
+        "  }\n" +
+        "}\n\n";
 
     private static final String REST_SPEC_GET_TEMPLATE_API = "{\n" +
-            "  \"indices.get_template\": {\n" +
-            "    \"documentation\": \"http://www.elasticsearch.org/guide/reference/api/admin-indices-templates/\",\n" +
-            "    \"methods\": [\"GET\"],\n" +
-            "    \"url\": {\n" +
-            "      \"path\": \"/_template/{name}\",\n" +
-            "      \"paths\": [\"/_template\", \"/_template/{name}\"],\n" +
-            "      \"parts\": {\n" +
-            "        \"name\": {\n" +
-            "          \"type\" : \"string\",\n" +
-            "          \"required\" : false,\n" +
-            "          \"description\" : \"The name of the template\"\n" +
-            "        }\n" +
-            "      },\n" +
-            "      \"params\": {\n" +
-            "      }\n" +
-            "    },\n" +
-            "    \"body\": null\n" +
-            "  }\n" +
-            "}";
+        "  \"indices.get_template\":{\n" +
+        "    \"documentation\":{\n" +
+        "      \"url\":\"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html\",\n" +
+        "      \"description\":\"Returns an index template.\"\n" +
+        "    },\n" +
+        "    \"headers\": { \"accept\": [\"application/json\"] },\n" +
+        "    \"stability\": \"stable\",\n" +
+        "    \"visibility\": \"public\",\n" +
+        "    \"url\":{\n" +
+        "      \"paths\":[\n" +
+        "        {\n" +
+        "          \"path\":\"/_template\",\n" +
+        "          \"methods\":[\n" +
+        "            \"GET\"\n" +
+        "          ]\n" +
+        "        },\n" +
+        "        {\n" +
+        "          \"path\":\"/_template/{name}\",\n" +
+        "          \"methods\":[\n" +
+        "            \"GET\"\n" +
+        "          ],\n" +
+        "          \"parts\":{\n" +
+        "            \"name\":{\n" +
+        "              \"type\":\"list\",\n" +
+        "              \"description\":\"The comma separated names of the index templates\"\n" +
+        "            }\n" +
+        "          }\n" +
+        "        }\n" +
+        "      ]\n" +
+        "    }\n" +
+        "  }\n" +
+        "}\n";
 
     private static final String REST_SPEC_INDEX_API = "{\n" +
-            "  \"index\": {\n" +
-            "    \"documentation\": \"http://elasticsearch.org/guide/reference/api/index_/\",\n" +
-            "    \"methods\": [\"POST\", \"PUT\"],\n" +
-            "    \"url\": {\n" +
-            "      \"path\": \"/{index}/{type}\",\n" +
-            "      \"paths\": [\"/{index}/{type}\", \"/{index}/{type}/{id}\"],\n" +
-            "      \"parts\": {\n" +
-            "        \"id\": {\n" +
-            "          \"type\" : \"string\",\n" +
-            "          \"description\" : \"Document ID\"\n" +
-            "        },\n" +
-            "        \"index\": {\n" +
-            "          \"type\" : \"string\",\n" +
-            "          \"required\" : true,\n" +
-            "          \"description\" : \"The name of the index\"\n" +
-            "        },\n" +
-            "        \"type\": {\n" +
-            "          \"type\" : \"string\",\n" +
-            "          \"required\" : true,\n" +
-            "          \"description\" : \"The type of the document\"\n" +
-            "        }\n" +
-            "      }   ,\n" +
-            "      \"params\": {\n" +
-            "        \"wait_for_active_shards\": {\n" +
-            "          \"type\" : \"string\",\n" +
-            "          \"description\" : \"The number of active shard copies required to perform the operation\"\n" +
-            "        },\n" +
-            "        \"op_type\": {\n" +
-            "          \"type\" : \"enum\",\n" +
-            "          \"options\" : [\"index\", \"create\"],\n" +
-            "          \"default\" : \"index\",\n" +
-            "          \"description\" : \"Explicit operation type\"\n" +
-            "        },\n" +
-            "        \"parent\": {\n" +
-            "          \"type\" : \"string\",\n" +
-            "          \"description\" : \"ID of the parent document\"\n" +
-            "        },\n" +
-            "        \"refresh\": {\n" +
-            "          \"type\" : \"boolean\",\n" +
-            "          \"description\" : \"Refresh the index after performing the operation\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    },\n" +
-            "    \"body\": {\n" +
-            "      \"description\" : \"The document\",\n" +
-            "      \"required\" : true\n" +
-            "    }\n" +
-            "  }\n" +
-            "}\n";
+        "  \"index\":{\n" +
+        "    \"documentation\":{\n" +
+        "      \"url\":\"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html\",\n" +
+        "      \"description\":\"Creates or updates a document in an index.\"\n" +
+        "    },\n" +
+        "    \"stability\": \"stable\",\n" +
+        "    \"visibility\": \"public\",\n" +
+        "    \"headers\": { " +
+        "       \"accept\": [\"application/json\"],\n " +
+        "       \"content_type\": [\"application/json\", \"a/mime-type\"]\n " +
+        "   },\n" +
+        "    \"url\":{\n" +
+        "      \"paths\":[\n" +
+        "        {\n" +
+        "          \"path\":\"/{index}/{type}\",\n" +
+        "          \"methods\":[\n" +
+        "            \"POST\"\n" +
+        "          ],\n" +
+        "          \"parts\":{\n" +
+        "            \"index\":{\n" +
+        "              \"type\":\"string\",\n" +
+        "              \"description\":\"The name of the index\"\n" +
+        "            },\n" +
+        "            \"type\":{\n" +
+        "              \"type\":\"string\",\n" +
+        "              \"description\":\"The type of the document\",\n" +
+        "              \"deprecated\":true\n" +
+        "            }\n" +
+        "          }\n" +
+        "        },\n" +
+        "        {\n" +
+        "          \"path\":\"/{index}/{type}/{id}\",\n" +
+        "          \"methods\":[\n" +
+        "            \"PUT\"\n" +
+        "          ],\n" +
+        "          \"parts\":{\n" +
+        "            \"id\":{\n" +
+        "              \"type\":\"string\",\n" +
+        "              \"description\":\"Document ID\"\n" +
+        "            },\n" +
+        "            \"index\":{\n" +
+        "              \"type\":\"string\",\n" +
+        "              \"description\":\"The name of the index\"\n" +
+        "            },\n" +
+        "            \"type\":{\n" +
+        "              \"type\":\"string\",\n" +
+        "              \"description\":\"The type of the document\",\n" +
+        "              \"deprecated\":true\n" +
+        "            }\n" +
+        "          },\n" +
+        "          \"deprecated\":{\n" +
+        "            \"version\":\"7.0.0\",\n" +
+        "            \"description\":\"Specifying types in urls has been deprecated\"\n" +
+        "          }\n" +
+        "        }\n" +
+        "      ]\n" +
+        "    },\n" +
+        "    \"params\":{\n" +
+        "      \"wait_for_active_shards\":{\n" +
+        "        \"type\":\"string\",\n" +
+        "        \"description\":\"Sets the number of shard copies that must be active before proceeding with the index operation. \"\n" +
+        "      },\n" +
+        "      \"op_type\":{\n" +
+        "        \"type\":\"enum\",\n" +
+        "        \"options\":[\n" +
+        "          \"index\",\n" +
+        "          \"create\"\n" +
+        "        ],\n" +
+        "        \"default\":\"index\",\n" +
+        "        \"description\":\"Explicit operation type\"\n" +
+        "      },\n" +
+        "      \"refresh\":{\n" +
+        "        \"type\":\"enum\",\n" +
+        "        \"options\":[\n" +
+        "          \"true\",\n" +
+        "          \"false\",\n" +
+        "          \"wait_for\"\n" +
+        "        ],\n" +
+        "        \"description\":\"If `true` then refresh the affected shards to make this operation visible to search\"\n" +
+        "      },\n" +
+        "      \"routing\":{\n" +
+        "        \"type\":\"string\",\n" +
+        "        \"description\":\"Specific routing value\"\n" +
+        "      }\n" +
+        "    },\n" +
+        "    \"body\":{\n" +
+        "      \"description\":\"The document\",\n" +
+        "      \"content_type\": [\"application/json\"],\n" +
+        "      \"required\":true\n" +
+        "    }\n" +
+        "  }\n" +
+        "}\n";
 }

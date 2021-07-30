@@ -1,35 +1,59 @@
 [role="xpack"]
 [[watcher-api-start]]
-=== Start API
+=== Start watch service API
+++++
+<titleabbrev>Start watch service</titleabbrev>
+++++
 
-The `start` API starts the {watcher} service if the service is not already
-running.
+Starts the {watcher} service if it is not already running.
 
-[float]
-==== Request
+[[watcher-api-start-request]]
+==== {api-request-title}
 
 `POST _watcher/_start`
 
-==== Authorization
+[[watcher-api-start-prereqs]]
+==== {api-prereq-title}
 
-You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {xpack-ref}/security-privileges.html[Security Privileges].
+* You must have `manage_watcher` cluster privileges to use this API. For more
+information, see <<security-privileges>>.
 
-[float]
-==== Examples
+//[[watcher-api-start-desc]]
+//==== {api-description-title}
 
-[source,js]
+//[[watcher-api-start-path-params]]
+//==== {api-path-parms-title}
+
+[[watcher-api-start-query-params]]
+==== {api-query-parms-title}
+
+`master_timeout`::
+(Optional, <<time-units, time units>>) Specifies the period of time to wait for
+a connection to the master node. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
+
+//[[watcher-api-start-request-body]]
+//==== {api-request-body-title}
+
+//[[watcher-api-start-response-body]]
+//==== {api-response-body-title}
+
+//[[watcher-api-start-response-codes]]
+//==== {api-response-codes-title}
+
+[[watcher-api-start-example]]
+==== {api-examples-title}
+
+[source,console]
 --------------------------------------------------
 POST _watcher/_start
 --------------------------------------------------
-// CONSOLE
 
 {watcher} returns the following response if the request is successful:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "acknowledged": true
 }
 --------------------------------------------------
-// TESTRESPONSE

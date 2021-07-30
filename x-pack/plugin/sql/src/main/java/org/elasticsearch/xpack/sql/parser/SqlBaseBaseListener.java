@@ -124,18 +124,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterSysCatalogs(SqlBaseParser.SysCatalogsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitSysCatalogs(SqlBaseParser.SysCatalogsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterSysTables(SqlBaseParser.SysTablesContext ctx) { }
   /**
    * {@inheritDoc}
@@ -167,18 +155,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitSysTypes(SqlBaseParser.SysTypesContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterSysTableTypes(SqlBaseParser.SysTableTypesContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitSysTableTypes(SqlBaseParser.SysTableTypesContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -328,6 +304,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterTopClause(SqlBaseParser.TopClauseContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitTopClause(SqlBaseParser.TopClauseContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterSetQuantifier(SqlBaseParser.SetQuantifierContext ctx) { }
   /**
    * {@inheritDoc}
@@ -335,6 +323,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitSetQuantifier(SqlBaseParser.SetQuantifierContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterSelectItems(SqlBaseParser.SelectItemsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitSelectItems(SqlBaseParser.SelectItemsContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -431,6 +431,42 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitAliasedRelation(SqlBaseParser.AliasedRelationContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPivotClause(SqlBaseParser.PivotClauseContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPivotClause(SqlBaseParser.PivotClauseContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPivotArgs(SqlBaseParser.PivotArgsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPivotArgs(SqlBaseParser.PivotArgsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterNamedValueExpression(SqlBaseParser.NamedValueExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitNamedValueExpression(SqlBaseParser.NamedValueExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -652,6 +688,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterDereference(SqlBaseParser.DereferenceContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitDereference(SqlBaseParser.DereferenceContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterCast(SqlBaseParser.CastContext ctx) { }
   /**
    * {@inheritDoc}
@@ -659,18 +707,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitCast(SqlBaseParser.CastContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterExtract(SqlBaseParser.ExtractContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitExtract(SqlBaseParser.ExtractContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -688,6 +724,30 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterExtract(SqlBaseParser.ExtractContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitExtract(SqlBaseParser.ExtractContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterStar(SqlBaseParser.StarContext ctx) { }
   /**
    * {@inheritDoc}
@@ -695,6 +755,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitStar(SqlBaseParser.StarContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterCastOperatorExpression(SqlBaseParser.CastOperatorExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitCastOperatorExpression(SqlBaseParser.CastOperatorExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -712,6 +784,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterCurrentDateTimeFunction(SqlBaseParser.CurrentDateTimeFunctionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitCurrentDateTimeFunction(SqlBaseParser.CurrentDateTimeFunctionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterSubqueryExpression(SqlBaseParser.SubqueryExpressionContext ctx) { }
   /**
    * {@inheritDoc}
@@ -724,25 +808,25 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterDereference(SqlBaseParser.DereferenceContext ctx) { }
+  @Override public void enterCase(SqlBaseParser.CaseContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitDereference(SqlBaseParser.DereferenceContext ctx) { }
+  @Override public void exitCase(SqlBaseParser.CaseContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx) { }
+  @Override public void enterBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx) { }
+  @Override public void exitBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -1139,6 +1223,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitString(SqlBaseParser.StringContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterWhenClause(SqlBaseParser.WhenClauseContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitWhenClause(SqlBaseParser.WhenClauseContext ctx) { }
   /**
    * {@inheritDoc}
    *

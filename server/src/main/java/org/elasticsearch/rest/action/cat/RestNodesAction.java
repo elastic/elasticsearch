@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -29,14 +18,15 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -52,8 +42,8 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
+import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.monitor.process.ProcessStats;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
@@ -61,15 +51,17 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesAction extends AbstractCatAction {
-    public RestNodesAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_cat/nodes", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cat/nodes"));
     }
 
     @Override
@@ -86,19 +78,30 @@ public class RestNodesAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         final boolean fullId = request.paramAsBoolean("full_id", false);
+        final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().jvm(true).os(true).process(true).http(true);
+                nodesInfoRequest.clear().addMetrics(
+                        NodesInfoRequest.Metric.JVM.metricName(),
+                        NodesInfoRequest.Metric.OS.metricName(),
+                        NodesInfoRequest.Metric.PROCESS.metricName(),
+                        NodesInfoRequest.Metric.HTTP.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        nodesStatsRequest.clear().jvm(true).os(true).fs(true).indices(true).process(true).script(true);
+                        nodesStatsRequest.clear().indices(true).addMetrics(
+                            NodesStatsRequest.Metric.JVM.metricName(),
+                            NodesStatsRequest.Metric.OS.metricName(),
+                            NodesStatsRequest.Metric.FS.metricName(),
+                            NodesStatsRequest.Metric.PROCESS.metricName(),
+                            NodesStatsRequest.Metric.SCRIPT.metricName()
+                        );
+                        nodesStatsRequest.indices().includeUnloadedSegments(includeUnloadedSegments);
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
@@ -159,6 +162,9 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell("query_cache.memory_size", "alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
         table.addCell("query_cache.evictions", "alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
+        table.addCell("query_cache.hit_count", "alias:qchc,queryCacheHitCount;default:false;text-align:right;desc:query cache hit counts");
+        table.addCell("query_cache.miss_count",
+            "alias:qcmc,queryCacheMissCount;default:false;text-align:right;desc:query cache miss counts");
 
         table.addCell("request_cache.memory_size", "alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
         table.addCell("request_cache.evictions",
@@ -201,6 +207,9 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
+        table.addCell("refresh.external_total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total external refreshes");
+        table.addCell("refresh.external_time",
+            "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in external refreshes");
         table.addCell("refresh.listeners", "alias:rli,refreshListeners;default:false;text-align:right;"
                 + "desc:number of pending refresh listeners");
 
@@ -236,6 +245,15 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("suggest.time", "alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest");
         table.addCell("suggest.total", "alias:suto,suggestTotal;default:false;text-align:right;desc:number of suggest ops");
 
+        table.addCell("bulk.total_operations",
+            "alias:bto,bulkTotalOperations;default:false;text-align:right;desc:number of bulk shard ops");
+        table.addCell("bulk.total_time", "alias:btti,bulkTotalTime;default:false;text-align:right;desc:time spend in shard bulk");
+        table.addCell("bulk.total_size_in_bytes",
+            "alias:btsi,bulkTotalSizeInBytes;default:false;text-align:right;desc:total size in bytes of shard bulk");
+        table.addCell("bulk.avg_time", "alias:bati,bulkAvgTime;default:false;text-align:right;desc:average time spend in shard bulk");
+        table.addCell("bulk.avg_size_in_bytes",
+            "alias:basi,bulkAvgSizeInBytes;default:false;text-align:right;desc:average size in bytes of shard bulk");
+
         table.endHeaders();
         return table;
     }
@@ -251,7 +269,7 @@ public class RestNodesAction extends AbstractCatAction {
             NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
             NodeStats stats = nodesStats.getNodesMap().get(node.getId());
 
-            JvmInfo jvmInfo = info == null ? null : info.getJvm();
+            JvmInfo jvmInfo = info == null ? null : info.getInfo(JvmInfo.class);
             JvmStats jvmStats = stats == null ? null : stats.getJvm();
             FsInfo fsInfo = stats == null ? null : stats.getFs();
             OsStats osStats = stats == null ? null : stats.getOs();
@@ -261,10 +279,10 @@ public class RestNodesAction extends AbstractCatAction {
             table.startRow();
 
             table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
-            table.addCell(info == null ? null : info.getProcess().getId());
+            table.addCell(info == null ? null : info.getInfo(ProcessInfo.class).getId());
             table.addCell(node.getHostAddress());
             table.addCell(node.getAddress().address().getPort());
-            final HttpInfo httpInfo = info == null ? null : info.getHttp();
+            final HttpInfo httpInfo = info == null ? null : info.getInfo(HttpInfo.class);
             if (httpInfo != null) {
                 TransportAddress transportAddress = httpInfo.getAddress().publishAddress();
                 table.addCell(NetworkAddress.format(transportAddress.address()));
@@ -275,7 +293,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(node.getVersion().toString());
             table.addCell(info == null ? null : info.getBuild().flavor().displayName());
             table.addCell(info == null ? null : info.getBuild().type().displayName());
-            table.addCell(info == null ? null : info.getBuild().shortHash());
+            table.addCell(info == null ? null : info.getBuild().hash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());
 
 
@@ -295,7 +313,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(diskUsed);
             table.addCell(diskAvailable);
             table.addCell(diskUsedPercent);
-            
+
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsed());
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsedPercent());
             table.addCell(jvmInfo == null ? null : jvmInfo.getMem().getHeapMax());
@@ -309,11 +327,11 @@ public class RestNodesAction extends AbstractCatAction {
 
             table.addCell(osStats == null ? null : Short.toString(osStats.getCpu().getPercent()));
             boolean hasLoadAverage = osStats != null && osStats.getCpu().getLoadAverage() != null;
-            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[0] == -1 ? null :
+            table.addCell(hasLoadAverage == false || osStats.getCpu().getLoadAverage()[0] == -1 ? null :
                 String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[0]));
-            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[1] == -1 ? null :
+            table.addCell(hasLoadAverage == false || osStats.getCpu().getLoadAverage()[1] == -1 ? null :
                 String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[1]));
-            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[2] == -1 ? null :
+            table.addCell(hasLoadAverage == false || osStats.getCpu().getLoadAverage()[2] == -1 ? null :
                 String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[2]));
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
 
@@ -321,7 +339,7 @@ public class RestNodesAction extends AbstractCatAction {
             if (node.getRoles().isEmpty()) {
                 roles = "-";
             } else {
-                roles = node.getRoles().stream().map(DiscoveryNode.Role::getAbbreviation).collect(Collectors.joining());
+                roles = node.getRoles().stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining());
             }
             table.addCell(roles);
             table.addCell(masterId == null ? "x" : masterId.equals(node.getId()) ? "*" : "-");
@@ -337,6 +355,8 @@ public class RestNodesAction extends AbstractCatAction {
             QueryCacheStats fcStats = indicesStats == null ? null : indicesStats.getQueryCache();
             table.addCell(fcStats == null ? null : fcStats.getMemorySize());
             table.addCell(fcStats == null ? null : fcStats.getEvictions());
+            table.addCell(fcStats == null ? null : fcStats.getHitCount());
+            table.addCell(fcStats == null ? null : fcStats.getMissCount());
 
             RequestCacheStats qcStats = indicesStats == null ? null : indicesStats.getRequestCache();
             table.addCell(qcStats == null ? null : qcStats.getMemorySize());
@@ -378,6 +398,8 @@ public class RestNodesAction extends AbstractCatAction {
             RefreshStats refreshStats = indicesStats == null ? null : indicesStats.getRefresh();
             table.addCell(refreshStats == null ? null : refreshStats.getTotal());
             table.addCell(refreshStats == null ? null : refreshStats.getTotalTime());
+            table.addCell(refreshStats == null ? null : refreshStats.getExternalTotal());
+            table.addCell(refreshStats == null ? null : refreshStats.getExternalTotalTime());
             table.addCell(refreshStats == null ? null : refreshStats.getListeners());
 
             ScriptStats scriptStats = stats == null ? null : stats.getScriptStats();
@@ -399,7 +421,7 @@ public class RestNodesAction extends AbstractCatAction {
 
             SegmentsStats segmentsStats = indicesStats == null ? null : indicesStats.getSegments();
             table.addCell(segmentsStats == null ? null : segmentsStats.getCount());
-            table.addCell(segmentsStats == null ? null : segmentsStats.getMemory());
+            table.addCell(segmentsStats == null ? null : new ByteSizeValue(0));
             table.addCell(segmentsStats == null ? null : segmentsStats.getIndexWriterMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getVersionMapMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getBitsetMemory());
@@ -407,6 +429,13 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestCount());
+
+            BulkStats bulkStats = indicesStats == null ? null : indicesStats.getBulk();
+            table.addCell(bulkStats == null ? null : bulkStats.getTotalOperations());
+            table.addCell(bulkStats == null ? null : bulkStats.getTotalTime());
+            table.addCell(bulkStats == null ? null : bulkStats.getTotalSizeInBytes());
+            table.addCell(bulkStats == null ? null : bulkStats.getAvgTime());
+            table.addCell(bulkStats == null ? null : bulkStats.getAvgSizeInBytes());
 
             table.endRow();
         }

@@ -10,20 +10,19 @@ You can configure characteristics of the user cache with the `cache.ttl`,
 NOTE: PKI realms do not cache user credentials but do cache the resolved user
 object to avoid unnecessarily needing to perform role mapping on each request.
 
-The cached user credentials are hashed in memory. By default, {security} uses a
-salted `sha-256` hash algorithm. You can use a different hashing algorithm by
-setting the `cache.hash_algo` realm settings. See 
-{ref}/security-settings.html#hashing-settings[User cache and password hash algorithms].
+The cached user credentials are hashed in memory. By default, the {es}
+{security-features} use a salted `sha-256` hash algorithm. You can use a
+different hashing algorithm by setting the `cache.hash_algo` realm settings. See 
+<<hashing-settings>>.
 
 [[cache-eviction-api]]
 ==== Evicting users from the cache
 
-{security} exposes a
-{ref}/security-api-clear-cache.html[Clear Cache API] you can use
-to force the eviction of cached users. For example, the following request evicts
-all users from the `ad1` realm:
+You can use the <<security-api-clear-cache,clear cache API>> to force
+the eviction of cached users . For example, the following request evicts all
+users from the `ad1` realm:
 
-[source, js]
+[source,js]
 ------------------------------------------------------------
 $ curl -XPOST 'http://localhost:9200/_security/realm/ad1/_clear_cache'
 ------------------------------------------------------------
@@ -31,7 +30,7 @@ $ curl -XPOST 'http://localhost:9200/_security/realm/ad1/_clear_cache'
 To clear the cache for multiple realms, specify the realms as a comma-separated
 list:
 
-[source, js]
+[source,js]
 ------------------------------------------------------------
 $ curl -XPOST 'http://localhost:9200/_security/realm/ad1,ad2/_clear_cache'
 ------------------------------------------------------------

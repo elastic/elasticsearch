@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.watcher;
@@ -27,10 +16,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.function.Predicate;
 
 public class WatchStatusTests extends ESTestCase {
@@ -50,32 +40,32 @@ public class WatchStatusTests extends ESTestCase {
         assertEquals(expectedVersion, watchStatus.version());
         assertEquals(expectedExecutionState, watchStatus.getExecutionState());
 
-        assertEquals(new DateTime(1432663467763L, DateTimeZone.UTC), watchStatus.lastChecked());
-        assertEquals(DateTime.parse("2015-05-26T18:04:27.763Z"), watchStatus.lastMetCondition());
+        assertEquals(Instant.ofEpochMilli(1432663467763L).atZone(ZoneOffset.UTC), watchStatus.lastChecked());
+        assertEquals(ZonedDateTime.parse("2015-05-26T18:04:27.763Z"), watchStatus.lastMetCondition());
 
         WatchStatus.State watchState = watchStatus.state();
         assertEquals(expectedActive, watchState.isActive());
-        assertEquals(DateTime.parse("2015-05-26T18:04:27.723Z"), watchState.getTimestamp());
+        assertEquals(ZonedDateTime.parse("2015-05-26T18:04:27.723Z"), watchState.getTimestamp());
 
         ActionStatus actionStatus = watchStatus.actionStatus("test_index");
         assertNotNull(actionStatus);
 
         ActionStatus.AckStatus ackStatus = actionStatus.ackStatus();
-        assertEquals(DateTime.parse("2015-05-26T18:04:27.763Z"), ackStatus.timestamp());
+        assertEquals(ZonedDateTime.parse("2015-05-26T18:04:27.763Z"), ackStatus.timestamp());
         assertEquals(expectedAckState, ackStatus.state());
 
         ActionStatus.Execution lastExecution = actionStatus.lastExecution();
-        assertEquals(DateTime.parse("2015-05-25T18:04:27.733Z"), lastExecution.timestamp());
+        assertEquals(ZonedDateTime.parse("2015-05-25T18:04:27.733Z"), lastExecution.timestamp());
         assertFalse(lastExecution.successful());
         assertEquals("failed to send email", lastExecution.reason());
 
         ActionStatus.Execution lastSuccessfulExecution = actionStatus.lastSuccessfulExecution();
-        assertEquals(DateTime.parse("2015-05-25T18:04:27.773Z"), lastSuccessfulExecution.timestamp());
+        assertEquals(ZonedDateTime.parse("2015-05-25T18:04:27.773Z"), lastSuccessfulExecution.timestamp());
         assertTrue(lastSuccessfulExecution.successful());
         assertNull(lastSuccessfulExecution.reason());
 
         ActionStatus.Throttle lastThrottle = actionStatus.lastThrottle();
-        assertEquals(DateTime.parse("2015-04-25T18:05:23.445Z"), lastThrottle.timestamp());
+        assertEquals(ZonedDateTime.parse("2015-04-25T18:05:23.445Z"), lastThrottle.timestamp());
         assertEquals("throttling interval is set to [5 seconds] ...", lastThrottle.reason());
     }
 

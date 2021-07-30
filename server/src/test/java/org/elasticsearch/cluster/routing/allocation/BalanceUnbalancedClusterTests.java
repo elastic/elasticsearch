@@ -1,28 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -56,21 +46,18 @@ public class BalanceUnbalancedClusterTests extends CatAllocationTestCase {
         String index = "tweets-2014-12-29:00";
         AllocationService strategy = createAllocationService(Settings.builder()
                 .build());
-        MetaData metaData = MetaData.builder(state.metaData())
-                .put(IndexMetaData.builder(index).settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder(state.metadata())
+                .put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(state.routingTable())
-                .addAsNew(metaData.index(index))
+                .addAsNew(metadata.index(index))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(state).metaData(metaData).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(state).metadata(metadata).routingTable(initialRoutingTable).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        while (true) {
-            if (clusterState.routingTable().shardsWithState(INITIALIZING).isEmpty()) {
-                break;
-            }
-            clusterState = strategy.applyStartedShards(clusterState, clusterState.routingTable().shardsWithState(INITIALIZING));
+        while (clusterState.routingTable().shardsWithState(INITIALIZING).isEmpty() == false) {
+            clusterState = ESAllocationTestCase.startInitializingShardsAndReroute(strategy, clusterState);
         }
         Map<String, Integer> counts = new HashMap<>();
         for (IndexShardRoutingTable table : clusterState.routingTable().index(index)) {

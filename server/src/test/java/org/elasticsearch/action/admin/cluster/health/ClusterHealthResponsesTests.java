@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.health;
@@ -25,15 +14,16 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterIndexHealthTests;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -49,7 +39,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestCase<ClusterHealthResponse> {
+public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<ClusterHealthResponse> {
     private final ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
 
     public void testIsTimeout() {
@@ -70,7 +60,7 @@ public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestC
         int inFlight = randomIntBetween(0, 200);
         int delayedUnassigned = randomIntBetween(0, 200);
         TimeValue pendingTaskInQueueTime = TimeValue.timeValueMillis(randomIntBetween(1000, 100000));
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", new String[] {MetaData.ALL},
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", new String[] {Metadata.ALL},
             clusterState, pendingTasks, inFlight, delayedUnassigned, pendingTaskInQueueTime);
         clusterHealth = maybeSerialize(clusterHealth);
         assertClusterHealth(clusterHealth);
@@ -109,15 +99,10 @@ public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestC
     }
 
     @Override
-    protected ClusterHealthResponse createBlankInstance() {
-        return new ClusterHealthResponse();
-    }
-
-    @Override
     protected ClusterHealthResponse createTestInstance() {
         int indicesSize = randomInt(20);
         Map<String, ClusterIndexHealth> indices = new HashMap<>(indicesSize);
-        if ("indices".equals(level) || "shards".equals(level)) {
+        if (ClusterHealthRequest.Level.INDICES.equals(level) || ClusterHealthRequest.Level.SHARDS.equals(level)) {
             for (int i = 0; i < indicesSize; i++) {
                 String indexName = randomAlphaOfLengthBetween(1, 5) + i;
                 indices.put(indexName, ClusterIndexHealthTests.randomIndexHealth(indexName, level));
@@ -129,6 +114,11 @@ public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestC
 
         return new ClusterHealthResponse(randomAlphaOfLengthBetween(1, 10), randomInt(100), randomInt(100), randomInt(100),
                 TimeValue.timeValueMillis(randomInt(10000)), randomBoolean(), stateHealth);
+    }
+
+    @Override
+    protected Writeable.Reader<ClusterHealthResponse> instanceReader() {
+        return ClusterHealthResponse::new;
     }
 
     @Override

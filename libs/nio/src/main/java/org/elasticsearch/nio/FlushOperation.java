@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.nio;
@@ -24,6 +13,8 @@ import java.util.Arrays;
 import java.util.function.BiConsumer;
 
 public class FlushOperation {
+
+    private static final ByteBuffer[] EMPTY_ARRAY = new ByteBuffer[0];
 
     private final BiConsumer<Void, Exception> listener;
     private final ByteBuffer[] buffers;
@@ -61,19 +52,38 @@ public class FlushOperation {
     }
 
     public ByteBuffer[] getBuffersToWrite() {
+        return getBuffersToWrite(length);
+    }
+
+    public ByteBuffer[] getBuffersToWrite(int maxBytes) {
         final int index = Arrays.binarySearch(offsets, internalIndex);
-        int offsetIndex = index < 0 ? (-(index + 1)) - 1 : index;
+        final int offsetIndex = index < 0 ? (-(index + 1)) - 1 : index;
+        final int finalIndex = Arrays.binarySearch(offsets, Math.min(internalIndex + maxBytes, length));
+        final int finalOffsetIndex = finalIndex < 0 ? (-(finalIndex + 1)) - 1 : finalIndex;
 
-        ByteBuffer[] postIndexBuffers = new ByteBuffer[buffers.length - offsetIndex];
+        int nBuffers = (finalOffsetIndex - offsetIndex) + 1;
 
+        int firstBufferPosition = internalIndex - offsets[offsetIndex];
         ByteBuffer firstBuffer = buffers[offsetIndex].duplicate();
-        firstBuffer.position(internalIndex - offsets[offsetIndex]);
-        postIndexBuffers[0] = firstBuffer;
-        int j = 1;
-        for (int i = (offsetIndex + 1); i < buffers.length; ++i) {
-            postIndexBuffers[j++] = buffers[i].duplicate();
+        firstBuffer.position(firstBufferPosition);
+        if (nBuffers == 1 && firstBuffer.remaining() == 0) {
+            return EMPTY_ARRAY;
         }
 
+        ByteBuffer[] postIndexBuffers = new ByteBuffer[nBuffers];
+        postIndexBuffers[0] = firstBuffer;
+        int finalOffset = offsetIndex + nBuffers;
+        int nBytes = firstBuffer.remaining();
+        int j = 1;
+        for (int i = (offsetIndex + 1); i < finalOffset; ++i) {
+            ByteBuffer buffer = buffers[i].duplicate();
+            nBytes += buffer.remaining();
+            postIndexBuffers[j++] = buffer;
+        }
+
+        int excessBytes = Math.max(0, nBytes - maxBytes);
+        ByteBuffer lastBuffer = postIndexBuffers[postIndexBuffers.length - 1];
+        lastBuffer.limit(lastBuffer.limit() - excessBytes);
         return postIndexBuffers;
     }
 }

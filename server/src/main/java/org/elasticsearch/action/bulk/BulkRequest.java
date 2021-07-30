@@ -1,24 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -29,26 +20,20 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -63,20 +48,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Note that we only support refresh on the bulk request not per item.
  * @see org.elasticsearch.client.Client#bulk(BulkRequest)
  */
-public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest<BulkRequest> {
+public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest<BulkRequest>, Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
     private static final int REQUEST_OVERHEAD = 50;
-
-    private static final ParseField INDEX = new ParseField("_index");
-    private static final ParseField TYPE = new ParseField("_type");
-    private static final ParseField ID = new ParseField("_id");
-    private static final ParseField ROUTING = new ParseField("routing");
-    private static final ParseField OP_TYPE = new ParseField("op_type");
-    private static final ParseField VERSION = new ParseField("version");
-    private static final ParseField VERSION_TYPE = new ParseField("version_type");
-    private static final ParseField RETRY_ON_CONFLICT = new ParseField("retry_on_conflict");
-    private static final ParseField PIPELINE = new ParseField("pipeline");
-    private static final ParseField SOURCE = new ParseField("_source");
 
     /**
      * Requests that are part of this request. It is only possible to add things that are both {@link ActionRequest}s and
@@ -85,7 +61,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      */
     final List<DocWriteRequest<?>> requests = new ArrayList<>();
     private final Set<String> indices = new HashSet<>();
-    List<Object> payloads = null;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
@@ -93,16 +68,22 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private String globalPipeline;
     private String globalRouting;
     private String globalIndex;
-    private String globalType;
+    private Boolean globalRequireAlias;
 
     private long sizeInBytes = 0;
 
-    public BulkRequest() {
+    public BulkRequest() {}
+
+    public BulkRequest(StreamInput in) throws IOException {
+        super(in);
+        waitForActiveShards = ActiveShardCount.readFrom(in);
+        requests.addAll(in.readList(i -> DocWriteRequest.readDocumentRequest(null, i)));
+        refreshPolicy = RefreshPolicy.readFrom(in);
+        timeout = in.readTimeValue();
     }
 
-    public BulkRequest(@Nullable String globalIndex, @Nullable String globalType) {
+    public BulkRequest(@Nullable String globalIndex) {
         this.globalIndex = globalIndex;
-        this.globalType = globalType;
     }
 
     /**
@@ -110,28 +91,28 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      */
     public BulkRequest add(DocWriteRequest<?>... requests) {
         for (DocWriteRequest<?> request : requests) {
-            add(request, null);
+            add(request);
         }
         return this;
     }
 
-    public BulkRequest add(DocWriteRequest<?> request) {
-        return add(request, null);
-    }
-
     /**
      * Add a request to the current BulkRequest.
+     *
+     * Note for internal callers: This method does not respect all global parameters.
+     *                            Only the global index is applied to the request objects.
+     *                            Global parameters would be respected if the request was serialized for a REST call as it is
+     *                            in the high level rest client.
      * @param request Request to add
-     * @param payload Optional payload
      * @return the current bulk request
      */
-    public BulkRequest add(DocWriteRequest<?> request, @Nullable Object payload) {
+    public BulkRequest add(DocWriteRequest<?> request) {
         if (request instanceof IndexRequest) {
-            add((IndexRequest) request, payload);
+            add((IndexRequest) request);
         } else if (request instanceof DeleteRequest) {
-            add((DeleteRequest) request, payload);
+            add((DeleteRequest) request);
         } else if (request instanceof UpdateRequest) {
-            add((UpdateRequest) request, payload);
+            add((UpdateRequest) request);
         } else {
             throw new IllegalArgumentException("No support for request [" + request + "]");
         }
@@ -154,19 +135,14 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
      */
     public BulkRequest add(IndexRequest request) {
-        return internalAdd(request, null);
+        return internalAdd(request);
     }
 
-    public BulkRequest add(IndexRequest request, @Nullable Object payload) {
-        return internalAdd(request, payload);
-    }
-
-    BulkRequest internalAdd(IndexRequest request, @Nullable Object payload) {
+    BulkRequest internalAdd(IndexRequest request) {
         Objects.requireNonNull(request, "'request' must not be null");
         applyGlobalMandatoryParameters(request);
 
         requests.add(request);
-        addPayload(payload);
         // lack of source is validated in validate() method
         sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
         indices.add(request.index());
@@ -177,19 +153,14 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * Adds an {@link UpdateRequest} to the list of actions to execute.
      */
     public BulkRequest add(UpdateRequest request) {
-        return internalAdd(request, null);
+        return internalAdd(request);
     }
 
-    public BulkRequest add(UpdateRequest request, @Nullable Object payload) {
-        return internalAdd(request, payload);
-    }
-
-    BulkRequest internalAdd(UpdateRequest request, @Nullable Object payload) {
+    BulkRequest internalAdd(UpdateRequest request) {
         Objects.requireNonNull(request, "'request' must not be null");
         applyGlobalMandatoryParameters(request);
 
         requests.add(request);
-        addPayload(payload);
         if (request.doc() != null) {
             sizeInBytes += request.doc().source().length();
         }
@@ -207,32 +178,13 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * Adds an {@link DeleteRequest} to the list of actions to execute.
      */
     public BulkRequest add(DeleteRequest request) {
-        return add(request, null);
-    }
-
-    public BulkRequest add(DeleteRequest request, @Nullable Object payload) {
         Objects.requireNonNull(request, "'request' must not be null");
         applyGlobalMandatoryParameters(request);
 
         requests.add(request);
-        addPayload(payload);
         sizeInBytes += REQUEST_OVERHEAD;
         indices.add(request.index());
         return this;
-    }
-
-    private void addPayload(Object payload) {
-        if (payloads == null) {
-            if (payload == null) {
-                return;
-            }
-            payloads = new ArrayList<>(requests.size() + 10);
-            // add requests#size-1 elements to the payloads if it null (we add for an *existing* request)
-            for (int i = 1; i < requests.size(); i++) {
-                payloads.add(null);
-            }
-        }
-        payloads.add(payload);
     }
 
     /**
@@ -240,17 +192,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      */
     public List<DocWriteRequest<?>> requests() {
         return this.requests;
-    }
-
-    /**
-     * The list of optional payloads associated with requests in the same order as the requests. Note, elements within
-     * it might be null if no payload has been provided.
-     * <p>
-     * Note, if no payloads have been provided, this method will return null (as to conserve memory overhead).
-     */
-    @Nullable
-    public List<Object> payloads() {
-        return this.payloads;
     }
 
     /**
@@ -271,210 +212,44 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * Adds a framed data in binary format
      */
     public BulkRequest add(byte[] data, int from, int length, XContentType xContentType) throws IOException {
-        return add(data, from, length, null, null, xContentType);
+        return add(data, from, length, null, xContentType);
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType,
+    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex,
                            XContentType xContentType) throws IOException {
-        return add(new BytesArray(data, from, length), defaultIndex, defaultType, xContentType);
+        return add(new BytesArray(data, from, length), defaultIndex, xContentType);
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex,
                            XContentType xContentType) throws IOException {
-        return add(data, defaultIndex, defaultType, null, null, null, null, true, xContentType);
+        return add(data, defaultIndex, null, null, null, null, true, xContentType, RestApiVersion.current());
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex,
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, boolean allowExplicitIndex,
                            XContentType xContentType) throws IOException {
-        return add(data, defaultIndex, defaultType, null, null, null, null, allowExplicitIndex, xContentType);
+        return add(data, defaultIndex, null, null, null, null, allowExplicitIndex, xContentType, RestApiVersion.current());
+
     }
 
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex,
                            @Nullable String defaultRouting, @Nullable FetchSourceContext defaultFetchSourceContext,
-                           @Nullable String defaultPipeline, @Nullable Object payload, boolean allowExplicitIndex,
-                           XContentType xContentType) throws IOException {
-        XContent xContent = xContentType.xContent();
-        int line = 0;
-        int from = 0;
-        int length = data.length();
-        byte marker = xContent.streamSeparator();
-        while (true) {
-            int nextMarker = findNextMarker(marker, from, data, length);
-            if (nextMarker == -1) {
-                break;
-            }
-            line++;
-
-            // now parse the action
-            // EMPTY is safe here because we never call namedObject
-            try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
-                 XContentParser parser = xContent
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-                // move pointers
-                from = nextMarker + 1;
-
-                // Move to START_OBJECT
-                XContentParser.Token token = parser.nextToken();
-                if (token == null) {
-                    continue;
-                }
-                if (token != XContentParser.Token.START_OBJECT) {
-                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
-                        + XContentParser.Token.START_OBJECT + " but found [" + token + "]");
-                }
-                // Move to FIELD_NAME, that's the action
-                token = parser.nextToken();
-                if (token != XContentParser.Token.FIELD_NAME) {
-                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
-                        + XContentParser.Token.FIELD_NAME + " but found [" + token + "]");
-                }
-                String action = parser.currentName();
-
-                String index = defaultIndex;
-                String type = defaultType;
-                String id = null;
-                String routing = valueOrDefault(defaultRouting, globalRouting);
-                FetchSourceContext fetchSourceContext = defaultFetchSourceContext;
-                String opType = null;
-                long version = Versions.MATCH_ANY;
-                VersionType versionType = VersionType.INTERNAL;
-                int retryOnConflict = 0;
-                String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
-
-                // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
-                // or START_OBJECT which will have another set of parameters
-                token = parser.nextToken();
-
-                if (token == XContentParser.Token.START_OBJECT) {
-                    String currentFieldName = null;
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token.isValue()) {
-                            if (INDEX.match(currentFieldName, parser.getDeprecationHandler())){
-                                if (!allowExplicitIndex) {
-                                    throw new IllegalArgumentException("explicit index in bulk is not allowed");
-                                }
-                                index = parser.text();
-                            } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                type = parser.text();
-                            } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
-                                id = parser.text();
-                            } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
-                                routing = parser.text();
-                            } else if (OP_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                opType = parser.text();
-                            } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
-                                version = parser.longValue();
-                            } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                versionType = VersionType.fromString(parser.text());
-                            } else if (RETRY_ON_CONFLICT.match(currentFieldName, parser.getDeprecationHandler())) {
-                                retryOnConflict = parser.intValue();
-                            } else if (PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                pipeline = parser.text();
-                            } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                fetchSourceContext = FetchSourceContext.fromXContent(parser);
-                            } else {
-                                throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter ["
-                                    + currentFieldName + "]");
-                            }
-                        } else if (token == XContentParser.Token.START_ARRAY) {
-                            throw new IllegalArgumentException("Malformed action/metadata line [" + line +
-                                "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
-                        } else if (token == XContentParser.Token.START_OBJECT && SOURCE.match(currentFieldName,
-                            parser.getDeprecationHandler())) {
-                            fetchSourceContext = FetchSourceContext.fromXContent(parser);
-                        } else if (token != XContentParser.Token.VALUE_NULL) {
-                            throw new IllegalArgumentException("Malformed action/metadata line [" + line
-                                + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
-                        }
-                    }
-                } else if (token != XContentParser.Token.END_OBJECT) {
-                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
-                        + XContentParser.Token.START_OBJECT + " or " + XContentParser.Token.END_OBJECT + " but found [" + token + "]");
-                }
-
-                if ("delete".equals(action)) {
-                    add(new DeleteRequest(index, type, id).routing(routing).version(version).versionType(versionType), payload);
-                } else {
-                    nextMarker = findNextMarker(marker, from, data, length);
-                    if (nextMarker == -1) {
-                        break;
-                    }
-                    line++;
-
-                    // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
-                    // of index request.
-                    if ("index".equals(action)) {
-                        if (opType == null) {
-                            internalAdd(new IndexRequest(index, type, id).routing(routing).version(version).versionType(versionType)
-                                    .setPipeline(pipeline)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType), payload);
-                        } else {
-                            internalAdd(new IndexRequest(index, type, id).routing(routing).version(version).versionType(versionType)
-                                    .create("create".equals(opType)).setPipeline(pipeline)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
-                        }
-                    } else if ("create".equals(action)) {
-                        internalAdd(new IndexRequest(index, type, id).routing(routing).version(version).versionType(versionType)
-                                .create(true).setPipeline(pipeline)
-                                .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
-                    } else if ("update".equals(action)) {
-                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).retryOnConflict(retryOnConflict)
-                                .version(version).versionType(versionType)
-                                .routing(routing);
-                        // EMPTY is safe here because we never call namedObject
-                        try (InputStream dataStream = sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType).streamInput();
-                             XContentParser sliceParser = xContent.createParser(NamedXContentRegistry.EMPTY,
-                                 LoggingDeprecationHandler.INSTANCE, dataStream)) {
-                            updateRequest.fromXContent(sliceParser);
-                        }
-                        if (fetchSourceContext != null) {
-                            updateRequest.fetchSource(fetchSourceContext);
-                        }
-                        IndexRequest upsertRequest = updateRequest.upsertRequest();
-                        if (upsertRequest != null) {
-                            upsertRequest.version(version);
-                            upsertRequest.versionType(versionType);
-                            upsertRequest.setPipeline(defaultPipeline);
-                        }
-                        IndexRequest doc = updateRequest.doc();
-                        if (doc != null) {
-                            doc.version(version);
-                            doc.versionType(versionType);
-                        }
-
-                        internalAdd(updateRequest, payload);
-                    }
-                    // move pointers
-                    from = nextMarker + 1;
-                }
-            }
-        }
+                           @Nullable String defaultPipeline, @Nullable Boolean defaultRequireAlias, boolean allowExplicitIndex,
+                           XContentType xContentType, RestApiVersion restApiVersion) throws IOException {
+        String routing = valueOrDefault(defaultRouting, globalRouting);
+        String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
+        Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
+        new BulkRequestParser(true, restApiVersion).parse(data, defaultIndex, routing, defaultFetchSourceContext, pipeline, requireAlias,
+                allowExplicitIndex, xContentType, (indexRequest, type) -> internalAdd(indexRequest), this::internalAdd, this::add);
         return this;
-    }
-
-    /**
-     * Returns the sliced {@link BytesReference}. If the {@link XContentType} is JSON, the byte preceding the marker is checked to see
-     * if it is a carriage return and if so, the BytesReference is sliced so that the carriage return is ignored
-     */
-    private BytesReference sliceTrimmingCarriageReturn(BytesReference bytesReference, int from, int nextMarker, XContentType xContentType) {
-        final int length;
-        if (XContentType.JSON == xContentType && bytesReference.get(nextMarker - 1) == (byte) '\r') {
-            length = nextMarker - from - 1;
-        } else {
-            length = nextMarker - from;
-        }
-        return bytesReference.slice(from, length);
     }
 
     /**
@@ -518,11 +293,35 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return this;
     }
 
+    /**
+     * Note for internal callers (NOT high level rest client),
+     * the global parameter setting is ignored when used with:
+     *
+     * - {@link BulkRequest#add(IndexRequest)}
+     * - {@link BulkRequest#add(UpdateRequest)}
+     * - {@link BulkRequest#add(DocWriteRequest)}
+     * - {@link BulkRequest#add(DocWriteRequest[])} )}
+     * - {@link BulkRequest#add(Iterable)}
+     * @param globalPipeline the global default setting
+     * @return Bulk request with global setting set
+     */
     public final BulkRequest pipeline(String globalPipeline) {
         this.globalPipeline = globalPipeline;
         return this;
     }
 
+    /**
+     * Note for internal callers (NOT high level rest client),
+     * the global parameter setting is ignored when used with:
+     *
+      - {@link BulkRequest#add(IndexRequest)}
+      - {@link BulkRequest#add(UpdateRequest)}
+      - {@link BulkRequest#add(DocWriteRequest)}
+      - {@link BulkRequest#add(DocWriteRequest[])} )}
+      - {@link BulkRequest#add(Iterable)}
+     * @param globalRouting the global default setting
+     * @return Bulk request with global setting set
+     */
     public final BulkRequest routing(String globalRouting){
         this.globalRouting = globalRouting;
         return this;
@@ -546,16 +345,25 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return globalRouting;
     }
 
-    private int findNextMarker(byte marker, int from, BytesReference data, int length) {
-        for (int i = from; i < length; i++) {
-            if (data.get(i) == marker) {
-                return i;
-            }
-        }
-        if (from != length) {
-            throw new IllegalArgumentException("The bulk request must be terminated by a newline [\n]");
-        }
-        return -1;
+    public Boolean requireAlias() {
+        return globalRequireAlias;
+    }
+
+    /**
+     * Note for internal callers (NOT high level rest client),
+     * the global parameter setting is ignored when used with:
+     *
+     * - {@link BulkRequest#add(IndexRequest)}
+     * - {@link BulkRequest#add(UpdateRequest)}
+     * - {@link BulkRequest#add(DocWriteRequest)}
+     * - {@link BulkRequest#add(DocWriteRequest[])} )}
+     * - {@link BulkRequest#add(Iterable)}
+     * @param globalRequireAlias the global default setting
+     * @return Bulk request with global setting set
+     */
+    public BulkRequest requireAlias(Boolean globalRequireAlias) {
+        this.globalRequireAlias = globalRequireAlias;
+        return this;
     }
 
     @Override
@@ -583,25 +391,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        waitForActiveShards = ActiveShardCount.readFrom(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            requests.add(DocWriteRequest.readDocumentRequest(in));
-        }
-        refreshPolicy = RefreshPolicy.readFrom(in);
-        timeout = in.readTimeValue();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         waitForActiveShards.writeTo(out);
-        out.writeVInt(requests.size());
-        for (DocWriteRequest<?> request : requests) {
-            DocWriteRequest.writeDocumentRequest(out, request);
-        }
+        out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
     }
@@ -613,13 +406,28 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     private void applyGlobalMandatoryParameters(DocWriteRequest<?> request) {
         request.index(valueOrDefault(request.index(), globalIndex));
-        request.type(valueOrDefault(request.type(), globalType));
     }
 
     private static String valueOrDefault(String value, String globalDefault) {
-        if (Strings.isNullOrEmpty(value) && !Strings.isNullOrEmpty(globalDefault)) {
+        if (Strings.isNullOrEmpty(value) && Strings.isNullOrEmpty(globalDefault) == false) {
             return globalDefault;
         }
         return value;
+    }
+
+    private static Boolean valueOrDefault(Boolean value, Boolean globalDefault) {
+        if (Objects.isNull(value) && Objects.isNull(globalDefault) == false) {
+            return globalDefault;
+        }
+        return value;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + requests.stream().mapToLong(Accountable::ramBytesUsed).sum();
+    }
+
+    public Set<String> getIndices() {
+        return Collections.unmodifiableSet(indices);
     }
 }

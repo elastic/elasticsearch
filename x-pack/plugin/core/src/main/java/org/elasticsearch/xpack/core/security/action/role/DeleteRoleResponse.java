@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
@@ -20,7 +21,10 @@ public class DeleteRoleResponse extends ActionResponse implements ToXContentObje
 
     private boolean found = false;
 
-    public DeleteRoleResponse() {}
+    public DeleteRoleResponse(StreamInput in) throws IOException {
+        super(in);
+        found = in.readBoolean();
+    }
 
     public DeleteRoleResponse(boolean found) {
         this.found = found;
@@ -37,14 +41,7 @@ public class DeleteRoleResponse extends ActionResponse implements ToXContentObje
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        found = in.readBoolean();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(found);
     }
 

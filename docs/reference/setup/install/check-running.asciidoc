@@ -3,11 +3,10 @@
 You can test that your Elasticsearch node is running by sending an HTTP
 request to port `9200` on `localhost`:
 
-[source,js]
+[source,console]
 --------------------------------------------
 GET /
 --------------------------------------------
-// CONSOLE
 
 which should give you a response something like this:
 
@@ -20,7 +19,7 @@ which should give you a response something like this:
   "version" : {
     "number" : "{version_qualified}",
     "build_flavor" : "{build_flavor}",
-    "build_type" : "zip",
+    "build_type" : "{build_type}",
     "build_hash" : "f27399d",
     "build_date" : "2016-03-30T09:51:41.449Z",
     "build_snapshot" : false,

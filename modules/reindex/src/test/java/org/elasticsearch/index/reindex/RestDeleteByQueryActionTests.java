@@ -1,64 +1,53 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
-
 import org.junit.Before;
-import java.io.IOException;
+import org.mockito.Mockito;
 
-import static java.util.Collections.emptyList;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 public class RestDeleteByQueryActionTests extends RestActionTestCase {
-    private RestDeleteByQueryAction action;
+
+    final List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
 
     @Before
     public void setUpAction() {
-        action = new RestDeleteByQueryAction(Settings.EMPTY, controller());
+        controller().registerHandler(new RestDeleteByQueryAction());
+        verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(BulkByScrollResponse.class));
+        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(BulkByScrollResponse.class));
     }
 
     public void testTypeInPath() throws IOException {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
             .withMethod(RestRequest.Method.POST)
             .withPath("/some_index/some_type/_delete_by_query")
             .build();
-        dispatchRequest(request);
 
         // checks the type in the URL is propagated correctly to the request object
         // only works after the request is dispatched, so its params are filled from url.
-        DeleteByQueryRequest dbqRequest = action.buildRequest(request);
-        assertArrayEquals(new String[]{"some_type"}, dbqRequest.getDocTypes());
+        dispatchRequest(request);
+
 
         // RestDeleteByQueryAction itself doesn't check for a deprecated type usage
         // checking here for a deprecation from its internal search request
         assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
 
-    public void testParseEmpty() throws IOException {
-        DeleteByQueryRequest request = action.buildRequest(new FakeRestRequest.Builder(new NamedXContentRegistry(emptyList())).build());
-        assertEquals(AbstractBulkByScrollRequest.SIZE_ALL_MATCHES, request.getSize());
-        assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE, request.getSearchRequest().source().size());
-    }
 }

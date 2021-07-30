@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -55,7 +44,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
      * @param clusterState The current cluster state. Must not be null.
      */
     public ClusterStateHealth(final ClusterState clusterState) {
-        this(clusterState, clusterState.metaData().getConcreteAllIndices());
+        this(clusterState, clusterState.metadata().getConcreteAllIndices());
     }
 
     /**
@@ -70,12 +59,12 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         indices = new HashMap<>();
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
-            IndexMetaData indexMetaData = clusterState.metaData().index(index);
+            IndexMetadata indexMetadata = clusterState.metadata().index(index);
             if (indexRoutingTable == null) {
                 continue;
             }
 
-            ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
+            ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable);
 
             indices.put(indexHealth.getIndex(), indexHealth);
         }
@@ -100,7 +89,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             }
         }
 
-        if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
+        if (clusterState.blocks().hasGlobalBlockWithStatus(RestStatus.SERVICE_UNAVAILABLE)) {
             computeStatus = ClusterHealthStatus.RED;
         }
 
@@ -134,7 +123,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         unassignedShards = in.readVInt();
         numberOfNodes = in.readVInt();
         numberOfDataNodes = in.readVInt();
-        status = ClusterHealthStatus.fromValue(in.readByte());
+        status = ClusterHealthStatus.readFrom(in);
         int size = in.readVInt();
         indices = new HashMap<>(size);
         for (int i = 0; i < size; i++) {

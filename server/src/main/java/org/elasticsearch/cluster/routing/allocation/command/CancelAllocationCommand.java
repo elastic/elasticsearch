@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -30,7 +19,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -126,13 +115,13 @@ public class CancelAllocationCommand implements AllocationCommand {
         ShardRouting shardRouting = null;
         RoutingNodes routingNodes = allocation.routingNodes();
         RoutingNode routingNode = routingNodes.node(discoNode.getId());
-        IndexMetaData indexMetaData = null;
+        IndexMetadata indexMetadata = null;
         if (routingNode != null) {
-            indexMetaData = allocation.metaData().index(index());
-            if (indexMetaData == null) {
+            indexMetadata = allocation.metadata().index(index());
+            if (indexMetadata == null) {
                 throw new IndexNotFoundException(index());
             }
-            ShardId shardId = new ShardId(indexMetaData.getIndex(), shardId());
+            ShardId shardId = new ShardId(indexMetadata.getIndex(), shardId());
             shardRouting = routingNode.getByShardId(shardId);
         }
         if (shardRouting == null) {
@@ -155,7 +144,7 @@ public class CancelAllocationCommand implements AllocationCommand {
             }
         }
         routingNodes.failShard(LogManager.getLogger(CancelAllocationCommand.class), shardRouting,
-            new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null), indexMetaData, allocation.changes());
+            new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null), indexMetadata, allocation.changes());
         // TODO: We don't have to remove a cancelled shard from in-sync set once we have a strict resync implementation.
         allocation.removeAllocationId(shardRouting);
         return new RerouteExplanation(this, allocation.decision(Decision.YES, "cancel_allocation_command",

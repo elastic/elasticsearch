@@ -1,26 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.joda.time.Chronology;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeField;
@@ -45,13 +38,20 @@ import java.io.IOException;
 import java.io.Writer;
 import java.math.BigDecimal;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
+@Deprecated
 public class Joda {
-
+    // Joda.forPattern could be used even before the logging is initialized.
+    // If LogManager.getLogger is called before logging config is loaded
+    // it results in errors sent to status logger and startup to fail.
+    // Hence a lazy initialization.
+    private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
+        = new LazyInitializable<>(() -> DeprecationLogger.getLogger(FormatNames.class));
     /**
      * Parses a joda based pattern, including some named ones (similar to the built in Joda ISO ones).
      */
-    public static JodaDateFormatter forPattern(String input, Locale locale) {
+    public static JodaDateFormatter forPattern(String input) {
         if (Strings.hasLength(input)) {
             input = input.trim();
         }
@@ -102,8 +102,8 @@ public class Joda {
             // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
             // this sucks we should use the root local by default and not be dependent on the node
             return new JodaDateFormatter(input,
-                    ISODateTimeFormat.dateOptionalTimeParser().withLocale(locale).withZone(DateTimeZone.UTC),
-                    ISODateTimeFormat.dateTime().withLocale(locale).withZone(DateTimeZone.UTC));
+                    ISODateTimeFormat.dateOptionalTimeParser().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970),
+                    ISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970));
         } else if ("dateTime".equals(input) || "date_time".equals(input)) {
             formatter = ISODateTimeFormat.dateTime();
         } else if ("dateTimeNoMillis".equals(input) || "date_time_no_millis".equals(input)) {
@@ -138,7 +138,7 @@ public class Joda {
             formatter = ISODateTimeFormat.weekDateTime();
         } else if ("weekDateTimeNoMillis".equals(input) || "week_date_time_no_millis".equals(input)) {
             formatter = ISODateTimeFormat.weekDateTimeNoMillis();
-        } else if ("weekyear".equals(input) || "week_year".equals(input)) {
+        } else if ("weekyear".equals(input) ) {
             formatter = ISODateTimeFormat.weekyear();
         } else if ("weekyearWeek".equals(input) || "weekyear_week".equals(input)) {
             formatter = ISODateTimeFormat.weekyearWeek();
@@ -179,8 +179,9 @@ public class Joda {
             // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
             // this sucks we should use the root local by default and not be dependent on the node
             return new JodaDateFormatter(input,
-                    StrictISODateTimeFormat.dateOptionalTimeParser().withLocale(locale).withZone(DateTimeZone.UTC),
-                    StrictISODateTimeFormat.dateTime().withLocale(locale).withZone(DateTimeZone.UTC));
+                    StrictISODateTimeFormat.dateOptionalTimeParser().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC)
+                        .withDefaultYear(1970),
+                    StrictISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970));
         } else if ("strictDateTime".equals(input) || "strict_date_time".equals(input)) {
             formatter = StrictISODateTimeFormat.dateTime();
         } else if ("strictDateTimeNoMillis".equals(input) || "strict_date_time_no_millis".equals(input)) {
@@ -227,17 +228,55 @@ public class Joda {
             formatter = StrictISODateTimeFormat.yearMonth();
         } else if ("strictYearMonthDay".equals(input) || "strict_year_month_day".equals(input)) {
             formatter = StrictISODateTimeFormat.yearMonthDay();
+        } else if (Strings.hasLength(input) && input.contains("||")) {
+            String[] formats = Strings.delimitedListToStringArray(input, "||");
+            DateTimeParser[] parsers = new DateTimeParser[formats.length];
 
+            if (formats.length == 1) {
+                formatter = forPattern(input).parser;
+            } else {
+                DateTimeFormatter dateTimeFormatter = null;
+                for (int i = 0; i < formats.length; i++) {
+                    JodaDateFormatter currentFormatter = forPattern(formats[i]);
+                    DateTimeFormatter currentParser = currentFormatter.parser;
+                    if (dateTimeFormatter == null) {
+                        dateTimeFormatter = currentFormatter.printer;
+                    }
+                    parsers[i] = currentParser.getParser();
+                }
+
+                DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder()
+                    .append(dateTimeFormatter.withZone(DateTimeZone.UTC).getPrinter(), parsers);
+                formatter = builder.toFormatter();
+            }
         } else {
             try {
+                maybeLogJodaDeprecation(input);
                 formatter = DateTimeFormat.forPattern(input);
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
             }
         }
 
-        formatter = formatter.withLocale(locale).withZone(DateTimeZone.UTC);
+        formatter = formatter.withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970);
         return new JodaDateFormatter(input, formatter, formatter);
+    }
+
+    private static void maybeLogJodaDeprecation(String input) {
+        if (input.contains("CC")) {
+            getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "joda-century-of-era-format",
+                "Use of 'C' (century-of-era) is deprecated and will not be supported in the next major version of Elasticsearch.");
+        }
+        if (input.contains("YY")) {
+            getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "joda-year-of-era-format",
+                "Use of 'Y' (year-of-era) will change to 'y' in the" +
+                    " next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
+        }
+        if (input.contains("xx")) {
+            getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "joda-week-based-year-format",
+                "Use of 'x' (week-based-year) will change" +
+                " to 'Y' in the next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
+        }
     }
 
     public static DateFormatter getStrictStandardDateFormatter() {
@@ -270,7 +309,7 @@ public class Joda {
         DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(longFormatter.withZone(DateTimeZone.UTC).getPrinter(),
             new DateTimeParser[]{longFormatter.getParser(), shortFormatter.getParser(), new EpochTimeParser(true)});
 
-        DateTimeFormatter formatter = builder.toFormatter().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC);
+        DateTimeFormatter formatter = builder.toFormatter().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970);
         return new JodaDateFormatter("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis", formatter, formatter);
     }
 
@@ -302,6 +341,8 @@ public class Joda {
 
     public static class EpochTimeParser implements DateTimeParser {
 
+        private static final Pattern scientificNotation = Pattern.compile("[Ee]");
+
         private final boolean hasMilliSecondPrecision;
 
         public EpochTimeParser(boolean hasMilliSecondPrecision) {
@@ -329,6 +370,16 @@ public class Joda {
             int factor = hasMilliSecondPrecision ? 1 : 1000;
             try {
                 long millis = new BigDecimal(text).longValue() * factor;
+                // check for deprecations, but after it has parsed correctly so invalid values aren't counted as deprecated
+                if (millis < 0) {
+                    getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "epoch-negative", "Use of negative values" +
+                        " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+                }
+                if (scientificNotation.matcher(text).find()) {
+                    getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "epoch-scientific-notation",
+                        "Use of scientific notation" +
+                        " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+                }
                 DateTime dt = new DateTime(millis, DateTimeZone.UTC);
                 bucket.saveField(DateTimeFieldType.year(), dt.getYear());
                 bucket.saveField(DateTimeFieldType.monthOfYear(), dt.getMonthOfYear());
@@ -343,6 +394,10 @@ public class Joda {
             }
             return text.length();
         }
+    }
+
+    private static DeprecationLogger getDeprecationLogger() {
+        return deprecationLogger.getOrCompute();
     }
 
     public static class EpochTimePrinter implements DateTimePrinter {

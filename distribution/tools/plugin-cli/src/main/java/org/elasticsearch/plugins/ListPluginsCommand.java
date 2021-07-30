@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
 
 import joptsimple.OptionSet;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
@@ -63,11 +53,18 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
 
     private void printPlugin(Environment env, Terminal terminal, Path plugin, String prefix) throws IOException {
         terminal.println(Terminal.Verbosity.SILENT, prefix + plugin.getFileName().toString());
-        PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin.toAbsolutePath()));
+        PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin));
         terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
         if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
-            terminal.println("WARNING: plugin [" + info.getName() + "] was built for Elasticsearch version " + info.getVersion() +
-                " but version " + Version.CURRENT + " is required");
+            terminal.errorPrintln(
+                "WARNING: plugin ["
+                    + info.getName()
+                    + "] was built for Elasticsearch version "
+                    + info.getElasticsearchVersion()
+                    + " but version "
+                    + Version.CURRENT
+                    + " is required"
+            );
         }
     }
 }

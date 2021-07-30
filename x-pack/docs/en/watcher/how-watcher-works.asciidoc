@@ -1,5 +1,6 @@
+[role="xpack"]
 [[how-watcher-works]]
-== How {watcher} Works
+== How {watcher} works
 
 You <<watch-definition, add watches>> to automatically perform an action when
 certain conditions are met. The conditions are generally based on data you've
@@ -13,9 +14,9 @@ search in the logs data indicates that there are too many 503 errors in the last
 
 This topic describes the elements of a watch and how watches operate.
 
-[float]
+[discrete]
 [[watch-definition]]
-=== Watch Definition
+=== Watch definition
 
 A watch consists of a _trigger_, _input_, _condition_, and _actions_. The actions
 define what needs to be done once the condition is met. In addition, you can
@@ -42,11 +43,10 @@ Specify what happens when the watch condition is met.
 
 [[watch-definition-example]]
 
-For example, the following snippet shows a
-{ref}/watcher-api-put-watch.html[Put Watch] request that defines a watch that
-looks for log error events:
+For example, the following snippet shows a <<watcher-api-put-watch,create or
+update watch>> request that defines a watch that looks for log error events:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/log_errors
 {
@@ -70,7 +70,7 @@ PUT _watcher/watch/log_errors
     }
   },
   "condition" : { <4>
-    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 5 }}
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 5 }}
   },
   "transform" : { <5>
     "search" : {
@@ -89,13 +89,13 @@ PUT _watcher/watch/log_errors
         "host" : "mylisteninghost",
         "port" : 9200,
         "path" : "/{{watch_id}}",
-        "body" : "Encountered {{ctx.payload.hits.total.value}} errors"
+        "body" : "Encountered {{ctx.payload.hits.total}} errors"
       }
     },
     "email_administrator" : {
       "email" : {
         "to" : "sys.admino@host.domain",
-        "subject" : "Encountered {{ctx.payload.hits.total.value}} errors",
+        "subject" : "Encountered {{ctx.payload.hits.total}} errors",
         "body" : "Too many error in the system, see attached data",
         "attachments" : {
           "attached_data" : {
@@ -110,7 +110,7 @@ PUT _watcher/watch/log_errors
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Metadata  - You can attach optional static metadata to a watch.
 <2> Trigger   - This schedule trigger executes the watch every 5 minutes.
 <3> Input     - This input searches for errors in the `log-events` index and
@@ -128,9 +128,9 @@ PUT _watcher/watch/log_errors
                 The watch payload that contains the errors is attached to the
                 email.
 
-[float]
+[discrete]
 [[watch-execution]]
-=== Watch Execution
+=== Watch execution
 
 [[schedule-scheduler]]
 When you add a watch, {watcher} immediately registers its trigger with the
@@ -143,23 +143,22 @@ bound to the watcher lifecycle runs. Even though all primaries and replicas are
 taken into account, when a watch is triggered, watcher also ensures, that each
 watch is only triggered on one of those shards. The more replica shards you
 add, the more distributed the watches can be executed. If you add or remove
-replicas, all watches need to be reloaded.  If a shard is relocated, the
+replicas, all watches need to be reloaded. If a shard is relocated, the
 primary and all replicas of this particular shard will reload.
 
 Because the watches are executed on the node, where the watch shards are, you can create
 dedicated watcher nodes by using shard allocation filtering.
 
-You could configure nodes with a dedicated `node.attr.watcher: true` property and
+You could configure nodes with a dedicated `node.attr.role: watcher` property and
 then configure the `.watches` index like this:
 
-[source,js]
+[source,console]
 ------------------------
 PUT .watches/_settings
 {
-  "index.routing.allocation.include": "watcher"
+  "index.routing.allocation.include.role": "watcher"
 }
 ------------------------
-// CONSOLE
 // TEST[skip:indexes don't assign]
 
 When the {watcher} service is stopped, the scheduler stops with it. Trigger
@@ -196,9 +195,9 @@ The following diagram shows the watch execution process:
 
 image::images/watch-execution.jpg[align="center"]
 
-[float]
+[discrete]
 [[watch-acknowledgment-throttling]]
-=== Watch Acknowledgment and Throttling
+=== Watch acknowledgment and throttling
 
 {watcher} supports both time-based and acknowledgment-based throttling. This
 enables you to prevent actions from being repeatedly executed for the same event.
@@ -216,9 +215,9 @@ the watch actions normally.
 
 For more information, see <<actions-ack-throttle>>.
 
-[float]
+[discrete]
 [[watch-active-state]]
-=== Watch Active State
+=== Watch active state
 
 By default, when you add a watch it is immediately set to the _active_ state,
 registered with the appropriate trigger engine, and executed according
@@ -228,13 +227,13 @@ You can also set a watch to the _inactive_ state. Inactive watches are not
 registered with a trigger engine and can never be triggered.
 
 To set a watch to the inactive state when you create it, set the
-{ref}/watcher-api-put-watch.html[`active`] parameter to _inactive_. To
+<<watcher-api-put-watch,`active`>> parameter to _inactive_. To
 deactivate an existing watch, use the
-{ref}/watcher-api-deactivate-watch.html[Deactivate Watch API]. To reactivate an
+<<watcher-api-deactivate-watch,deactivate watch API>>. To reactivate an
 inactive watch, use the
-{ref}/watcher-api-activate-watch.html[Activate Watch API].
+<<watcher-api-activate-watch,activate watch API>>.
 
-NOTE:   You can use the {ref}/watcher-api-execute-watch.html[Execute Watch API]
+NOTE:   You can use the <<watcher-api-execute-watch,execute watch API>>
 to force the execution of a watch even when it is inactive.
 
 Deactivating watches is useful in a variety of situations. For example, if you
@@ -245,9 +244,9 @@ reporting availability issues during the maintenance window.
 Deactivating a watch also enables you to keep it around for future use without
 deleting it from the system.
 
-[float]
+[discrete]
 [[scripts-templates]]
-=== Scripts and Templates
+=== Scripts and templates
 
 You can use scripts and templates when defining a watch. Scripts and templates
 can reference elements in the watch execution context, including the watch payload.
@@ -258,13 +257,12 @@ placeholders in a template.
 <<inline-templates-scripts,inline>> and <<stored-templates-scripts, stored>>.
 Scripts and templates are compiled
 and cached by Elasticsearch to optimize recurring execution. Autoloading is also
-supported. For more information, see {ref}/modules-scripting.html[Scripting] and
-{ref}/modules-scripting-using.html[How to use scripts] in the Elasticsearch
-Reference.
+supported. For more information, see <<modules-scripting>> and
+<<modules-scripting-using>>.
 
-[float]
+[discrete]
 [[watch-execution-context]]
-==== Watch Execution Context
+==== Watch execution context
 
 The following snippet shows the basic structure of the _Watch Execution Context_:
 
@@ -296,16 +294,16 @@ The following snippet shows the basic structure of the _Watch Execution Context_
     (i.e they're not persisted and can't be used between different executions
     of the same watch)
 
-[float]
+[discrete]
 [[scripts]]
-==== Using Scripts
+==== Using scripts
 
-You can use scripts to define <<condition-script, conditions>> and
-<<transform-script, transforms>>. The default scripting language is
-{ref}/modules-scripting-painless.html[Painless].
+You can use scripts to define <<condition-script,conditions>> and
+<<transform-script,transforms>>. The default scripting language is
+<<modules-scripting-painless,Painless>>.
 
 NOTE: Starting with 5.0, Elasticsearch is shipped with the new
-      {ref}/modules-scripting-painless.html[Painless] scripting language.
+      <<modules-scripting-painless,Painless>> scripting language.
       Painless was created and designed specifically for use in Elasticsearch.
       Beyond providing an extensive feature set, its biggest trait is that it's
       properly sandboxed and safe to use anywhere in the system (including in
@@ -321,9 +319,9 @@ For example, if the watch metadata contains a `color` field
 condition or transform definition (e.g. `"params" : {"color": "red"}`), you can
 access its value via the `color` variable.
 
-[float]
+[discrete]
 [[templates]]
-==== Using Templates
+==== Using templates
 
 You use templates to define dynamic content for a watch. At execution time,
 templates pull in data from the watch execution context. For example, you can use
@@ -351,9 +349,9 @@ in sent emails:
 ----------------------------------------------------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[inline-templates-scripts]]
-===== Inline Templates and Scripts
+===== Inline templates and scripts
 
 To define an inline template or script, you simply specify it directly in the
 value of a field. For example, the following snippet configures the subject of
@@ -413,11 +411,11 @@ The formal object definition for a script would be:
 ----------------------------------------------------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[stored-templates-scripts]]
-===== Stored Templates and Scripts
+===== Stored templates and scripts
 
-If you {ref}/modules-scripting-using.html#modules-scripting-stored-scripts[store]
+If you <<modules-scripting-using,store>>
 your templates and scripts, you can reference them by id.
 
 To reference a stored script or template, you use the formal object definition

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -28,18 +30,8 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
                                      LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetLicenseRequest::new, indexNameExpressionResolver);
+            GetLicenseRequest::new, indexNameExpressionResolver, GetLicenseResponse::new, ThreadPool.Names.MANAGEMENT);
         this.licenseService = licenseService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected GetLicenseResponse newResponse() {
-        return new GetLicenseResponse();
     }
 
     @Override
@@ -48,7 +40,7 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
     }
 
     @Override
-    protected void masterOperation(final GetLicenseRequest request, ClusterState state,
+    protected void masterOperation(Task task, final GetLicenseRequest request, ClusterState state,
                                    final ActionListener<GetLicenseResponse> listener) throws ElasticsearchException {
         listener.onResponse(new GetLicenseResponse(licenseService.getLicense()));
     }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -22,7 +11,10 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
+
+import java.io.IOException;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.containsString;
@@ -56,10 +48,10 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
             newIndices[i] = randomSimpleString(random(), 1, 30);
         }
         request.indices(newIndices);
-        for (int i = 0; i < numNewIndices; i++) {;
+        for (int i = 0; i < numNewIndices; i++) {
             assertEquals(newIndices[i], request.indices()[i]);
         }
-        for (int i = 0; i < numNewIndices; i++) {;
+        for (int i = 0; i < numNewIndices; i++) {
             assertEquals(newIndices[i], request.getSearchRequest().indices()[i]);
         }
     }
@@ -77,30 +69,6 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
     @Override
     protected void extraForSliceAssertions(DeleteByQueryRequest original, DeleteByQueryRequest forSliced) {
         // No extra assertions needed
-    }
-
-    public void testTypesGetter() {
-        int numTypes = between(1, 50);
-        String[] types = new String[numTypes];
-        for (int i = 0; i < numTypes; i++) {
-            types[i] = randomSimpleString(random(), 1, 30);
-        }
-        SearchRequest searchRequest = new SearchRequest();
-        searchRequest.types(types);
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
-        assertArrayEquals(request.types(), types);
-    }
-
-    public void testTypesSetter() {
-        int numTypes = between(1, 50);
-        String[] types = new String[numTypes];
-        for (int i = 0; i < numTypes; i++) {
-            types[i] = randomSimpleString(random(), 1, 30);
-        }
-        SearchRequest searchRequest = new SearchRequest();
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
-        request.types(types);
-        assertArrayEquals(request.types(), types);
     }
 
     public void testValidateGivenNoQuery() {
@@ -123,5 +91,29 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
         ActionRequestValidationException e = deleteByQueryRequest.validate();
 
         assertThat(e, is(nullValue()));
+    }
+
+    // TODO: Implement standard to/from x-content parsing tests
+
+    @Override
+    protected DeleteByQueryRequest createTestInstance() {
+        return newRequest();
+    }
+
+    @Override
+    protected DeleteByQueryRequest doParseInstance(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != null) {
+        }
+        return newRequest();
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
+    protected void assertEqualInstances(DeleteByQueryRequest expectedInstance, DeleteByQueryRequest newInstance) {
     }
 }

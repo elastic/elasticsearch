@@ -1,31 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
+
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
- * Wrapper for a XContentParser that makes a single object to look like a complete document.
+ * Wrapper for a XContentParser that makes a single object/array look like a complete document.
  *
  * The wrapper prevents the parsing logic to consume tokens outside of the wrapped object as well
  * as skipping to the end of the object in case of a parsing error. The wrapper is intended to be
@@ -39,8 +32,8 @@ public class XContentSubParser implements XContentParser {
 
     public XContentSubParser(XContentParser parser) {
         this.parser = parser;
-        if (parser.currentToken() != Token.START_OBJECT) {
-            throw new IllegalStateException("The sub parser has to be created on the start of an object");
+        if (parser.currentToken() != Token.START_OBJECT && parser.currentToken() != Token.START_ARRAY) {
+            throw new IllegalStateException("The sub parser has to be created on the start of an object or array");
         }
         level = 1;
     }
@@ -48,6 +41,11 @@ public class XContentSubParser implements XContentParser {
     @Override
     public XContentType contentType() {
         return parser.contentType();
+    }
+
+    @Override
+    public void allowDuplicateKeys(boolean allowDuplicateKeys) {
+        parser.allowDuplicateKeys(allowDuplicateKeys);
     }
 
     @Override
@@ -106,8 +104,9 @@ public class XContentSubParser implements XContentParser {
     }
 
     @Override
-    public Map<String, String> mapStringsOrdered() throws IOException {
-        return parser.mapStringsOrdered();
+    public <T> Map<String, T> map(
+            Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
+        return parser.map(mapFactory, mapValueParser);
     }
 
     @Override
@@ -263,6 +262,11 @@ public class XContentSubParser implements XContentParser {
     @Override
     public boolean isClosed() {
         return closed;
+    }
+
+    @Override
+    public RestApiVersion getRestApiVersion() {
+        return parser.getRestApiVersion();
     }
 
     @Override

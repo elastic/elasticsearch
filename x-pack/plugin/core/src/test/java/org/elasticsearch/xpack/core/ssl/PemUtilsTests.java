@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ssl;
@@ -11,9 +12,13 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AlgorithmParameters;
 import java.security.Key;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.interfaces.ECPrivateKey;
+import java.security.spec.ECGenParameterSpec;
+import java.security.spec.ECParameterSpec;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -57,9 +62,21 @@ public class PemUtilsTests extends ESTestCase {
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/ec_key_pkcs8_plain.pem"), ""::toCharArray);
+            ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/ec_key_pkcs8_plain.pem"), ""::toCharArray);
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
+    }
+
+    public void testReadEcKeyCurves() throws Exception {
+        String curve = randomFrom("secp256r1", "secp384r1", "secp521r1");
+        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
+            ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/private_" + curve + ".pem"), ""::toCharArray);
+        assertThat(privateKey, instanceOf(ECPrivateKey.class));
+        ECParameterSpec parameterSpec = ((ECPrivateKey) privateKey).getParams();
+        ECGenParameterSpec algorithmParameterSpec = new ECGenParameterSpec(curve);
+        AlgorithmParameters algoParameters = AlgorithmParameters.getInstance("EC");
+        algoParameters.init(algorithmParameterSpec);
+        assertThat(parameterSpec, equalTo(algoParameters.getParameterSpec(ECParameterSpec.class)));
     }
 
     public void testReadEncryptedPKCS8Key() throws Exception {
@@ -68,8 +85,7 @@ public class PemUtilsTests extends ESTestCase {
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/key_pkcs8_encrypted" +
-                        ".pem"), "testnode"::toCharArray);
+            ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/key_pkcs8_encrypted.pem"), "testnode"::toCharArray);
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }

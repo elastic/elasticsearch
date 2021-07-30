@@ -1,5 +1,17 @@
 [[range]]
-=== Range datatypes
+=== Range field types
+++++
+<titleabbrev>Range</titleabbrev>
+++++
+
+Range field types represent a continuous range of values between an upper and lower
+bound. For example, a range can represent _any date in October_ or _any
+integer from 0 to 9_. They are defined using the operators
+`gt` or `gte` for the lower bound, and `lt` or `lte` for the upper bound.
+They can be used for querying, and have
+limited support for aggregations. The only supported aggregations are
+{ref}/search-aggregations-bucket-histogram-aggregation.html[histogram],
+{ref}/search-aggregations-metrics-cardinality-aggregation.html[cardinality].
 
 The following range types are supported:
 
@@ -8,13 +20,17 @@ The following range types are supported:
 `float_range`::     A range of single-precision 32-bit IEEE 754 floating point values.
 `long_range`::      A range of signed 64-bit integers with a minimum value of +-2^63^+ and maximum of +2^63^-1+.
 `double_range`::    A range of double-precision 64-bit IEEE 754 floating point values.
-`date_range`::      A range of date values represented as unsigned 64-bit integer milliseconds elapsed since system epoch.
-`ip_range` ::       A range of ip values supporting either https://en.wikipedia.org/wiki/IPv4[IPv4] or
-                    https://en.wikipedia.org/wiki/IPv6[IPv6] (or mixed) addresses.
+`date_range`::      A range of <<date,`date`>> values. Date ranges support various date formats
+                    through the <<mapping-date-format,`format`>> mapping parameter. Regardless of
+                    the format used, date values are parsed into an unsigned 64-bit integer
+                    representing milliseconds since the Unix epoch in UTC. Values containing the
+                    `now` <<date-math,date math>> expression are not supported.
+`ip_range` ::       A range of ip values supporting either {wikipedia}/IPv4[IPv4] or
+                    {wikipedia}/IPv6[IPv6] (or mixed) addresses.
 
 Below is an example of configuring a mapping with various range fields followed by an example that indexes several range types.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT range_index
 {
@@ -22,15 +38,13 @@ PUT range_index
     "number_of_shards": 2
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "expected_attendees": {
-          "type": "integer_range"
-        },
-        "time_frame": {
-          "type": "date_range", <1>
-          "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
-        }
+    "properties": {
+      "expected_attendees": {
+        "type": "integer_range"
+      },
+      "time_frame": {
+        "type": "date_range", <1>
+        "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
       }
     }
   }
@@ -40,25 +54,24 @@ PUT range_index/_doc/1?refresh
 {
   "expected_attendees" : { <2>
     "gte" : 10,
-    "lte" : 20
+    "lt" : 20
   },
-  "time_frame" : { <3>
-    "gte" : "2015-10-31 12:00:00", <4>
+  "time_frame" : {
+    "gte" : "2015-10-31 12:00:00", <3>
     "lte" : "2015-11-01"
   }
 }
 --------------------------------------------------
-//CONSOLE
 // TESTSETUP
 
 <1> `date_range` types accept the same field parameters defined by the <<date, `date`>> type.
-<2> Example indexing a meeting with 10 to 20 attendees.
-<3> Date ranges accept the same format as described in <<ranges-on-dates, date range queries>>.
-<4> Example date range using date time stamp. This also accepts <<date-math, date math>> formatting, or "now" for system time.
+<2> Example indexing a meeting with 10 to 20 attendees, not including 20.
+<3> Example date range using date time stamp.
 
 The following is an example of a <<query-dsl-term-query, term query>> on the `integer_range` field named "expected_attendees".
+12 is a value inside the range, so it will match.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET range_index/_search
 {
@@ -71,11 +84,10 @@ GET range_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The result produced by the above query.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -95,12 +107,11 @@ The result produced by the above query.
     "hits" : [
       {
         "_index" : "range_index",
-        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {
           "expected_attendees" : {
-            "gte" : 10, "lte" : 20
+            "gte" : 10, "lt" : 20
           },
           "time_frame" : {
             "gte" : "2015-10-31 12:00:00", "lte" : "2015-11-01"
@@ -115,7 +126,7 @@ The result produced by the above query.
 
 The following is an example of a `date_range` query over the `date_range` field named "time_frame".
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET range_index/_search
 {
@@ -130,7 +141,6 @@ GET range_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Range queries work the same as described in <<query-dsl-range-query, range query>>.
 <2> Range queries over range <<mapping-types, fields>> support a `relation` parameter which can be one of `WITHIN`, `CONTAINS`,
@@ -138,7 +148,7 @@ GET range_index/_search
 
 This query produces a similar result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -158,12 +168,11 @@ This query produces a similar result:
     "hits" : [
       {
         "_index" : "range_index",
-        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {
           "expected_attendees" : {
-            "gte" : 10, "lte" : 20
+            "gte" : 10, "lt" : 20
           },
           "time_frame" : {
             "gte" : "2015-10-31 12:00:00", "lte" : "2015-11-01"
@@ -180,14 +189,14 @@ This query produces a similar result:
 ==== IP Range
 
 In addition to the range format above, IP ranges can be provided in
-https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation[CIDR] notation:
+{wikipedia}/Classless_Inter-Domain_Routing#CIDR_notation[CIDR] notation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT range_index/_mapping/_doc
+PUT range_index/_mapping
 {
   "properties": {
-    "ip_whitelist": {
+    "ip_allowlist": {
       "type": "ip_range"
     }
   }
@@ -195,10 +204,9 @@ PUT range_index/_mapping/_doc
 
 PUT range_index/_doc/2
 {
-  "ip_whitelist" : "192.168.0.0/16"
+  "ip_allowlist" : "192.168.0.0/16"
 }
 --------------------------------------------------
-// CONSOLE
 
 [[range-params]]
 ==== Parameters for range fields
@@ -211,11 +219,6 @@ The following parameters are accepted by range types:
 
     Try to convert strings to numbers and truncate fractions for integers.
     Accepts `true` (default) and `false`.
-
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
 
 <<mapping-index,`index`>>::
 

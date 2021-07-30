@@ -1,37 +1,55 @@
-Project idpFixtureProject = xpackProject("test:idp-fixture")
-evaluationDependsOn(idpFixtureProject.path)
+import org.elasticsearch.gradle.Architecture
 
-apply plugin: 'elasticsearch.vagrantsupport'
+Project idpFixtureProject = xpackProject("test:idp-fixture")
+
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    testCompile project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
-    testCompile 'com.google.jimfs:jimfs:1.1'
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
 }
 
-task idpFixture {
-    dependsOn "vagrantCheckVersion", "virtualboxCheckVersion", idpFixtureProject.up
-}
+testFixtures.useFixture ":x-pack:test:idp-fixture"
 
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
-task copyIdpCertificate(type: Copy) {
-    from idpFixtureProject.file('src/main/resources/certs/ca.crt');
-    into outputDir
-}
-if (project.rootProject.vagrantSupported) {
-  project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpCertificate)
-  integTestCluster.dependsOn idpFixture, copyIdpCertificate
-  integTest.finalizedBy idpFixtureProject.halt
-} else {
-  integTest.enabled = false
-  testingConventions.enabled = false
+def copyIdpFiles = tasks.register("copyIdpFiles", Copy) {
+  from idpFixtureProject.files('idp/shibboleth-idp/credentials/idp-browser.pem', 'idp/shibboleth-idp/metadata/idp-metadata.xml',
+    'idp/shibboleth-idp/credentials/sp-signing.key', 'idp/shibboleth-idp/credentials/sp-signing.crt');
+  into outputDir
 }
 
-integTestCluster {
+def setupPorts = tasks.register("setupPorts") {
+  dependsOn copyIdpFiles, idpFixtureProject.postProcessFixture
+  // Don't attempt to get ephemeral ports when Docker is not available
+  // Also, shibboleth fixture is not available on aarch64
+  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false && Architecture.current() == Architecture.X64 }
+  doLast {
+    String portString = idpFixtureProject.postProcessFixture.ext."test.fixtures.shibboleth-idp.tcp.4443"
+    int ephemeralPort = Integer.valueOf(portString)
+    File idpMetaFile = file("$outputDir/idp-metadata.xml")
+    List<String> lines = idpMetaFile.readLines("UTF-8")
+    StringBuilder content = new StringBuilder()
+    for (String line : lines) {
+      content.append(line.replace("localhost:4443", "localhost:" + ephemeralPort))
+    }
+    idpMetaFile.delete()
+    idpMetaFile.createNewFile()
+    idpMetaFile.write(content.toString(), "UTF-8")
+  }
+}
+
+project.sourceSets.test.output.dir(outputDir, builtBy: [copyIdpFiles])
+
+tasks.named("integTest").configure {
+  dependsOn setupPorts
+  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false && Architecture.current() == Architecture.X64 }
+}
+
+testClusters.matching { it.name == "integTest" }.configureEach {
+  testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'false'
@@ -48,6 +66,8 @@ integTestCluster {
   setting 'xpack.security.authc.realms.saml.shibboleth.sp.acs', 'http://localhost:54321/saml/acs1'
   setting 'xpack.security.authc.realms.saml.shibboleth.attributes.principal', 'uid'
   setting 'xpack.security.authc.realms.saml.shibboleth.attributes.name', 'urn:oid:2.5.4.3'
+  setting 'xpack.security.authc.realms.saml.shibboleth.signing.key', 'sp-signing.key'
+  setting 'xpack.security.authc.realms.saml.shibboleth.signing.certificate', 'sp-signing.crt'
   // SAML realm 2 (uses authorization_realms)
   setting 'xpack.security.authc.realms.saml.shibboleth_native.order', '2'
   setting 'xpack.security.authc.realms.saml.shibboleth_native.idp.entity_id', 'https://test.shibboleth.elastic.local/'
@@ -56,42 +76,32 @@ integTestCluster {
   setting 'xpack.security.authc.realms.saml.shibboleth_native.sp.acs', 'http://localhost:54321/saml/acs2'
   setting 'xpack.security.authc.realms.saml.shibboleth_native.attributes.principal', 'uid'
   setting 'xpack.security.authc.realms.saml.shibboleth_native.authorization_realms', 'native'
-  setting 'xpack.security.authc.realms.native.native.order', '3'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.signing.key', 'sp-signing.key'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.signing.certificate', 'sp-signing.crt'
+  // SAML realm 3 (used for negative tests with multiple realms)
+  setting 'xpack.security.authc.realms.saml.shibboleth_negative.order', '3'
+  setting 'xpack.security.authc.realms.saml.shibboleth_negative.idp.entity_id', 'https://test.shibboleth.elastic.local/'
+  setting 'xpack.security.authc.realms.saml.shibboleth_negative.idp.metadata.path', 'idp-metadata.xml'
+  setting 'xpack.security.authc.realms.saml.shibboleth_negative.sp.entity_id', 'somethingwronghere'
+  setting 'xpack.security.authc.realms.saml.shibboleth_negative.sp.acs', 'http://localhost:54321/saml/acs3'
+  setting 'xpack.security.authc.realms.saml.shibboleth_negative.attributes.principal', 'uid'
+  setting 'xpack.security.authc.realms.saml.shibboleth_negative.authorization_realms', 'native'
+  setting 'xpack.security.authc.realms.saml.shibboleth_negative.signing.key', 'sp-signing.key'
+  setting 'xpack.security.authc.realms.saml.shibboleth_negative.signing.certificate', 'sp-signing.crt'
+  setting 'xpack.security.authc.realms.native.native.order', '4'
 
   setting 'xpack.ml.enabled', 'false'
+  setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
 
-  extraConfigFile 'idp-metadata.xml', idpFixtureProject.file("src/main/resources/provision/generated/idp-metadata.xml")
+  extraConfigFile 'idp-metadata.xml', file(outputDir + "/idp-metadata.xml")
+  extraConfigFile 'sp-signing.key', file(outputDir + "/sp-signing.key")
+  extraConfigFile 'sp-signing.crt', file(outputDir + "/sp-signing.crt")
 
-  setupCommand 'setupTestAdmin',
-            'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
-
-  waitCondition = { node, ant ->
-        File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-                dest: tmpFile.toString(),
-                username: 'test_admin',
-                password: 'x-pack-test-password',
-                ignoreerrors: true,
-                retries: 10)
-        return tmpFile.exists()
-    }
+  user username: "test_admin", password: 'x-pack-test-password'
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.der'
   exclude '**/*.p12'
   exclude '**/*.key'
 }
-
-thirdPartyAudit.excludes = [
-  // uses internal java api: sun.misc.Unsafe
-  'com.google.common.cache.Striped64',
-  'com.google.common.cache.Striped64$1',
-  'com.google.common.cache.Striped64$Cell',
-  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-  'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-  'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-  // missing
-  'com.ibm.icu.lang.UCharacter'
-]

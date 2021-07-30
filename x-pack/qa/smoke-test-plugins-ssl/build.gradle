@@ -1,25 +1,20 @@
-import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.elasticsearch.gradle.test.NodeInfo
+import org.apache.tools.ant.filters.ReplaceTokens
 
-import javax.net.ssl.HttpsURLConnection
-import javax.net.ssl.KeyManager
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManagerFactory
-import java.nio.charset.StandardCharsets
-import java.security.KeyStore
-import java.security.SecureRandom
+import org.elasticsearch.gradle.internal.info.BuildParams
 
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
+  testImplementation project(':x-pack:plugin:core')
+  testImplementation project(':modules:transport-netty4')
+  testImplementation project(':client:rest-high-level')
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
-task copyXPackPluginProps(type: Copy) {
+def copyXPackPluginProps = tasks.register("copyXPackPluginProps", Copy) {
   from project(xpackModule('core')).file('src/main/plugin-metadata')
   from project(xpackModule('core')).tasks.pluginProperties
   into outputDir
@@ -36,42 +31,42 @@ File clientKey = file("$keystoreDir/testclient.pem")
 File clientCert = file("$keystoreDir/testclient.crt")
 
 // Add keystores to test classpath: it expects it there
-task copyKeyCerts(type: Copy) {
+def copyKeyCerts = tasks.register("copyKeyCerts", Copy) {
   from('./') {
-      include '*.crt', '*.pem', '*.jks'
+    include '*.crt', '*.pem', '*.jks'
   }
   into keystoreDir
 }
 // Add keystores to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(copyKeyCerts)
 
-integTestCluster.dependsOn(copyKeyCerts)
-
-ext.pluginsCount = 0
-project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-  // need to get a non-decorated project object, so must re-lookup the project by path
-  integTestCluster.plugin(pluginProject.path)
-  pluginsCount += 1
+['processTestResources', 'integTest', 'filepermissions', 'forbiddenPatterns'].each {
+  tasks.named(it).configure {
+    dependsOn(copyKeyCerts)
+  }
 }
 
-integTestCluster {
+ext.pluginPaths = []
+project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+  if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
+      // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
+      return
+    }
+  pluginPaths << pluginProject.path
+}
+
+testClusters.matching { it.name == "integTest" }.configureEach {
+  testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.interval', '1s'
-  setting 'xpack.monitoring.exporters._http.type', 'http'
-  setting 'xpack.monitoring.exporters._http.enabled', 'false'
-  setting 'xpack.ssl.certificate_authorities', 'testnode.crt'
-  setting 'xpack.monitoring.exporters._http.auth.username', 'monitoring_agent'
-  setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
-  setting 'xpack.monitoring.exporters._http.ssl.verification_mode', 'full'
 
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'true'
   setting 'xpack.security.http.ssl.key', 'testnode.pem'
   setting 'xpack.security.http.ssl.certificate', 'testnode.crt'
-  keystoreSetting 'xpack.security.http.ssl.secure_key_passphrase', 'testnode'
+  setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
+  keystore 'xpack.security.http.ssl.secure_key_passphrase', 'testnode'
 
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   // copy keystores, keys and certificates into config/
   extraConfigFile nodeKeystore.name, nodeKeystore
@@ -81,62 +76,23 @@ integTestCluster {
   extraConfigFile clientKey.name, clientKey
   extraConfigFile clientCert.name, clientCert
 
-  setupCommand 'setupTestUser',
-               'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-  setupCommand 'setupMonitoringUser',
-               'bin/elasticsearch-users', 'useradd', 'monitoring_agent', '-p', 'x-pack-test-password', '-r', 'remote_monitoring_agent'
+  user username: "test_user", password: "x-pack-test-password"
+  user username: "monitoring_agent", password: "x-pack-test-password", role: "remote_monitoring_agent"
 
-  waitCondition = { NodeInfo node, AntBuilder ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    KeyStore keyStore = KeyStore.getInstance("JKS");
-    keyStore.load(clientKeyStore.newInputStream(), 'testclient'.toCharArray());
-    TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-    tmf.init(keyStore);
-    // We don't need a KeyManager as there won't be client auth required so pass an empty array
-    SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
-    sslContext.init(new KeyManager[0], tmf.getTrustManagers(), new SecureRandom());
-    for (int i = 0; i < 10; i++) {
-      // we use custom wait logic here for HTTPS
-      HttpsURLConnection httpURLConnection = null;
-      try {
-        httpURLConnection = (HttpsURLConnection) new URL("https://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}&wait_for_status=yellow").openConnection();
-        httpURLConnection.setSSLSocketFactory(sslContext.getSocketFactory());
-        httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
-        httpURLConnection.setRequestMethod("GET");
-        httpURLConnection.connect();
-        if (httpURLConnection.getResponseCode() == 200) {
-          tmpFile.withWriter StandardCharsets.UTF_8.name(), {
-            it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
-          }
-        }
-      } catch (IOException e) {
-        if (i == 9) {
-          logger.error("final attempt of calling cluster health failed", e)
-        } else {
-          logger.debug("failed to call cluster health", e)
-        }
-      } finally {
-        if (httpURLConnection != null) {
-          httpURLConnection.disconnect();
-        }
-      }
-
-      // did not start, so wait a bit before trying again
-      Thread.sleep(500L);
-    }
-    return tmpFile.exists()
+  pluginPaths.each { pluginPath ->
+    plugin pluginPath
   }
 }
 
 ext.expansions = [
-  'expected.plugins.count': pluginsCount
+  'expected.plugins.count': pluginPaths.size()
 ]
 
-processTestResources {
+tasks.named("processTestResources").configure {
   from(sourceSets.test.resources.srcDirs) {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
     include '**/*.yml'
     inputs.properties(expansions)
-    MavenFilteringHack.filter(it, expansions)
+    filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
   }
 }

@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -64,10 +53,10 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
             constructorArg(),
             (parser, context) -> {
                 Token token = parser.currentToken();
-                ensureExpectedToken(Token.START_OBJECT, token, parser::getTokenLocation);
+                ensureExpectedToken(Token.START_OBJECT, token, parser);
                 SimulateDocumentResult result = null;
                 while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                    ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
+                    ensureExpectedToken(Token.FIELD_NAME, token, parser);
                     String fieldName = parser.currentName();
                     token = parser.nextToken();
                     if (token == Token.START_ARRAY) {
@@ -76,7 +65,7 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
                             while ((token = parser.nextToken()) == Token.START_OBJECT) {
                                 results.add(SimulateProcessorResult.fromXContent(parser));
                             }
-                            ensureExpectedToken(Token.END_ARRAY, token, parser::getTokenLocation);
+                            ensureExpectedToken(Token.END_ARRAY, token, parser);
                             result = new SimulateDocumentVerboseResult(results);
                         } else {
                             parser.skipChildren();
@@ -103,8 +92,21 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
             new ParseField(Fields.DOCUMENTS));
     }
 
-    public SimulatePipelineResponse() {
-
+    public SimulatePipelineResponse(StreamInput in) throws IOException {
+        super(in);
+        this.pipelineId = in.readOptionalString();
+        boolean verbose = in.readBoolean();
+        int responsesLength = in.readVInt();
+        results = new ArrayList<>();
+        for (int i = 0; i < responsesLength; i++) {
+            SimulateDocumentResult simulateDocumentResult;
+            if (verbose) {
+                simulateDocumentResult = new SimulateDocumentVerboseResult(in);
+            } else {
+                simulateDocumentResult = new SimulateDocumentBaseResult(in);
+            }
+            results.add(simulateDocumentResult);
+        }
     }
 
     public SimulatePipelineResponse(String pipelineId, boolean verbose, List<SimulateDocumentResult> responses) {
@@ -127,30 +129,11 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeOptionalString(pipelineId);
         out.writeBoolean(verbose);
         out.writeVInt(results.size());
         for (SimulateDocumentResult response : results) {
             response.writeTo(out);
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.pipelineId = in.readOptionalString();
-        boolean verbose = in.readBoolean();
-        int responsesLength = in.readVInt();
-        results = new ArrayList<>();
-        for (int i = 0; i < responsesLength; i++) {
-            SimulateDocumentResult simulateDocumentResult;
-            if (verbose) {
-                simulateDocumentResult = new SimulateDocumentVerboseResult(in);
-            } else {
-                simulateDocumentResult = new SimulateDocumentBaseResult(in);
-            }
-            results.add(simulateDocumentResult);
         }
     }
 

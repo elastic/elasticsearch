@@ -1,507 +1,437 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
+
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
-import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
+import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
+import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
+import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
-public class DatafeedManager {
+/**
+ * Allows interactions with datafeeds. The managed interactions include:
+ * <ul>
+ * <li>creation</li>
+ * <li>reading</li>
+ * <li>deletion</li>
+ * <li>updating</li>
+ * </ul>
+ */
+public final class DatafeedManager {
 
     private static final Logger logger = LogManager.getLogger(DatafeedManager.class);
 
-    private final Client client;
+    private final DatafeedConfigProvider datafeedConfigProvider;
+    private final JobConfigProvider jobConfigProvider;
+    private final NamedXContentRegistry xContentRegistry;
     private final ClusterService clusterService;
-    private final ThreadPool threadPool;
-    private final Supplier<Long> currentTimeSupplier;
-    private final Auditor auditor;
-    // Use allocationId as key instead of datafeed id
-    private final ConcurrentMap<Long, Holder> runningDatafeedsOnThisNode = new ConcurrentHashMap<>();
-    private final DatafeedJobBuilder datafeedJobBuilder;
-    private final TaskRunner taskRunner = new TaskRunner();
-    private volatile boolean isolated;
+    private final Client client;
+    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
-    public DatafeedManager(ThreadPool threadPool, Client client, ClusterService clusterService, DatafeedJobBuilder datafeedJobBuilder,
-                           Supplier<Long> currentTimeSupplier, Auditor auditor) {
-        this.client = Objects.requireNonNull(client);
-        this.clusterService = Objects.requireNonNull(clusterService);
-        this.threadPool = threadPool;
-        this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
-        this.auditor = Objects.requireNonNull(auditor);
-        this.datafeedJobBuilder = Objects.requireNonNull(datafeedJobBuilder);
-        clusterService.addListener(taskRunner);
+    public DatafeedManager(DatafeedConfigProvider datafeedConfigProvider,
+                           JobConfigProvider jobConfigProvider,
+                           NamedXContentRegistry xContentRegistry,
+                           ClusterService clusterService,
+                           Settings settings,
+                           Client client) {
+        this.datafeedConfigProvider = datafeedConfigProvider;
+        this.jobConfigProvider = jobConfigProvider;
+        this.xContentRegistry = xContentRegistry;
+        this.clusterService = clusterService;
+        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
+        this.client = client;
     }
 
-    public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> taskHandler) {
-        String datafeedId = task.getDatafeedId();
-        ClusterState state = clusterService.state();
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
+    public void putDatafeed(
+        PutDatafeedAction.Request request,
+        ClusterState state,
+        XPackLicenseState licenseState,
+        SecurityContext securityContext,
+        ThreadPool threadPool,
+        ActionListener<PutDatafeedAction.Response> listener
+    ) {
+        if (licenseState.isSecurityEnabled()) {
+            useSecondaryAuthIfAvailable(securityContext, () -> {
+                final String[] indices = request.getDatafeed().getIndices().toArray(new String[0]);
 
-        DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
-        Job job = mlMetadata.getJobs().get(datafeed.getJobId());
+                final String username = securityContext.getUser().principal();
+                final HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
+                privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
+                privRequest.username(username);
+                privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
 
-        ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
-                datafeedJob -> {
-                    Holder holder = new Holder(task, datafeed, datafeedJob, new ProblemTracker(auditor, job.getId()), taskHandler);
-                    runningDatafeedsOnThisNode.put(task.getAllocationId(), holder);
-                    task.updatePersistentTaskState(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
-                        @Override
-                        public void onResponse(PersistentTask<?> persistentTask) {
-                            taskRunner.runWhenJobIsOpened(task);
+                final RoleDescriptor.IndicesPrivileges.Builder indicesPrivilegesBuilder = RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(indices);
+
+                ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
+                    r -> handlePrivsResponse(username, request, r, state, threadPool, listener),
+                    listener::onFailure);
+
+                ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(
+                    response -> {
+                        if (response.getJobs().isEmpty()) { // This means no rollup indexes are in the config
+                            indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                        } else {
+                            indicesPrivilegesBuilder.privileges(SearchAction.NAME, RollupSearchAction.NAME);
                         }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            taskHandler.accept(e);
+                        privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
+                        client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                    },
+                    e -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                            indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                            privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
+                            client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                        } else {
+                            listener.onFailure(e);
                         }
-                    });
-                }, taskHandler::accept
+                    }
+                );
+                if (RemoteClusterLicenseChecker.containsRemoteIndex(request.getDatafeed().getIndices())) {
+                    getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
+                } else {
+                    executeAsyncWithOrigin(client,
+                        ML_ORIGIN,
+                        GetRollupIndexCapsAction.INSTANCE,
+                        new GetRollupIndexCapsAction.Request(indices),
+                        getRollupIndexCapsActionHandler);
+                }
+            });
+        } else {
+            putDatafeed(request, threadPool.getThreadContext().getHeaders(), state, listener);
+        }
+    }
+
+    public void getDatafeeds(GetDatafeedsAction.Request request, ActionListener<QueryPage<DatafeedConfig>> listener) {
+        getDatafeeds(request, clusterService.state(), listener);
+    }
+
+    public void getDatafeeds(GetDatafeedsAction.Request request, ClusterState state, ActionListener<QueryPage<DatafeedConfig>> listener) {
+        Map<String, DatafeedConfig> clusterStateConfigs = expandClusterStateDatafeeds(
+            request.getDatafeedId(),
+            request.allowNoMatch(),
+            state
         );
 
-        datafeedJobBuilder.build(job, datafeed, datafeedJobHandler);
-    }
-
-    public void stopDatafeed(TransportStartDatafeedAction.DatafeedTask task, String reason, TimeValue timeout) {
-        logger.info("[{}] attempt to stop datafeed [{}] [{}]", reason, task.getDatafeedId(), task.getAllocationId());
-        Holder holder = runningDatafeedsOnThisNode.remove(task.getAllocationId());
-        if (holder != null) {
-            holder.stop(reason, timeout, null);
-        }
-    }
-
-    /**
-     * This is used when the license expires.
-     */
-    public void stopAllDatafeedsOnThisNode(String reason) {
-        int numDatafeeds = runningDatafeedsOnThisNode.size();
-        if (numDatafeeds != 0) {
-            logger.info("Closing [{}] datafeeds, because [{}]", numDatafeeds, reason);
-
-            for (Holder holder : runningDatafeedsOnThisNode.values()) {
-                holder.stop(reason, TimeValue.timeValueSeconds(20), null);
-            }
-        }
-    }
-
-    /**
-     * This is used before the JVM is killed.  It differs from stopAllDatafeedsOnThisNode in that it leaves
-     * the datafeed tasks in the "started" state, so that they get restarted on a different node.
-     */
-    public void isolateAllDatafeedsOnThisNode() {
-        isolated = true;
-        Iterator<Holder> iter = runningDatafeedsOnThisNode.values().iterator();
-        while (iter.hasNext()) {
-            Holder next = iter.next();
-            next.isolateDatafeed();
-            next.setRelocating();
-            iter.remove();
-        }
-    }
-
-    public void isolateDatafeed(long allocationId) {
-        Holder holder = runningDatafeedsOnThisNode.get(allocationId);
-        if (holder != null) {
-            holder.isolateDatafeed();
-        }
-    }
-
-    // Important: Holder must be created and assigned to DatafeedTask before setting state to started,
-    // otherwise if a stop datafeed call is made immediately after the start datafeed call we could cancel
-    // the DatafeedTask without stopping datafeed, which causes the datafeed to keep on running.
-    private void innerRun(Holder holder, long startTime, Long endTime) {
-        holder.future = threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME).submit(new AbstractRunnable() {
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("Failed lookback import for job [" + holder.datafeed.getJobId() + "]", e);
-                holder.stop("general_lookback_failure", TimeValue.timeValueSeconds(20), e);
-            }
-
-            @Override
-            protected void doRun() {
-                Long next = null;
-                try {
-                    next = holder.executeLoopBack(startTime, endTime);
-                } catch (DatafeedJob.ExtractionProblemException e) {
-                    if (endTime == null) {
-                        next = e.nextDelayInMsSinceEpoch;
-                    }
-                    holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());
-                } catch (DatafeedJob.AnalysisProblemException e) {
-                    if (endTime == null) {
-                        next = e.nextDelayInMsSinceEpoch;
-                    }
-                    holder.problemTracker.reportAnalysisProblem(e.getCause().getMessage());
-                    if (e.shouldStop) {
-                        holder.stop("lookback_analysis_error", TimeValue.timeValueSeconds(20), e);
+        datafeedConfigProvider.expandDatafeedConfigs(request.getDatafeedId(), request.allowNoMatch(), ActionListener.wrap(
+            datafeedBuilders -> {
+                // Check for duplicate datafeeds
+                for (DatafeedConfig.Builder datafeed : datafeedBuilders) {
+                    if (clusterStateConfigs.containsKey(datafeed.getId())) {
+                        listener.onFailure(new IllegalStateException("Datafeed [" + datafeed.getId() + "] configuration " +
+                            "exists in both clusterstate and index"));
                         return;
                     }
-                } catch (DatafeedJob.EmptyDataCountException e) {
-                    if (endTime == null) {
-                        holder.problemTracker.reportEmptyDataCount();
-                        next = e.nextDelayInMsSinceEpoch;
-                    } else {
-                        // Notify that a lookback-only run found no data
-                        String lookbackNoDataMsg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_LOOKBACK_NO_DATA);
-                        logger.warn("[{}] {}", holder.datafeed.getJobId(), lookbackNoDataMsg);
-                        auditor.warning(holder.datafeed.getJobId(), lookbackNoDataMsg);
-                    }
-                } catch (Exception e) {
-                    logger.error("Failed lookback import for job [" + holder.datafeed.getJobId() + "]", e);
-                    holder.stop("general_lookback_failure", TimeValue.timeValueSeconds(20), e);
-                    return;
                 }
-                if (isolated == false) {
-                    if (next != null) {
-                        doDatafeedRealtime(next, holder.datafeed.getJobId(), holder);
-                    } else {
-                        holder.stop("no_realtime", TimeValue.timeValueSeconds(20), null);
-                        holder.problemTracker.finishReport();
-                    }
+
+                // Merge cluster state and index configs
+                List<DatafeedConfig> datafeeds = new ArrayList<>(datafeedBuilders.size() + clusterStateConfigs.values().size());
+                for (DatafeedConfig.Builder builder: datafeedBuilders) {
+                    datafeeds.add(builder.build());
                 }
-            }
-        });
+
+                datafeeds.addAll(clusterStateConfigs.values());
+                Collections.sort(datafeeds, Comparator.comparing(DatafeedConfig::getId));
+                listener.onResponse(new QueryPage<>(datafeeds, datafeeds.size(), DatafeedConfig.RESULTS_FIELD));
+            },
+            listener::onFailure
+        ));
     }
 
-    void doDatafeedRealtime(long delayInMsSinceEpoch, String jobId, Holder holder) {
-        if (holder.isRunning() && !holder.isIsolated()) {
-            TimeValue delay = computeNextDelay(delayInMsSinceEpoch);
-            logger.debug("Waiting [{}] before executing next realtime import for job [{}]", delay, jobId);
-            holder.future = threadPool.schedule(delay, MachineLearning.DATAFEED_THREAD_POOL_NAME, new AbstractRunnable() {
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("Unexpected datafeed failure for job [" + jobId + "] stopping...", e);
-                    holder.stop("general_realtime_error", TimeValue.timeValueSeconds(20), e);
-                }
-
-                @Override
-                protected void doRun() {
-                    long nextDelayInMsSinceEpoch;
-                    try {
-                        nextDelayInMsSinceEpoch = holder.executeRealTime();
-                        holder.problemTracker.reportNoneEmptyCount();
-                    } catch (DatafeedJob.ExtractionProblemException e) {
-                        nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
-                        holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());
-                    } catch (DatafeedJob.AnalysisProblemException e) {
-                        nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
-                        holder.problemTracker.reportAnalysisProblem(e.getCause().getMessage());
-                        if (e.shouldStop) {
-                            holder.stop("realtime_analysis_error", TimeValue.timeValueSeconds(20), e);
+    public void getDatafeedsByJobIds(Set<String> jobIds, ClusterState state, ActionListener<Map<String, DatafeedConfig.Builder>> listener) {
+        datafeedConfigProvider.findDatafeedsByJobIds(jobIds, ActionListener.wrap(
+            datafeeds -> {
+                Map<String, DatafeedConfig.Builder> response = new HashMap<>(datafeeds);
+                Map<String, DatafeedConfig> fromState = MlMetadata.getMlMetadata(state).getDatafeedsByJobIds(jobIds);
+                for (Map.Entry<String, DatafeedConfig> datafeedConfigEntry : fromState.entrySet()) {
+                    DatafeedConfig.Builder alreadyExistingDatafeed = response.get(datafeedConfigEntry.getKey());
+                    if (alreadyExistingDatafeed != null) {
+                        if (alreadyExistingDatafeed.getId().equals(datafeedConfigEntry.getValue().getId())) {
+                            listener.onFailure(new IllegalStateException(
+                                "Datafeed ["
+                                    + alreadyExistingDatafeed.getId()
+                                    + "] configuration "
+                                    + "exists in both clusterstate and index"));
                             return;
                         }
-                    } catch (DatafeedJob.EmptyDataCountException e) {
-                        nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
-                        holder.problemTracker.reportEmptyDataCount();
-                    } catch (Exception e) {
-                        logger.error("Unexpected datafeed failure for job [" + jobId + "] stopping...", e);
-                        holder.stop("general_realtime_error", TimeValue.timeValueSeconds(20), e);
+                        listener.onFailure(new IllegalStateException(
+                            "datafeed ["
+                                + datafeedConfigEntry.getValue().getId()
+                                + "] configuration in cluster state and ["
+                                + alreadyExistingDatafeed.getId()
+                                + "] in the configuration index both refer to job ["
+                                + datafeedConfigEntry.getKey()
+                                + "]"
+                        ));
                         return;
                     }
-                    holder.problemTracker.finishReport();
-                    if (nextDelayInMsSinceEpoch >= 0) {
-                        doDatafeedRealtime(nextDelayInMsSinceEpoch, jobId, holder);
-                    }
+                    response.put(datafeedConfigEntry.getKey(), new DatafeedConfig.Builder(datafeedConfigEntry.getValue()));
                 }
+                listener.onResponse(response);
+            },
+            listener::onFailure
+        ));
+    }
+
+    public void updateDatafeed(
+        UpdateDatafeedAction.Request request,
+        ClusterState state,
+        SecurityContext securityContext,
+        ThreadPool threadPool,
+        ActionListener<PutDatafeedAction.Response> listener
+    ) {
+        if (migrationEligibilityCheck.datafeedIsEligibleForMigration(request.getUpdate().getId(), state)) {
+            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("update datafeed", request.getUpdate().getId()));
+            return;
+        }
+        // Check datafeed is stopped
+        if (getDatafeedTask(state, request.getUpdate().getId()) != null) {
+            listener.onFailure(ExceptionsHelper.conflictStatusException(
+                Messages.getMessage(Messages.DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE,
+                    request.getUpdate().getId(), DatafeedState.STARTED)));
+            return;
+        }
+
+        Runnable doUpdate = () ->
+            useSecondaryAuthIfAvailable(securityContext, () -> {
+                final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
+                datafeedConfigProvider.updateDatefeedConfig(
+                    request.getUpdate().getId(),
+                    request.getUpdate(),
+                    headers,
+                    jobConfigProvider::validateDatafeedJob,
+                    ActionListener.wrap(
+                        updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
+                        listener::onFailure));
             });
+
+        // Obviously if we're updating a datafeed it's impossible that the config index has no mappings at
+        // all, but if we rewrite the datafeed config we may add new fields that require the latest mappings
+        ElasticsearchMappings.addDocMappingIfMissing(
+            MlConfigIndex.indexName(), MlConfigIndex::mapping, client, state, request.masterNodeTimeout(),
+            ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure));
+    }
+
+    public void deleteDatafeed(
+        DeleteDatafeedAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        if (getDatafeedTask(state, request.getDatafeedId()) != null) {
+            listener.onFailure(ExceptionsHelper.conflictStatusException(
+                Messages.getMessage(Messages.DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE, request.getDatafeedId(), DatafeedState.STARTED)));
+            return;
+        }
+
+        String datafeedId = request.getDatafeedId();
+
+        datafeedConfigProvider.getDatafeedConfig(
+            datafeedId,
+            ActionListener.wrap(
+                datafeedConfigBuilder -> {
+                    String jobId = datafeedConfigBuilder.build().getJobId();
+                    JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
+                    jobDataDeleter.deleteDatafeedTimingStats(
+                        ActionListener.wrap(
+                            unused1 -> {
+                                datafeedConfigProvider.deleteDatafeedConfig(
+                                    datafeedId,
+                                    ActionListener.wrap(
+                                        unused2 -> listener.onResponse(AcknowledgedResponse.TRUE),
+                                        listener::onFailure));
+                            },
+                            listener::onFailure));
+                },
+                listener::onFailure));
+
+    }
+
+    private  PersistentTasksCustomMetadata.PersistentTask<?> getDatafeedTask(ClusterState state, String datafeedId) {
+        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        return MlTasks.getDatafeedTask(datafeedId, tasks);
+    }
+
+    private Map<String, DatafeedConfig> expandClusterStateDatafeeds(
+        String datafeedExpression,
+        boolean allowNoMatch,
+        ClusterState clusterState
+    ) {
+
+        Map<String, DatafeedConfig> configById = new HashMap<>();
+        try {
+            MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
+            Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(datafeedExpression, allowNoMatch);
+
+            for (String expandedDatafeedId : expandedDatafeedIds) {
+                configById.put(expandedDatafeedId, mlMetadata.getDatafeed(expandedDatafeedId));
+            }
+        } catch (Exception e){
+            // ignore
+        }
+
+        return configById;
+    }
+
+    private void handlePrivsResponse(String username,
+                                     PutDatafeedAction.Request request,
+                                     HasPrivilegesResponse response,
+                                     ClusterState clusterState,
+                                     ThreadPool threadPool,
+                                     ActionListener<PutDatafeedAction.Response> listener) throws IOException {
+        if (response.isCompleteMatch()) {
+            putDatafeed(request, threadPool.getThreadContext().getHeaders(), clusterState, listener);
+        } else {
+            XContentBuilder builder = JsonXContent.contentBuilder();
+            builder.startObject();
+            for (ResourcePrivileges index : response.getIndexPrivileges()) {
+                builder.field(index.getResource());
+                builder.map(index.getPrivileges());
+            }
+            builder.endObject();
+
+            listener.onFailure(Exceptions.authorizationError("Cannot create datafeed [{}]" +
+                    " because user {} lacks permissions on the indices: {}",
+                request.getDatafeed().getId(), username, Strings.toString(builder)));
         }
     }
 
-    private String getJobId(TransportStartDatafeedAction.DatafeedTask task) {
-        return runningDatafeedsOnThisNode.get(task.getAllocationId()).getJobId();
-    }
+    private void putDatafeed(PutDatafeedAction.Request request,
+                             Map<String, String> headers,
+                             ClusterState clusterState,
+                             ActionListener<PutDatafeedAction.Response> listener) {
 
-    private JobState getJobState(PersistentTasksCustomMetaData tasks, TransportStartDatafeedAction.DatafeedTask datafeedTask) {
-        return MlTasks.getJobState(getJobId(datafeedTask), tasks);
-    }
+        String datafeedId = request.getDatafeed().getId();
+        String jobId = request.getDatafeed().getJobId();
+        ElasticsearchException validationError = checkConfigsAreNotDefinedInClusterState(datafeedId, jobId);
+        if (validationError != null) {
+            listener.onFailure(validationError);
+            return;
+        }
+        DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations(xContentRegistry));
 
-    private TimeValue computeNextDelay(long next) {
-        return new TimeValue(Math.max(1, next - currentTimeSupplier.get()));
+        CheckedConsumer<Boolean, Exception> mappingsUpdated = ok -> {
+            datafeedConfigProvider.putDatafeedConfig(
+                request.getDatafeed(),
+                headers,
+                ActionListener.wrap(
+                    indexResponse -> listener.onResponse(new PutDatafeedAction.Response(request.getDatafeed())),
+                    listener::onFailure
+                ));
+        };
+
+        CheckedConsumer<Boolean, Exception> validationOk = ok -> {
+            if (clusterState == null) {
+                logger.warn("Cannot update doc mapping because clusterState == null");
+                mappingsUpdated.accept(false);
+                return;
+            }
+            ElasticsearchMappings.addDocMappingIfMissing(
+                MlConfigIndex.indexName(),
+                MlConfigIndex::mapping,
+                client,
+                clusterState,
+                request.masterNodeTimeout(),
+                ActionListener.wrap(mappingsUpdated, listener::onFailure));
+        };
+
+        CheckedConsumer<Boolean, Exception> jobOk = ok ->
+            jobConfigProvider.validateDatafeedJob(request.getDatafeed(), ActionListener.wrap(validationOk, listener::onFailure));
+
+        checkJobDoesNotHaveADatafeed(jobId, ActionListener.wrap(jobOk, listener::onFailure));
     }
 
     /**
-     * Visible for testing
+     * Returns an exception if a datafeed with the same Id is defined in the
+     * cluster state or the job is in the cluster state and already has a datafeed
      */
-    boolean isRunning(long allocationId) {
-        return runningDatafeedsOnThisNode.containsKey(allocationId);
+    @Nullable
+    private ElasticsearchException checkConfigsAreNotDefinedInClusterState(String datafeedId, String jobId) {
+        ClusterState clusterState = clusterService.state();
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
+
+        if (mlMetadata.getDatafeed(datafeedId) != null) {
+            return ExceptionsHelper.datafeedAlreadyExists(datafeedId);
+        }
+
+        if (mlMetadata.getDatafeedByJobId(jobId).isPresent()) {
+            return ExceptionsHelper.conflictStatusException("Cannot create datafeed [" + datafeedId + "] as a " +
+                "job [" + jobId + "] defined in the cluster state references a datafeed with the same Id");
+        }
+
+        return null;
     }
 
-    public class Holder {
-
-        private final TransportStartDatafeedAction.DatafeedTask task;
-        private final long allocationId;
-        private final DatafeedConfig datafeed;
-        // To ensure that we wait until loopback / realtime search has completed before we stop the datafeed
-        private final ReentrantLock datafeedJobLock = new ReentrantLock(true);
-        private final DatafeedJob datafeedJob;
-        private final boolean autoCloseJob;
-        private final ProblemTracker problemTracker;
-        private final Consumer<Exception> handler;
-        volatile Future<?> future;
-        private volatile boolean isRelocating;
-
-        Holder(TransportStartDatafeedAction.DatafeedTask task, DatafeedConfig datafeed, DatafeedJob datafeedJob,
-               ProblemTracker problemTracker, Consumer<Exception> handler) {
-            this.task = task;
-            this.allocationId = task.getAllocationId();
-            this.datafeed = datafeed;
-            this.datafeedJob = datafeedJob;
-            this.autoCloseJob = task.isLookbackOnly();
-            this.problemTracker = problemTracker;
-            this.handler = handler;
-        }
-
-        String getJobId() {
-            return datafeed.getJobId();
-        }
-
-        boolean isRunning() {
-            return datafeedJob.isRunning();
-        }
-
-        boolean isIsolated() {
-            return datafeedJob.isIsolated();
-        }
-
-        public void stop(String source, TimeValue timeout, Exception e) {
-            if (isRelocating) {
-                return;
-            }
-
-            logger.info("[{}] attempt to stop datafeed [{}] for job [{}]", source, datafeed.getId(), datafeed.getJobId());
-            if (datafeedJob.stop()) {
-                boolean acquired = false;
-                try {
-                    logger.info("[{}] try lock [{}] to stop datafeed [{}] for job [{}]...", source, timeout, datafeed.getId(),
-                            datafeed.getJobId());
-                    acquired = datafeedJobLock.tryLock(timeout.millis(), TimeUnit.MILLISECONDS);
-                } catch (InterruptedException e1) {
-                    Thread.currentThread().interrupt();
-                } finally {
-                    logger.info("[{}] stopping datafeed [{}] for job [{}], acquired [{}]...", source, datafeed.getId(),
-                            datafeed.getJobId(), acquired);
-                    runningDatafeedsOnThisNode.remove(allocationId);
-                    FutureUtils.cancel(future);
-                    auditor.info(datafeed.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
-                    handler.accept(e);
-                    logger.info("[{}] datafeed [{}] for job [{}] has been stopped{}", source, datafeed.getId(), datafeed.getJobId(),
-                            acquired ? "" : ", but there may be pending tasks as the timeout [" + timeout.getStringRep() + "] expired");
-                    if (autoCloseJob) {
-                        closeJob();
-                    }
-                    if (acquired) {
-                        datafeedJobLock.unlock();
-                    }
-                }
-            } else {
-                logger.info("[{}] datafeed [{}] for job [{}] was already stopped", source, datafeed.getId(), datafeed.getJobId());
-            }
-        }
-
-        /**
-         * This stops a datafeed WITHOUT updating the corresponding persistent task.  It must ONLY be called
-         * immediately prior to shutting down a node.  Then the datafeed task can remain "started", and be
-         * relocated to a different node.  Calling this method at any other time will ruin the datafeed.
-         */
-        public void isolateDatafeed() {
-            datafeedJob.isolate();
-        }
-
-        public void setRelocating() {
-            isRelocating = true;
-        }
-
-        private Long executeLoopBack(long startTime, Long endTime) throws Exception {
-            datafeedJobLock.lock();
-            try {
-                if (isRunning() && !isIsolated()) {
-                    return datafeedJob.runLookBack(startTime, endTime);
+    private void checkJobDoesNotHaveADatafeed(String jobId, ActionListener<Boolean> listener) {
+        datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
+            datafeedIds -> {
+                if (datafeedIds.isEmpty()) {
+                    listener.onResponse(Boolean.TRUE);
                 } else {
-                    return null;
+                    listener.onFailure(ExceptionsHelper.conflictStatusException("A datafeed [" + datafeedIds.iterator().next()
+                        + "] already exists for job [" + jobId + "]"));
                 }
-            } finally {
-                datafeedJobLock.unlock();
-            }
-        }
-
-        private long executeRealTime() throws Exception {
-            datafeedJobLock.lock();
-            try {
-                if (isRunning() && !isIsolated()) {
-                    return datafeedJob.runRealtime();
-                } else {
-                    return -1L;
-                }
-            } finally {
-                datafeedJobLock.unlock();
-            }
-        }
-
-        private void closeJob() {
-            ClusterState clusterState = clusterService.state();
-            PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            JobState jobState = MlTasks.getJobState(getJobId(), tasks);
-            if (jobState != JobState.OPENED) {
-                logger.debug("[{}] No need to auto-close job as job state is [{}]", getJobId(), jobState);
-                return;
-            }
-
-            task.waitForPersistentTask(Objects::isNull, TimeValue.timeValueSeconds(20),
-                            new WaitForPersistentTaskListener<StartDatafeedAction.DatafeedParams>() {
-                @Override
-                public void onResponse(PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
-                    CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(getJobId());
-                    /*
-                        Enforces that for the close job api call the current node is the coordinating node.
-                        If we are in this callback then the local node's cluster state doesn't contain a persistent task
-                        for the datafeed and therefor the datafeed is stopped, so there is no need for the master node to
-                        be to coordinating node.
-
-                        Normally close job and stop datafeed are both executed via master node and both apis use master
-                        node's local cluster state for validation purposes. In case of auto close this isn't the case and
-                        if the job runs on a regular node then it may see the update before the close job api does in
-                        the master node's local cluster state. This can cause the close job api the fail with a validation
-                        error that the datafeed isn't stopped. To avoid this we use the current node as coordinating node
-                        for the close job api call.
-                    */
-                    closeJobRequest.setLocal(true);
-                    executeAsyncWithOrigin(client, ML_ORIGIN, CloseJobAction.INSTANCE, closeJobRequest,
-                            new ActionListener<CloseJobAction.Response>() {
-
-                                @Override
-                                public void onResponse(CloseJobAction.Response response) {
-                                    if (!response.isClosed()) {
-                                        logger.error("[{}] job close action was not acknowledged", getJobId());
-                                    }
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    // Given that the UI force-deletes the datafeed and then force-deletes the job, it's
-                                    // quite likely that the auto-close here will get interrupted by a process kill request,
-                                    // and it's misleading/worrying to log an error in this case.
-                                    if (e instanceof ElasticsearchStatusException &&
-                                            ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT) {
-                                        logger.debug("[{}] {}", getJobId(), e.getMessage());
-                                    } else {
-                                        logger.error("[" + getJobId() + "] failed to auto-close job", e);
-                                    }
-                                }
-                            });
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("Failed to remove datafeed persistent task - will not auto close job [" + getJobId() + "]", e);
-                }
-            });
-        }
-    }
-
-    private class TaskRunner implements ClusterStateListener {
-
-        private final List<TransportStartDatafeedAction.DatafeedTask> tasksToRun = new CopyOnWriteArrayList<>();
-
-        private void runWhenJobIsOpened(TransportStartDatafeedAction.DatafeedTask datafeedTask) {
-            ClusterState clusterState = clusterService.state();
-            PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            if (getJobState(tasks, datafeedTask) == JobState.OPENED) {
-                runTask(datafeedTask);
-            } else {
-                logger.info("Datafeed [{}] is waiting for job [{}] to be opened",
-                        datafeedTask.getDatafeedId(), getJobId(datafeedTask));
-                tasksToRun.add(datafeedTask);
-            }
-        }
-
-        private void runTask(TransportStartDatafeedAction.DatafeedTask task) {
-            // This clearing of the thread context is not strictly necessary.  Every action performed by the
-            // datafeed _should_ be done using the MlClientHelper, which will set the appropriate thread
-            // context.  However, by clearing the thread context here if anyone forgets to use MlClientHelper
-            // somewhere else in the datafeed code then it should cause a failure in the same way in single
-            // and multi node clusters.  If we didn't clear the thread context here then there's a risk that
-            // a context with sufficient permissions would coincidentally be in force in some single node
-            // tests, leading to bugs not caught in CI due to many tests running in single node test clusters.
-            try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-                innerRun(runningDatafeedsOnThisNode.get(task.getAllocationId()), task.getDatafeedStartTime(), task.getEndTime());
-            }
-        }
-
-        @Override
-        public void clusterChanged(ClusterChangedEvent event) {
-            if (tasksToRun.isEmpty() || event.metaDataChanged() == false) {
-                return;
-            }
-            PersistentTasksCustomMetaData previousTasks = event.previousState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            PersistentTasksCustomMetaData currentTasks = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            if (Objects.equals(previousTasks, currentTasks)) {
-                return;
-            }
-
-            List<TransportStartDatafeedAction.DatafeedTask> remainingTasks = new ArrayList<>();
-            for (TransportStartDatafeedAction.DatafeedTask datafeedTask : tasksToRun) {
-                if (runningDatafeedsOnThisNode.containsKey(datafeedTask.getAllocationId()) == false) {
-                    continue;
-                }
-                JobState jobState = getJobState(currentTasks, datafeedTask);
-                if (jobState == JobState.OPENED) {
-                    runTask(datafeedTask);
-                } else if (jobState == JobState.OPENING) {
-                    remainingTasks.add(datafeedTask);
-                } else {
-                    logger.warn("Datafeed [{}] is stopping because job [{}] state is [{}]",
-                            datafeedTask.getDatafeedId(), getJobId(datafeedTask), jobState);
-                    datafeedTask.stop("job_never_opened", TimeValue.timeValueSeconds(20));
-                }
-            }
-            tasksToRun.retainAll(remainingTasks);
-        }
+            },
+            listener::onFailure
+        ));
     }
 }

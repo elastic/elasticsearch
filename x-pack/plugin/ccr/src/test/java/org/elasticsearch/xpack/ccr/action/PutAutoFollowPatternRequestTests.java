@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
@@ -43,44 +43,37 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
     protected PutAutoFollowPatternAction.Request createTestInstance() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName(randomAlphaOfLength(4));
+
         request.setRemoteCluster(randomAlphaOfLength(4));
         request.setLeaderIndexPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
         if (randomBoolean()) {
             request.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }
         if (randomBoolean()) {
-            request.setReadPollTimeout(TimeValue.timeValueMillis(500));
+            request.setLeaderIndexExclusionPatterns(
+                Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 20), false))
+            );
+        }
+        ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
+        return request;
+    }
+
+    @Override
+    protected PutAutoFollowPatternAction.Request createXContextTestInstance(XContentType xContentType) {
+        // follower index parameter is not part of the request body and is provided in the url path.
+        // So this field cannot be used for creating a test instance for xcontent testing.
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setRemoteCluster(randomAlphaOfLength(4));
+        request.setLeaderIndexPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
+        if (randomBoolean()) {
+            request.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }
         if (randomBoolean()) {
-            request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
+            request.setLeaderIndexExclusionPatterns(
+                Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 20), false))
+            );
         }
-        if (randomBoolean()) {
-            request.setMaxWriteRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
-        }
-        if (randomBoolean()) {
-            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong()));
-        }
-        if (randomBoolean()) {
-            request.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
-        }
-        if (randomBoolean()) {
-            request.setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
-        }
-        if (randomBoolean()) {
-            request.setMaxConcurrentReadBatches(randomIntBetween(0, Integer.MAX_VALUE));
-        }
-        if (randomBoolean()) {
-            request.setMaxConcurrentWriteBatches(randomIntBetween(0, Integer.MAX_VALUE));
-        }
-        if (randomBoolean()) {
-            request.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
-        }
-        if (randomBoolean()) {
-            request.setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));
-        }
-        if (randomBoolean()) {
-            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong()));
-        }
+        ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
         return request;
     }
 
@@ -109,17 +102,17 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         validationException = request.validate();
         assertThat(validationException, nullValue());
 
-        request.setMaxRetryDelay(TimeValue.ZERO);
+        request.getParameters().setMaxRetryDelay(TimeValue.ZERO);
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be positive but was [0ms]"));
 
-        request.setMaxRetryDelay(TimeValue.timeValueMinutes(10));
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMinutes(10));
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be less than [5m] but was [10m]"));
 
-        request.setMaxRetryDelay(TimeValue.timeValueMinutes(1));
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMinutes(1));
         validationException = request.validate();
         assertThat(validationException, nullValue());
     }

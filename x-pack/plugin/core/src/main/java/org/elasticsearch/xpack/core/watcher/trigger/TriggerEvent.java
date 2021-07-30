@@ -1,35 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.trigger;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
 public abstract class TriggerEvent implements ToXContentObject {
 
     private final String jobName;
-    protected final DateTime triggeredTime;
+    protected final ZonedDateTime triggeredTime;
     protected final Map<String, Object> data;
 
-    public TriggerEvent(String jobName, DateTime triggeredTime) {
+    public TriggerEvent(String jobName, ZonedDateTime triggeredTime) {
         this.jobName = jobName;
         this.triggeredTime = triggeredTime;
         this.data = new HashMap<>();
         data.put(Field.TRIGGERED_TIME.getPreferredName(),
-            new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(triggeredTime.getMillis()), ZoneOffset.UTC));
+            new JodaCompatibleZonedDateTime(triggeredTime.toInstant(), ZoneOffset.UTC));
     }
 
     public String jobName() {
@@ -38,7 +38,7 @@ public abstract class TriggerEvent implements ToXContentObject {
 
     public abstract String type();
 
-    public DateTime triggeredTime() {
+    public ZonedDateTime triggeredTime() {
         return triggeredTime;
     }
 

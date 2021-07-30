@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.nio;
 
 import io.netty.buffer.ByteBuf;
-import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.Page;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;
@@ -32,12 +21,12 @@ public class PagedByteBufTests extends ESTestCase {
     public void testReleasingPage() {
         AtomicInteger integer = new AtomicInteger(0);
         int pageCount = randomInt(10) + 1;
-        ArrayList<InboundChannelBuffer.Page> pages = new ArrayList<>();
+        ArrayList<Page> pages = new ArrayList<>();
         for (int i = 0; i < pageCount; ++i) {
-            pages.add(new InboundChannelBuffer.Page(ByteBuffer.allocate(10), integer::incrementAndGet));
+            pages.add(new Page(ByteBuffer.allocate(10), integer::incrementAndGet));
         }
 
-        ByteBuf byteBuf = PagedByteBuf.byteBufFromPages(pages.toArray(new InboundChannelBuffer.Page[0]));
+        ByteBuf byteBuf = PagedByteBuf.byteBufFromPages(pages.toArray(new Page[0]));
 
         assertEquals(0, integer.get());
         byteBuf.retain();
@@ -62,9 +51,9 @@ public class PagedByteBufTests extends ESTestCase {
             bytes2[i - 10] = (byte) i;
         }
 
-        InboundChannelBuffer.Page[] pages = new InboundChannelBuffer.Page[2];
-        pages[0] = new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes1), () -> {});
-        pages[1] = new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes2), () -> {});
+        Page[] pages = new Page[2];
+        pages[0] = new Page(ByteBuffer.wrap(bytes1), () -> {});
+        pages[1] = new Page(ByteBuffer.wrap(bytes2), () -> {});
 
         ByteBuf byteBuf = PagedByteBuf.byteBufFromPages(pages);
         assertEquals(20, byteBuf.readableBytes());
@@ -73,13 +62,13 @@ public class PagedByteBufTests extends ESTestCase {
             assertEquals((byte) i, byteBuf.getByte(i));
         }
 
-        InboundChannelBuffer.Page[] pages2 = new InboundChannelBuffer.Page[2];
+        Page[] pages2 = new Page[2];
         ByteBuffer firstBuffer = ByteBuffer.wrap(bytes1);
         firstBuffer.position(2);
         ByteBuffer secondBuffer = ByteBuffer.wrap(bytes2);
         secondBuffer.limit(8);
-        pages2[0] = new InboundChannelBuffer.Page(firstBuffer, () -> {});
-        pages2[1] = new InboundChannelBuffer.Page(secondBuffer, () -> {});
+        pages2[0] = new Page(firstBuffer, () -> {});
+        pages2[1] = new Page(secondBuffer, () -> {});
 
         ByteBuf byteBuf2 = PagedByteBuf.byteBufFromPages(pages2);
         assertEquals(16, byteBuf2.readableBytes());

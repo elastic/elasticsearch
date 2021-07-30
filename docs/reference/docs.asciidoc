@@ -1,11 +1,9 @@
 [[docs]]
-= Document APIs
+== Document APIs
 
-[partintro]
---
-
-This section starts with a short introduction to Elasticsearch's <<docs-replication,data replication model>>, followed by a
-detailed description of the following CRUD APIs:
+This section starts with a short introduction to {es}'s <<docs-replication,data
+replication model>>, followed by a detailed description of the following CRUD
+APIs:
 
 .Single document APIs
 * <<docs-index_>>
@@ -19,11 +17,6 @@ detailed description of the following CRUD APIs:
 * <<docs-delete-by-query>>
 * <<docs-update-by-query>>
 * <<docs-reindex>>
-
-NOTE: All CRUD APIs are single-index APIs. The `index` parameter accepts a single
-index name, or an `alias` which points to a single index.
-
---
 
 include::docs/data-replication.asciidoc[]
 
@@ -50,3 +43,5 @@ include::docs/termvectors.asciidoc[]
 include::docs/multi-termvectors.asciidoc[]
 
 include::docs/refresh.asciidoc[]
+
+include::docs/concurrency-control.asciidoc[]

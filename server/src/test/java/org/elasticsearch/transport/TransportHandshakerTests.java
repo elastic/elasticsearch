@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -23,18 +12,16 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -46,7 +33,6 @@ public class TransportHandshakerTests extends ESTestCase {
     private TcpChannel channel;
     private TestThreadPool threadPool;
     private TransportHandshaker.HandshakeRequestSender requestSender;
-    private TransportHandshaker.HandshakeResponseSender responseSender;
 
     @Override
     public void setUp() throws Exception {
@@ -54,11 +40,10 @@ public class TransportHandshakerTests extends ESTestCase {
         String nodeId = "node-id";
         channel = mock(TcpChannel.class);
         requestSender = mock(TransportHandshaker.HandshakeRequestSender.class);
-        responseSender = mock(TransportHandshaker.HandshakeResponseSender.class);
         node = new DiscoveryNode(nodeId, nodeId, nodeId, "host", "host_address", buildNewFakeTransportAddress(), Collections.emptyMap(),
             Collections.emptySet(), Version.CURRENT);
         threadPool = new TestThreadPool("thread-poll");
-        handshaker = new TransportHandshaker(Version.CURRENT, threadPool, requestSender, responseSender);
+        handshaker = new TransportHandshaker(Version.CURRENT, threadPool, requestSender);
     }
 
     @Override
@@ -76,20 +61,16 @@ public class TransportHandshakerTests extends ESTestCase {
 
         assertFalse(versionFuture.isDone());
 
-        TcpChannel mockChannel = mock(TcpChannel.class);
         TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(Version.CURRENT);
         BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
         handshakeRequest.writeTo(bytesStreamOutput);
         StreamInput input = bytesStreamOutput.bytes().streamInput();
-        handshaker.handleHandshake(Version.CURRENT, Collections.emptySet(), mockChannel, reqId, input);
-
-
-        ArgumentCaptor<TransportResponse> responseCaptor = ArgumentCaptor.forClass(TransportResponse.class);
-        verify(responseSender).sendResponse(eq(Version.CURRENT), eq(Collections.emptySet()), eq(mockChannel), responseCaptor.capture(),
-            eq(reqId));
+        final PlainActionFuture<TransportResponse> responseFuture = PlainActionFuture.newFuture();
+        final TestTransportChannel channel = new TestTransportChannel(responseFuture);
+        handshaker.handleHandshake(channel, reqId, input);
 
         TransportResponseHandler<TransportHandshaker.HandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
-        handler.handleResponse((TransportHandshaker.HandshakeResponse) responseCaptor.getValue());
+        handler.handleResponse((TransportHandshaker.HandshakeResponse) responseFuture.actionGet());
 
         assertTrue(versionFuture.isDone());
         assertEquals(Version.CURRENT, versionFuture.actionGet());
@@ -101,7 +82,6 @@ public class TransportHandshakerTests extends ESTestCase {
 
         verify(requestSender).sendRequest(node, channel, reqId, Version.CURRENT.minimumCompatibilityVersion());
 
-        TcpChannel mockChannel = mock(TcpChannel.class);
         TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(Version.CURRENT);
         BytesStreamOutput currentHandshakeBytes = new BytesStreamOutput();
         handshakeRequest.writeTo(currentHandshakeBytes);
@@ -121,15 +101,12 @@ public class TransportHandshakerTests extends ESTestCase {
         // Otherwise, we need to update the test.
         assertEquals(currentHandshakeBytes.bytes().length(), lengthCheckingHandshake.bytes().length());
         assertEquals(1031, futureHandshakeStream.available());
-        handshaker.handleHandshake(Version.CURRENT, Collections.emptySet(), mockChannel, reqId, futureHandshakeStream);
+        final PlainActionFuture<TransportResponse> responseFuture = PlainActionFuture.newFuture();
+        final TestTransportChannel channel = new TestTransportChannel(responseFuture);
+        handshaker.handleHandshake(channel, reqId, futureHandshakeStream);
         assertEquals(0, futureHandshakeStream.available());
 
-
-        ArgumentCaptor<TransportResponse> responseCaptor = ArgumentCaptor.forClass(TransportResponse.class);
-        verify(responseSender).sendResponse(eq(Version.CURRENT), eq(Collections.emptySet()), eq(mockChannel), responseCaptor.capture(),
-            eq(reqId));
-
-        TransportHandshaker.HandshakeResponse response = (TransportHandshaker.HandshakeResponse) responseCaptor.getValue();
+        TransportHandshaker.HandshakeResponse response = (TransportHandshaker.HandshakeResponse) responseFuture.actionGet();
 
         assertEquals(Version.CURRENT, response.getResponseVersion());
     }

@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -29,6 +30,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -51,11 +53,11 @@ public class TestUtils {
     private static final DateMathParser dateMathParser = formatDateTimeFormatter.toDateMathParser();
 
     public static String dateMathString(String time, final long now) {
-        return formatDateTimeFormatter.formatMillis(dateMathParser.parse(time, () -> now));
+        return formatDateTimeFormatter.format(dateMathParser.parse(time, () -> now).atZone(ZoneOffset.UTC));
     }
 
     public static long dateMath(String time, final long now) {
-        return dateMathParser.parse(time, () -> now);
+        return dateMathParser.parse(time, () -> now).toEpochMilli();
     }
 
     public static LicenseSpec generateRandomLicenseSpec(int version) {
@@ -281,6 +283,11 @@ public class TestUtils {
             builder.subscriptionType((type != null) ? type : randomFrom("dev", "gold", "platinum", "silver"));
             builder.feature(randomAlphaOfLength(10));
         }
+        if ("enterprise".equals(licenseType)) {
+            builder.version(License.VERSION_ENTERPRISE)
+                .maxResourceUnits(randomIntBetween(5, 500))
+                .maxNodes(-1);
+        }
         final LicenseSigner signer = new LicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
         return signer.sign(builder.build());
     }
@@ -354,21 +361,23 @@ public class TestUtils {
         public final List<License.OperationMode> modeUpdates = new ArrayList<>();
         public final List<Boolean> activeUpdates = new ArrayList<>();
         public final List<Version> trialVersionUpdates = new ArrayList<>();
+        public final List<Long> expirationDateUpdates = new ArrayList<>();
 
         public AssertingLicenseState() {
-            super(Settings.EMPTY);
+            super(Settings.EMPTY, () -> 0);
         }
 
         @Override
-        void update(License.OperationMode mode, boolean active, Version mostRecentTrialVersion) {
+        void update(License.OperationMode mode, boolean active, long expirationDate, Version mostRecentTrialVersion) {
             modeUpdates.add(mode);
             activeUpdates.add(active);
+            expirationDateUpdates.add(expirationDate);
             trialVersionUpdates.add(mostRecentTrialVersion);
         }
     }
 
     /**
-     * A license state that makes the {@link #update(License.OperationMode, boolean, Version)}
+     * A license state that makes the {@link #update(License.OperationMode, boolean, long, Version)}
      * method public for use in tests.
      */
     public static class UpdatableLicenseState extends XPackLicenseState {
@@ -377,16 +386,20 @@ public class TestUtils {
         }
 
         public UpdatableLicenseState(Settings settings) {
-            super(settings);
+            super(settings, () -> 0);
         }
 
         @Override
-        public void update(License.OperationMode mode, boolean active, Version mostRecentTrialVersion) {
-            super.update(mode, active, mostRecentTrialVersion);
+        public void update(License.OperationMode mode, boolean active, long expirationDate, Version mostRecentTrialVersion) {
+            super.update(mode, active, expirationDate, mostRecentTrialVersion);
         }
     }
 
-    public static void putLicense(MetaData.Builder builder, License license) {
-        builder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license, null));
+    public static XPackLicenseState newTestLicenseState() {
+        return new XPackLicenseState(Settings.EMPTY, () -> 0);
+    }
+
+    public static void putLicense(Metadata.Builder builder, License license) {
+        builder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support;
@@ -24,6 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
@@ -33,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -65,7 +57,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testActionFiltersRequest() throws ExecutionException, InterruptedException {
+    public void testActionFiltersRequest() throws InterruptedException {
         int numFilters = randomInt(10);
         Set<Integer> orders = new HashSet<>(numFilters);
         while (orders.size() < numFilters) {
@@ -99,14 +91,14 @@ public class TransportActionFilterChainTests extends ESTestCase {
             if (testFilter.callback == RequestOperation.LISTENER_FAILURE) {
                 errorExpected = true;
             }
-            if (!(testFilter.callback == RequestOperation.CONTINUE_PROCESSING) ) {
+            if (testFilter.callback != RequestOperation.CONTINUE_PROCESSING) {
                 break;
             }
         }
 
         PlainActionFuture<TestResponse> future = PlainActionFuture.newFuture();
 
-        transportAction.execute(new TestRequest(), future);
+        ActionTestUtils.execute(transportAction, null, new TestRequest(), future);
         try {
             assertThat(future.get(), notNullValue());
             assertThat("shouldn't get here if an error is expected", errorExpected, equalTo(false));
@@ -125,7 +117,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         for (ActionFilter filter : testFiltersByLastExecution) {
             RequestTestFilter testFilter = (RequestTestFilter) filter;
             finalTestFilters.add(testFilter);
-            if (!(testFilter.callback == RequestOperation.CONTINUE_PROCESSING) ) {
+            if (testFilter.callback != RequestOperation.CONTINUE_PROCESSING) {
                 break;
             }
         }
@@ -139,7 +131,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         }
     }
 
-    public void testTooManyContinueProcessingRequest() throws ExecutionException, InterruptedException {
+    public void testTooManyContinueProcessingRequest() throws InterruptedException {
         final int additionalContinueCount = randomInt(10);
 
         RequestTestFilter testFilter = new RequestTestFilter(randomInt(), new RequestCallback() {
@@ -169,21 +161,19 @@ public class TransportActionFilterChainTests extends ESTestCase {
         final AtomicInteger responses = new AtomicInteger();
         final List<Throwable> failures = new CopyOnWriteArrayList<>();
 
-        transportAction.execute(new TestRequest(), new ActionListener<TestResponse>() {
+        ActionTestUtils.execute(transportAction, null, new TestRequest(), new LatchedActionListener<>(new ActionListener<>() {
             @Override
             public void onResponse(TestResponse testResponse) {
                 responses.incrementAndGet();
-                latch.countDown();
             }
 
             @Override
             public void onFailure(Exception e) {
                 failures.add(e);
-                latch.countDown();
             }
-        });
+        }, latch));
 
-        if (!latch.await(10, TimeUnit.SECONDS)) {
+        if (latch.await(10, TimeUnit.SECONDS) == false) {
             fail("timeout waiting for the filter to notify the listener as many times as expected");
         }
 
@@ -262,6 +252,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
     }
 
     private static class TestResponse extends ActionResponse {
-
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

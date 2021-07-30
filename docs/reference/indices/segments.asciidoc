@@ -1,41 +1,145 @@
 [[indices-segments]]
-== Indices Segments
+=== Index segments API
+++++
+<titleabbrev>Index segments</titleabbrev>
+++++
 
-Provide low level segments information that a Lucene index (shard level)
-is built with. Allows to be used to provide more information on the
-state of a shard and an index, possibly optimization information, data
-"wasted" on deletes, and so on.
+Returns low-level information about the https://lucene.apache.org/core/[Lucene]
+segments in index shards. For data streams, the API returns information about
+the stream's backing indices.
 
-Endpoints include segments for a specific index:
+[source,console]
+----
+GET /my-index-000001/_segments
+----
+// TEST[setup:my_index]
 
-[source,js]
+
+[[index-segments-api-request]]
+==== {api-request-title}
+
+`GET /<target>/_segments`
+
+`GET /_segments`
+
+[[index-segments-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-indices,index privilege>> for the target data stream,
+index, or alias.
+
+[[index-segments-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
+
+[[index-segments-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+`verbose`::
+experimental:[]
+(Optional, Boolean)
+If `true`, the response includes detailed information
+about Lucene's memory usage.
+Defaults to `false`.
+
+
+[[index-segments-api-response-body]]
+==== {api-response-body-title}
+
+`<segment>`::
+(String)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment]
+
+`generation`::
+(Integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=generation]
+
+`num_docs`::
+(Integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
+
+`deleted_docs`::
+(Integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+
+`size_in_bytes`::
+(Integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-size]
+
+`memory_in_bytes`::
+(Integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=memory]
+
+`committed`::
+(Boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=committed]
+
+`search`::
+(Boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-search]
+
+`version`::
+(String)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-version]
+
+`compound`::
+(Boolean)
+If `true`, Lucene merged all files from the segment
+into a single file to save file descriptors.
+
+`attributes`::
+(Object)
+Contains information about whether high compression was enabled.
+
+
+[[index-segments-api-example]]
+==== {api-examples-title}
+
+
+===== Get segment information for a specific data stream or index
+
+[source,console]
 --------------------------------------------------
 GET /test/_segments
 --------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT test\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST test\/test\?refresh\n{"test": "test"}\n/]
-// TESTSETUP
+// TEST[s/^/PUT test\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST test\/_doc\?refresh\n{"test": "test"}\n/]
 
-For several indices:
 
-[source,js]
+===== Get segment information for several data streams and indices
+
+[source,console]
 --------------------------------------------------
 GET /test1,test2/_segments
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT test1\nPUT test2\n/]
 
-Or for all indices:
 
-[source,js]
+===== Get segment information for all data streams and indices in a cluster
+
+[source,console]
 --------------------------------------------------
 GET /_segments
 --------------------------------------------------
-// CONSOLE
+// TEST[s/^/PUT test\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST test\/_doc\?refresh\n{"test": "test"}\n/]
 
-Response:
+The API returns the following response:
 
-[source,js]
+[source,console-response]
 --------------------------------------------------
 {
   "_shards": ...
@@ -57,7 +161,7 @@ Response:
                 "num_docs": 1,
                 "deleted_docs": 0,
                 "size_in_bytes": 3800,
-                "memory_in_bytes": 1410,
+                "memory_in_bytes": 0,
                 "committed": false,
                 "search": true,
                 "version": "7.0.0",
@@ -79,85 +183,46 @@ Response:
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/7\.0\.0/$body.$_path/]
 
-_0::         The key of the JSON document is the name of the segment. This name
-             is used to generate file names: all files starting with this
-             segment name in the directory of the shard belong to this segment.
 
-generation:: A generation number that is basically incremented when needing to
-             write a new segment. The segment name is derived from this
-             generation number.
+===== Verbose mode
 
-num_docs::   The number of non-deleted documents that are stored in this segment.
+To add additional information that can be used for debugging,
+use the `verbose` flag.
 
-deleted_docs:: The number of deleted documents that are stored in this segment.
-             It is perfectly fine if this number is greater than 0, space is
-             going to be reclaimed when this segment gets merged.
+experimental::[]
 
-size_in_bytes:: The amount of disk space that this segment uses, in bytes.
-
-memory_in_bytes:: Segments need to store some data into memory in order to be
-             searchable efficiently. This number returns the number of bytes
-             that are used for that purpose. A value of -1 indicates that
-             Elasticsearch was not able to compute this number.
-
-committed::  Whether the segment has been sync'ed on disk. Segments that are
-             committed would survive a hard reboot. No need to worry in case
-             of false, the data from uncommitted segments is also stored in
-             the transaction log so that Elasticsearch is able to replay
-             changes on the next start.
-
-search::     Whether the segment is searchable. A value of false would most
-             likely mean that the segment has been written to disk but no
-             refresh occurred since then to make it searchable.
-
-version::    The version of Lucene that has been used to write this segment.
-
-compound::   Whether the segment is stored in a compound file. When true, this
-             means that Lucene merged all files from the segment in a single
-             one in order to save file descriptors.
-
-attributes:: Contains information about whether high compression was enabled
-
-[float]
-=== Verbose mode
-
-To add additional information that can be used for debugging, use the `verbose` flag.
-
-NOTE: The format of the additional detail information is labelled as experimental in Lucene and it may change in the future.
-
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /test/_segments?verbose=true
 --------------------------------------------------
-// CONSOLE
+// TEST[continued]
 
-Response:
+The API returns the following response:
 
-[source,js]
+[source,console-response]
 --------------------------------------------------
 {
-    ...
-        "_0": {
+  ...
+    "_0": {
+      ...
+      "ram_tree": [
+        {
+          "description": "postings [PerFieldPostings(format=1)]",
+          "size_in_bytes": 2696,
+          "children": [
+            {
+              "description": "format 'Lucene50_0' ...",
+              "size_in_bytes": 2608,
+              "children" :[ ... ]
+            },
             ...
-            "ram_tree": [
-                {
-                    "description": "postings [PerFieldPostings(format=1)]",
-                    "size_in_bytes": 2696,
-                    "children": [
-                        {
-                            "description": "format 'Lucene50_0' ...",
-                            "size_in_bytes": 2608,
-                            "children" :[ ... ]
-                        },
-                        ...
-                    ]
-                },
-                ...
-                ]
+          ]
+        },
+        ...
+      ]
 
-        }
-    ...
+    }
+  ...
 }
 --------------------------------------------------
-// NOTCONSOLE
-//Response is too verbose to be fully shown in documentation, so we just show the relevant bit and don't test the response.
+// TESTRESPONSE[skip:Response is too verbose to be fully shown in documentation, so we just show the relevant bit and don't test the response.]

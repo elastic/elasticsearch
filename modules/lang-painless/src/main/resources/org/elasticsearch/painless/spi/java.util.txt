@@ -1,20 +1,9 @@
 #
-# Licensed to Elasticsearch under one or more contributor
-# license agreements. See the NOTICE file distributed with
-# this work for additional information regarding copyright
-# ownership. Elasticsearch licenses this file to you under
-# the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
 #
 
 #
@@ -126,6 +115,8 @@ class java.util.List {
   int org.elasticsearch.painless.api.Augmentation getLength()
   void sort(Comparator)
   List subList(int,int)
+  Object org.elasticsearch.painless.api.Augmentation getByPath(String)
+  Object org.elasticsearch.painless.api.Augmentation getByPath(String, Object)
 }
 
 class java.util.ListIterator {
@@ -161,6 +152,8 @@ class java.util.Map {
   void replaceAll(BiFunction)
   int size()
   Collection values()
+  Object org.elasticsearch.painless.api.Augmentation getByPath(String)
+  Object org.elasticsearch.painless.api.Augmentation getByPath(String, Object)
 
   # some adaptations of groovy methods
   List org.elasticsearch.painless.api.Augmentation collect(BiFunction)
@@ -486,9 +479,9 @@ class java.util.Calendar {
   Map getDisplayNames(int,int,Locale)
   int getFirstDayOfWeek()
   int getGreatestMinimum(int)
-  Calendar getInstance()
-  Calendar getInstance(TimeZone)
-  Calendar getInstance(TimeZone,Locale)
+  Calendar getInstance() @nondeterministic
+  Calendar getInstance(TimeZone) @nondeterministic
+  Calendar getInstance(TimeZone,Locale) @nondeterministic
   int getLeastMaximum(int)
   int getMaximum(int)
   int getMinimalDaysInFirstWeek()
@@ -570,7 +563,7 @@ class java.util.Collections {
   Comparator reverseOrder()
   Comparator reverseOrder(Comparator)
   void rotate(List,int)
-  void shuffle(List)
+  void shuffle(List) @nondeterministic
   void shuffle(List,Random)
   Set singleton(def)
   List singletonList(def)
@@ -601,7 +594,7 @@ class java.util.Currency {
 }
 
 class java.util.Date {
-  ()
+  () @nondeterministic
   (long)
   boolean after(Date)
   boolean before(Date)
@@ -906,22 +899,22 @@ class java.util.PriorityQueue {
 }
 
 class java.util.Random {
-  ()
+  () @nondeterministic
   (long)
-  DoubleStream doubles(long)
-  DoubleStream doubles(long,double,double)
-  IntStream ints(long)
-  IntStream ints(long,int,int)
-  LongStream longs(long)
-  LongStream longs(long,long,long)
-  boolean nextBoolean()
-  void nextBytes(byte[])
-  double nextDouble()
-  float nextFloat()
-  double nextGaussian()
-  int nextInt()
-  int nextInt(int)
-  long nextLong()
+  DoubleStream doubles(long) @nondeterministic
+  DoubleStream doubles(long,double,double) @nondeterministic
+  IntStream ints(long) @nondeterministic
+  IntStream ints(long,int,int) @nondeterministic
+  LongStream longs(long) @nondeterministic
+  LongStream longs(long,long,long) @nondeterministic
+  boolean nextBoolean() @nondeterministic
+  void nextBytes(byte[]) @nondeterministic
+  double nextDouble() @nondeterministic
+  float nextFloat() @nondeterministic
+  double nextGaussian() @nondeterministic
+  int nextInt() @nondeterministic
+  int nextInt(int) @nondeterministic
+  long nextLong() @nondeterministic
   void setSeed(long)
 }
 
@@ -1027,6 +1020,7 @@ class java.util.UUID {
   UUID fromString(String)
   long getLeastSignificantBits()
   long getMostSignificantBits()
+  UUID randomUUID() @nondeterministic
   UUID nameUUIDFromBytes(byte[])
   long node()
   long timestamp()

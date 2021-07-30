@@ -1,13 +1,5 @@
-[role="xpack"]
-[[configuring-ldap-realm]]
-=== Configuring an LDAP realm
-
-You can configure {es} to authenticate users by communicating with a Lightweight
-Directory Access Protocol (LDAP) server. To integrate with LDAP, you configure
-an `ldap` realm and map LDAP groups to user roles.
-
-For more information about LDAP realms, see 
-{stack-ov}/ldap-realm.html[LDAP User Authentication].
+To integrate with LDAP, you configure an `ldap` realm and map LDAP groups to
+user roles.
 
 . Determine which mode you want to use. The `ldap` realm supports two modes of 
 operation, a user search mode and a mode with specific templates for user DNs. 
@@ -27,13 +19,11 @@ However, multiple bind operations might be needed to find the correct user DN.
 
 . To configure an `ldap` realm with user search:
 
-.. Add a realm configuration of to `elasticsearch.yml` under the
+.. Add a realm configuration to `elasticsearch.yml` under the
 `xpack.security.authc.realms.ldap` namespace. At a minimum, you must specify
-the `url` of the LDAP server, and set `user_search.base_dn` to the container DN
-where the users are searched for.
-If you are configuring multiple realms, you should also explicitly set the
-`order` attribute to control the order in which the realms are consulted during 
-authentication. See <<ref-ldap-settings>> for all of the options you can set for 
+the `url` and `order` of the LDAP server, and set `user_search.base_dn` to the
+container DN where the users are searched for.
+See <<ref-ldap-settings>> for all of the options you can set for 
 an `ldap` realm.
 +
 --
@@ -80,10 +70,8 @@ realms you specify are used for authentication. If you also want to use the
 
 .. Add a realm configuration to `elasticsearch.yml` in the
 `xpack.security.authc.realms.ldap` namespace. At a minimum, you must specify
-the `url` of the LDAP server, and specify at least one template with the
-`user_dn_templates` option. If you are configuring multiple realms, you should
-also explicitly set the `order` attribute to control the order in which the
-realms are consulted during authentication.
+the `url` and `order` of the LDAP server, and specify at least one template
+with the `user_dn_templates` option.
 See <<ref-ldap-settings>> for all of the options you can set for an `ldap` realm.
 +
 --
@@ -132,9 +120,9 @@ See <<ref-ldap-settings>>.
 . Map LDAP groups to roles. 
 +
 --
-The `ldap` realm enables you to map LDAP users to to roles via their LDAP
+The `ldap` realm enables you to map LDAP users to roles via their LDAP
 groups, or other metadata. This role mapping can be configured via the
-{ref}/security-api-put-role-mapping.html[add role mapping API] or by using a file stored
+<<security-api-put-role-mapping,add role mapping API>> or by using a file stored
 on each node. When a user authenticates with LDAP, the privileges
 for that user are the union of all privileges defined by the roles to which
 the user is mapped.
@@ -145,7 +133,8 @@ names. For example, the following mapping configuration maps the LDAP
 `users` group to the `user` role.
 
 Configured via the role-mapping API:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/admins
 {
@@ -156,10 +145,10 @@ PUT /_security/role_mapping/admins
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The LDAP distinguished name (DN) of the `admins` group.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/basic_users
 {
@@ -170,7 +159,7 @@ PUT /_security/role_mapping/basic_users
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The LDAP distinguished name (DN) of the `users` group.
 
 Or, alternatively, configured via the role-mapping file:
@@ -187,12 +176,10 @@ user:
 <3> The LDAP distinguished name (DN) of the `users` group.
 
 For more information, see 
-{stack-ov}/ldap-realm.html#mapping-roles-ldap[Mapping LDAP Groups to Roles] 
-and 
-{stack-ov}/mapping-roles.html[Mapping Users and Groups to Roles].
+<<mapping-roles-ldap>> and <<mapping-roles>>.
 
 NOTE: The LDAP realm supports
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an
+<<authorization_realms,authorization realms>> as an
 alternative to role mapping.
 
 --
@@ -203,7 +190,7 @@ fields in the user's metadata.
 --
 By default, `ldap_dn` and `ldap_groups` are populated in the user's metadata. 
 For more information, see 
-{stack-ov}/ldap-realm.html#ldap-user-metadata[User Metadata in LDAP Realms]. 
+<<ldap-user-metadata>>. 
 
 The example below includes the user's common name (`cn`) as an additional
 field in their metadata.
@@ -215,6 +202,9 @@ xpack:
       realms:
         ldap:
           ldap1:
+            order: 0
             metadata: cn
 --------------------------------------------------
 --
+
+. Set up SSL to encrypt communications between {es} and LDAP. See <<tls-ldap>>. 

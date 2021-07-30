@@ -5,12 +5,12 @@
 --
 
 [id="{upid}-{api}"]
-=== Indices Exists API
+=== Index Exists API
 
 [id="{upid}-{api}-request"]
-==== Indices Exists Request
+==== Index Exists Request
 
-The high-level REST client uses a +{request}+ for Indices Exists API. The index name (or indices' names) are required.
+The high-level REST client uses a +{request}+ for Index Exists API. The index name (or indices' names) are required.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -20,7 +20,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 
 [[java-rest-high-indices-exists-optional-args]]
 ==== Optional arguments
-Indices Exists API also accepts following optional arguments, through a +{request}+:
+Index exists API also accepts following optional arguments, through a +{request}+:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

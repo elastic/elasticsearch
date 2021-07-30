@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index;
@@ -24,17 +13,23 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Holds all the information that is used to build the sort order of an index.
@@ -56,6 +51,9 @@ import java.util.function.Function;
  *
 **/
 public final class IndexSortConfig {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndexSortConfig.class);
+
     /**
      * The list of field names
      */
@@ -112,22 +110,17 @@ public final class IndexSortConfig {
 
     // visible for tests
     final FieldSortSpec[] sortSpecs;
+    private final Version indexCreatedVersion;
+    private final String indexName;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
+        this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
+        this.indexName = indexSettings.getIndex().getName();
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
         this.sortSpecs = fields.stream()
             .map((name) -> new FieldSortSpec(name))
             .toArray(FieldSortSpec[]::new);
-
-        if (sortSpecs.length > 0 && indexSettings.getIndexVersionCreated().before(Version.V_6_0_0_alpha1)) {
-            /**
-             * This index might be assigned to a node where the index sorting feature is not available
-             * (ie. versions prior to {@link Version.V_6_0_0_alpha1_UNRELEASED}) so we must fail here rather than later.
-             */
-            throw new IllegalArgumentException("unsupported index.version.created:" + indexSettings.getIndexVersionCreated() +
-                ", can't set index.sort on versions prior to " + Version.V_6_0_0_alpha1);
-        }
 
         if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
             List<SortOrder> orders = INDEX_SORT_ORDER_SETTING.get(settings);
@@ -171,12 +164,17 @@ public final class IndexSortConfig {
         return sortSpecs.length > 0;
     }
 
+    public boolean hasPrimarySortOnField(String field) {
+        return sortSpecs.length > 0
+            && sortSpecs[0].field.equals(field);
+    }
+
     /**
      * Builds the {@link Sort} order from the settings for this index
      * or returns null if this index has no sort.
      */
     public Sort buildIndexSort(Function<String, MappedFieldType> fieldTypeLookup,
-                               Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
+                               BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup) {
         if (hasIndexSort() == false) {
             return null;
         }
@@ -188,6 +186,19 @@ public final class IndexSortConfig {
             if (ft == null) {
                 throw new IllegalArgumentException("unknown index sort field:[" + sortSpec.field + "]");
             }
+            if (Objects.equals(ft.name(), sortSpec.field) == false) {
+                if (this.indexCreatedVersion.onOrAfter(Version.V_7_13_0)) {
+                    throw new IllegalArgumentException("Cannot use alias [" + sortSpec.field + "] as an index sort field");
+                } else {
+                    DEPRECATION_LOGGER.deprecate(
+                        DeprecationCategory.MAPPINGS,
+                        "index-sort-aliases",
+                        "Index sort for index [" + indexName + "] defined on field [" + sortSpec.field +
+                            "] which resolves to field [" + ft.name() + "]. " +
+                            "You will not be able to define an index sort over aliased fields in new indexes"
+                    );
+                }
+            }
             boolean reverse = sortSpec.order == null ? false : (sortSpec.order == SortOrder.DESC);
             MultiValueMode mode = sortSpec.mode;
             if (mode == null) {
@@ -195,9 +206,11 @@ public final class IndexSortConfig {
             }
             IndexFieldData<?> fieldData;
             try {
-                fieldData = fieldDataLookup.apply(ft);
+                fieldData = fieldDataLookup.apply(ft, () -> {
+                    throw new UnsupportedOperationException("index sorting not supported on runtime field [" + ft.name() + "]");
+                });
             } catch (Exception e) {
-                throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]");
+                throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]", e);
             }
             if (fieldData == null) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]");

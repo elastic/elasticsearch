@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
 import org.elasticsearch.xpack.ml.job.process.normalizer.output.NormalizerResultHandler;
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
+import org.elasticsearch.xpack.ml.process.NativeController;
+import org.elasticsearch.xpack.ml.process.ProcessPipes;
 
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.Collections;
 
 /**
@@ -19,8 +20,8 @@ class NativeNormalizerProcess extends AbstractNativeProcess implements Normalize
 
     private static final String NAME = "normalizer";
 
-    NativeNormalizerProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream) {
-        super(jobId, logStream, processInStream, processOutStream, null, 0, Collections.emptyList(), () -> {});
+    NativeNormalizerProcess(String jobId, NativeController nativeController, ProcessPipes processPipes) {
+        super(jobId, nativeController, processPipes, 0, Collections.emptyList(), (ignore) -> {});
     }
 
     @Override
@@ -36,6 +37,10 @@ class NativeNormalizerProcess extends AbstractNativeProcess implements Normalize
     @Override
     public void persistState() {
         // nothing to persist
+    }
+
+    @Override
+    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
     }
 
     @Override

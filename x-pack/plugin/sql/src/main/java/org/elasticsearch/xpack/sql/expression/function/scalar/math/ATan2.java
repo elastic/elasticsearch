@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Atan2">Multi-valued inverse tangent</a>
@@ -16,8 +17,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  */
 public class ATan2 extends BinaryNumericFunction {
 
-    public ATan2(Location location, Expression left, Expression right) {
-        super(location, left, right, BinaryMathOperation.ATAN2);
+    public ATan2(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryMathOperation.ATAN2);
     }
 
     @Override
@@ -27,6 +28,6 @@ public class ATan2 extends BinaryNumericFunction {
 
     @Override
     protected ATan2 replaceChildren(Expression newLeft, Expression newRight) {
-        return new ATan2(location(), newLeft, newRight);
+        return new ATan2(source(), newLeft, newRight);
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.recovery;
@@ -28,8 +17,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -38,9 +25,12 @@ import java.util.Map;
  */
 public class RecoveryResponse extends BroadcastResponse {
 
-    private Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
+    private final Map<String, List<RecoveryState>> shardRecoveryStates;
 
-    public RecoveryResponse() { }
+    public RecoveryResponse(StreamInput in) throws IOException {
+        super(in);
+        shardRecoveryStates = in.readMapOfLists(StreamInput::readString, RecoveryState::new);
+    }
 
     /**
      * Constructs recovery information for a collection of indices and associated shards. Keeps track of how many total shards
@@ -93,29 +83,7 @@ public class RecoveryResponse extends BroadcastResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(shardRecoveryStates.size());
-        for (Map.Entry<String, List<RecoveryState>> entry : shardRecoveryStates.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVInt(entry.getValue().size());
-            for (RecoveryState recoveryState : entry.getValue()) {
-                recoveryState.writeTo(out);
-            }
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            String s = in.readString();
-            int listSize = in.readVInt();
-            List<RecoveryState> list = new ArrayList<>(listSize);
-            for (int j = 0; j < listSize; j++) {
-                list.add(RecoveryState.readRecoveryState(in));
-            }
-            shardRecoveryStates.put(s, list);
-        }
+        out.writeMapOfLists(shardRecoveryStates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
 
     @Override

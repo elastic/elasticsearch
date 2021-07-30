@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.execution;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
@@ -14,14 +15,14 @@ import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.Map;
 
 public class WatchExecutionResult implements ToXContentObject {
 
-    private final DateTime executionTime;
+    private final ZonedDateTime executionTime;
     private final long executionDurationMs;
     @Nullable private final Input.Result inputResult;
     @Nullable private final Condition.Result conditionResult;
@@ -33,7 +34,7 @@ public class WatchExecutionResult implements ToXContentObject {
                 context.actionsResults());
     }
 
-    private WatchExecutionResult(DateTime executionTime, long executionDurationMs, Input.Result inputResult,
+    private WatchExecutionResult(ZonedDateTime executionTime, long executionDurationMs, Input.Result inputResult,
                                  Condition.Result conditionResult, @Nullable Transform.Result transformResult,
                                  Map<String, ActionWrapperResult> actionsResults) {
         this.executionTime = executionTime;
@@ -44,7 +45,7 @@ public class WatchExecutionResult implements ToXContentObject {
         this.executionDurationMs = executionDurationMs;
     }
 
-    public DateTime executionTime() {
+    public ZonedDateTime executionTime() {
         return executionTime;
     }
 

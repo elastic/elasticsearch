@@ -1,22 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.monitoring.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -49,57 +48,29 @@ public class MonitoringBulkDoc implements Writeable {
         this.xContentType = Objects.requireNonNull(xContentType);
     }
 
-    /**
-     * Read from a stream.
-     */
-    public static MonitoringBulkDoc readFrom(StreamInput in) throws IOException {
-        final MonitoredSystem system = MonitoredSystem.fromSystem(in.readOptionalString());
+    public MonitoringBulkDoc (StreamInput in) throws IOException {
+        this.system = MonitoredSystem.fromSystem(in.readOptionalString());
+        this.timestamp = in.readVLong();
 
-        if (in.getVersion().before(Version.V_6_0_0_rc1)) {
-            in.readOptionalString(); // Monitoring version, removed in 6.0 rc1
-            in.readOptionalString(); // Cluster UUID, removed in 6.0 rc1
-        }
-
-        final long timestamp = in.readVLong();
-
-        if (in.getVersion().before(Version.V_6_0_0_rc1)) {
-            in.readOptionalWriteable(MonitoringDoc.Node::new);// Source node, removed in 6.0 rc1
-            MonitoringIndex.readFrom(in);// Monitoring index, removed in 6.0 rc1
-        }
-
-        final String type = in.readOptionalString();
-        final String id = in.readOptionalString();
-        final BytesReference source = in.readBytesReference();
-        final XContentType xContentType = (source != BytesArray.EMPTY) ? in.readEnum(XContentType.class) : XContentType.JSON;
-
-        long interval = 0L;
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
-            interval = in.readVLong();
-        }
-        return new MonitoringBulkDoc(system, type, id, timestamp, interval, source, xContentType);
+        this.type = in.readOptionalString();
+        this.id = in.readOptionalString();
+        this.source = in.readBytesReference();
+        this.xContentType = (source != BytesArray.EMPTY) ? in.readEnum(XContentType.class) : XContentType.JSON;
+        this.intervalMillis = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(system.getSystem());
-        if (out.getVersion().before(Version.V_6_0_0_rc1)) {
-            out.writeOptionalString(MonitoringTemplateUtils.TEMPLATE_VERSION);
-            out.writeOptionalString(null);
-        }
         out.writeVLong(timestamp);
-        if (out.getVersion().before(Version.V_6_0_0_rc1)) {
-            out.writeOptionalWriteable(null);
-            MonitoringIndex.IGNORED_DATA.writeTo(out);
-        }
         out.writeOptionalString(type);
         out.writeOptionalString(id);
         out.writeBytesReference(source);
         if (source != BytesArray.EMPTY) {
-            out.writeEnum(xContentType);
+            XContentHelper.writeTo(out, xContentType);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
-            out.writeVLong(intervalMillis);
-        }
+        out.writeVLong(intervalMillis);
+
     }
 
     public MonitoredSystem getSystem() {

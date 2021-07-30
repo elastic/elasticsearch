@@ -11,75 +11,73 @@ size of this gap is configured using `position_increment_gap` and defaults to
 
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
-    "names": [ "John Abraham", "Lincoln Smith"]
+  "names": [ "John Abraham", "Lincoln Smith"]
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
-    "query": {
-        "match_phrase": {
-            "names": {
-                "query": "Abraham Lincoln" <1>
-            }
-        }
-    }
-}
-
-GET my_index/_search
-{
-    "query": {
-        "match_phrase": {
-            "names": {
-                "query": "Abraham Lincoln",
-                "slop": 101 <2>
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-<1> This phrase query doesn't match our document which is totally expected.
-<2> This phrase query matches our document, even though `Abraham` and `Lincoln`
-    are in separate strings, because `slop` > `position_increment_gap`.
-
-
-The `position_increment_gap` can be specified in the mapping.  For instance:
-
-[source,js]
---------------------------------------------------
-PUT my_index
-{
-  "mappings": {
-    "_doc": {
-      "properties": {
-        "names": {
-          "type": "text",
-          "position_increment_gap": 0 <1>
-        }
+  "query": {
+    "match_phrase": {
+      "names": {
+        "query": "Abraham Lincoln" <1>
       }
     }
   }
 }
 
-PUT my_index/_doc/1
+GET my-index-000001/_search
 {
-    "names": [ "John Abraham", "Lincoln Smith"]
-}
-
-GET my_index/_search
-{
-    "query": {
-        "match_phrase": {
-            "names": "Abraham Lincoln" <2>
-        }
+  "query": {
+    "match_phrase": {
+      "names": {
+        "query": "Abraham Lincoln",
+        "slop": 101 <2>
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
+
+<1> This phrase query doesn't match our document which is totally expected.
+<2> This phrase query matches our document, even though `Abraham` and `Lincoln`
+    are in separate strings, because `slop` > `position_increment_gap`.
+
+
+The `position_increment_gap` can be specified in the mapping. For instance:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "names": {
+        "type": "text",
+        "position_increment_gap": 0 <1>
+      }
+    }
+  }
+}
+
+PUT my-index-000001/_doc/1
+{
+  "names": [ "John Abraham", "Lincoln Smith"]
+}
+
+GET my-index-000001/_search
+{
+  "query": {
+    "match_phrase": {
+      "names": "Abraham Lincoln" <2>
+    }
+  }
+}
+--------------------------------------------------
+
 <1> The first term in the next array element will be 0 terms apart from the
     last term in the previous array element.
 <2> The phrase query matches our document which is weird, but its what we asked

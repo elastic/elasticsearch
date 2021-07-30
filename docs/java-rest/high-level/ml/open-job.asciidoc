@@ -3,15 +3,15 @@
 :request: OpenJobRequest
 :response: OpenJobResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Open Job API
+=== Open {anomaly-jobs} API
 
-The Open Job API provides the ability to open {ml} jobs in the cluster.
-It accepts a +{request}+ object and responds
-with a +{response}+ object.
+Opens {anomaly-jobs} in the cluster. It accepts a +{request}+ object and
+responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Open Job Request
+==== Open {anomaly-jobs} request
 
 An +{request}+ object gets created with an existing non-null `jobId`.
 
@@ -24,13 +24,18 @@ include-tagged::{doc-tests-file}[{api}-request]
 execution should wait for the job to be opened.
 
 [id="{upid}-{api}-response"]
-==== Open Job Response
+==== Open {anomaly-jobs} response
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> `isOpened()` from the +{response}+ indicates if the job was successfully
-opened or not.
+<1> `isOpened()` from the +{response}+ is always `true` if the job was
+opened successfully. (An exception would be thrown instead if the job
+was not opened successfully.)
+<2> `getNode()` returns the node that the job was assigned to. If the
+job is allowed to open lazily and has not yet been assigned to a node
+then an empty string is returned. If `getNode()` returns `null` then
+the server is an old version that does not return node information.
 
 include::../execution.asciidoc[]

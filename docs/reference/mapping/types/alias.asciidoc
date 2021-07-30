@@ -1,27 +1,28 @@
-[[alias]]
-=== Alias datatype
+[[field-alias]]
+=== Alias field type
+++++
+<titleabbrev>Alias</titleabbrev>
+++++
 
-An `alias` mapping defines an alternate name for a field in the  index.
+An `alias` mapping defines an alternate name for a field in the index.
 The alias can be used in place of the target field in <<search, search>> requests,
 and selected other APIs like <<search-field-caps, field capabilities>>.
 
-[source,js]
+[source,console]
 --------------------------------
 PUT trips
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "distance": {
-          "type": "long"
-        },
-        "route_length_miles": {
-          "type": "alias",
-          "path": "distance" // <1>
-        },
-        "transit_mode": {
-          "type": "keyword"
-        }
+    "properties": {
+      "distance": {
+        "type": "long"
+      },
+      "route_length_miles": {
+        "type": "alias",
+        "path": "distance" <1>
+      },
+      "transit_mode": {
+        "type": "keyword"
       }
     }
   }
@@ -38,7 +39,6 @@ GET _search
   }
 }
 --------------------------------
-// CONSOLE
 
 <1> The path to the target field. Note that this must be the full path, including any parent
 objects (e.g. `object1.object2.field`).
@@ -51,11 +51,10 @@ field values. Please see the section on <<unsupported-apis, unsupported APIs>> f
 In some parts of the search request and when requesting field capabilities, field wildcard patterns can be
 provided. In these cases, the wildcard pattern will match field aliases in addition to concrete fields:
 
-[source,js]
+[source,console]
 --------------------------------
 GET trips/_field_caps?fields=route_*,transit_mode
 --------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[alias-targets]]
@@ -70,6 +69,10 @@ There are a few restrictions on the target of an alias:
 Additionally, a field alias can only have one target. This means that it is not possible to use a
 field alias to query over multiple target fields in a single clause.
 
+An alias can be changed to refer to a new target through a mappings update. A known limitation is that
+if any stored percolator queries contain the field alias, they will still refer to its original target.
+More information can be found in the <<percolator, percolator documentation>>.
+
 [[unsupported-apis]]
 ==== Unsupported APIs
 
@@ -79,7 +82,7 @@ will result in a failure. Likewise, aliases cannot be used as the target of `cop
 Because alias names are not present in the document source, aliases cannot be used when performing
 source filtering. For example, the following request will return an empty result for `_source`:
 
-[source,js]
+[source,console]
 --------------------------------
 GET /_search
 {
@@ -89,7 +92,6 @@ GET /_search
   "_source": "route_length_miles"
 }
 --------------------------------
-// CONSOLE
 // TEST[continued]
 
 Currently only the search and field capabilities APIs will accept and resolve field aliases.

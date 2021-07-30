@@ -1,590 +1,162 @@
 [[indices-aliases]]
-== Index Aliases
+=== Aliases API
+++++
+<titleabbrev>Aliases</titleabbrev>
+++++
 
-APIs in Elasticsearch accept an index name when working against a
-specific index, and several indices when applicable. The index aliases
-API allows aliasing an index with a name, with all APIs automatically
-converting the alias name to the actual index name. An alias can also be
-mapped to more than one index, and when specifying it, the alias will
-automatically expand to the aliased indices. An alias can also be
-associated with a filter that will automatically be applied when
-searching, and routing values. An alias cannot have the same name as an index.
+Performs one or more <<alias,alias>> actions in a single atomic operation.
 
-Here is a sample of associating the alias `alias1` with index `test1`:
-
-[source,js]
---------------------------------------------------
-POST /_aliases
+[source,console]
+----
+POST _aliases
 {
-    "actions" : [
-        { "add" : { "index" : "test1", "alias" : "alias1" } }
-    ]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT test1\nPUT test2\n/]
-
-And here is removing that same alias:
-
-[source,js]
---------------------------------------------------
-POST /_aliases
-{
-    "actions" : [
-        { "remove" : { "index" : "test1", "alias" : "alias1" } }
-    ]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Renaming an alias is a simple `remove` then `add` operation within the
-same API. This operation is atomic, no need to worry about a short
-period of time where the alias does not point to an index:
-
-[source,js]
---------------------------------------------------
-POST /_aliases
-{
-    "actions" : [
-        { "remove" : { "index" : "test1", "alias" : "alias1" } },
-        { "add" : { "index" : "test2", "alias" : "alias1" } }
-    ]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Associating an alias with more than one index is simply several `add`
-actions:
-
-[source,js]
---------------------------------------------------
-POST /_aliases
-{
-    "actions" : [
-        { "add" : { "index" : "test1", "alias" : "alias1" } },
-        { "add" : { "index" : "test2", "alias" : "alias1" } }
-    ]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT test1\nPUT test2\n/]
-
-Multiple indices can be specified for an action with the `indices` array syntax:
-
-[source,js]
---------------------------------------------------
-POST /_aliases
-{
-    "actions" : [
-        { "add" : { "indices" : ["test1", "test2"], "alias" : "alias1" } }
-    ]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT test1\nPUT test2\n/]
-
-To specify multiple aliases in one action, the corresponding `aliases` array
-syntax exists as well.
-
-For the example above, a glob pattern can also be used to associate an alias to
-more than one index that share a common name:
-
-[source,js]
---------------------------------------------------
-POST /_aliases
-{
-    "actions" : [
-        { "add" : { "index" : "test*", "alias" : "all_test_indices" } }
-    ]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT test1\nPUT test2\n/]
-
-In this case, the alias is a point-in-time alias that will group all
-current indices that match, it will not automatically update as new
-indices that match this pattern are added/removed.
-
-It is an error to index to an alias which points to more than one index.
-
-It is also possible to swap an index with an alias in one operation:
-
-[source,js]
---------------------------------------------------
-PUT test     <1>
-PUT test_2   <2>
-POST /_aliases
-{
-    "actions" : [
-        { "add":  { "index": "test_2", "alias": "test" } },
-        { "remove_index": { "index": "test" } }  <3>
-    ]
-}
---------------------------------------------------
-// CONSOLE
-<1> An index we've added by mistake
-<2> The index we should have added
-<3> `remove_index` is just like <<indices-delete-index>>
-
-[float]
-[[filtered]]
-=== Filtered Aliases
-
-Aliases with filters provide an easy way to create different "views" of
-the same index. The filter can be defined using Query DSL and is applied
-to all Search, Count, Delete By Query and More Like This operations with
-this alias.
-
-To create a filtered alias, first we need to ensure that the fields already
-exist in the mapping:
-
-[source,js]
---------------------------------------------------
-PUT /test1
-{
-  "mappings": {
-    "_doc": {
-      "properties": {
-        "user" : {
-          "type": "keyword"
-        }
+  "actions": [
+    {
+      "add": {
+        "index": "my-data-stream",
+        "alias": "my-alias"
       }
     }
-  }
+  ]
 }
---------------------------------------------------
-// CONSOLE
+----
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]
 
-Now we can create an alias that uses a filter on field `user`:
+[[indices-aliases-api-request]]
+==== {api-request-title}
 
-[source,js]
---------------------------------------------------
-POST /_aliases
-{
-    "actions" : [
-        {
-            "add" : {
-                 "index" : "test1",
-                 "alias" : "alias2",
-                 "filter" : { "term" : { "user" : "kimchy" } }
-            }
-        }
-    ]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
+`POST _aliases`
 
-[float]
-[[aliases-routing]]
-==== Routing
+[[indices-aliases-api-prereqs]]
+==== {api-prereq-title}
 
-It is possible to associate routing values with aliases. This feature
-can be used together with filtering aliases in order to avoid
-unnecessary shard operations.
+* If the {es} {security-features} are enabled, you must have the following
+<<privileges-list-indices,index privileges>>:
 
-The following command creates a new alias `alias1` that points to index
-`test`. After `alias1` is created, all operations with this alias are
-automatically modified to use value `1` for routing:
+** To use the `add` or `remove` action, you must have the `manage` index
+privilege for the alias and its data streams or indices.
 
-[source,js]
---------------------------------------------------
-POST /_aliases
-{
-    "actions" : [
-        {
-            "add" : {
-                 "index" : "test",
-                 "alias" : "alias1",
-                 "routing" : "1"
-            }
-        }
-    ]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT test\n/]
+** To use the `remove_index` action, you must have the `manage` index privilege
+for the index.
 
-It's also possible to specify different routing values for searching
-and indexing operations:
+[[indices-aliases-api-query-params]]
+==== {api-query-parms-title}
 
-[source,js]
---------------------------------------------------
-POST /_aliases
-{
-    "actions" : [
-        {
-            "add" : {
-                 "index" : "test",
-                 "alias" : "alias2",
-                 "search_routing" : "1,2",
-                 "index_routing" : "2"
-            }
-        }
-    ]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT test\n/]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-As shown in the example above, search routing may contain several values
-separated by comma. Index routing can contain only a single value.
+[role="child_attributes"]
+[[indices-aliases-api-request-body]]
+==== {api-request-body-title}
 
-If a search operation that uses routing alias also has a routing parameter, an
-intersection of both search alias routing and routing specified in the
-parameter is used. For example the following command will use "2" as a
-routing value:
-
-[source,js]
---------------------------------------------------
-GET /alias2/_search?q=user:kimchy&routing=2,3
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-[float]
-[[aliases-write-index]]
-==== Write Index
-
-It is possible to associate the index pointed to by an alias as the write index.
-When specified, all index and update requests against an alias that point to multiple
-indices will attempt to resolve to the one index that is the write index.
-Only one index per alias can be assigned to be the write index at a time. If no write index is specified
-and there are multiple indices referenced by an alias, then writes will not be allowed.
-
-It is possible to specify an index associated with an alias as a write index using both the aliases API
-and index creation API.
-
-Setting an index to be the write index with an alias also affects how the alias is manipulated during
-Rollover (see <<indices-rollover-index, Rollover With Write Index>>).
-
-[source,js]
---------------------------------------------------
-POST /_aliases
-{
-    "actions" : [
-        {
-            "add" : {
-                 "index" : "test",
-                 "alias" : "alias1",
-                 "is_write_index" : true
-            }
-        }
-    ]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT test\n/]
-
-In this example, we associate the alias `alias1` to both `test` and `test2`, where
-`test` will be the index chosen for writing to.
-
-[source,js]
---------------------------------------------------
-PUT /alias1/_doc/1
-{
-    "foo": "bar"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-The new document that was indexed to `/alias1/_doc/1` will be indexed as if it were
-`/test/_doc/1`.
-
-[source,js]
---------------------------------------------------
-GET /test/_doc/1
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-To swap which index is the write index for an alias, the Aliases API can be leveraged to
-do an atomic swap. The swap is not dependent on the ordering of the actions.
-
-[source,js]
---------------------------------------------------
-POST /_aliases
-{
-    "actions" : [
-        {
-            "add" : {
-                 "index" : "test",
-                 "alias" : "alias1",
-                 "is_write_index" : true
-            }
-        }, {
-            "add" : {
-                 "index" : "test2",
-                 "alias" : "alias1",
-                 "is_write_index" : false
-            }
-        }
-    ]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT test\nPUT test2\n/]
-
-[IMPORTANT]
-=====================================
-Aliases that do not explicitly set `is_write_index: true` for an index, and
-only reference one index, will have that referenced index behave as if it is the write index
-until an additional index is referenced. At that point, there will be no write index and
-writes will be rejected.
-=====================================
-
-[float]
-[[alias-adding]]
-=== Add a single alias
-
-An alias can also be added with the endpoint
-
-`PUT /{index}/_alias/{name}`
-
-
-where
-
-[horizontal]
-`index`::   The index the alias refers to. Can be any of `* | _all | glob pattern | name1, name2, …`
-`name`::   The name of the alias. This is a required option.
-`routing`:: An optional routing that can be associated with an alias.
-`filter`::  An optional filter that can be associated with an alias.
-
-You can also use the plural `_aliases`.
-
-[float]
-==== Examples:
-
-Adding time based alias::
+`actions`::
+(Required, array of objects) Actions to perform.
 +
---
-[source,js]
---------------------------------------------------
-PUT /logs_201305/_alias/2013
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT logs_201305\n/]
---
-
-Adding a user alias::
+.Properties of `actions` objects
+[%collapsible%open]
+====
+`<action>`::
+(Required, object) The key is the action type. At least one action is required.
 +
---
-First create the index and add a mapping for the `user_id` field:
+.Valid `<action>` keys
+[%collapsible%open]
+=====
+`add`::
+Adds a data stream or index to an alias. If the alias doesn't exist, the `add`
+action creates it.
 
-[source,js]
---------------------------------------------------
-PUT /users
-{
-    "mappings" : {
-        "_doc" : {
-            "properties" : {
-                "user_id" : {"type" : "integer"}
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
+`remove`::
+Removes a data stream or index from an alias.
 
-Then add the alias for a specific user:
-
-[source,js]
---------------------------------------------------
-PUT /users/_alias/user_12
-{
-    "routing" : "12",
-    "filter" : {
-        "term" : {
-            "user_id" : 12
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
---
-
-[float]
-[[alias-index-creation]]
-=== Aliases during index creation
-
-Aliases can also be specified during <<create-index-aliases,index creation>>:
-
-[source,js]
---------------------------------------------------
-PUT /logs_20162801
-{
-    "mappings" : {
-        "_doc" : {
-            "properties" : {
-                "year" : {"type" : "integer"}
-            }
-        }
-    },
-    "aliases" : {
-        "current_day" : {},
-        "2016" : {
-            "filter" : {
-                "term" : {"year" : 2016 }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-[float]
-[[deleting]]
-=== Delete aliases
-
-
-The rest endpoint is: `/{index}/_alias/{name}`
-
-where
-
-[horizontal]
-`index`::  `* | _all | glob pattern | name1, name2, …`
-`name`::  `* | _all | glob pattern | name1, name2, …`
-
-Alternatively you can use the plural `_aliases`. Example:
-
-[source,js]
---------------------------------------------------
-DELETE /logs_20162801/_alias/current_day
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-[float]
-[[alias-retrieving]]
-=== Retrieving existing aliases
-
-The get index alias API allows to filter by
-alias name and index name. This api redirects to the master and fetches
-the requested index aliases, if available. This api only serialises the
-found index aliases.
-
-Possible options:
-[horizontal]
-`index`::
-    The index name to get aliases for. Partial names are
-    supported via wildcards, also multiple index names can be specified
-    separated with a comma. Also the alias name for an index can be used.
-
+`remove_index`::
+Deletes an index. You cannot use this action on aliases or data streams.
+=====
++
+The object body contains options for the alias. Supports an empty object.
++
+.Properties of `<action>`
+[%collapsible%open]
+=====
 `alias`::
-    The name of alias to return in the response. Like the index
-    option, this option supports wildcards and the option the specify
-    multiple alias names separated by a comma.
+(Required*, string) Alias for the action. Index alias names support
+<<date-math-index-names,date math>>. If `aliases` is not specified, the `add`
+and `remove` actions require this parameter. For the `remove` action, this
+parameter supports wildcards (`*`). The `remove_index` action doesn't support
+this parameter.
 
-`ignore_unavailable`::
-    What to do if an specified index name doesn't
-    exist. If set to `true` then those indices are ignored.
+`aliases`::
+(Required*, array of strings) Aliases for the action. Index alias names support
+<<date-math-index-names,date math>>. If `alias` is not specified, the `add` and
+`remove` actions require this parameter. For the `remove` action, this parameter
+supports wildcards (`*`). The `remove_index` action doesn't support this
+parameter.
 
-The rest endpoint is: `/{index}/_alias/{alias}`.
+// tag::alias-options[]
+`filter`::
+(Optional, <<query-dsl,Query DSL object>> Query used to limit documents the
+alias can access.
+// end::alias-options[]
++
+Only the `add` action supports this parameter.
 
-[float]
-==== Examples:
+`index`::
+(Required*, string) Data stream or index for the action. Supports wildcards
+(`*`). If `indices` is not specified, this parameter is required. For the `add`
+and `remove_index` actions, wildcard patterns that match both data streams and
+indices return an error.
 
-All aliases for the index `logs_20162801`:
+`indices`::
+(Required*, array of strings) Data streams or indices for the action. Supports
+wildcards (`*`). If `index` is not specified, this parameter is required. For
+the `add` and `remove_index` actions, wildcard patterns that match both data
+streams and indices return an error.
 
-[source,js]
---------------------------------------------------
-GET /logs_20162801/_alias/*
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
+// tag::alias-options[]
+`index_routing`::
+(Optional, string) Value used to route indexing operations to a specific shard.
+If specified, this overwrites the `routing` value for indexing operations. Data
+stream aliases don't support this parameter.
+// end::alias-options[]
++
+Only the `add` action supports this parameter.
 
-Response:
+// tag::alias-options[]
+`is_hidden`::
+(Optional, Boolean) If `true`, the alias is <<hidden,hidden>>. Defaults to
+`false`. All data streams or indices for the alias must have the same
+`is_hidden` value.
+// end::alias-options[]
++
+Only the `add` action supports this parameter.
 
-[source,js]
---------------------------------------------------
-{
- "logs_20162801" : {
-   "aliases" : {
-     "2016" : {
-       "filter" : {
-         "term" : {
-           "year" : 2016
-         }
-       }
-     }
-   }
- }
-}
---------------------------------------------------
-// TESTRESPONSE
+// tag::alias-options[]
+`is_write_index`::
+(Optional, Boolean) If `true`, sets the <<write-index,write index or data
+stream>> for the alias. Defaults to `false`.
+// end::alias-options[]
++
+Only the `add` action supports this parameter.
 
-All aliases with the name 2016 in any index:
+`must_exist`::
+(Optional, Boolean)
+If `true`, the alias must exist to perform the action. Defaults to `false`. Only
+the `remove` action supports this parameter.
 
-[source,js]
---------------------------------------------------
-GET /_alias/2016
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
+// tag::alias-options[]
+`routing`::
+(Optional, string) Value used to route indexing and search operations to a
+specific shard. Data stream aliases don't support this parameter.
+// end::alias-options[]
++
+Only the `add` action supports this parameter.
 
-Response:
-
-[source,js]
---------------------------------------------------
-{
-  "logs_20162801" : {
-    "aliases" : {
-      "2016" : {
-        "filter" : {
-          "term" : {
-            "year" : 2016
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-// TESTRESPONSE
-
-All aliases that start with 20 in any index:
-
-[source,js]
---------------------------------------------------
-GET /_alias/20*
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-  "logs_20162801" : {
-    "aliases" : {
-      "2016" : {
-        "filter" : {
-          "term" : {
-            "year" : 2016
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-// TESTRESPONSE
-
-There is also a HEAD variant of the get indices aliases api to check if
-index aliases exist. The indices aliases exists api supports the same
-option as the get indices aliases api. Examples:
-
-[source,js]
---------------------------------------------------
-HEAD /_alias/2016
-HEAD /_alias/20*
-HEAD /logs_20162801/_alias/*
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
+// tag::alias-options[]
+`search_routing`::
+(Optional, string) Value used to route search operations to a specific shard. If
+specified, this overwrites the `routing` value for search operations. Data
+stream aliases don't support this parameter.
+// end::alias-options[]
++
+Only the `add` action supports this parameter.
+=====
+====

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -92,7 +81,9 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
     public void testOtherBucket() throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.startObject();
-        builder.startArray("filters").endArray();
+        builder.startArray("filters")
+            .startObject().startObject("term").field("field", "foo").endObject().endObject()
+            .endArray();
         builder.endObject();
         try (XContentParser parser = createParser(shuffleXContent(builder))) {
             parser.nextToken();
@@ -102,7 +93,9 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
 
             builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject();
-            builder.startArray("filters").endArray();
+            builder.startArray("filters")
+                .startObject().startObject("term").field("field", "foo").endObject().endObject()
+                .endArray();
             builder.field("other_bucket_key", "some_key");
             builder.endObject();
         }
@@ -114,7 +107,9 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
 
             builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject();
-            builder.startArray("filters").endArray();
+            builder.startArray("filters")
+                .startObject().startObject("term").field("field", "foo").endObject().endObject()
+                .endArray();
             builder.field("other_bucket", false);
             builder.field("other_bucket_key", "some_key");
             builder.endObject();
@@ -130,7 +125,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
     public void testRewrite() throws IOException {
         // test non-keyed filter that doesn't rewrite
         AggregationBuilder original = new FiltersAggregationBuilder("my-agg", new MatchAllQueryBuilder());
-        original.setMetaData(Collections.singletonMap(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20)));
+        original.setMetadata(Collections.singletonMap(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20)));
         AggregationBuilder rewritten = original.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L));
         assertSame(original, rewritten);
 
@@ -162,7 +157,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         assertTrue(((FiltersAggregationBuilder) rewritten).isKeyed());
 
         // test sub-agg filter that does rewrite
-        original = new TermsAggregationBuilder("terms", ValueType.BOOLEAN)
+        original = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.BOOLEAN)
             .subAggregation(
                 new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter",  new BoolQueryBuilder()))
             );
@@ -191,5 +186,31 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         FiltersAggregationBuilder rewrittenFilters = (FiltersAggregationBuilder) rewritten;
         assertEquals(originalFilters.otherBucket(), rewrittenFilters.otherBucket());
         assertEquals(originalFilters.otherBucketKey(), rewrittenFilters.otherBucketKey());
+    }
+
+    public void testEmptyFilters() throws IOException {
+        {
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder.startObject();
+            builder.startArray("filters").endArray();  // unkeyed array
+            builder.endObject();
+            XContentParser parser = createParser(shuffleXContent(builder));
+            parser.nextToken();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> FiltersAggregationBuilder.parse("agg_name", parser));
+            assertThat(e.getMessage(), equalTo("[filters] cannot be empty."));
+        }
+
+        {
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder.startObject();
+            builder.startObject("filters").endObject(); // keyed object
+            builder.endObject();
+            XContentParser parser = createParser(shuffleXContent(builder));
+            parser.nextToken();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> FiltersAggregationBuilder.parse("agg_name", parser));
+            assertThat(e.getMessage(), equalTo("[filters] cannot be empty."));
+        }
     }
 }

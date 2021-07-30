@@ -1,29 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -39,11 +27,11 @@ import java.util.Objects;
 /**
  * Request to stop Machine Learning Datafeeds
  */
-public class StopDatafeedRequest extends ActionRequest implements ToXContentObject {
+public class StopDatafeedRequest implements Validatable, ToXContentObject {
 
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField FORCE = new ParseField("force");
-    public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
+    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<StopDatafeedRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -56,7 +44,7 @@ public class StopDatafeedRequest extends ActionRequest implements ToXContentObje
             DatafeedConfig.ID, ObjectParser.ValueType.STRING_ARRAY);
         PARSER.declareString((obj, val) -> obj.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         PARSER.declareBoolean(StopDatafeedRequest::setForce, FORCE);
-        PARSER.declareBoolean(StopDatafeedRequest::setAllowNoDatafeeds, ALLOW_NO_DATAFEEDS);
+        PARSER.declareBoolean(StopDatafeedRequest::setAllowNoMatch, ALLOW_NO_MATCH);
     }
 
     private static final String ALL_DATAFEEDS = "_all";
@@ -64,7 +52,7 @@ public class StopDatafeedRequest extends ActionRequest implements ToXContentObje
     private final List<String> datafeedIds;
     private TimeValue timeout;
     private Boolean force;
-    private Boolean allowNoDatafeeds;
+    private Boolean allowNoMatch;
 
     /**
      * Explicitly stop all datafeeds
@@ -129,8 +117,8 @@ public class StopDatafeedRequest extends ActionRequest implements ToXContentObje
         this.force = force;
     }
 
-    public Boolean getAllowNoDatafeeds() {
-        return this.allowNoDatafeeds;
+    public Boolean getAllowNoMatch() {
+        return this.allowNoMatch;
     }
 
     /**
@@ -138,20 +126,15 @@ public class StopDatafeedRequest extends ActionRequest implements ToXContentObje
      *
      * This includes {@code _all} string.
      *
-     * @param allowNoDatafeeds When {@code true} ignore if wildcard or {@code _all} matches no datafeeds. Defaults to {@code true}
+     * @param allowNoMatch When {@code true} ignore if wildcard or {@code _all} matches no datafeeds. Defaults to {@code true}
      */
-    public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
-        this.allowNoDatafeeds = allowNoDatafeeds;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
+    public void setAllowNoMatch(boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(datafeedIds, timeout, force, allowNoDatafeeds);
+        return Objects.hash(datafeedIds, timeout, force, allowNoMatch);
     }
 
     @Override
@@ -168,7 +151,7 @@ public class StopDatafeedRequest extends ActionRequest implements ToXContentObje
         return Objects.equals(datafeedIds, that.datafeedIds) &&
             Objects.equals(timeout, that.timeout) &&
             Objects.equals(force, that.force) &&
-            Objects.equals(allowNoDatafeeds, that.allowNoDatafeeds);
+            Objects.equals(allowNoMatch, that.allowNoMatch);
     }
 
     @Override
@@ -181,8 +164,8 @@ public class StopDatafeedRequest extends ActionRequest implements ToXContentObje
         if (force != null) {
             builder.field(FORCE.getPreferredName(), force);
         }
-        if (allowNoDatafeeds != null) {
-            builder.field(ALLOW_NO_DATAFEEDS.getPreferredName(), allowNoDatafeeds);
+        if (allowNoMatch != null) {
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
         }
         builder.endObject();
         return builder;

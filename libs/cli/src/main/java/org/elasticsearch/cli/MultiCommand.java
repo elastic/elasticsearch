@@ -1,31 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cli;
 
 import joptsimple.NonOptionArgumentSpec;
 import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import joptsimple.util.KeyValuePair;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,6 +28,7 @@ public class MultiCommand extends Command {
     protected final Map<String, Command> subcommands = new LinkedHashMap<>();
 
     private final NonOptionArgumentSpec<String> arguments = parser.nonOptions("command");
+    private final OptionSpec<KeyValuePair> settingOption;
 
     /**
      * Construct the multi-command with the specified command description and runnable to execute before main is invoked.
@@ -45,6 +38,7 @@ public class MultiCommand extends Command {
      */
     public MultiCommand(final String description, final Runnable beforeMain) {
         super(description, beforeMain);
+        this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
         parser.posixlyCorrect(true);
     }
 
@@ -66,15 +60,24 @@ public class MultiCommand extends Command {
         if (subcommands.isEmpty()) {
             throw new IllegalStateException("No subcommands configured");
         }
-        String[] args = arguments.values(options).toArray(new String[0]);
-        if (args.length == 0) {
+
+        // .values(...) returns an unmodifiable list
+        final List<String> args = new ArrayList<>(arguments.values(options));
+        if (args.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "Missing command");
         }
-        Command subcommand = subcommands.get(args[0]);
+
+        String subcommandName = args.remove(0);
+        Command subcommand = subcommands.get(subcommandName);
         if (subcommand == null) {
-            throw new UserException(ExitCodes.USAGE, "Unknown command [" + args[0] + "]");
+            throw new UserException(ExitCodes.USAGE, "Unknown command [" + subcommandName + "]");
         }
-        subcommand.mainWithoutErrorHandling(Arrays.copyOfRange(args, 1, args.length), terminal);
+
+        for (final KeyValuePair pair : this.settingOption.values(options)) {
+            args.add("-E" + pair);
+        }
+
+        subcommand.mainWithoutErrorHandling(args.toArray(new String[0]), terminal);
     }
 
     @Override

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.support;
 
@@ -55,7 +56,9 @@ public class RoleMappingFileBootstrapCheckTests extends AbstractBootstrapCheckTe
     }
 
     private static RealmConfig getRealmConfig(Settings settings) {
-        return new RealmConfig(REALM_ID, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
+        return new RealmConfig(REALM_ID,
+            Settings.builder().put(settings).put(RealmSettings.getFullSettingKey(REALM_ID, RealmSettings.ORDER_SETTING), 0).build(),
+            TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
     }
 
     public void testBootstrapCheckOfMissingFile() {

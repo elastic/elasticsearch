@@ -1,33 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
+import java.time.Instant;
 import java.time.ZoneId;
-import java.util.Locale;
+import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
@@ -36,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class JodaDateMathParserTests extends ESTestCase {
 
-    DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime||epoch_millis");
+    DateFormatter formatter = Joda.forPattern("date_optional_time||epoch_millis");
     DateMathParser parser = formatter.toDateMathParser();
 
     void assertDateMathEquals(String toTest, String expected) {
@@ -44,12 +33,12 @@ public class JodaDateMathParserTests extends ESTestCase {
     }
 
     void assertDateMathEquals(String toTest, String expected, final long now, boolean roundUp, DateTimeZone timeZone) {
-        long gotMillis = parser.parse(toTest, () -> now, roundUp, timeZone);
+        long gotMillis = parser.parse(toTest, () -> now, roundUp, timeZone).toEpochMilli();
         assertDateEquals(gotMillis, toTest, expected);
     }
 
     void assertDateEquals(long gotMillis, String original, String expected) {
-        long expectedMillis = parser.parse(expected, () -> 0);
+        long expectedMillis = parser.parse(expected, () -> 0).toEpochMilli();
         if (gotMillis != expectedMillis) {
             fail("Date math not equal\n" +
                 "Original              : " + original + "\n" +
@@ -58,6 +47,19 @@ public class JodaDateMathParserTests extends ESTestCase {
                 "Expected milliseconds : " + expectedMillis + "\n" +
                 "Actual milliseconds   : " + gotMillis + "\n");
         }
+    }
+
+    public void testOverridingLocaleOrZoneAndCompositeRoundUpParser() {
+        //the pattern has to be composite and the match should not be on the first one
+        DateFormatter formatter = Joda.forPattern("date||epoch_millis").withLocale(randomLocale(random()));
+        DateMathParser parser = formatter.toDateMathParser();
+        long gotMillis = parser.parse("297276785531", () -> 0, true, (ZoneId) null).toEpochMilli();
+        assertDateEquals(gotMillis, "297276785531", "297276785531");
+
+        formatter = Joda.forPattern("date||epoch_millis").withZone(ZoneOffset.UTC);
+        parser = formatter.toDateMathParser();
+        gotMillis = parser.parse("297276785531", () -> 0, true, (ZoneId) null).toEpochMilli();
+        assertDateEquals(gotMillis, "297276785531", "297276785531");
     }
 
     public void testBasicDates() {
@@ -148,12 +150,17 @@ public class JodaDateMathParserTests extends ESTestCase {
 
 
     public void testNow() {
-        final long now = parser.parse("2014-11-18T14:27:32", () -> 0, false, (ZoneId) null);
+        final long now = parser.parse("2014-11-18T14:27:32", () -> 0, false, (ZoneId) null).toEpochMilli();
 
         assertDateMathEquals("now", "2014-11-18T14:27:32", now, false, null);
         assertDateMathEquals("now+M", "2014-12-18T14:27:32", now, false, null);
+        assertDateMathEquals("now+M", "2014-12-18T14:27:32", now, true, null);
         assertDateMathEquals("now-2d", "2014-11-16T14:27:32", now, false, null);
+        assertDateMathEquals("now-2d", "2014-11-16T14:27:32", now, true, null);
         assertDateMathEquals("now/m", "2014-11-18T14:27", now, false, null);
+        assertDateMathEquals("now/m", "2014-11-18T14:27:59.999Z", now, true, null);
+        assertDateMathEquals("now/M", "2014-11-01T00:00:00", now, false, null);
+        assertDateMathEquals("now/M", "2014-11-30T23:59:59.999Z", now, true, null);
 
         // timezone does not affect now
         assertDateMathEquals("now/m", "2014-11-18T14:27", now, false, DateTimeZone.forID("+02:00"));
@@ -165,10 +172,10 @@ public class JodaDateMathParserTests extends ESTestCase {
         DateMathParser parser = formatter.toDateMathParser();
         assertEquals(
                 this.formatter.parseMillis("1970-01-01T04:52:20.000Z"),
-                parser.parse("04:52:20", () -> 0, false, (ZoneId) null));
+                parser.parse("04:52:20", () -> 0, false, (ZoneId) null).toEpochMilli());
         assertEquals(
                 this.formatter.parseMillis("1970-01-01T04:52:20.999Z"),
-                parser.parse("04:52:20", () -> 0, true, (ZoneId) null));
+                parser.parse("04:52:20", () -> 0, true, (ZoneId) null).toEpochMilli());
     }
 
     // Implicit rounding happening when parts of the date are not specified
@@ -186,9 +193,9 @@ public class JodaDateMathParserTests extends ESTestCase {
         assertDateMathEquals("2014-11-18T09:20", "2014-11-18T08:20:59.999Z", 0, true, DateTimeZone.forID("CET"));
 
         // implicit rounding with explicit timezone in the date format
-        DateFormatter formatter = DateFormatter.forPattern("YYYY-MM-ddZ");
+        DateFormatter formatter = Joda.forPattern("yyyy-MM-ddZ");
         DateMathParser parser = formatter.toDateMathParser();
-        long time = parser.parse("2011-10-09+01:00", () -> 0, false, (ZoneId) null);
+        Instant time = parser.parse("2011-10-09+01:00", () -> 0, false, (ZoneId) null);
         assertEquals(this.parser.parse("2011-10-09T00:00:00.000+01:00", () -> 0), time);
         time = parser.parse("2011-10-09+01:00", () -> 0, true, (ZoneId) null);
         assertEquals(this.parser.parse("2011-10-09T23:59:59.999+01:00", () -> 0), time);
@@ -261,8 +268,8 @@ public class JodaDateMathParserTests extends ESTestCase {
         assertDateMathEquals("1418248078000||/m", "2014-12-10T21:47:00.000");
 
         // also check other time units
-        JodaDateMathParser parser = new JodaDateMathParser(Joda.forPattern("epoch_second", Locale.ROOT));
-        long datetime = parser.parse("1418248078", () -> 0);
+        JodaDateMathParser parser = new JodaDateMathParser(Joda.forPattern("epoch_second"));
+        long datetime = parser.parse("1418248078", () -> 0).toEpochMilli();
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
 
         // a timestamp before 10000 is a year
@@ -278,7 +285,7 @@ public class JodaDateMathParserTests extends ESTestCase {
             parser.parse(date, () -> 0);
             fail("Date: " + date + "\n" + msg);
         } catch (ElasticsearchParseException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e).contains(exc), equalTo(true));
+            assertThat(e.getMessage().contains(exc), equalTo(true));
         }
     }
 
@@ -308,7 +315,7 @@ public class JodaDateMathParserTests extends ESTestCase {
     }
 
     public void testThatUnixTimestampMayNotHaveTimeZone() {
-        JodaDateMathParser parser = new JodaDateMathParser(Joda.forPattern("epoch_millis", Locale.ROOT));
+        JodaDateMathParser parser = new JodaDateMathParser(Joda.forPattern("epoch_millis"));
         try {
             parser.parse("1234567890123", () -> 42, false, ZoneId.of("CET"));
             fail("Expected ElasticsearchParseException");

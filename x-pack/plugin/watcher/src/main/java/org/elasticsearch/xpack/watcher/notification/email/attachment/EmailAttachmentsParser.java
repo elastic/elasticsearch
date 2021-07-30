@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser.EmailAttachment;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -15,14 +17,14 @@ import java.util.List;
 import java.util.Map;
 
 public class EmailAttachmentsParser {
-    private final Map<String, EmailAttachmentParser> parsers;
+    private final Map<String, EmailAttachmentParser<? extends EmailAttachment>> parsers;
 
-    public EmailAttachmentsParser(Map<String, EmailAttachmentParser> parsers) {
+    public EmailAttachmentsParser(Map<String, EmailAttachmentParser<? extends EmailAttachment>> parsers) {
         this.parsers = Collections.unmodifiableMap(parsers);
     }
 
     public EmailAttachments parse(XContentParser parser) throws IOException {
-        List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>();
+        List<EmailAttachment> attachments = new ArrayList<>();
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -36,11 +38,11 @@ public class EmailAttachmentsParser {
                     }
                     parser.nextToken();
 
-                    EmailAttachmentParser emailAttachmentParser = parsers.get(currentAttachmentType);
+                    EmailAttachmentParser<?> emailAttachmentParser = parsers.get(currentAttachmentType);
                     if (emailAttachmentParser == null) {
                         throw new ElasticsearchParseException("Cannot parse attachment of type [{}]", currentAttachmentType);
                     }
-                    EmailAttachmentParser.EmailAttachment emailAttachment = emailAttachmentParser.parse(currentFieldName, parser);
+                    EmailAttachment emailAttachment = emailAttachmentParser.parse(currentFieldName, parser);
                     attachments.add(emailAttachment);
                     // one further to skip the end_object from the attachment
                     parser.nextToken();
@@ -51,7 +53,7 @@ public class EmailAttachmentsParser {
         return new EmailAttachments(attachments);
     }
 
-    public Map<String, EmailAttachmentParser> getParsers() {
+    public Map<String, EmailAttachmentParser<? extends EmailAttachment>> getParsers() {
         return parsers;
     }
 }

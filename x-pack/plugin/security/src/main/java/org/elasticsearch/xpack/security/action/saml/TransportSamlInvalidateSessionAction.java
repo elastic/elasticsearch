@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.saml;
 
@@ -11,13 +12,14 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionResponse;
+import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.UserToken;
@@ -27,12 +29,10 @@ import org.elasticsearch.xpack.security.authc.saml.SamlRedirect;
 import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
 import org.opensaml.saml.saml2.core.LogoutResponse;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.findSamlRealms;
 
@@ -85,30 +85,27 @@ public final class TransportSamlInvalidateSessionAction
 
     private void findAndInvalidateTokens(SamlRealm realm, SamlLogoutRequestHandler.Result result, ActionListener<Integer> listener) {
         final Map<String, Object> tokenMetadata = realm.createTokenMetadata(result.getNameId(), result.getSession());
-        if (Strings.hasText((String) tokenMetadata.get(SamlRealm.TOKEN_METADATA_NAMEID_VALUE)) == false) {
+        if (Strings.isNullOrEmpty((String) tokenMetadata.get(SamlRealm.TOKEN_METADATA_NAMEID_VALUE))) {
             // If we don't have a valid name-id to match against, don't do anything
             logger.debug("Logout request [{}] has no NameID value, so cannot invalidate any sessions", result);
             listener.onResponse(0);
             return;
         }
 
-        tokenService.findActiveTokensForRealm(realm.name(), ActionListener.wrap(tokens -> {
-                    List<Tuple<UserToken, String>> sessionTokens = filterTokens(tokens, tokenMetadata);
-                    logger.debug("Found [{}] token pairs to invalidate for SAML metadata [{}]", sessionTokens.size(), tokenMetadata);
-                    if (sessionTokens.isEmpty()) {
-                        listener.onResponse(0);
-                    } else {
-                        GroupedActionListener<Boolean> groupedListener = new GroupedActionListener<>(
-                                ActionListener.wrap(collection -> listener.onResponse(collection.size()), listener::onFailure),
-                                sessionTokens.size(), Collections.emptyList()
-                        );
-                        sessionTokens.forEach(tuple -> invalidateTokenPair(tuple, groupedListener));
-                    }
-                }, e -> listener.onFailure(e)
+        tokenService.findActiveTokensForRealm(realm.name(), containsMetadata(tokenMetadata), ActionListener.wrap(tokens -> {
+                logger.debug("Found [{}] token pairs to invalidate for SAML metadata [{}]", tokens.size(), tokenMetadata);
+                if (tokens.isEmpty()) {
+                    listener.onResponse(0);
+                } else {
+                    GroupedActionListener<TokensInvalidationResult> groupedListener = new GroupedActionListener<>(
+                        ActionListener.wrap(collection -> listener.onResponse(collection.size()), listener::onFailure), tokens.size());
+                    tokens.forEach(tuple -> invalidateTokenPair(tuple, groupedListener));
+                }
+            }, listener::onFailure
         ));
     }
 
-    private void invalidateTokenPair(Tuple<UserToken, String> tokenPair, ActionListener<Boolean> listener) {
+    private void invalidateTokenPair(Tuple<UserToken, String> tokenPair, ActionListener<TokensInvalidationResult> listener) {
         // Invalidate the refresh token first, so the client doesn't trigger a refresh once the access token is invalidated
         tokenService.invalidateRefreshToken(tokenPair.v2(), ActionListener.wrap(ignore -> tokenService.invalidateAccessToken(
                 tokenPair.v1(),
@@ -118,13 +115,13 @@ public final class TransportSamlInvalidateSessionAction
                 })), listener::onFailure));
     }
 
-    private List<Tuple<UserToken, String>> filterTokens(Collection<Tuple<UserToken, String>> tokens, Map<String, Object> requiredMetadata) {
-        return tokens.stream()
-                .filter(tup -> {
-                    Map<String, Object> actualMetadata = tup.v1().getMetadata();
-                    return requiredMetadata.entrySet().stream().allMatch(e -> Objects.equals(actualMetadata.get(e.getKey()), e.getValue()));
-                })
-                .collect(Collectors.toList());
+
+    private Predicate<Map<String, Object>> containsMetadata(Map<String, Object> requiredMetadata) {
+        return source -> {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> actualMetadata = (Map<String, Object>) source.get("metadata");
+            return requiredMetadata.entrySet().stream().allMatch(e -> Objects.equals(actualMetadata.get(e.getKey()), e.getValue()));
+        };
     }
 
 }

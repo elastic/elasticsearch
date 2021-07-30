@@ -1,0 +1,465 @@
+[role="xpack"]
+[[ecommerce-transforms]]
+= Tutorial: Transforming the eCommerce sample data
+
+<<transforms,{transforms-cap}>> enable you to retrieve information
+from an {es} index, transform it, and store it in another index. Let's use the
+{kibana-ref}/add-sample-data.html[{kib} sample data] to demonstrate how you can
+pivot and summarize your data with {transforms}.
+
+. Verify that your environment is set up properly to use {transforms}. If the
+{es} {security-features} are enabled, to complete this tutorial you need a user
+that has authority to preview and create {transforms}. You must also have
+specific index privileges for the source and destination indices. See
+<<transform-setup>>.
+
+. Choose your _source index_.
++
+--
+In this example, we'll use the eCommerce orders sample data. If you're not
+already familiar with the `kibana_sample_data_ecommerce` index, use the
+*Revenue* dashboard in {kib} to explore the data. Consider what insights you
+might want to derive from this eCommerce data.
+--
+
+. Choose the pivot type of {transform} and play with various options for
+grouping and aggregating the data.
++
+--
+There are two types of {transforms}, but first we'll try out _pivoting_ your
+data, which involves using at least one field to group it and applying at least
+one aggregation. You can preview what the transformed data will look
+like, so go ahead and play with it! You can also enable histogram charts to get
+a better understanding of the distribution of values in your data.
+
+For example, you might want to group the data by product ID and calculate the
+total number of sales for each product and its average price. Alternatively, you
+might want to look at the behavior of individual customers and calculate how
+much each customer spent in total and how many different categories of products
+they purchased. Or you might want to take the currencies or geographies into
+consideration. What are the most interesting ways you can transform and
+interpret this data?
+
+Go to *Management* > *Stack Management* > *Data* > *Transforms* in {kib} and use
+the wizard to create a {transform}:
+
+[role="screenshot"]
+image::images/ecommerce-pivot1.png["Creating a simple {transform} in {kib}"]
+
+Group the data by customer ID and add one or more aggregations to learn more
+about each customer's orders. For example, let's calculate the sum of products
+they purchased, the total price of their purchases, the maximum number of
+products that they purchased in a single order, and their total number of orders. We'll accomplish this by using the
+<<search-aggregations-metrics-sum-aggregation,`sum` aggregation>> on the
+`total_quantity` and `taxless_total_price` fields, the
+<<search-aggregations-metrics-max-aggregation,`max` aggregation>> on the
+`total_quantity` field, and the
+<<search-aggregations-metrics-cardinality-aggregation,`cardinality` aggregation>>
+on the `order_id` field:
+
+[role="screenshot"]
+image::images/ecommerce-pivot2.png["Adding multiple aggregations to a {transform} in {kib}"]
+
+TIP: If you're interested in a subset of the data, you can optionally include a
+<<request-body-search-query,query>> element. In this
+example, we've filtered the data so that we're only looking at orders with a
+`currency` of `EUR`. Alternatively, we could group the data by that field too.
+If you want to use more complex queries, you can create your {dataframe} from a
+{kibana-ref}/save-open-search.html[saved search].
+
+If you prefer, you can use the
+<<preview-transform,preview {transforms} API>>.
+
+.API example
+[%collapsible]
+====
+[source,console]
+--------------------------------------------------
+POST _transform/_preview
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce",
+    "query": {
+      "bool": {
+        "filter": {
+          "term": {"currency": "EUR"}
+        }
+      }
+    }
+  },
+  "pivot": {
+    "group_by": {
+      "customer_id": {
+        "terms": {
+          "field": "customer_id"
+        }
+      }
+    },
+    "aggregations": {
+      "total_quantity.sum": {
+        "sum": {
+          "field": "total_quantity"
+        }
+      },
+      "taxless_total_price.sum": {
+        "sum": {
+          "field": "taxless_total_price"
+        }
+      },
+      "total_quantity.max": {
+        "max": {
+          "field": "total_quantity"
+        }
+      },
+      "order_id.cardinality": {
+        "cardinality": {
+          "field": "order_id"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:set up sample data]
+====
+--
+
+. When you are satisfied with what you see in the preview, create the
+{transform}.
++
+--
+.. Supply a {transform} ID, the name of the destination index and optionally a
+description. If the destination index does not exist, it will be created
+automatically when you start the {transform}.
+
+.. Decide whether you want the {transform} to run once or continuously. Since 
+this sample data index is unchanging, let's use the default behavior and just 
+run the {transform} once. If you want to try it out, however, go ahead and click 
+on *Continuous mode*. You must choose a field that the {transform} can use to 
+check which entities have changed. In general, it's a good idea to use the 
+ingest timestamp field. In this example, however, you can use the `order_date` 
+field.
+
+.. Optionally, you can configure a retention policy that applies to your 
+{transform}. Select a date field that is used to identify old documents 
+in the destination index and provide a maximum age. Documents that are older 
+than the configured value are removed from the destination index.
+
+[role="screenshot"]
+image::images/ecommerce-pivot3.png["Adding transfrom ID and retention policy to a {transform} in {kib}"]
+
+In {kib}, before you finish creating the {transform}, you can copy the preview 
+{transform} API request to your clipboard. This information is useful later when 
+you're deciding whether you want to manually create the destination index.
+
+[role="screenshot"]
+image::images/ecommerce-pivot4.png["Copy the Dev Console statement of the transform preview to the clipboard"]
+
+If you prefer, you can use the
+<<put-transform,create {transforms} API>>.
+
+.API example
+[%collapsible]
+====
+[source,console]
+--------------------------------------------------
+PUT _transform/ecommerce-customer-transform
+{
+  "source": {
+    "index": [
+      "kibana_sample_data_ecommerce"
+    ],
+    "query": {
+      "bool": {
+        "filter": {
+          "term": {
+            "currency": "EUR"
+          }
+        }
+      }
+    }
+  },
+  "pivot": {
+    "group_by": {
+      "customer_id": {
+        "terms": {
+          "field": "customer_id"
+        }
+      }
+    },
+    "aggregations": {
+      "total_quantity.sum": {
+        "sum": {
+          "field": "total_quantity"
+        }
+      },
+      "taxless_total_price.sum": {
+        "sum": {
+          "field": "taxless_total_price"
+        }
+      },
+      "total_quantity.max": {
+        "max": {
+          "field": "total_quantity"
+        }
+      },
+      "order_id.cardinality": {
+        "cardinality": {
+          "field": "order_id"
+        }
+      }
+    }
+  },
+  "dest": {
+    "index": "ecommerce-customers"
+  },
+  "retention_policy": {
+    "time": {
+      "field": "order_date",
+      "max_age": "60d"
+    }
+  }  
+}
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+====
+--
+
+. Optional: Create the destination index.
++
+--
+If the destination index does not exist, it is created the first time you start
+your {transform}. A pivot transform deduces the mappings for the destination
+index from the source indices and the transform aggregations. If there are
+fields in the destination index that are derived from scripts (for example, 
+if you use
+<<search-aggregations-metrics-scripted-metric-aggregation,`scripted_metrics`>>
+or <<search-aggregations-pipeline-bucket-script-aggregation,`bucket_scripts`>>
+aggregations), they're created with <<dynamic-mapping,dynamic mappings>>. You
+can use the preview {transform} API to preview the mappings it will use for the
+destination index. In {kib}, if you copied the API request to your 
+clipboard, paste it into the console, then refer to the `generated_dest_index` 
+object in the API response.
+
+.API example
+[%collapsible]
+====
+
+[source,console-result]
+--------------------------------------------------
+{
+  "preview" : [
+    {
+      "total_quantity" : {
+        "max" : 2,
+        "sum" : 118.0
+      },
+      "taxless_total_price" : {
+        "sum" : 3946.9765625
+      },
+      "customer_id" : "10",
+      "order_id" : {
+        "cardinality" : 59
+      }
+    },
+    ...
+  ],
+  "generated_dest_index" : {
+    "mappings" : {
+      "_meta" : {
+        "_transform" : {
+          "transform" : "transform-preview",
+          "version" : {
+            "created" : "8.0.0"
+          },
+          "creation_date_in_millis" : 1621991264061
+        },
+        "created_by" : "transform"
+      },
+      "properties" : {
+        "total_quantity.sum" : {
+          "type" : "double"
+        },
+        "total_quantity" : {
+          "type" : "object"
+        },
+        "taxless_total_price" : {
+          "type" : "object"
+        },
+        "taxless_total_price.sum" : {
+          "type" : "double"
+        },
+        "order_id.cardinality" : {
+          "type" : "long"
+        },
+        "customer_id" : {
+          "type" : "keyword"
+        },
+        "total_quantity.max" : {
+          "type" : "integer"
+        },
+        "order_id" : {
+          "type" : "object"
+        }
+      }
+    },
+    "settings" : {
+      "index" : {
+        "number_of_shards" : "1",
+        "auto_expand_replicas" : "0-1"
+      }
+    },
+    "aliases" : { }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[skip:needs sample data]
+====
+
+In some instances the deduced mappings might be incompatible with the actual
+data. For example, numeric overflows might occur or dynamically mapped fields
+might contain both numbers and strings. To avoid this problem, create your
+destination index before you start the {transform}. For more information, see
+the <<indices-create-index,create index API>>.
+
+.API example
+[%collapsible]
+====
+You can use the information from the {transform} preview to create the
+destination index. For example:
+
+[source,console]
+--------------------------------------------------
+PUT /ecommerce-customers
+{
+  "mappings": {
+    "properties": {
+      "total_quantity.sum" : {
+        "type" : "double"
+      },
+      "total_quantity" : {
+        "type" : "object"
+      },
+      "taxless_total_price" : {
+        "type" : "object"
+      },
+      "taxless_total_price.sum" : {
+        "type" : "double"
+      },
+      "order_id.cardinality" : {
+        "type" : "long"
+      },
+      "customer_id" : {
+        "type" : "keyword"
+      },
+      "total_quantity.max" : {
+        "type" : "integer"
+      },
+      "order_id" : {
+        "type" : "object"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST
+====
+--
+
+. Start the {transform}.
++
+--
+
+TIP: Even though resource utilization is automatically adjusted based on the
+cluster load, a {transform} increases search and indexing load on your
+cluster while it runs. If you're experiencing an excessive load, however, you
+can stop it.
+
+You can start, stop, and manage {transforms} in {kib}:
+
+[role="screenshot"]
+image::images/manage-transforms.png["Managing {transforms} in {kib}"]
+
+Alternatively, you can use the
+<<start-transform,start {transforms}>> and
+<<stop-transform,stop {transforms}>> APIs.
+
+.API example
+[%collapsible]
+====
+[source,console]
+--------------------------------------------------
+POST _transform/ecommerce-customer-transform/_start
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+====
+
+TIP: If you chose a batch {transform}, it is a single operation that has a
+single checkpoint. You cannot restart it when it's complete. {ctransforms-cap}
+differ in that they continually increment and process checkpoints as new source
+data is ingested.
+
+--
+
+. Explore the data in your new index.
++
+--
+For example, use the *Discover* application in {kib}:
+
+[role="screenshot"]
+image::images/ecommerce-results.png["Exploring the new index in {kib}"]
+
+--
+
+. Optional: Create another {transform}, this time using the `latest` method.
++
+--
+
+This method populates the destination index with the latest documents for each
+unique key value. For example, you might want to find the latest orders (sorted
+by the `order_date` field) for each customer or for each country and region.
+
+[role="screenshot"]
+image::images/ecommerce-latest1.png["Creating a latest {transform} in {kib}"]
+
+.API example
+[%collapsible]
+====
+[source,console]
+--------------------------------------------------
+POST _transform/_preview
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce",
+    "query": {
+      "bool": {
+        "filter": {
+          "term": {"currency": "EUR"}
+        }
+      }
+    }
+  },
+  "latest": {
+    "unique_key": ["geoip.country_iso_code", "geoip.region_name"],
+    "sort": "order_date"
+  }
+}
+--------------------------------------------------
+// TEST[skip:set up sample data]
+====
+
+TIP: If the destination index does not exist, it is created the first time you 
+start your {transform}. Unlike pivot {transforms}, however, latest {transforms} 
+do not deduce mapping definitions when they create the index. Instead, they use 
+dynamic mappings. To use explicit mappings, create the destination index 
+before you start the {transform}.
+
+--
+
+. If you do not want to keep a {transform}, you can delete it in
+{kib} or use the <<delete-transform,delete {transform} API>>. By default, when
+you delete a {transform}, its destination index and {kib} index patterns remain.
+
+Now that you've created simple {transforms} for {kib} sample data, consider
+possible use cases for your own data. For more ideas, see
+<<transform-usage>> and <<transform-examples>>.

@@ -1,27 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.api.Augmentation;
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -31,11 +18,11 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.util.BitSet;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
-import java.util.Map;
+import java.util.List;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -49,46 +36,19 @@ public final class WriterConstants {
     public static final int ASM_VERSION = Opcodes.ASM5;
     public static final String BASE_INTERFACE_NAME = PainlessScript.class.getName();
     public static final Type BASE_INTERFACE_TYPE = Type.getType(PainlessScript.class);
-    public static final Method CONVERT_TO_SCRIPT_EXCEPTION_METHOD = getAsmMethod(ScriptException.class, "convertToScriptException",
-            Throwable.class, Map.class);
 
     public static final String CLASS_NAME = BASE_INTERFACE_NAME + "$Script";
-    public static final Type CLASS_TYPE   = Type.getObjectType(CLASS_NAME.replace('.', '/'));
+    public static final Type CLASS_TYPE = Type.getObjectType(CLASS_NAME.replace('.', '/'));
 
     public static final String CTOR_METHOD_NAME = "<init>";
 
     public static final Method CLINIT      = getAsmMethod(void.class, "<clinit>");
 
-    public static final String GET_NAME_NAME = "getName";
-    public static final Method GET_NAME_METHOD = getAsmMethod(String.class, GET_NAME_NAME);
-
-    public static final String GET_SOURCE_NAME = "getSource";
-    public static final Method GET_SOURCE_METHOD = getAsmMethod(String.class, GET_SOURCE_NAME);
-
-    public static final String GET_STATEMENTS_NAME = "getStatements";
-    public static final Method GET_STATEMENTS_METHOD = getAsmMethod(BitSet.class, GET_STATEMENTS_NAME);
-
-    // All of these types are caught by the main method and rethrown as ScriptException
-    public static final Type PAINLESS_ERROR_TYPE         = Type.getType(PainlessError.class);
-    public static final Type BOOTSTRAP_METHOD_ERROR_TYPE = Type.getType(BootstrapMethodError.class);
-    public static final Type OUT_OF_MEMORY_ERROR_TYPE    = Type.getType(OutOfMemoryError.class);
-    public static final Type STACK_OVERFLOW_ERROR_TYPE   = Type.getType(StackOverflowError.class);
-    public static final Type EXCEPTION_TYPE              = Type.getType(Exception.class);
-    public static final Type PAINLESS_EXPLAIN_ERROR_TYPE = Type.getType(PainlessExplainError.class);
-    public static final Method PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD = getAsmMethod(Map.class, "getHeaders", PainlessLookup.class);
+    public static final Type PAINLESS_ERROR_TYPE = Type.getType(PainlessError.class);
 
     public static final Type OBJECT_TYPE = Type.getType(Object.class);
-    public static final Type BITSET_TYPE = Type.getType(BitSet.class);
-
-    public static final Type DEFINITION_TYPE = Type.getType(PainlessLookup.class);
-
-    public static final Type COLLECTIONS_TYPE = Type.getType(Collections.class);
-    public static final Method EMPTY_MAP_METHOD = getAsmMethod(Map.class, "emptyMap");
 
     public static final MethodType NEEDS_PARAMETER_METHOD_TYPE = MethodType.methodType(boolean.class);
-
-    public static final Type MAP_TYPE  = Type.getType(Map.class);
-    public static final Method MAP_GET = getAsmMethod(Object.class, "get", Object.class);
 
     public static final Type ITERATOR_TYPE = Type.getType(Iterator.class);
     public static final Method ITERATOR_HASNEXT = getAsmMethod(boolean.class, "hasNext");
@@ -98,19 +58,18 @@ public final class WriterConstants {
     public static final Method STRING_TO_CHAR = getAsmMethod(char.class, "StringTochar", String.class);
     public static final Method CHAR_TO_STRING = getAsmMethod(String.class, "charToString", char.class);
 
-
-    public static final Type METHOD_HANDLE_TYPE = Type.getType(MethodHandle.class);
-
-    public static final Type AUGMENTATION_TYPE = Type.getType(Augmentation.class);
+    // TODO: remove this when the transition from Joda to Java datetimes is completed
+    public static final Method JCZDT_TO_ZONEDDATETIME =
+            getAsmMethod(ZonedDateTime.class, "JCZDTToZonedDateTime", JodaCompatibleZonedDateTime.class);
 
     /**
-     * A Method instance for {@linkplain Pattern#compile}. This isn't available from PainlessLookup because we intentionally don't add it
+     * A Method instance for {@linkplain Pattern}. This isn't available from PainlessLookup because we intentionally don't add it
      * there so that the script can't create regexes without this syntax. Essentially, our static regex syntax has a monopoly on building
      * regexes because it can do it statically. This is both faster and prevents the script from doing something super slow like building a
      * regex per time it is run.
      */
     public static final Method PATTERN_COMPILE = getAsmMethod(Pattern.class, "compile", String.class, int.class);
-    public static final Method PATTERN_MATCHER = getAsmMethod(Matcher.class, "matcher", CharSequence.class);
+    public static final Method PATTERN_MATCHER = getAsmMethod(Matcher.class, "matcher", Pattern.class, int.class, CharSequence.class);
     public static final Method MATCHER_MATCHES = getAsmMethod(boolean.class, "matches");
     public static final Method MATCHER_FIND = getAsmMethod(boolean.class, "find");
 
@@ -118,9 +77,6 @@ public final class WriterConstants {
             String.class, MethodType.class, int.class, int.class, Object[].class);
     static final Handle DEF_BOOTSTRAP_HANDLE = new Handle(Opcodes.H_INVOKESTATIC, CLASS_TYPE.getInternalName(), "$bootstrapDef",
             DEF_BOOTSTRAP_METHOD.getDescriptor(), false);
-    public static final Type DEF_BOOTSTRAP_DELEGATE_TYPE = Type.getType(DefBootstrap.class);
-    public static final Method DEF_BOOTSTRAP_DELEGATE_METHOD = getAsmMethod(CallSite.class, "bootstrap", PainlessLookup.class,
-            Map.class, MethodHandles.Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class);
 
     public static final Type DEF_UTIL_TYPE = Type.getType(Def.class);
 
@@ -158,17 +114,22 @@ public final class WriterConstants {
     public static final Method DEF_TO_B_FLOAT_EXPLICIT     = getAsmMethod(Float.class     , "defToFloatExplicit"     , Object.class);
     public static final Method DEF_TO_B_DOUBLE_EXPLICIT    = getAsmMethod(Double.class    , "defToDoubleExplicit"    , Object.class);
 
-    public static final Type DEF_ARRAY_LENGTH_METHOD_TYPE = Type.getMethodType(Type.INT_TYPE, Type.getType(Object.class));
+    public static final Method DEF_TO_STRING_IMPLICIT = getAsmMethod(String.class, "defToStringImplicit", Object.class);
+    public static final Method DEF_TO_STRING_EXPLICIT = getAsmMethod(String.class, "defToStringExplicit", Object.class);
+
+    // TODO: remove this when the transition from Joda to Java datetimes is completed
+    public static final Method DEF_TO_ZONEDDATETIME = getAsmMethod(ZonedDateTime.class, "defToZonedDateTime", Object.class);
 
     /** invokedynamic bootstrap for lambda expression/method references */
     public static final MethodType LAMBDA_BOOTSTRAP_TYPE =
             MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class,
-                    MethodType.class, String.class, int.class, String.class, MethodType.class, int.class);
+                    MethodType.class, String.class, int.class, String.class, MethodType.class, int.class, int.class, Object[].class);
     public static final Handle LAMBDA_BOOTSTRAP_HANDLE =
             new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaBootstrap.class),
                 "lambdaBootstrap", LAMBDA_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
     public static final MethodType DELEGATE_BOOTSTRAP_TYPE =
-        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, MethodHandle.class);
+        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, MethodHandle.class,
+                              int.class, Object[].class);
     public static final Handle DELEGATE_BOOTSTRAP_HANDLE =
         new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaBootstrap.class),
             "delegateBootstrap", DELEGATE_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
@@ -212,6 +173,12 @@ public final class WriterConstants {
 
     public static final Type COLLECTION_TYPE = Type.getType(Collection.class);
     public static final Method COLLECTION_SIZE = getAsmMethod(int.class, "size");
+
+    public static final Type LIST_TYPE = Type.getType(List.class);
+    public static final Method LIST_ADD = getAsmMethod(boolean.class, "add", Object.class);
+
+    public static final Type ARRAY_LIST_TYPE = Type.getType(ArrayList.class);
+    public static final Method ARRAY_LIST_CTOR_WITH_SIZE = getAsmMethod(void.class, CTOR_METHOD_NAME, int.class);
 
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());

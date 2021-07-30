@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.stats;
 
@@ -10,12 +11,12 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.execution.QueuedWatch;
@@ -28,42 +29,38 @@ import java.util.Locale;
 public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse.Node>
         implements ToXContentObject {
 
-    private WatcherMetaData watcherMetaData;
+    private WatcherMetadata watcherMetadata;
 
-    public WatcherStatsResponse() {
+    public WatcherStatsResponse(StreamInput in) throws IOException {
+        super(in);
+        watcherMetadata = new WatcherMetadata(in.readBoolean());
     }
 
-    public WatcherStatsResponse(ClusterName clusterName, WatcherMetaData watcherMetaData,
+    public WatcherStatsResponse(ClusterName clusterName, WatcherMetadata watcherMetadata,
                                 List<Node> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
-        this.watcherMetaData = watcherMetaData;
+        this.watcherMetadata = watcherMetadata;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(watcherMetaData.manuallyStopped());
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        watcherMetaData = new WatcherMetaData(in.readBoolean());
+        out.writeBoolean(watcherMetadata.manuallyStopped());
     }
 
     @Override
     protected List<Node> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(Node::readNodeResponse);
+        return in.readList(Node::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<Node> nodes) throws IOException {
-        out.writeStreamableList(nodes);
+        out.writeList(nodes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        watcherMetaData.toXContent(builder, params);
+        watcherMetadata.toXContent(builder, params);
         builder.startArray("stats");
         for (Node node : getNodes()) {
             node.toXContent(builder, params);
@@ -82,8 +79,8 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
         return getNodes().stream().mapToLong(WatcherStatsResponse.Node::getWatchesCount).sum();
     }
 
-    public WatcherMetaData watcherMetaData() {
-        return watcherMetaData;
+    public WatcherMetadata watcherMetadata() {
+        return watcherMetadata;
     }
 
     public static class Node extends BaseNodeResponse implements ToXContentObject {
@@ -96,7 +93,22 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
         private List<QueuedWatch> queuedWatches;
         private Counters stats;
 
-        public Node() {
+        public Node(StreamInput in) throws IOException {
+            super(in);
+            watchesCount = in.readLong();
+            threadPoolQueueSize = in.readLong();
+            threadPoolMaxSize = in.readLong();
+            watcherState = WatcherState.fromId(in.readByte());
+
+            if (in.readBoolean()) {
+                snapshots = in.readList(WatchExecutionSnapshot::new);
+            }
+            if (in.readBoolean()) {
+                queuedWatches = in.readList(QueuedWatch::new);
+            }
+            if (in.readBoolean()) {
+                stats = new Counters(in);
+            }
         }
 
         public Node(DiscoveryNode node) {
@@ -174,25 +186,6 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            watchesCount = in.readLong();
-            threadPoolQueueSize = in.readLong();
-            threadPoolMaxSize = in.readLong();
-            watcherState = WatcherState.fromId(in.readByte());
-
-            if (in.readBoolean()) {
-                snapshots = in.readStreamableList(WatchExecutionSnapshot::new);
-            }
-            if (in.readBoolean()) {
-                queuedWatches = in.readStreamableList(QueuedWatch::new);
-            }
-            if (in.readBoolean()) {
-                stats = Counters.read(in);
-            }
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeLong(watchesCount);
@@ -202,11 +195,11 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
             out.writeBoolean(snapshots != null);
             if (snapshots != null) {
-                out.writeStreamableList(snapshots);
+                out.writeList(snapshots);
             }
             out.writeBoolean(queuedWatches != null);
             if (queuedWatches != null) {
-                out.writeStreamableList(queuedWatches);
+                out.writeList(queuedWatches);
             }
             out.writeBoolean(stats != null);
             if (stats != null) {
@@ -246,13 +239,6 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
             }
             builder.endObject();
             return builder;
-        }
-
-        static WatcherStatsResponse.Node readNodeResponse(StreamInput in)
-                throws IOException {
-            WatcherStatsResponse.Node node = new WatcherStatsResponse.Node();
-            node.readFrom(in);
-            return node;
         }
     }
 }

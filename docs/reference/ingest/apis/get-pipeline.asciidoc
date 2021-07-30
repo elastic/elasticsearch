@@ -1,0 +1,99 @@
+[[get-pipeline-api]]
+=== Get pipeline API
+++++
+<titleabbrev>Get pipeline</titleabbrev>
+++++
+
+Returns information about one or more ingest pipelines.
+This API returns a local reference of the pipeline.
+
+////
+[source,console]
+----
+PUT /_ingest/pipeline/my-pipeline-id
+{
+  "description" : "describe pipeline",
+  "version" : 123,
+  "processors" : [
+    {
+      "set" : {
+        "field": "foo",
+        "value": "bar"
+      }
+    }
+  ]
+}
+----
+////
+
+[source,console]
+----
+GET /_ingest/pipeline/my-pipeline-id
+----
+// TEST[continued]
+
+
+
+[[get-pipeline-api-request]]
+==== {api-request-title}
+
+`GET /_ingest/pipeline/<pipeline>`
+
+`GET /_ingest/pipeline`
+
+[[get-pipeline-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`read_pipeline`, `manage_pipeline`, `manage_ingest_pipelines`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[get-pipeline-api-path-params]]
+==== {api-path-parms-title}
+
+`<pipeline>`::
+(Optional, string)
+Comma-separated list of pipeline IDs to retrieve. Wildcard (`*`) expressions are
+supported.
++
+To get all ingest pipelines, omit this parameter or use `*`.
+
+
+[[get-pipeline-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+
+[[get-pipeline-api-api-example]]
+==== {api-examples-title}
+
+
+[[get-pipeline-api-specific-ex]]
+===== Get information for a specific ingest pipeline
+
+[source,console]
+----
+GET /_ingest/pipeline/my-pipeline-id
+----
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "my-pipeline-id" : {
+    "description" : "describe pipeline",
+    "version" : 123,
+    "processors" : [
+      {
+        "set" : {
+          "field" : "foo",
+          "value" : "bar"
+        }
+      }
+    ]
+  }
+}
+----

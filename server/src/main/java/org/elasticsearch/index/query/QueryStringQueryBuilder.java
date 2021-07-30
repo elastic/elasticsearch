@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -23,8 +12,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,9 +26,9 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.search.QueryStringQueryParser;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -144,7 +132,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     private Boolean lenient;
 
-    private DateTimeZone timeZone;
+    private ZoneId timeZone;
 
     /** To limit effort spent determinizing regexp queries. */
     private int maxDeterminizedStates = DEFAULT_MAX_DETERMINED_STATES;
@@ -169,7 +157,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         defaultField = in.readOptionalString();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            fieldsAndWeights.put(in.readString(), in.readFloat());
+            String field = in.readString();
+            Float weight = in.readFloat();
+            checkNegativeBoost(weight);
+            fieldsAndWeights.put(field, weight);
         }
         defaultOperator = Operator.readFromStream(in);
         analyzer = in.readOptionalString();
@@ -189,13 +180,11 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         rewrite = in.readOptionalString();
         minimumShouldMatch = in.readOptionalString();
         lenient = in.readOptionalBoolean();
-        timeZone = in.readOptionalTimeZone();
+        timeZone = in.readOptionalZoneId();
         escape = in.readBoolean();
         maxDeterminizedStates = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            autoGenerateSynonymsPhraseQuery = in.readBoolean();
-            fuzzyTranspositions = in.readBoolean();
-        }
+        autoGenerateSynonymsPhraseQuery = in.readBoolean();
+        fuzzyTranspositions = in.readBoolean();
     }
 
     @Override
@@ -224,13 +213,11 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeOptionalString(this.rewrite);
         out.writeOptionalString(this.minimumShouldMatch);
         out.writeOptionalBoolean(this.lenient);
-        out.writeOptionalTimeZone(timeZone);
+        out.writeOptionalZoneId(timeZone);
         out.writeBoolean(this.escape);
         out.writeVInt(this.maxDeterminizedStates);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeBoolean(autoGenerateSynonymsPhraseQuery);
-            out.writeBoolean(fuzzyTranspositions);
-        }
+        out.writeBoolean(autoGenerateSynonymsPhraseQuery);
+        out.writeBoolean(fuzzyTranspositions);
     }
 
     public String queryString() {
@@ -264,6 +251,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * Adds a field to run the query string against with a specific boost.
      */
     public QueryStringQueryBuilder field(String field, float boost) {
+        checkNegativeBoost(boost);
         this.fieldsAndWeights.put(field, boost);
         return this;
     }
@@ -272,6 +260,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * Add several fields to run the query against with a specific boost.
      */
     public QueryStringQueryBuilder fields(Map<String, Float> fields) {
+        for (float fieldBoost : fields.values()) {
+            checkNegativeBoost(fieldBoost);
+        }
         this.fieldsAndWeights.putAll(fields);
         return this;
     }
@@ -510,19 +501,19 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      */
     public QueryStringQueryBuilder timeZone(String timeZone) {
         if (timeZone != null) {
-            this.timeZone = DateTimeZone.forID(timeZone);
+            this.timeZone = ZoneId.of(timeZone);
         } else {
             this.timeZone = null;
         }
         return this;
     }
 
-    public QueryStringQueryBuilder timeZone(DateTimeZone timeZone) {
+    public QueryStringQueryBuilder timeZone(ZoneId timeZone) {
         this.timeZone = timeZone;
         return this;
     }
 
-    public DateTimeZone timeZone() {
+    public ZoneId timeZone() {
         return this.timeZone;
     }
 
@@ -621,7 +612,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             builder.field(LENIENT_FIELD.getPreferredName(), this.lenient);
         }
         if (this.timeZone != null) {
-            builder.field(TIME_ZONE_FIELD.getPreferredName(), this.timeZone.getID());
+            builder.field(TIME_ZONE_FIELD.getPreferredName(), this.timeZone.getId());
         }
         builder.field(ESCAPE_FIELD.getPreferredName(), this.escape);
         builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
@@ -810,8 +801,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
                 Objects.equals(lenient, other.lenient) &&
                 Objects.equals(
-                        timeZone == null ? null : timeZone.getID(),
-                        other.timeZone == null ? null : other.timeZone.getID()) &&
+                        timeZone == null ? null : timeZone.getId(),
+                        other.timeZone == null ? null : other.timeZone.getId()) &&
                 Objects.equals(escape, other.escape) &&
                 Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
                 Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &&
@@ -824,12 +815,12 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 quoteFieldSuffix, allowLeadingWildcard, analyzeWildcard,
                 enablePositionIncrements, fuzziness, fuzzyPrefixLength,
                 fuzzyMaxExpansions, fuzzyRewrite, phraseSlop, type, tieBreaker, rewrite, minimumShouldMatch, lenient,
-                timeZone == null ? 0 : timeZone.getID(), escape, maxDeterminizedStates, autoGenerateSynonymsPhraseQuery,
+                timeZone == null ? 0 : timeZone.getId(), escape, maxDeterminizedStates, autoGenerateSynonymsPhraseQuery,
                 fuzzyTranspositions);
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         String rewrittenQueryString = escape ? org.apache.lucene.queryparser.classic.QueryParser.escape(this.queryString) : queryString;
         if (fieldsAndWeights.size() > 0 && this.defaultField != null) {
             throw addValidationError("cannot use [fields] parameter in conjunction with [default_field]", null);
@@ -845,11 +836,14 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             }
         } else if (fieldsAndWeights.size() > 0) {
             final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
-            queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
+            if (QueryParserHelper.hasAllFieldsWildcard(fieldsAndWeights.keySet())) {
+                queryParser = new QueryStringQueryParser(context, resolvedFields, lenient == null ? true : lenient);
+            } else {
+                queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
+            }
         } else {
             List<String> defaultFields = context.defaultFields();
-            boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
-            if (isAllField) {
+            if (QueryParserHelper.hasAllFieldsWildcard(defaultFields)) {
                 queryParser = new QueryStringQueryParser(context, lenient == null ? true : lenient);
             } else {
                 final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context,

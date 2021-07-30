@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.engine;
 
@@ -26,24 +15,27 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -52,12 +44,12 @@ import java.util.function.LongSupplier;
  */
 public final class EngineConfig {
     private final ShardId shardId;
-    private final String allocationId;
     private final IndexSettings indexSettings;
     private final ByteSizeValue indexingBufferSize;
     private volatile boolean enableGcDeletes = true;
     private final TimeValue flushMergesAfter;
     private final String codecName;
+    private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final ThreadPool threadPool;
     private final Engine.Warmer warmer;
     private final Store store;
@@ -77,8 +69,19 @@ public final class EngineConfig {
     @Nullable
     private final CircuitBreakerService circuitBreakerService;
     private final LongSupplier globalCheckpointSupplier;
+    private final Supplier<RetentionLeases> retentionLeasesSupplier;
+
+    /**
+     * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
+     * soft deleted should be retained.
+     *
+     * @return a supplier of outstanding retention leases
+     */
+    public Supplier<RetentionLeases> retentionLeasesSupplier() {
+        return retentionLeasesSupplier;
+    }
+
     private final LongSupplier primaryTermSupplier;
-    private final TombstoneDocSupplier tombstoneDocSupplier;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -101,33 +104,35 @@ public final class EngineConfig {
         }
     }, Property.IndexScope, Property.NodeScope);
 
-    /**
-     * Configures an index to optimize documents with auto generated ids for append only. If this setting is updated from <code>false</code>
-     * to <code>true</code> might not take effect immediately. In other words, disabling the optimization will be immediately applied while
-     * re-enabling it might not be applied until the engine is in a safe state to do so. Depending on the engine implementation a change to
-     * this setting won't be reflected re-enabled optimization until the engine is restarted or the index is closed and reopened.
-     * The default is <code>true</code>
-     */
-    public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting("index.optimize_auto_generated_id", true,
-        Property.IndexScope, Property.Dynamic);
-
     private final TranslogConfig translogConfig;
 
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(ShardId shardId, String allocationId, ThreadPool threadPool,
-                        IndexSettings indexSettings, Engine.Warmer warmer, Store store,
-                        MergePolicy mergePolicy, Analyzer analyzer,
-                        Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
-                        QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                        TranslogConfig translogConfig, TimeValue flushMergesAfter,
-                        List<ReferenceManager.RefreshListener> externalRefreshListener,
-                        List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
-                        CircuitBreakerService circuitBreakerService, LongSupplier globalCheckpointSupplier,
-                        LongSupplier primaryTermSupplier, TombstoneDocSupplier tombstoneDocSupplier) {
+    public EngineConfig(
+            ShardId shardId,
+            ThreadPool threadPool,
+            IndexSettings indexSettings,
+            Engine.Warmer warmer,
+            Store store,
+            MergePolicy mergePolicy,
+            Analyzer analyzer,
+            Similarity similarity,
+            CodecService codecService,
+            Engine.EventListener eventListener,
+            QueryCache queryCache,
+            QueryCachingPolicy queryCachingPolicy,
+            TranslogConfig translogConfig,
+            TimeValue flushMergesAfter,
+            List<ReferenceManager.RefreshListener> externalRefreshListener,
+            List<ReferenceManager.RefreshListener> internalRefreshListener,
+            Sort indexSort,
+            CircuitBreakerService circuitBreakerService,
+            LongSupplier globalCheckpointSupplier,
+            Supplier<RetentionLeases> retentionLeasesSupplier,
+            LongSupplier primaryTermSupplier,
+            IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier) {
         this.shardId = shardId;
-        this.allocationId = allocationId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
         this.warmer = warmer == null ? (a) -> {} : warmer;
@@ -161,8 +166,9 @@ public final class EngineConfig {
         this.indexSort = indexSort;
         this.circuitBreakerService = circuitBreakerService;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
+        this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
         this.primaryTermSupplier = primaryTermSupplier;
-        this.tombstoneDocSupplier = tombstoneDocSupplier;
+        this.snapshotCommitSupplier = snapshotCommitSupplier;
     }
 
     /**
@@ -269,15 +275,6 @@ public final class EngineConfig {
     public ShardId getShardId() { return shardId; }
 
     /**
-     * Returns the allocation ID for the shard.
-     *
-     * @return the allocation ID
-     */
-    public String getAllocationId() {
-        return allocationId;
-    }
-
-    /**
      * Returns the analyzer as the default analyzer in the engines {@link org.apache.lucene.index.IndexWriter}
      */
     public Analyzer getAnalyzer() {
@@ -331,14 +328,6 @@ public final class EngineConfig {
      */
     public List<ReferenceManager.RefreshListener> getInternalRefreshListener() { return internalRefreshListener;}
 
-
-    /**
-     * returns true if the engine is allowed to optimize indexing operations with an auto-generated ID
-     */
-    public boolean isAutoGeneratedIDsOptimizationEnabled() {
-        return indexSettings.getValue(INDEX_OPTIMIZE_AUTO_GENERATED_IDS);
-    }
-
     /**
      * Return the sort order of this index, or null if the index has no sort.
      */
@@ -361,24 +350,7 @@ public final class EngineConfig {
         return primaryTermSupplier;
     }
 
-    /**
-     * A supplier supplies tombstone documents which will be used in soft-update methods.
-     * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
-     */
-    public interface TombstoneDocSupplier {
-        /**
-         * Creates a tombstone document for a delete operation.
-         */
-        ParsedDocument newDeleteTombstoneDoc(String type, String id);
-
-        /**
-         * Creates a tombstone document for a noop operation.
-         * @param reason the reason of an a noop
-         */
-        ParsedDocument newNoopTombstoneDoc(String reason);
-    }
-
-    public TombstoneDocSupplier getTombstoneDocSupplier() {
-        return tombstoneDocSupplier;
+    public IndexStorePlugin.SnapshotCommitSupplier getSnapshotCommitSupplier() {
+        return snapshotCommitSupplier;
     }
 }

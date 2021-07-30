@@ -1,0 +1,51 @@
+[role="xpack"]
+[testenv="basic"]
+
+[[delete-async-eql-search-api]]
+=== Delete async EQL search API
+++++
+<titleabbrev>Delete async EQL search</titleabbrev>
+++++
+
+Deletes an <<eql-search-async,async EQL search>> or a
+<<eql-search-store-sync-eql-search,stored synchronous EQL search>>. The API also
+deletes results for the search.
+
+[source,console]
+----
+DELETE /_eql/search/FkpMRkJGS1gzVDRlM3g4ZzMyRGlLbkEaTXlJZHdNT09TU2VTZVBoNDM3cFZMUToxMDM=
+----
+// TEST[skip: no access to search ID]
+
+[[delete-async-eql-search-api-request]]
+==== {api-request-title}
+
+`DELETE /_eql/search/<search_id>`
+
+[[delete-async-eql-search-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, only the following users can
+use this API to delete a search:
+
+** Users with the `cancel_task` <<privileges-list-cluster,cluster privilege>>
+** The user who first submitted the search
+
+* See <<eql-required-fields>>.
+
+[[delete-async-eql-search-api-limitations]]
+===== Limitations
+
+See <<eql-syntax-limitations,EQL limitations>>.
+
+[[delete-async-eql-search-api-path-params]]
+==== {api-path-parms-title}
+
+`<search_id>`::
+(Required, string)
+Identifier for the search to delete.
++
+A search ID is provided in the <<eql-search-api,EQL search API>>'s response for
+an <<eql-search-async,async search>>. A search ID is also provided if the
+request's <<eql-search-api-keep-on-completion,`keep_on_completion`>> parameter
+is `true`.

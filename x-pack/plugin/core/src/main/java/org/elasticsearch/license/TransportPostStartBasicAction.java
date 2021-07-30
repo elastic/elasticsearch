@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -14,6 +15,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -26,22 +28,12 @@ public class TransportPostStartBasicAction extends TransportMasterNodeAction<Pos
                                          LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PostStartBasicAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PostStartBasicRequest::new);
+                PostStartBasicRequest::new, indexNameExpressionResolver, PostStartBasicResponse::new, ThreadPool.Names.SAME);
         this.licenseService = licenseService;
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PostStartBasicResponse newResponse() {
-        return new PostStartBasicResponse();
-    }
-
-    @Override
-    protected void masterOperation(PostStartBasicRequest request, ClusterState state,
+    protected void masterOperation(Task task, PostStartBasicRequest request, ClusterState state,
                                    ActionListener<PostStartBasicResponse> listener) throws Exception {
         licenseService.startBasicLicense(request, listener);
     }

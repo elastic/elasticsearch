@@ -1,67 +1,71 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.repositories.RepositoryOperation;
+import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A class that represents the snapshot deletions that are in progress in the cluster.
  */
 public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
+    public static final SnapshotDeletionsInProgress EMPTY = new SnapshotDeletionsInProgress(List.of());
+
     public static final String TYPE = "snapshot_deletions";
 
     // the list of snapshot deletion request entries
     private final List<Entry> entries;
 
-    public SnapshotDeletionsInProgress() {
-        this(Collections.emptyList());
+    private SnapshotDeletionsInProgress(List<Entry> entries) {
+        this.entries = entries;
+        assert entries.size() == entries.stream().map(Entry::uuid).distinct().count() : "Found duplicate UUIDs in entries " + entries;
+        assert assertNoConcurrentDeletionsForSameRepository(entries);
     }
 
-    private SnapshotDeletionsInProgress(List<Entry> entries) {
-        this.entries = Collections.unmodifiableList(entries);
+    public static SnapshotDeletionsInProgress of(List<SnapshotDeletionsInProgress.Entry> entries) {
+        if (entries.isEmpty()) {
+            return EMPTY;
+        }
+        return new SnapshotDeletionsInProgress(Collections.unmodifiableList(entries));
     }
 
     public SnapshotDeletionsInProgress(StreamInput in) throws IOException {
-        this.entries = Collections.unmodifiableList(in.readList(Entry::new));
+        this(in.readList(Entry::new));
     }
 
-    /**
-     * Returns a new instance of {@link SnapshotDeletionsInProgress} with the given
-     * {@link Entry} added.
-     */
-    public static SnapshotDeletionsInProgress newInstance(Entry entry) {
-        return new SnapshotDeletionsInProgress(Collections.singletonList(entry));
+    private static boolean assertNoConcurrentDeletionsForSameRepository(List<Entry> entries) {
+        final Set<String> activeRepositories = new HashSet<>();
+        for (Entry entry : entries) {
+            if (entry.state() == State.STARTED) {
+                final boolean added = activeRepositories.add(entry.repository());
+                assert added : "Found multiple running deletes for a single repository in " + entries;
+            }
+        }
+        return true;
     }
 
     /**
@@ -69,19 +73,24 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
      * the given {@link Entry} to the invoking instance.
      */
     public SnapshotDeletionsInProgress withAddedEntry(Entry entry) {
-        List<Entry> entries = new ArrayList<>(getEntries());
-        entries.add(entry);
-        return new SnapshotDeletionsInProgress(entries);
+        return SnapshotDeletionsInProgress.of(CollectionUtils.appendToCopy(getEntries(), entry));
     }
 
     /**
-     * Returns a new instance of {@link SnapshotDeletionsInProgress} which removes
-     * the given entry from the invoking instance.
+     * Returns a new instance of {@link SnapshotDeletionsInProgress} that has the entry with the given {@code deleteUUID} removed from its
+     * entries.
      */
-    public SnapshotDeletionsInProgress withRemovedEntry(Entry entry) {
-        List<Entry> entries = new ArrayList<>(getEntries());
-        entries.remove(entry);
-        return new SnapshotDeletionsInProgress(entries);
+    public SnapshotDeletionsInProgress withRemovedEntry(String deleteUUID) {
+        List<Entry> updatedEntries = new ArrayList<>(entries.size() - 1);
+        boolean removed = false;
+        for (Entry entry : entries) {
+            if (entry.uuid().equals(deleteUUID)) {
+                removed = true;
+            } else {
+                updatedEntries.add(entry);
+            }
+        }
+        return removed ? SnapshotDeletionsInProgress.of(updatedEntries) : this;
     }
 
     /**
@@ -89,6 +98,20 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
      */
     public List<Entry> getEntries() {
         return entries;
+    }
+
+    /**
+     * Checks if there is an actively executing delete operation for the given repository
+     *
+     * @param repository repository name
+     */
+    public boolean hasExecutingDeletion(String repository) {
+        for (Entry entry : entries) {
+            if (entry.state() == State.STARTED && entry.repository().equals(repository)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -142,10 +165,15 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         for (Entry entry : entries) {
             builder.startObject();
             {
-                builder.field("repository", entry.snapshot.getRepository());
-                builder.field("snapshot", entry.snapshot.getSnapshotId().getName());
-                builder.humanReadableField("start_time_millis", "start_time", new TimeValue(entry.startTime));
+                builder.field("repository", entry.repository());
+                builder.startArray("snapshots");
+                for (SnapshotId snapshot : entry.snapshots) {
+                    builder.value(snapshot.getName());
+                }
+                builder.endArray();
+                builder.timeField("start_time_millis", "start_time", entry.startTime);
                 builder.field("repository_state_id", entry.repositoryStateId);
+                builder.field("state", entry.state);
             }
             builder.endObject();
         }
@@ -157,7 +185,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     public String toString() {
         StringBuilder builder = new StringBuilder("SnapshotDeletionsInProgress[");
         for (int i = 0; i < entries.size(); i++) {
-            builder.append(entries.get(i).getSnapshot().getSnapshotId().getName());
+            builder.append(entries.get(i).getSnapshots());
             if (i + 1 < entries.size()) {
                 builder.append(",");
             }
@@ -168,28 +196,69 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     /**
      * A class representing a snapshot deletion request entry in the cluster state.
      */
-    public static final class Entry implements Writeable {
-        private final Snapshot snapshot;
+    public static final class Entry implements Writeable, RepositoryOperation {
+        private final List<SnapshotId> snapshots;
+        private final String repoName;
+        private final State state;
         private final long startTime;
         private final long repositoryStateId;
+        private final String uuid;
 
-        public Entry(Snapshot snapshot, long startTime, long repositoryStateId) {
-            this.snapshot = snapshot;
+        public Entry(List<SnapshotId> snapshots, String repoName, long startTime, long repositoryStateId, State state) {
+            this(snapshots, repoName, startTime, repositoryStateId, state, UUIDs.randomBase64UUID());
+        }
+
+        private Entry(List<SnapshotId> snapshots, String repoName, long startTime, long repositoryStateId, State state, String uuid) {
+            this.snapshots = snapshots;
+            assert snapshots.size() == new HashSet<>(snapshots).size() : "Duplicate snapshot ids in " + snapshots;
+            this.repoName = repoName;
             this.startTime = startTime;
             this.repositoryStateId = repositoryStateId;
+            this.state = state;
+            this.uuid = uuid;
         }
 
         public Entry(StreamInput in) throws IOException {
-            this.snapshot = new Snapshot(in);
+            this.repoName = in.readString();
+            this.snapshots = in.readList(SnapshotId::new);
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
+            this.state = State.readFrom(in);
+            this.uuid = in.readString();
         }
 
-        /**
-         * The snapshot to delete.
-         */
-        public Snapshot getSnapshot() {
-            return snapshot;
+        public Entry started() {
+            assert state == State.WAITING;
+            return new Entry(snapshots, repository(), startTime, repositoryStateId, State.STARTED, uuid);
+        }
+
+        public Entry withAddedSnapshots(Collection<SnapshotId> newSnapshots) {
+            assert state == State.WAITING;
+            final Collection<SnapshotId> updatedSnapshots = new HashSet<>(snapshots);
+            if (updatedSnapshots.addAll(newSnapshots) == false) {
+                return this;
+            }
+            return new Entry(List.copyOf(updatedSnapshots), repository(), startTime, repositoryStateId, State.WAITING, uuid);
+        }
+
+        public Entry withSnapshots(Collection<SnapshotId> snapshots) {
+            return new Entry(List.copyOf(snapshots), repository(), startTime, repositoryStateId, state, uuid);
+        }
+
+        public Entry withRepoGen(long repoGen) {
+            return new Entry(snapshots, repository(), startTime, repoGen, state, uuid);
+        }
+
+        public State state() {
+            return state;
+        }
+
+        public String uuid() {
+            return uuid;
+        }
+
+        public List<SnapshotId> getSnapshots() {
+            return snapshots;
         }
 
         /**
@@ -197,13 +266,6 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
          */
         public long getStartTime() {
             return startTime;
-        }
-
-        /**
-         * The repository state id at the time the snapshot deletion began.
-         */
-        public long getRepositoryStateId() {
-            return repositoryStateId;
         }
 
         @Override
@@ -215,21 +277,79 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 return false;
             }
             Entry that = (Entry) o;
-            return snapshot.equals(that.snapshot)
+            return repoName.equals(that.repoName)
+                       && snapshots.equals(that.snapshots)
                        && startTime == that.startTime
-                       && repositoryStateId == that.repositoryStateId;
+                       && repositoryStateId == that.repositoryStateId
+                       && state == that.state
+                       && uuid.equals(that.uuid);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(snapshot, startTime, repositoryStateId);
+            return Objects.hash(snapshots, repoName, startTime, repositoryStateId, state, uuid);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            snapshot.writeTo(out);
+            out.writeString(repoName);
+            out.writeCollection(snapshots);
             out.writeVLong(startTime);
             out.writeLong(repositoryStateId);
+            state.writeTo(out);
+            out.writeString(uuid);
+        }
+
+        @Override
+        public String repository() {
+            return repoName;
+        }
+
+        @Override
+        public long repositoryStateId() {
+            return repositoryStateId;
+        }
+
+        @Override
+        public String toString() {
+            return "SnapshotDeletionsInProgress.Entry[[" + uuid + "][" + state + "]" + snapshots + "]";
+        }
+    }
+
+    public enum State implements Writeable {
+
+        /**
+         * Delete is waiting to execute because there are snapshots and or a delete operation that has to complete before this delete may
+         * run.
+         */
+        WAITING((byte) 0),
+
+        /**
+         * Delete is physically executing on the repository.
+         */
+        STARTED((byte) 1);
+
+        private final byte value;
+
+        State(byte value) {
+            this.value = value;
+        }
+
+        public static State readFrom(StreamInput in) throws IOException {
+            final byte value = in.readByte();
+            switch (value) {
+                case 0:
+                    return WAITING;
+                case 1:
+                    return STARTED;
+                default:
+                    throw new IllegalArgumentException("No snapshot delete state for value [" + value + "]");
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(value);
         }
     }
 }

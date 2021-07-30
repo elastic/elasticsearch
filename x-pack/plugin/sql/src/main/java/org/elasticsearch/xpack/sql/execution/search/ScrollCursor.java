@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
@@ -14,31 +15,41 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
-import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.ql.type.Schema;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.session.RowSet;
+import org.elasticsearch.xpack.sql.session.Rows;
 
 import java.io.IOException;
+import java.util.BitSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.action.ActionListener.wrap;
 
 public class ScrollCursor implements Cursor {
 
-    private final Logger log = LogManager.getLogger(getClass());
+    private static final Logger log = LogManager.getLogger(ScrollCursor.class);
 
     public static final String NAME = "s";
 
     private final String scrollId;
     private final List<HitExtractor> extractors;
+    private final BitSet mask;
     private final int limit;
 
-    public ScrollCursor(String scrollId, List<HitExtractor> extractors, int limit) {
+    public ScrollCursor(String scrollId, List<HitExtractor> extractors, BitSet mask, int limit) {
         this.scrollId = scrollId;
         this.extractors = extractors;
+        this.mask = mask;
         this.limit = limit;
     }
 
@@ -47,6 +58,7 @@ public class ScrollCursor implements Cursor {
         limit = in.readVInt();
 
         extractors = in.readNamedWriteableList(HitExtractor.class);
+        mask = BitSet.valueOf(in.readByteArray());
     }
 
     @Override
@@ -55,6 +67,7 @@ public class ScrollCursor implements Cursor {
         out.writeVInt(limit);
 
         out.writeNamedWriteableList(extractors);
+        out.writeByteArray(mask.toByteArray());
     }
 
     @Override
@@ -66,6 +79,10 @@ public class ScrollCursor implements Cursor {
         return scrollId;
     }
 
+    BitSet mask() {
+        return mask;
+    }
+
     List<HitExtractor> extractors() {
         return extractors;
     }
@@ -74,28 +91,50 @@ public class ScrollCursor implements Cursor {
         return limit;
     }
     @Override
-    public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<RowSet> listener) {
-        log.trace("About to execute scroll query {}", scrollId);
+    public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
+        if (log.isTraceEnabled()) {
+            log.trace("About to execute scroll query {}", scrollId);
+        }
 
         SearchScrollRequest request = new SearchScrollRequest(scrollId).scroll(cfg.pageTimeout());
-        client.searchScroll(request, ActionListener.wrap((SearchResponse response) -> {
-            SearchHitRowSet rowSet = new SearchHitRowSet(extractors, response.getHits().getHits(),
-                    limit, response.getScrollId());
-            if (rowSet.nextPageCursor() == Cursor.EMPTY ) {
-                // we are finished with this cursor, let's clean it before continuing
-                clear(cfg, client, ActionListener.wrap(success -> listener.onResponse(rowSet), listener::onFailure));
-            } else {
-                listener.onResponse(rowSet);
-            }
+        client.searchScroll(request, wrap(response -> {
+            handle(response, () -> new SearchHitRowSet(extractors, mask, limit, response),
+                    p -> listener.onResponse(p),
+                    p -> clear(cfg, client, wrap(success -> listener.onResponse(p), listener::onFailure)),
+                    Schema.EMPTY);
         }, listener::onFailure));
     }
 
     @Override
-    public void clear(Configuration cfg, Client client, ActionListener<Boolean> listener) {
-        cleanCursor(client, scrollId,
-                ActionListener.wrap(
+    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
+        cleanCursor(client, scrollId, wrap(
                         clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()),
                         listener::onFailure));
+    }
+
+    static void handle(SearchResponse response, Supplier<SearchHitRowSet> makeRowHit, Consumer<Page> onPage, Consumer<Page> clearScroll,
+            Schema schema) {
+        if (log.isTraceEnabled()) {
+            Querier.logSearchResponse(response, log);
+        }
+        SearchHit[] hits = response.getHits().getHits();
+        // clean-up
+        if (hits.length > 0) {
+            SearchHitRowSet rowSet = makeRowHit.get();
+            Tuple<String, Integer> nextScrollData = rowSet.nextScrollData();
+
+            if (nextScrollData == null) {
+                // no more data, let's clean the scroll before continuing
+                clearScroll.accept(Page.last(rowSet));
+            } else {
+                Cursor next = new ScrollCursor(nextScrollData.v1(), rowSet.extractors(), rowSet.mask(), nextScrollData.v2());
+                onPage.accept(new Page(rowSet, next));
+            }
+        }
+        // no-hits
+        else {
+            clearScroll.accept(Page.last(Rows.empty(schema)));
+        }
     }
 
     @Override

@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -15,6 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -22,7 +25,7 @@ import java.util.stream.Collectors;
  * An application privilege has an application name (e.g. {@code "my-app"}) that identifies an application (that exists
  * outside of elasticsearch), a privilege name (e.g. {@code "admin}) that is meaningful to that application, and one or
  * more "action patterns" (e.g {@code "admin/user/*", "admin/team/*"}).
- * Action patterns must contain at least one special character from ({@code /}, {@code :}, {@code *}) to distinguish them
+ * ActionType patterns must contain at least one special character from ({@code /}, {@code :}, {@code *}) to distinguish them
  * from privilege names.
  * The action patterns are entirely optional - many application will find that simple "privilege names" are sufficient, but
  * they allow applications to define high level abstract privileges that map to multiple low level capabilities.
@@ -101,7 +104,7 @@ public final class ApplicationPrivilege extends Privilege {
             if (allowWildcard == false) {
                 throw new IllegalArgumentException("Application names may not contain '*' (found '" + application + "')");
             }
-            if(application.equals("*")) {
+            if (application.equals("*")) {
                 // this is allowed and short-circuiting here makes the later validation simpler
                 return;
             }
@@ -128,7 +131,10 @@ public final class ApplicationPrivilege extends Privilege {
         }
 
         if (parts.length > 1) {
-            final String suffix = parts[1];
+            String suffix = parts[1];
+            if (allowWildcard && suffix.endsWith("*")) {
+                suffix = suffix.substring(0, suffix.length() - 1);
+            }
             if (Strings.validFileName(suffix) == false) {
                 throw new IllegalArgumentException("An application name suffix may not contain any of the characters '" +
                     Strings.collectionToDelimitedString(Strings.INVALID_FILENAME_CHARS, "") + "' (found '" + suffix + "')");
@@ -165,18 +171,36 @@ public final class ApplicationPrivilege extends Privilege {
     }
 
     /**
-     * Finds or creates an application privileges with the provided names.
+     * Finds or creates a collection of application privileges with the provided names.
+     * If application is a wildcard, it will be expanded to all matching application names in {@code stored}
      * Each element in {@code name} may be the name of a stored privilege (to be resolved from {@code stored}, or a bespoke action pattern.
      */
-    public static ApplicationPrivilege get(String application, Set<String> name, Collection<ApplicationPrivilegeDescriptor> stored) {
+    public static Set<ApplicationPrivilege> get(String application, Set<String> name, Collection<ApplicationPrivilegeDescriptor> stored) {
         if (name.isEmpty()) {
-            return NONE.apply(application);
+            return Collections.singleton(NONE.apply(application));
+        } else if (application.contains("*")) {
+            Predicate<String> predicate = Automatons.predicate(application);
+            final Set<ApplicationPrivilege> result = stored.stream()
+                .map(ApplicationPrivilegeDescriptor::getApplication)
+                .filter(predicate)
+                .distinct()
+                .map(appName -> resolve(appName, name, stored))
+                .collect(Collectors.toSet());
+            if (result.isEmpty()) {
+                return Collections.singleton(resolve(application, name, Collections.emptyMap()));
+            } else {
+                return result;
+            }
         } else {
-            Map<String, ApplicationPrivilegeDescriptor> lookup = stored.stream()
-                .filter(apd -> apd.getApplication().equals(application))
-                .collect(Collectors.toMap(ApplicationPrivilegeDescriptor::getName, Function.identity()));
-            return resolve(application, name, lookup);
+            return Collections.singleton(resolve(application, name, stored));
         }
+    }
+
+    private static ApplicationPrivilege resolve(String application, Set<String> name, Collection<ApplicationPrivilegeDescriptor> stored) {
+        final Map<String, ApplicationPrivilegeDescriptor> lookup = stored.stream()
+            .filter(apd -> apd.getApplication().equals(application))
+            .collect(Collectors.toMap(ApplicationPrivilegeDescriptor::getName, Function.identity()));
+        return resolve(application, name, lookup);
     }
 
     private static ApplicationPrivilege resolve(String application, Set<String> names, Map<String, ApplicationPrivilegeDescriptor> lookup) {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -9,23 +10,31 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.net.InetAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -38,11 +47,24 @@ public class LdapSessionFactoryTests extends LdapTestCase {
     private Settings globalSettings;
     private SSLService sslService;
     private ThreadPool threadPool;
+    private Path ldapCaPath;
+
+    @Override
+    protected boolean openLdapsPort() {
+        // Support LDAPS, because it's used in some test
+        return true;
+    }
 
     @Before
     public void setup() throws Exception {
-        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        sslService = new SSLService(globalSettings, TestEnvironment.newEnvironment(globalSettings));
+        final Path origCa = getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-ca.crt");
+        ldapCaPath = createTempFile();
+        Files.copy(origCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
+        globalSettings = Settings.builder()
+            .put("path.home", createTempDir())
+            .putList(RealmSettings.realmSslPrefix(REALM_IDENTIFIER) + "certificate_authorities", ldapCaPath.toString())
+            .build();
+        sslService = new SSLService(TestEnvironment.newEnvironment(globalSettings));
         threadPool = new TestThreadPool("LdapSessionFactoryTests thread pool");
     }
 
@@ -53,14 +75,20 @@ public class LdapSessionFactoryTests extends LdapTestCase {
 
     public void testBindWithReadTimeout() throws Exception {
         InMemoryDirectoryServer ldapServer = randomFrom(ldapServers);
-        String ldapUrl = new LDAPURL("ldap", "localhost", ldapServer.getListenPort(), null, null, null, null).toString();
+        String protocol = randomFrom("ldap", "ldaps");
+        InetAddress listenAddress = ldapServer.getListenAddress(protocol);
+        if (listenAddress == null) {
+            listenAddress = InetAddress.getLoopbackAddress();
+        }
+        String ldapUrl = new LDAPURL(protocol, NetworkAddress.format(listenAddress), ldapServer.getListenPort(protocol),
+            null, null, null, null).toString();
         String groupSearchBase = "o=sevenSeas";
         String userTemplates = "cn={0},ou=people,o=sevenSeas";
 
         Settings settings = Settings.builder()
                 .put(globalSettings)
                 .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "1ms")
+                .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "1ms")
                 .put("path.home", createTempDir())
                 .build();
 
@@ -201,6 +229,64 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             List<String> groups = groups(ldap);
             assertThat(groups.size(), is(1));
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
+        }
+    }
+
+    /**
+     * This test connects to the in memory LDAP server over SSL using 2 different CA certificates.
+     * One certificate is valid, the other is not.
+     * The path to the certificate never changes, but the contents are copied in place.
+     * If the realm's CA path is monitored for changes and the underlying SSL context is reloaded, then we will get two different outcomes
+     * (one failure, one success) depending on which file content is in place.
+     */
+    public void testSslTrustIsReloaded() throws Exception {
+        assumeFalse("NPE thrown in BCFIPS JSSE - addressed in " +
+            "https://github.com/bcgit/bc-java/commit/5aed687e17a3cd63f34373cafe92699b90076fb6#diff-8e5d8089bc0d504d93194a1e484d3950R179",
+            inFipsJvm());
+        InMemoryDirectoryServer ldapServer = randomFrom(ldapServers);
+        InetAddress listenAddress = ldapServer.getListenAddress("ldaps");
+        if (listenAddress == null) {
+            listenAddress = InetAddress.getLoopbackAddress();
+        }
+        String ldapUrl = new LDAPURL("ldaps", NetworkAddress.format(listenAddress), ldapServer.getListenPort("ldaps"),
+            null, null, null, null).toString();
+        String groupSearchBase = "o=sevenSeas";
+        String userTemplates = "cn={0},ou=people,o=sevenSeas";
+
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .build();
+
+        final Path realCa = getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-ca.crt");
+        final Path fakeCa = getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/smb_ca.crt");
+
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
+            environment, new ThreadContext(settings));
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
+        String user = "Horatio Hornblower";
+        SecureString userPass = new SecureString("pass");
+
+        try (ResourceWatcherService resourceWatcher = new ResourceWatcherService(settings, threadPool)) {
+            new SSLConfigurationReloader(environment, resourceWatcher, SSLService.getSSLConfigurations(environment.settings()).values())
+                .setSSLService(sslService);
+            Files.copy(fakeCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
+            resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
+
+            UncategorizedExecutionException e =
+                expectThrows(UncategorizedExecutionException.class, () -> session(sessionFactory, user, userPass));
+            assertThat(e.getCause(), instanceOf(ExecutionException.class));
+            assertThat(e.getCause().getCause(), instanceOf(LDAPException.class));
+            assertThat(e.getCause().getCause().getMessage(), containsString("SSLPeerUnverifiedException"));
+
+            Files.copy(realCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
+            resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
+
+            final LdapSession session = session(sessionFactory, user, userPass);
+            assertThat(session.userDn(), is("cn=Horatio Hornblower,ou=people,o=sevenSeas"));
+
+            session.close();
         }
     }
 }

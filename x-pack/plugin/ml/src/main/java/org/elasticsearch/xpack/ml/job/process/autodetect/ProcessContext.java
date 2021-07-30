@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
@@ -9,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -86,6 +87,7 @@ final class ProcessContext {
         private boolean awaitCompletion;
         private boolean finish;
         private boolean silent;
+        private boolean shouldFinalizeJob = true;
         private String reason;
 
         KillBuilder setAwaitCompletion(boolean awaitCompletion) {
@@ -108,8 +110,19 @@ final class ProcessContext {
             return this;
         }
 
+        KillBuilder setShouldFinalizeJob(boolean shouldFinalizeJob) {
+            this.shouldFinalizeJob = shouldFinalizeJob;
+            return this;
+        }
+
         void kill() {
             if (autodetectCommunicator == null) {
+                // Killing a connected process would also complete the persistent task if `finish` was true,
+                // so we should do the same here even though the process wasn't yet connected at the time of
+                // the kill
+                if (finish) {
+                    jobTask.markAsCompleted();
+                }
                 return;
             }
             String jobId = jobTask.getJobId();
@@ -123,7 +136,7 @@ final class ProcessContext {
                 }
             }
             try {
-                autodetectCommunicator.killProcess(awaitCompletion, finish);
+                autodetectCommunicator.killProcess(awaitCompletion, finish, shouldFinalizeJob);
             } catch (IOException e) {
                 LOGGER.error("[{}] Failed to kill autodetect process for job", jobId);
             }

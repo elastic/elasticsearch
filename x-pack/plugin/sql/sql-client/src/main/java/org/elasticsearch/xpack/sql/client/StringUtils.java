@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.client;
 
@@ -26,12 +27,12 @@ public abstract class StringUtils {
     }
 
     public static boolean hasText(CharSequence sequence) {
-        if (!hasLength(sequence)) {
+        if (hasLength(sequence) == false) {
             return false;
         }
         int length = sequence.length();
         for (int i = 0; i < length; i++) {
-            if (!Character.isWhitespace(sequence.charAt(i))) {
+            if (Character.isWhitespace(sequence.charAt(i)) == false) {
                 return true;
             }
         }
@@ -44,7 +45,7 @@ public abstract class StringUtils {
 
     public static boolean isUpperCase(CharSequence sequence) {
         for (int i = 0; i < sequence.length(); i++) {
-            if (Character.isLetter(sequence.charAt(i)) && !Character.isUpperCase(sequence.charAt(i))) {
+            if (Character.isLetter(sequence.charAt(i)) && Character.isUpperCase(sequence.charAt(i)) == false) {
                 return false;
             }
         }
@@ -76,7 +77,7 @@ public abstract class StringUtils {
     }
 
     public static List<String> tokenize(String string, String delimiters, boolean trimTokens, boolean ignoreEmptyTokens) {
-        if (!hasText(string)) {
+        if (hasText(string) == false) {
             return Collections.emptyList();
         }
         StringTokenizer st = new StringTokenizer(string, delimiters);
@@ -86,7 +87,7 @@ public abstract class StringUtils {
             if (trimTokens) {
                 token = token.trim();
             }
-            if (!ignoreEmptyTokens || token.length() > 0) {
+            if (ignoreEmptyTokens == false || token.length() > 0) {
                 tokens.add(token);
             }
         }
@@ -262,7 +263,7 @@ public abstract class StringUtils {
         return -1;
     }
 
-    public static List<String> findSimiliar(CharSequence match, Collection<String> potential) {
+    public static List<String> findSimilar(CharSequence match, Collection<String> potential) {
         List<String> list = new ArrayList<String>(3);
 
         // 1 switches or 1 extra char

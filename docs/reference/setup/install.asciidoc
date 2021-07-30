@@ -1,32 +1,37 @@
 [[install-elasticsearch]]
 == Installing Elasticsearch
 
-[float]
+[discrete]
 === Hosted Elasticsearch
 
 You can run Elasticsearch on your own hardware, or use our
 https://www.elastic.co/cloud/elasticsearch-service[hosted Elasticsearch Service]
 on Elastic Cloud. The Elasticsearch Service is available on both AWS and GCP.
-https://www.elastic.co/cloud/elasticsearch-service/signup[Try out the
+{ess-trial}[Try out the
 Elasticsearch Service for free].
 
-[float]
+[discrete]
 === Installing Elasticsearch Yourself
 
 Elasticsearch is provided in the following package formats:
 
 [horizontal]
-`zip`/`tar.gz`::
+Linux and MacOS `tar.gz` archives::
 
-The `zip` and `tar.gz` packages are suitable for installation on any system
-and are the easiest choice for getting started with Elasticsearch on most systems.
+The `tar.gz` archives are available for installation on any Linux distribution and MacOS.
 +
-<<zip-targz>> or <<zip-windows>>
+<<targz>>
+
+Windows `.zip` archive::
+
+The `zip` archive is suitable for installation on Windows.
++
+<<zip-windows>>
 
 `deb`::
 
 The `deb` package is suitable for Debian, Ubuntu, and other Debian-based
-systems.  Debian packages may be downloaded from the Elasticsearch website or
+systems. Debian packages may be downloaded from the Elasticsearch website or
 from our Debian repository.
 +
 <<deb>>
@@ -34,16 +39,14 @@ from our Debian repository.
 `rpm`::
 
 The `rpm` package is suitable for installation on Red Hat, Centos, SLES,
-OpenSuSE and other RPM-based systems.  RPMs may be downloaded from the
+OpenSuSE and other RPM-based systems. RPMs may be downloaded from the
 Elasticsearch website or from our RPM repository.
 +
 <<rpm>>
 
 `msi`::
 
-beta[]
-+
-The `msi` package is suitable for installation on Windows 64-bit systems with at least
+beta[] The `msi` package is suitable for installation on Windows 64-bit systems with at least
 .NET 4.5 framework installed, and is the easiest choice for getting started with
 Elasticsearch on Windows. MSIs may be downloaded from the Elasticsearch website.
 +
@@ -56,7 +59,14 @@ downloaded from the Elastic Docker Registry.
 +
 {ref}/docker.html[Install {es} with Docker]
 
-[float]
+`brew`::
+
+Formulae are available from the Elastic Homebrew tap for installing
+{es} on macOS with the Homebrew package manager.
++
+{ref}/brew.html[Install {es} on macOS with Homebrew]
+
+[discrete]
 [[config-mgmt-tools]]
 === Configuration Management Tools
 
@@ -69,7 +79,7 @@ Chef::   https://github.com/elastic/cookbook-elasticsearch[cookbook-elasticsearc
 Ansible:: https://github.com/elastic/ansible-elasticsearch[ansible-elasticsearch]
 
 
-include::install/zip-targz.asciidoc[]
+include::install/targz.asciidoc[]
 
 include::install/zip-windows.asciidoc[]
 
@@ -81,3 +91,4 @@ include::install/windows.asciidoc[]
 
 include::install/docker.asciidoc[]
 
+include::install/brew.asciidoc[]

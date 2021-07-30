@@ -1,0 +1,129 @@
+[role="xpack"]
+[[data-streams]]
+= Data streams
+++++
+<titleabbrev>Data streams</titleabbrev>
+++++
+
+A data stream lets you store append-only time series
+data across multiple indices while giving you a single named resource for
+requests. Data streams are well-suited for logs, events, metrics, and other
+continuously generated data.
+
+You can submit indexing and search requests directly to a data stream. The
+stream automatically routes the request to backing indices that store the
+stream's data. You can use <<index-lifecycle-management,{ilm} ({ilm-init})>> to
+automate the management of these backing indices. For example, you can use
+{ilm-init} to automatically move older backing indices to less expensive
+hardware and delete unneeded indices. {ilm-init} can help you reduce costs and
+overhead as your data grows.
+
+[discrete]
+[[backing-indices]]
+== Backing indices
+
+A data stream consists of one or more <<index-hidden,hidden>>, auto-generated
+backing indices.
+
+image::images/data-streams/data-streams-diagram.svg[align="center"]
+
+A data stream requires a matching <<index-templates,index template>>. The
+template contains the mappings and settings used to configure the stream's
+backing indices.
+
+// tag::timestamp-reqs[]
+Every document indexed to a data stream must contain a `@timestamp` field,
+mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field type. If the
+index template doesn't specify a mapping for the `@timestamp` field, {es} maps
+`@timestamp` as a `date` field with default options.
+// end::timestamp-reqs[]
+
+The same index template can be used for multiple data streams. You cannot
+delete an index template in use by a data stream.
+
+[discrete]
+[[data-stream-read-requests]]
+== Read requests
+
+When you submit a read request to a data stream, the stream routes the request
+to all its backing indices.
+
+image::images/data-streams/data-streams-search-request.svg[align="center"]
+
+[discrete]
+[[data-stream-write-index]]
+== Write index
+
+The most recently created backing index is the data stream’s write index.
+The stream adds new documents to this index only.
+
+image::images/data-streams/data-streams-index-request.svg[align="center"]
+
+You cannot add new documents to other backing indices, even by sending requests
+directly to the index.
+
+You also cannot perform operations on a write index that may hinder indexing,
+such as:
+
+* <<indices-clone-index,Clone>>
+* <<indices-delete-index,Delete>>
+* <<freeze-index-api,Freeze>>
+* <<indices-shrink-index,Shrink>>
+* <<indices-split-index,Split>>
+
+[discrete]
+[[data-streams-rollover]]
+== Rollover
+
+A <<indices-rollover-index,rollover>> creates a new backing index that becomes
+the stream's new write index.
+
+We recommend using <<index-lifecycle-management,{ilm-init}>> to automatically
+roll over data streams when the write index reaches a specified age or size.
+If needed, you can also <<manually-roll-over-a-data-stream,manually roll over>>
+a data stream.
+
+[discrete]
+[[data-streams-generation]]
+== Generation
+
+Each data stream tracks its generation: a six-digit, zero-padded integer that
+acts as a cumulative count of the stream's rollovers, starting at `000001`.
+
+When a backing index is created, the index is named using the following
+convention:
+
+[source,text]
+----
+.ds-<data-stream>-<yyyy.MM.dd>-<generation>
+----
+
+`<yyyy.MM.dd>` is the backing index's creation date. Backing indices with a
+higher generation contain more recent data. For example, the `web-server-logs`
+data stream has a generation of `34`. The stream's most recent backing index,
+created on 7 March 2099, is named `.ds-web-server-logs-2099.03.07-000034`.
+
+Some operations, such as a <<indices-shrink-index,shrink>> or
+<<snapshots-restore-snapshot,restore>>, can change a backing index's name.
+These name changes do not remove a backing index from its data stream.
+
+[discrete]
+[[data-streams-append-only]]
+== Append-only
+
+Data streams are designed for use cases where existing data is rarely,
+if ever, updated. You cannot send update or deletion requests for existing
+documents directly to a data stream. Instead, use the
+<<update-docs-in-a-data-stream-by-query,update by query>> and
+<<delete-docs-in-a-data-stream-by-query,delete by query>> APIs.
+
+If needed, you can <<update-delete-docs-in-a-backing-index,update or delete
+documents>> by submitting requests directly to the document's backing index.
+
+TIP: If you frequently update or delete existing time series data, use an index
+alias with a write index instead of a data stream. See
+<<manage-time-series-data-without-data-streams>>.
+
+include::set-up-a-data-stream.asciidoc[]
+include::use-a-data-stream.asciidoc[]
+include::change-mappings-and-settings.asciidoc[]

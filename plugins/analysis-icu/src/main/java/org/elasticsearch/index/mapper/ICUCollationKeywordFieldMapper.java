@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -23,90 +12,57 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
+
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.IndexableBinaryStringTools;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
+import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.function.Supplier;
 
 public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "icu_collation_keyword";
 
-    public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new CollationFieldType();
-
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.freeze();
-        }
-
-        public static final String NULL_VALUE = null;
-    }
-
     public static final class CollationFieldType extends StringFieldType {
-        private Collator collator = null;
+        private final Collator collator;
+        private final String nullValue;
+        private final int ignoreAbove;
 
-        public CollationFieldType() {
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+        public CollationFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
+                                  Collator collator, String nullValue, int ignoreAbove, Map<String, String> meta) {
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.collator = collator;
+            this.nullValue = nullValue;
+            this.ignoreAbove = ignoreAbove;
         }
 
-        protected CollationFieldType(CollationFieldType ref) {
-            super(ref);
-            this.collator = ref.collator;
+        public CollationFieldType(String name, boolean searchable, Collator collator) {
+            this(name, searchable, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
         }
 
-        @Override
-        public CollationFieldType clone() {
-            return new CollationFieldType(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            return super.equals(o) && Objects.equals(collator, ((CollationFieldType) o).collator);
-        }
-
-        @Override
-        public void checkCompatibility(MappedFieldType otherFT, List<String> conflicts) {
-            super.checkCompatibility(otherFT, conflicts);
-            CollationFieldType other = (CollationFieldType) otherFT;
-            if (!Objects.equals(collator, other.collator)) {
-                conflicts.add("mapper [" + name() + "] has different [collator]");
-            }
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * super.hashCode() + Objects.hashCode(collator);
+        public CollationFieldType(String name, Collator collator) {
+            this(name, true, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
         }
 
         @Override
@@ -114,28 +70,28 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
-        public Collator collator() {
-            return collator;
-        }
-
-        public void setCollator(Collator collator) {
-            checkIfFrozen();
-            this.collator = collator.isFrozen() ? collator : collator.freeze();
-        }
-
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
+
+            return new SourceValueFetcher(name(), context, nullValue) {
+                @Override
+                protected String parseSourceValue(Object value) {
+                    String keywordValue = value.toString();
+                    if (keywordValue.length() > ignoreAbove) {
+                        return null;
+                    }
+                    return keywordValue;
+                }
+            };
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
@@ -157,29 +113,31 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                                boolean transpositions) {
+                                boolean transpositions, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method,
+                                 boolean caseInsensitive, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[prefix] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query wildcardQuery(String value,
                                    @Nullable MultiTermQuery.RewriteMethod method,
-                                   QueryShardContext context) {
+                                   boolean caseInsensitive,
+                                   SearchExecutionContext context) {
             throw new UnsupportedOperationException("[wildcard] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
-        public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
-                                 MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
+                                 MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[regexp] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
-        public static DocValueFormat COLLATE_FORMAT = new DocValueFormat() {
+        public static final DocValueFormat COLLATE_FORMAT = new DocValueFormat() {
             @Override
             public String getWriteableName() {
                 return "collate";
@@ -208,152 +166,136 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         };
 
         @Override
-        public DocValueFormat docValueFormat(final String format, final DateTimeZone timeZone) {
+        public DocValueFormat docValueFormat(final String format, final ZoneId timeZone) {
             return COLLATE_FORMAT;
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, ICUCollationKeywordFieldMapper> {
-        private String rules = null;
-        private String language = null;
-        private String country = null;
-        private String variant = null;
-        private String strength = null;
-        private String decomposition = null;
-        private String alternate = null;
-        private boolean caseLevel = false;
-        private String caseFirst = null;
-        private boolean numeric = false;
-        private String variableTop = null;
-        private boolean hiraganaQuaternaryMode = false;
+    private static ICUCollationKeywordFieldMapper toType(FieldMapper in) {
+        return (ICUCollationKeywordFieldMapper) in;
+    }
+
+    public static class Builder extends FieldMapper.Builder {
+
+        final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
+        final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
+
+        final Parameter<String> indexOptions
+            = Parameter.restrictedStringParam("index_options", false, m -> toType(m).indexOptions, "docs", "freqs");
+        final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
+
+        final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        final Parameter<String> rules
+            = Parameter.stringParam("rules", false, m -> toType(m).params.rules, null).acceptsNull();
+        final Parameter<String> language
+            = Parameter.stringParam("language", false, m -> toType(m).params.language, null).acceptsNull();
+        final Parameter<String> country
+            = Parameter.stringParam("country", false, m -> toType(m).params.country, null).acceptsNull();
+        final Parameter<String> variant
+            = Parameter.stringParam("variant", false, m -> toType(m).params.variant, null).acceptsNull();
+        final Parameter<String> strength
+            = Parameter.stringParam("strength", false, m -> toType(m).params.strength, null).acceptsNull();
+        final Parameter<String> decomposition
+            = Parameter.stringParam("decomposition", false, m -> toType(m).params.decomposition, null)
+            .acceptsNull();
+        final Parameter<String> alternate
+            = Parameter.stringParam("alternate", false, m -> toType(m).params.alternate, null).acceptsNull();
+        final Parameter<Boolean> caseLevel = Parameter.boolParam("case_level", false, m -> toType(m).params.caseLevel, false);
+        final Parameter<String> caseFirst
+            = Parameter.stringParam("case_first", false, m -> toType(m).params.caseFirst, null).acceptsNull();
+        final Parameter<Boolean> numeric = Parameter.boolParam("numeric", false, m -> toType(m).params.numeric, false);
+        final Parameter<String> variableTop
+            = Parameter.stringParam("variable_top", false, m -> toType(m).params.variableTop, null).acceptsNull();
+        final Parameter<Boolean> hiraganaQuaternaryMode
+            = Parameter.boolParam("hiragana_quaternary_mode", false, m -> toType(m).params.hiraganaQuaternaryMode, false).acceptsNull();
+
+        final Parameter<Integer> ignoreAbove
+            = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Integer.MAX_VALUE)
+            .setValidator(v -> {
+                if (v < 0) {
+                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
+                }
+            });
+        final Parameter<String> nullValue
+            = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
+            super(name);
+        }
+
+        Builder nullValue(String nullValue) {
+            this.nullValue.setValue(nullValue);
+            return this;
+        }
+
+        Builder ignoreAbove(int ignoreAbove) {
+            this.ignoreAbove.setValue(ignoreAbove);
+            return this;
         }
 
         @Override
-        public CollationFieldType fieldType() {
-            return (CollationFieldType) super.fieldType();
+        protected List<Parameter<?>> getParameters() {
+            return List.of(indexed, hasDocValues, stored, indexOptions, hasNorms,
+                rules, language, country, variant, strength, decomposition, alternate,
+                caseLevel, caseFirst, numeric, variableTop, hiraganaQuaternaryMode,
+                ignoreAbove, nullValue, meta);
+        }
+
+        private CollatorParams collatorParams() {
+            CollatorParams params = new CollatorParams();
+            params.rules = rules.getValue();
+            params.language = language.getValue();
+            params.country = country.getValue();
+            params.variant = variant.getValue();
+            params.strength = strength.getValue();
+            params.decomposition = decomposition.getValue();
+            params.alternate = alternate.getValue();
+            params.caseLevel = caseLevel.getValue();
+            params.caseFirst = caseFirst.getValue();
+            params.numeric = numeric.getValue();
+            params.variableTop = variableTop.getValue();
+            params.hiraganaQuaternaryMode = hiraganaQuaternaryMode.getValue();
+            return params;
+        }
+
+        private FieldType buildFieldType() {
+            FieldType ft = new FieldType();
+            ft.setTokenized(false);
+            ft.setOmitNorms(hasNorms.getValue() == false);
+            ft.setIndexOptions(TextParams.toIndexOptions(indexed.getValue(), indexOptions.getValue()));
+            ft.setStored(stored.getValue());
+            return ft;
         }
 
         @Override
-        public Builder indexOptions(IndexOptions indexOptions) {
-            if (indexOptions.compareTo(IndexOptions.DOCS_AND_FREQS) > 0) {
-                throw new IllegalArgumentException("The [" + CONTENT_TYPE + "] field does not support positions, got [index_options]="
-                    + indexOptionToString(indexOptions));
-            }
-
-            return super.indexOptions(indexOptions);
+        public ICUCollationKeywordFieldMapper build(ContentPath contentPath) {
+            final CollatorParams params = collatorParams();
+            final Collator collator = params.buildCollator();
+            CollationFieldType ft = new CollationFieldType(buildFullName(contentPath), indexed.getValue(),
+                stored.getValue(), hasDocValues.getValue(), collator, nullValue.getValue(), ignoreAbove.getValue(),
+                meta.getValue());
+            return new ICUCollationKeywordFieldMapper(name, buildFieldType(), ft,
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), collator, this);
         }
+    }
 
-        public String rules() {
-            return rules;
-        }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
-        public Builder rules(final String rules) {
-            this.rules = rules;
-            return this;
-        }
-
-        public String language() {
-            return language;
-        }
-
-        public Builder language(final String language) {
-            this.language = language;
-            return this;
-        }
-
-        public String country() {
-            return country;
-        }
-
-        public Builder country(final String country) {
-            this.country = country;
-            return this;
-        }
-
-        public String variant() {
-            return variant;
-        }
-
-        public Builder variant(final String variant) {
-            this.variant = variant;
-            return this;
-        }
-
-        public String strength() {
-            return strength;
-        }
-
-        public Builder strength(final String strength) {
-            this.strength = strength;
-            return this;
-        }
-
-        public String decomposition() {
-            return decomposition;
-        }
-
-        public Builder decomposition(final String decomposition) {
-            this.decomposition = decomposition;
-            return this;
-        }
-
-        public String alternate() {
-            return alternate;
-        }
-
-        public Builder alternate(final String alternate) {
-            this.alternate = alternate;
-            return this;
-        }
-
-        public boolean caseLevel() {
-            return caseLevel;
-        }
-
-        public Builder caseLevel(final boolean caseLevel) {
-            this.caseLevel = caseLevel;
-            return this;
-        }
-
-        public String caseFirst() {
-            return caseFirst;
-        }
-
-        public Builder caseFirst(final String caseFirst) {
-            this.caseFirst = caseFirst;
-            return this;
-        }
-
-        public boolean numeric() {
-            return numeric;
-        }
-
-        public Builder numeric(final boolean numeric) {
-            this.numeric = numeric;
-            return this;
-        }
-
-        public String variableTop() {
-            return variableTop;
-        }
-
-        public Builder variableTop(final String variableTop) {
-            this.variableTop = variableTop;
-            return this;
-        }
-
-        public boolean hiraganaQuaternaryMode() {
-            return hiraganaQuaternaryMode;
-        }
-
-        public Builder hiraganaQuaternaryMode(final boolean hiraganaQuaternaryMode) {
-            this.hiraganaQuaternaryMode = hiraganaQuaternaryMode;
-            return this;
-        }
+    private static class CollatorParams {
+        private String rules;
+        private String language;
+        private String country;
+        private String variant;
+        private String strength;
+        private String decomposition;
+        private String alternate;
+        private boolean caseLevel;
+        private String caseFirst;
+        private boolean numeric;
+        private String variableTop;
+        private boolean hiraganaQuaternaryMode;
 
         public Collator buildCollator() {
             Collator collator;
@@ -450,131 +392,31 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             // freeze so thread-safe
             return collator.freeze();
         }
-
-        @Override
-        public ICUCollationKeywordFieldMapper build(BuilderContext context) {
-            final Collator collator = buildCollator();
-            fieldType().setCollator(collator);
-            setupFieldType(context);
-            return new ICUCollationKeywordFieldMapper(name, fieldType, defaultFieldType, context.indexSettings(),
-                multiFieldsBuilder.build(this, context), copyTo, rules, language, country, variant, strength, decomposition,
-                alternate, caseLevel, caseFirst, numeric, variableTop, hiraganaQuaternaryMode, collator);
-        }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
-            throws MapperParsingException {
-            Builder builder = new Builder(name);
-            TypeParsers.parseField(builder, name, node, parserContext);
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext(); ) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = entry.getKey();
-                Object fieldNode = entry.getValue();
-                switch (fieldName) {
-                    case "null_value":
-                        if (fieldNode == null) {
-                            throw new MapperParsingException("Property [null_value] cannot be null.");
-                        }
-                        builder.nullValue(fieldNode.toString());
-                        iterator.remove();
-                        break;
-                    case "norms":
-                        builder.omitNorms(!XContentMapValues.nodeBooleanValue(fieldNode, "norms"));
-                        iterator.remove();
-                        break;
-                    case "rules":
-                        builder.rules(XContentMapValues.nodeStringValue(fieldNode, null));
-                        iterator.remove();
-                        break;
-                    case "language":
-                        builder.language(XContentMapValues.nodeStringValue(fieldNode, null));
-                        iterator.remove();
-                        break;
-                    case "country":
-                        builder.country(XContentMapValues.nodeStringValue(fieldNode, null));
-                        iterator.remove();
-                        break;
-                    case "variant":
-                        builder.variant(XContentMapValues.nodeStringValue(fieldNode, null));
-                        iterator.remove();
-                        break;
-                    case "strength":
-                        builder.strength(XContentMapValues.nodeStringValue(fieldNode, null));
-                        iterator.remove();
-                        break;
-                    case "decomposition":
-                        builder.decomposition(XContentMapValues.nodeStringValue(fieldNode, null));
-                        iterator.remove();
-                        break;
-                    case "alternate":
-                        builder.alternate(XContentMapValues.nodeStringValue(fieldNode, null));
-                        iterator.remove();
-                        break;
-                    case "case_level":
-                        builder.caseLevel(XContentMapValues.nodeBooleanValue(fieldNode, false));
-                        iterator.remove();
-                        break;
-                    case "case_first":
-                        builder.caseFirst(XContentMapValues.nodeStringValue(fieldNode, null));
-                        iterator.remove();
-                        break;
-                    case "numeric":
-                        builder.numeric(XContentMapValues.nodeBooleanValue(fieldNode, false));
-                        iterator.remove();
-                        break;
-                    case "variable_top":
-                        builder.variableTop(XContentMapValues.nodeStringValue(fieldNode, null));
-                        iterator.remove();
-                        break;
-                    case "hiragana_quaternary_mode":
-                        builder.hiraganaQuaternaryMode(XContentMapValues.nodeBooleanValue(fieldNode, false));
-                        iterator.remove();
-                        break;
-                    default:
-                        break;
-                }
-            }
-
-            return builder;
-        }
-    }
-
-    private final String rules;
-    private final String language;
-    private final String country;
-    private final String variant;
-    private final String strength;
-    private final String decomposition;
-    private final String alternate;
-    private final boolean caseLevel;
-    private final String caseFirst;
-    private final boolean numeric;
-    private final String variableTop;
-    private final boolean hiraganaQuaternaryMode;
+    private final int ignoreAbove;
     private final Collator collator;
+    private final CollatorParams params;
+    private final String nullValue;
+    private final FieldType fieldType;
+    private final boolean indexed;
+    private final boolean hasDocValues;
+    private final String indexOptions;
 
-    protected ICUCollationKeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                             Settings indexSettings, MultiFields multiFields, CopyTo copyTo, String rules, String language,
-                                             String country, String variant,
-                                             String strength, String decomposition, String alternate, boolean caseLevel, String caseFirst,
-                                             boolean numeric, String variableTop, boolean hiraganaQuaternaryMode, Collator collator) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+    protected ICUCollationKeywordFieldMapper(String simpleName, FieldType fieldType,
+                                             MappedFieldType mappedFieldType,
+                                             MultiFields multiFields, CopyTo copyTo,
+                                             Collator collator, Builder builder) {
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
         assert collator.isFrozen();
-        this.rules = rules;
-        this.language = language;
-        this.country = country;
-        this.variant = variant;
-        this.strength = strength;
-        this.decomposition = decomposition;
-        this.alternate = alternate;
-        this.caseLevel = caseLevel;
-        this.caseFirst = caseFirst;
-        this.numeric = numeric;
-        this.variableTop = variableTop;
-        this.hiraganaQuaternaryMode = hiraganaQuaternaryMode;
+        this.fieldType = fieldType;
+        this.params = builder.collatorParams();
+        this.ignoreAbove = builder.ignoreAbove.getValue();
         this.collator = collator;
+        this.nullValue = builder.nullValue.getValue();
+        this.indexed = builder.indexed.getValue();
+        this.hasDocValues = builder.hasDocValues.getValue();
+        this.indexOptions = builder.indexOptions.getValue();
     }
 
     @Override
@@ -588,152 +430,42 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-
-        List<String> conflicts = new ArrayList<>();
-        ICUCollationKeywordFieldMapper icuMergeWith = (ICUCollationKeywordFieldMapper) mergeWith;
-
-        if (!Objects.equals(rules, icuMergeWith.rules)) {
-            conflicts.add("Cannot update rules setting for [" + CONTENT_TYPE + "]");
-        }
-
-        if (!Objects.equals(language, icuMergeWith.language)) {
-            conflicts.add("Cannot update language setting for [" + CONTENT_TYPE + "]");
-        }
-
-        if (!Objects.equals(country, icuMergeWith.country)) {
-            conflicts.add("Cannot update country setting for [" + CONTENT_TYPE + "]");
-        }
-
-        if (!Objects.equals(variant, icuMergeWith.variant)) {
-            conflicts.add("Cannot update variant setting for [" + CONTENT_TYPE + "]");
-        }
-
-        if (!Objects.equals(strength, icuMergeWith.strength)) {
-            conflicts.add("Cannot update strength setting for [" + CONTENT_TYPE + "]");
-        }
-
-        if (!Objects.equals(decomposition, icuMergeWith.decomposition)) {
-            conflicts.add("Cannot update decomposition setting for [" + CONTENT_TYPE + "]");
-        }
-
-        if (!Objects.equals(alternate, icuMergeWith.alternate)) {
-            conflicts.add("Cannot update alternate setting for [" + CONTENT_TYPE + "]");
-        }
-
-        if (caseLevel != icuMergeWith.caseLevel) {
-            conflicts.add("Cannot update case_level setting for [" + CONTENT_TYPE + "]");
-        }
-
-        if (!Objects.equals(caseFirst, icuMergeWith.caseFirst)) {
-            conflicts.add("Cannot update case_first setting for [" + CONTENT_TYPE + "]");
-        }
-
-        if (numeric != icuMergeWith.numeric) {
-            conflicts.add("Cannot update numeric setting for [" + CONTENT_TYPE + "]");
-        }
-
-        if (!Objects.equals(variableTop, icuMergeWith.variableTop)) {
-            conflicts.add("Cannot update variable_top setting for [" + CONTENT_TYPE + "]");
-        }
-
-        if (hiraganaQuaternaryMode != icuMergeWith.hiraganaQuaternaryMode) {
-            conflicts.add("Cannot update hiragana_quaternary_mode setting for [" + CONTENT_TYPE + "]");
-        }
-
-        if (!conflicts.isEmpty()) {
-            throw new IllegalArgumentException("Can't merge because of conflicts: " + conflicts);
-        }
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName()).init(this);
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-
-        if (includeDefaults || fieldType().nullValue() != null) {
-            builder.field("null_value", fieldType().nullValue());
-        }
-
-        if (includeDefaults || rules != null) {
-            builder.field("rules", rules);
-        }
-
-        if (includeDefaults || language != null) {
-            builder.field("language", language);
-        }
-
-        if (includeDefaults || country != null) {
-            builder.field("country", country);
-        }
-
-        if (includeDefaults || variant != null) {
-            builder.field("variant", variant);
-        }
-
-        if (includeDefaults || strength != null) {
-            builder.field("strength", strength);
-        }
-
-        if (includeDefaults || decomposition != null) {
-            builder.field("decomposition", decomposition);
-        }
-
-        if (includeDefaults || alternate != null) {
-            builder.field("alternate", alternate);
-        }
-
-        if (includeDefaults || caseLevel) {
-            builder.field("case_level", caseLevel);
-        }
-
-        if (includeDefaults || caseFirst != null) {
-            builder.field("case_first", caseFirst);
-        }
-
-        if (includeDefaults || numeric) {
-            builder.field("numeric", numeric);
-        }
-
-        if (includeDefaults || variableTop != null) {
-            builder.field("variable_top", variableTop);
-        }
-
-        if (includeDefaults || hiraganaQuaternaryMode) {
-            builder.field("hiragana_quaternary_mode", hiraganaQuaternaryMode);
-        }
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
+        XContentParser parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            value = nullValue;
         } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                value = fieldType().nullValueAsString();
-            } else {
-                value = parser.textOrNull();
-            }
+            value = parser.textOrNull();
         }
 
         if (value == null) {
             return;
         }
 
+        if (value.length() > ignoreAbove) {
+            context.addIgnoredField(name());
+            return;
+        }
+
         RawCollationKey key = collator.getRawCollationKey(value, null);
         final BytesRef binaryValue = new BytesRef(key.bytes, 0, key.size);
 
-        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            Field field = new Field(fieldType().name(), binaryValue, fieldType());
-            fields.add(field);
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+            Field field = new Field(mappedFieldType.name(), binaryValue, fieldType);
+            context.doc().add(field);
         }
 
-        if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
-        } else if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            createFieldNamesField(context, fields);
+        if (hasDocValues) {
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+        } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+            context.addToFieldNames(fieldType().name());
         }
     }
+
 }

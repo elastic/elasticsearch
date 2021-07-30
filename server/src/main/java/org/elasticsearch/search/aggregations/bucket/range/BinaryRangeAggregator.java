@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
@@ -26,16 +15,15 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -78,12 +66,11 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
     final Range[] ranges;
 
     public BinaryRangeAggregator(String name, AggregatorFactories factories,
-            ValuesSource.Bytes valuesSource, DocValueFormat format,
-            List<Range> ranges, boolean keyed, SearchContext context,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
-        this.valuesSource = valuesSource;
+            ValuesSource valuesSource, DocValueFormat format,
+            List<Range> ranges, boolean keyed, AggregationContext context,
+            Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, cardinality.multiply(ranges.size()), metadata);
+        this.valuesSource = (ValuesSource.Bytes) valuesSource;
         this.format = format;
         this.keyed = keyed;
         this.ranges = ranges.toArray(new Range[0]);
@@ -328,20 +315,16 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long bucket) throws IOException {
-        consumeBucketsAndMaybeBreak(ranges.length);
-        List<InternalBinaryRange.Bucket> buckets = new ArrayList<>(ranges.length);
-        for (int i = 0; i < ranges.length; ++i) {
-            long bucketOrd = bucket * ranges.length + i;
-            buckets.add(new InternalBinaryRange.Bucket(format, keyed,
-                    ranges[i].key, ranges[i].from, ranges[i].to,
-                    bucketDocCount(bucketOrd), bucketAggregations(bucketOrd)));
-        }
-        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators(), metaData());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForFixedBucketCount(owningBucketOrds, ranges.length,
+            (offsetInOwningOrd, docCount, subAggregationResults) -> {
+                Range range = ranges[offsetInOwningOrd];
+                return new InternalBinaryRange.Bucket(format, keyed, range.key, range.from, range.to, docCount, subAggregationResults);
+            }, buckets -> new InternalBinaryRange(name, format, keyed, buckets, metadata()));
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalBinaryRange(name, format, keyed, emptyList(), pipelineAggregators(), metaData());
+        return new InternalBinaryRange(name, format, keyed, emptyList(), metadata());
     }
 }

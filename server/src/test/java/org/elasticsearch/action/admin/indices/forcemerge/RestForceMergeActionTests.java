@@ -1,47 +1,65 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.AbstractRestChannel;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestForceMergeAction;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.rest.RestActionTestCase;
+import org.junit.Before;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
-public class RestForceMergeActionTests extends ESTestCase {
+public class RestForceMergeActionTests extends RestActionTestCase {
+
+    @Before
+    public void setUpAction() {
+        controller().registerHandler(new RestForceMergeAction());
+    }
 
     public void testBodyRejection() throws Exception {
-        final RestForceMergeAction handler = new RestForceMergeAction(Settings.EMPTY, mock(RestController.class));
         String json = JsonXContent.contentBuilder().startObject().field("max_num_segments", 1).endObject().toString();
         final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray(json), XContentType.JSON).build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> handler.prepareRequest(request, mock(NodeClient.class)));
-        assertThat(e.getMessage(), equalTo("forcemerge takes arguments in query parameters, not in the request body"));
+                .withContent(new BytesArray(json), XContentType.JSON)
+                .withMethod(RestRequest.Method.POST)
+                .withPath("/_forcemerge")
+                .build();
+
+        final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
+        dispatchRequest(request, new AbstractRestChannel(request, true) {
+            @Override
+            public void sendResponse(RestResponse response) {
+                responseSetOnce.set(response);
+            }
+        });
+
+        final RestResponse response = responseSetOnce.get();
+        assertThat(response, notNullValue());
+        assertThat(response.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(response.content().utf8ToString(), containsString("request [POST /_forcemerge] does not support having a body"));
+    }
+
+    protected void dispatchRequest(final RestRequest request, final RestChannel channel) {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        controller().dispatchRequest(request, channel, threadContext);
     }
 }

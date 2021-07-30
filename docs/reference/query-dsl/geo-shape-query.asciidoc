@@ -1,13 +1,17 @@
 [[query-dsl-geo-shape-query]]
-=== GeoShape Query
+=== Geo-shape query
+++++
+<titleabbrev>Geo-shape</titleabbrev>
+++++
 
-Filter documents indexed using the `geo_shape` type.
+Filter documents indexed using the `geo_shape` or `geo_point` type.
 
-Requires the <<geo-shape,`geo_shape` Mapping>>.
+Requires the <<geo-shape,`geo_shape` Mapping>> or the
+<<geo-point,`geo_point` Mapping>>.
 
 The `geo_shape` query uses the same grid square representation as the
 `geo_shape` mapping to find documents that have a shape that intersects
-with the query shape. It will also use the same PrefixTree configuration
+with the query shape. It will also use the same Prefix Tree configuration
 as defined for the field mapping.
 
 The query supports two ways of defining the query shape, either by
@@ -15,82 +19,166 @@ providing a whole shape definition, or by referencing the name of a shape
 pre-indexed in another index. Both formats are defined below with
 examples.
 
+
 ==== Inline Shape Definition
 
 Similar to the `geo_shape` type, the `geo_shape` query uses
-http://www.geojson.org[GeoJSON] to represent shapes.
+http://geojson.org[GeoJSON] to represent shapes.
 
-Given the following index:
+Given the following index with locations as `geo_shape` fields:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /example
 {
-    "mappings": {
-        "_doc": {
-            "properties": {
-                "location": {
-                    "type": "geo_shape"
-                }
-            }
-        }
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_shape"
+      }
     }
+  }
 }
 
 POST /example/_doc?refresh
 {
-    "name": "Wind & Wetter, Berlin, Germany",
-    "location": {
-        "type": "point",
-        "coordinates": [13.400544, 52.530286]
-    }
+  "name": "Wind & Wetter, Berlin, Germany",
+  "location": {
+    "type": "point",
+    "coordinates": [ 13.400544, 52.530286 ]
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
-The following query will find the point using the Elasticsearch's
-`envelope` GeoJSON extension:
 
-[source,js]
+The following query will find the point using {es}'s `envelope` GeoJSON
+extension:
+
+[source,console]
 --------------------------------------------------
 GET /example/_search
 {
-    "query":{
-        "bool": {
-            "must": {
-                "match_all": {}
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_shape": {
+          "location": {
+            "shape": {
+              "type": "envelope",
+              "coordinates": [ [ 13.0, 53.0 ], [ 14.0, 52.0 ] ]
             },
-            "filter": {
-                "geo_shape": {
-                    "location": {
-                        "shape": {
-                            "type": "envelope",
-                            "coordinates" : [[13.0, 53.0], [14.0, 52.0]]
-                        },
-                        "relation": "within"
-                    }
-                }
-            }
+            "relation": "within"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
+
+
+The above query can, similarly, be queried on `geo_point` fields.
+
+[source,console]
+--------------------------------------------------
+PUT /example_points
+{
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_point"
+      }
+    }
+  }
+}
+
+PUT /example_points/_doc/1?refresh
+{
+  "name": "Wind & Wetter, Berlin, Germany",
+  "location": [13.400544, 52.530286]
+}
+--------------------------------------------------
+// TEST[continued]
+
+
+Using the same query, the documents with matching `geo_point` fields are
+returned.
+
+[source,console]
+--------------------------------------------------
+GET /example_points/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_shape": {
+          "location": {
+            "shape": {
+              "type": "envelope",
+              "coordinates": [ [ 13.0, 53.0 ], [ 14.0, 52.0 ] ]
+            },
+            "relation": "intersects"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+[source,console-result]
+--------------------------------------------------
+{
+  "took" : 17,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "example_points",
+        "_id" : "1",
+        "_score" : 1.0,
+        "_source" : {
+          "name": "Wind & Wetter, Berlin, Germany",
+          "location": [13.400544, 52.530286]
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took" : 17/"took" : $body.took/]
+
 
 ==== Pre-Indexed Shape
 
-The Query also supports using a shape which has already been indexed in
-another index and/or index type. This is particularly useful for when
-you have a pre-defined list of shapes which are useful to your
-application and you want to reference this using a logical name (for
-example 'New Zealand') rather than having to provide their coordinates
-each time. In this situation it is only necessary to provide:
+The query also supports using a shape which has already been indexed in another
+index. This is particularly useful for when you have a pre-defined list of
+shapes and you want to reference the list using
+a logical name (for example 'New Zealand') rather than having to provide
+coordinates each time. In this situation, it is only necessary to provide:
 
 * `id` - The ID of the document that containing the pre-indexed shape.
-* `index` - Name of the index where the pre-indexed shape is. Defaults
-to 'shapes'.
-* `type` - Index type where the pre-indexed shape is.
+* `index` - Name of the index where the pre-indexed shape is. Defaults to
+'shapes'.
 * `path` - The field specified as path containing the pre-indexed shape.
 Defaults to 'shape'.
 * `routing` - The routing of the shape document if required.
@@ -98,68 +186,63 @@ Defaults to 'shape'.
 The following is an example of using the Filter with a pre-indexed
 shape:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /shapes
 {
-    "mappings": {
-        "_doc": {
-            "properties": {
-                "location": {
-                    "type": "geo_shape"
-                }
-            }
-        }
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_shape"
+      }
     }
+  }
 }
 
 PUT /shapes/_doc/deu
 {
-    "location": {
-        "type": "envelope",
-        "coordinates" : [[13.0, 53.0], [14.0, 52.0]]
-    }
+  "location": {
+    "type": "envelope",
+    "coordinates" : [[13.0, 53.0], [14.0, 52.0]]
+  }
 }
 
 GET /example/_search
 {
-    "query": {
-        "bool": {
-            "filter": {
-                "geo_shape": {
-                    "location": {
-                        "indexed_shape": {
-                            "index": "shapes",
-                            "type": "_doc",
-                            "id": "deu",
-                            "path": "location"
-                        }
-                    }
-                }
+  "query": {
+    "bool": {
+      "filter": {
+        "geo_shape": {
+          "location": {
+            "indexed_shape": {
+              "index": "shapes",
+              "id": "deu",
+              "path": "location"
             }
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
+
 
 ==== Spatial Relations
 
-The <<spatial-strategy, geo_shape strategy>> mapping parameter determines
-which spatial relation operators may be used at search time.
+The following is a complete list of spatial relation operators available when
+searching a geo field:
 
-The following is a complete list of spatial relation operators available:
-
-* `INTERSECTS` - (default) Return all documents whose `geo_shape` field
+* `INTERSECTS` - (default) Return all documents whose `geo_shape` or `geo_point` field
 intersects the query geometry.
-* `DISJOINT` - Return all documents whose `geo_shape` field
-has nothing in common with the query geometry.
-* `WITHIN` - Return all documents whose `geo_shape` field
-is within the query geometry.
-* `CONTAINS` - Return all documents whose `geo_shape` field
-contains the query geometry.
+* `DISJOINT` - Return all documents whose `geo_shape` or `geo_point` field has nothing in
+common with the query geometry.
+* `WITHIN` - Return all documents whose `geo_shape` or `geo_point` field is within the query
+geometry. Line geometries are not supported.
+* `CONTAINS` - Return all documents whose `geo_shape` or `geo_point` field contains the query
+geometry.
 
-[float]
+[discrete]
 ==== Ignore Unmapped
 
 When set to `true` the `ignore_unmapped` option will ignore an unmapped field
@@ -167,3 +250,40 @@ and will not match any documents for this query. This can be useful when
 querying multiple indexes which might have different mappings. When set to
 `false` (the default value) the query will throw an exception if the field
 is not mapped.
+
+[[geo-shape-query-notes]]
+==== Notes
+
+* When data is indexed in a `geo_shape` field as an array of shapes, the arrays
+  are treated as one shape. For this reason, the following requests are
+  equivalent.
+
+[source,console]
+--------------------------------------------------
+PUT /test/_doc/1
+{
+  "location": [
+    {
+      "coordinates": [46.25,20.14],
+      "type": "point"
+    },
+    {
+      "coordinates": [47.49,19.04],
+      "type": "point"
+    }
+  ]
+}
+--------------------------------------------------
+
+
+[source,console]
+--------------------------------------------------
+PUT /test/_doc/1
+{
+  "location":
+    {
+      "coordinates": [[46.25,20.14],[47.49,19.04]],
+      "type": "multipoint"
+    }
+}
+--------------------------------------------------

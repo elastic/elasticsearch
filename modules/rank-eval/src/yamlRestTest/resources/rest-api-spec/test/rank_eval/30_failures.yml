@@ -1,0 +1,36 @@
+---
+"Response format":
+  - do:
+      index:
+        index:   foo
+        id:      doc1
+        body:    { "bar": 1 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      rank_eval:
+        body: {
+          "requests" : [
+            {
+                "id": "amsterdam_query",
+                "request": { "query": { "match_all" : { }}},
+                "ratings": [
+                    {"_index": "foo", "_id": "doc1", "rating": 1}]
+            },
+            {
+                "id" : "invalid_query",
+                "request": { "query": { "range" : { "bar" : { "from" : "Basel", "time_zone": "+01:00" }}}},
+                "ratings": [{"_index": "foo", "_id": "doc1", "rating": 1}]
+            }
+          ],
+          "metric" : { "precision": { "ignore_unlabeled" : true }}
+        }
+
+  - match: { metric_score: 1}
+  - match: { details.amsterdam_query.metric_score: 1.0}
+  - match: { details.amsterdam_query.unrated_docs:  [ ]}
+  - match: { details.amsterdam_query.metric_details.precision: {"relevant_docs_retrieved": 1, "docs_retrieved": 1}}
+
+  - is_true: failures.invalid_query

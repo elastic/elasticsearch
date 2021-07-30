@@ -5,10 +5,10 @@
 --
 
 [id="{upid}-{api}"]
-=== Put Template API
+=== Create or update index template API
 
 [id="{upid}-{api}-request"]
-==== Put Index Template Request
+==== Request
 
 A +{request}+ specifies the `name` of a template and `patterns`
 which controls whether the template should be applied to the new index.
@@ -39,8 +39,7 @@ template's patterns.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-mappings-json]
 --------------------------------------------------
-<1> The type to define
-<2> The mapping for this type, provided as a JSON string
+<1> The mapping, provided as a JSON string
 
 The mapping source can be provided in different ways in addition to the
 `String` example shown above:
@@ -58,13 +57,6 @@ include-tagged::{doc-tests-file}[{api}-request-mappings-xcontent]
 --------------------------------------------------
 <1> Mapping source provided as an `XContentBuilder` object, the Elasticsearch
 built-in helpers to generate JSON content
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-mappings-shortcut]
---------------------------------------------------
-<1> Mapping source provided as `Object` key-pairs, which gets converted to
-JSON format
 
 ==== Aliases
 The aliases of the template will define aliasing to the index whose name matches the
@@ -128,7 +120,7 @@ include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Put Index Template Response
+==== Response
 
 The returned +{response}+ allows to retrieve information about the
 executed operation as follows:

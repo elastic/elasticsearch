@@ -1,13 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -20,49 +18,38 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.client.utils.URLEncodedUtils;
-import org.apache.http.cookie.Cookie;
-import org.apache.http.cookie.CookieOrigin;
-import org.apache.http.cookie.MalformedCookieException;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.cookie.DefaultCookieSpec;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.protocol.BasicHttpContext;
-import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.protocol.HttpCoreContext;
-import org.apache.http.util.CharArrayBuffer;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
@@ -70,11 +57,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.security.cert.Certificate;
@@ -82,86 +65,24 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
  * An integration test for validating SAML authentication against a real Identity Provider (Shibboleth)
  */
-@SuppressForbidden(reason = "uses sun http server")
 public class SamlAuthenticationIT extends ESRestTestCase {
 
-    private static final String SP_LOGIN_PATH = "/saml/login";
-    private static final String SP_ACS_PATH_1 = "/saml/acs1";
-    private static final String SP_ACS_PATH_2 = "/saml/acs2";
     private static final String SAML_RESPONSE_FIELD = "SAMLResponse";
-    private static final String REQUEST_ID_COOKIE = "saml-request-id";
-
     private static final String KIBANA_PASSWORD = "K1b@na K1b@na K1b@na";
-    private static HttpServer httpServer;
-
-    private URI acs;
-
-    @BeforeClass
-    public static void setupHttpServer() throws IOException {
-        InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0);
-        httpServer = MockHttpServer.createHttp(address, 0);
-        httpServer.start();
-    }
-
-    @AfterClass
-    public static void shutdownHttpServer() {
-        final Executor executor = httpServer.getExecutor();
-        if (executor instanceof ExecutorService) {
-            terminate((ExecutorService) executor);
-        }
-        httpServer.stop(0);
-        httpServer = null;
-    }
-
-    @Before
-    public void setupHttpContext() {
-        httpServer.createContext(SP_LOGIN_PATH, wrapFailures(this::httpLogin));
-        httpServer.createContext(SP_ACS_PATH_1, wrapFailures(this::httpAcs));
-        httpServer.createContext(SP_ACS_PATH_2, wrapFailures(this::httpAcs));
-    }
-
-    /**
-     * Wraps a {@code HttpHandler} in a {@code try-catch} block that returns a
-     * 500 server error if an exception or an {@link AssertionError} occurs.
-     */
-    private HttpHandler wrapFailures(HttpHandler handler) {
-        return http -> {
-            try {
-                handler.handle(http);
-            } catch (AssertionError | Exception e) {
-                logger.warn(new ParameterizedMessage("Failure while handling {}", http.getRequestURI()), e);
-                http.getResponseHeaders().add("x-test-failure", e.toString());
-                http.sendResponseHeaders(500, 0);
-                http.close();
-                throw e;
-            }
-        };
-    }
-
-    @After
-    public void clearHttpContext() {
-        httpServer.removeContext(SP_LOGIN_PATH);
-        httpServer.removeContext(SP_ACS_PATH_1);
-        httpServer.removeContext(SP_ACS_PATH_2);
-    }
 
     @Override
     protected Settings restAdminSettings() {
@@ -172,19 +93,19 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     /**
-     * We perform all requests to Elasticsearch as the "kibana" user, as this is the user that will be used
+     * We perform all requests to Elasticsearch as the "kibana_system" user, as this is the user that will be used
      * in a typical SAML deployment (where Kibana is providing the UI for the SAML Web SSO interactions).
      * Before we can use the Kibana user, we need to set its password to something we know.
      */
     @Before
     public void setKibanaPassword() throws IOException {
-        Request request = new Request("PUT", "/_security/user/kibana/_password");
+        Request request = new Request("PUT", "/_security/user/kibana_system/_password");
         request.setJsonEntity("{ \"password\" : \"" + KIBANA_PASSWORD + "\" }");
         adminClient().performRequest(request);
     }
 
     /**
-     * This is a simple mapping that maps the "thor" user in the "shibboleth" realm to the "kibana_users" role.
+     * This is a simple mapping that maps the "thor" user in the "shibboleth" realm to the "kibana_admin" role.
      * We could do something more complex, but we have unit tests for role-mapping - this is just to verify that
      * the mapping runs OK in a real environment.
      */
@@ -192,8 +113,8 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     public void setupRoleMapping() throws IOException {
         Request request = new Request("PUT", "/_security/role_mapping/thor-kibana");
         request.setJsonEntity(Strings.toString(XContentBuilder.builder(XContentType.JSON.xContent())
-                .startObject()
-                    .array("roles", new String[] { "kibana_user"} )
+            .startObject()
+            .array("roles", new String[]{"kibana_admin"})
                     .field("enabled", true)
                     .startObject("rules")
                         .startArray("all")
@@ -211,9 +132,9 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     @Before
     public void setupNativeUser() throws IOException {
         final Map<String, Object> body = MapBuilder.<String, Object>newMapBuilder()
-            .put("roles", Collections.singletonList("kibana_dashboard_only_user"))
+            .put("roles", Collections.singletonList("kibana_admin"))
             .put("full_name", "Thor Son of Odin")
-            .put("password", randomAlphaOfLengthBetween(8, 16))
+            .put("password", randomAlphaOfLengthBetween(inFipsJvm() ? 14 : 8, 16))
             .put("metadata", Collections.singletonMap("is_native", true))
             .map();
         final Response response = adminClient().performRequest(buildRequest("PUT", "/_security/user/thor", body));
@@ -225,41 +146,50 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      * It uses:
      * <ul>
      * <li>A real IdP (Shibboleth, running locally)</li>
-     * <li>A fake UI, running in this JVM, that roughly mimic Kibana (see {@link #httpLogin}, {@link #httpAcs})</li>
      * <li>A fake web browser (apache http client)</li>
+     * <li>A fake "UI" ( same apache http client)</li>
      * </ul>
      * It takes the following steps:
      * <ol>
-     * <li>Requests a "login" on the local UI</li>
      * <li>Walks through the login process at the IdP</li>
-     * <li>Receives a JSON response from the local UI that has a Bearer token</li>
+     * <li>Receives a JSON response that has a Bearer token</li>
      * <li>Uses that token to verify the user details</li>
      * </ol>
      */
     public void testLoginUserWithSamlRoleMapping() throws Exception {
-        // this ACS comes from the config in build.gradle
-        final Tuple<String, String> authTokens = loginViaSaml("http://localhost:54321" + SP_ACS_PATH_1);
+        // this realm name comes from the config in build.gradle
+        final Tuple<String, String> authTokens = loginViaSaml("shibboleth");
         verifyElasticsearchAccessTokenForRoleMapping(authTokens.v1());
         final String accessToken = verifyElasticsearchRefreshToken(authTokens.v2());
         verifyElasticsearchAccessTokenForRoleMapping(accessToken);
     }
 
     public void testLoginUserWithAuthorizingRealm() throws Exception {
-        // this ACS comes from the config in build.gradle
-        final Tuple<String, String> authTokens = loginViaSaml("http://localhost:54321" + SP_ACS_PATH_2);
+        // this realm name comes from the config in build.gradle
+        final Tuple<String, String> authTokens = loginViaSaml("shibboleth_native");
         verifyElasticsearchAccessTokenForAuthorizingRealms(authTokens.v1());
         final String accessToken = verifyElasticsearchRefreshToken(authTokens.v2());
         verifyElasticsearchAccessTokenForAuthorizingRealms(accessToken);
     }
 
-    private Tuple<String, String> loginViaSaml(String acs) throws Exception {
-        this.acs = new URI(acs);
+    public void testLoginWithWrongRealmFails() throws Exception {
         final BasicHttpContext context = new BasicHttpContext();
         try (CloseableHttpClient client = getHttpClient()) {
-            final URI loginUri = goToLoginPage(client, context);
-            final URI consentUri = submitLoginForm(client, context, loginUri);
-            final Tuple<URI, String> tuple = submitConsentForm(context, client, consentUri);
-            final Map<String, Object> result = submitSamlResponse(context, client, tuple.v1(), tuple.v2());
+            // this realm name comes from the config in build.gradle
+            final Tuple<URI, String> idAndLoginUri = getIdpLoginPage(client, context, "shibboleth_negative");
+            final URI consentUri = submitLoginForm(client, context, idAndLoginUri.v1());
+            final String samlResponse = submitConsentForm(context, client, consentUri);
+            submitSamlResponse(samlResponse, idAndLoginUri.v2(), "shibboleth", false);
+        }
+    }
+
+    private Tuple<String, String> loginViaSaml(String realmName) throws Exception {
+        final BasicHttpContext context = new BasicHttpContext();
+        try (CloseableHttpClient client = getHttpClient()) {
+            final Tuple<URI, String> loginAndId = getIdpLoginPage(client, context, realmName);
+            final URI consentUri = submitLoginForm(client, context, loginAndId.v1());
+            final String samlResponse = submitConsentForm(context, client, consentUri);
+            final Map<String, Object> result = submitSamlResponse(samlResponse, loginAndId.v2(), realmName, true);
             assertThat(result.get("username"), equalTo("thor"));
 
             final Object expiresIn = result.get("expires_in");
@@ -274,19 +204,24 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             assertThat(refreshToken, notNullValue());
             assertThat(refreshToken, instanceOf(String.class));
 
+            final Object authentication = result.get("authentication");
+            assertThat(authentication, notNullValue());
+            assertThat(authentication, instanceOf(Map.class));
+            assertEquals("thor", ((Map)authentication).get("username"));
+
             return new Tuple<>((String) accessToken, (String) refreshToken);
         }
     }
 
     /**
-     * Verifies that the provided "Access Token" (see {@link org.elasticsearch.xpack.security.authc.TokenService})
+     * Verifies that the provided "Access Token" (see org.elasticsearch.xpack.security.authc.TokenService)
      * is for the expected user with the expected name and roles if the user was created from Role-Mapping
      */
     private void verifyElasticsearchAccessTokenForRoleMapping(String accessToken) throws IOException {
         final Map<String, Object> map = callAuthenticateApiUsingAccessToken(accessToken);
         assertThat(map.get("username"), equalTo("thor"));
         assertThat(map.get("full_name"), equalTo("Thor Odinson"));
-        assertSingletonList(map.get("roles"), "kibana_user");
+        assertSingletonList(map.get("roles"), "kibana_admin");
 
         assertThat(map.get("metadata"), instanceOf(Map.class));
         final Map<?, ?> metadata = (Map<?, ?>) map.get("metadata");
@@ -297,14 +232,14 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     /**
-     * Verifies that the provided "Access Token" (see {@link org.elasticsearch.xpack.security.authc.TokenService})
+     * Verifies that the provided "Access Token" (see org.elasticsearch.xpack.security.authc.TokenService)
      * is for the expected user with the expected name and roles if the user was retrieved from the native realm
      */
     private void verifyElasticsearchAccessTokenForAuthorizingRealms(String accessToken) throws IOException {
         final Map<String, Object> map = callAuthenticateApiUsingAccessToken(accessToken);
         assertThat(map.get("username"), equalTo("thor"));
         assertThat(map.get("full_name"), equalTo("Thor Son of Odin"));
-        assertSingletonList(map.get("roles"), "kibana_dashboard_only_user");
+        assertSingletonList(map.get("roles"), "kibana_admin");
 
         assertThat(map.get("metadata"), instanceOf(Map.class));
         final Map<?, ?> metadata = (Map<?, ?>) map.get("metadata");
@@ -339,12 +274,19 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     /**
-     * Navigates to the login page on the local (in memory) HTTP UI.
+     * Gets the SingleSignOnService endpoint of the IDP by calling the appropriate ES API, navigates to that URL and parses the form
+     * URI that we can use to login to the Shibboleth IDP
      *
-     * @return A URI to which the "login form" should be submitted.
+     * @return a Tuple with the URL of the login form in the IDP and the ID of the authentication request
      */
-    private URI goToLoginPage(CloseableHttpClient client, BasicHttpContext context) throws IOException {
-        HttpGet login = new HttpGet(getUrl(SP_LOGIN_PATH));
+    private Tuple<URI, String> getIdpLoginPage(CloseableHttpClient client, BasicHttpContext context, String realmNane) throws Exception {
+        final Map<String, String> body = Collections.singletonMap("realm", realmNane);
+        Request request = buildRequest("POST", "/_security/saml/prepare", body, kibanaAuth());
+        final Response prepare = client().performRequest(request);
+        assertOK(prepare);
+        final Map<String, Object> responseBody = parseResponseAsMap(prepare.getEntity());
+        logger.info("Created SAML authentication request {}", responseBody);
+        HttpGet login = new HttpGet((String) responseBody.get("redirect"));
         String target = execute(client, login, context, response -> {
             assertHttpOk(response.getStatusLine());
             return getFormTarget(response.getEntity().getContent());
@@ -354,9 +296,8 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         assertThat("Target must be an absolute path", target, startsWith("/"));
         final Object host = context.getAttribute(HttpCoreContext.HTTP_TARGET_HOST);
         assertThat(host, instanceOf(HttpHost.class));
-
         final String uri = ((HttpHost) host).toURI() + target;
-        return toUri(uri);
+        return Tuple.tuple(new URI(uri), (String) responseBody.get("id"));
     }
 
     /**
@@ -367,16 +308,16 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     private URI submitLoginForm(CloseableHttpClient client, BasicHttpContext context, URI formUri) throws IOException {
         final HttpPost form = new HttpPost(formUri);
         List<NameValuePair> params = new ArrayList<>();
-        params.add(new BasicNameValuePair("j_username", "Thor"));
+        params.add(new BasicNameValuePair("j_username", "thor"));
         params.add(new BasicNameValuePair("j_password", "NickFuryHeartsES"));
         params.add(new BasicNameValuePair("_eventId_proceed", ""));
         form.setEntity(new UrlEncodedFormEntity(params));
 
         final String redirect = execute(client, form, context, response -> {
+            logger.info(EntityUtils.toString(response.getEntity()));
             assertThat(response.getStatusLine().getStatusCode(), equalTo(302));
             return response.getFirstHeader("Location").getValue();
         });
-        assertThat(redirect, startsWith("/"));
 
         String target = execute(client, new HttpGet(formUri.resolve(redirect)), context, response -> {
             assertHttpOk(response.getStatusLine());
@@ -391,9 +332,9 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      * The consent form is a step that Shibboleth inserts into the login flow to confirm that the user is willing to send their
      * personal details to the application (SP) that they are logging in to.
      *
-     * @return A tuple of ( URI to SP's Assertion-Consumer-Service, SAMLResponse to post to the service )
+     * @return The SAMLResponse to post to the service
      */
-    private Tuple<URI, String> submitConsentForm(BasicHttpContext context, CloseableHttpClient client, URI consentUri) throws IOException {
+    private String submitConsentForm(BasicHttpContext context, CloseableHttpClient client, URI consentUri) throws IOException {
         final HttpPost form = new HttpPost(consentUri);
         List<NameValuePair> params = new ArrayList<>();
         params.add(new BasicNameValuePair("_shib_idp_consentOptions", "_shib_idp_globalConsent"));
@@ -405,28 +346,32 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     /**
-     * Submits a SAML assertion to the ACS URI.
+     * Submits a SAML Response to the _security/saml/authenticate endpoint.
      *
-     * @param acs  The URI to the Service Provider's Assertion-Consumer-Service.
-     * @param saml The (deflated + base64 encoded) {@code SAMLResponse} parameter to post the ACS
+     * @param saml          The (deflated + base64 encoded) {@code SAMLResponse} parameter to post
+     * @param id            The SAML authentication request ID this response is InResponseTo
+     * @param shouldSucceed Whether we expect this authentication to succeed
      */
-    private Map<String, Object> submitSamlResponse(BasicHttpContext context, CloseableHttpClient client, URI acs, String saml)
-        throws IOException {
-        assertThat("SAML submission target", acs, notNullValue());
-        assertThat(acs, equalTo(this.acs));
-        assertThat("SAML submission content", saml, notNullValue());
-
-        // The ACS url provided from the SP is going to be wrong because the gradle
-        // build doesn't know what the web server's port is, so it uses a fake one.
-        final HttpPost form = new HttpPost(getUrl(this.acs.getPath()));
-        List<NameValuePair> params = new ArrayList<>();
-        params.add(new BasicNameValuePair(SAML_RESPONSE_FIELD, saml));
-        form.setEntity(new UrlEncodedFormEntity(params));
-
-        return execute(client, form, context, response -> {
-            assertHttpOk(response.getStatusLine());
+    private Map<String, Object> submitSamlResponse(String saml, String id, String realmName, boolean shouldSucceed) throws IOException {
+        // By POSTing to the ES API directly, we miss the check that the IDP would post this to the ACS that we would expect them to, but
+        // we implicitly check this while checking the `Destination` element of the SAML response in the SAML realm.
+        final MapBuilder<String, Object> bodyBuilder = new MapBuilder<String, Object>()
+            .put("content", saml)
+            .put("realm", realmName)
+            .put("ids", Collections.singletonList(id));
+        try {
+            final Response response =
+                client().performRequest(buildRequest("POST", "/_security/saml/authenticate", bodyBuilder.map(), kibanaAuth()));
+            if (shouldSucceed) {
+                assertHttpOk(response.getStatusLine());
+            }
             return parseResponseAsMap(response.getEntity());
-        });
+        } catch (ResponseException e) {
+            if (shouldSucceed == false) {
+                assertHttpUnauthorized(e.getResponse().getStatusLine());
+            }
+            return Map.of();
+        }
     }
 
     /**
@@ -438,14 +383,11 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     /**
-     * Finds the target URL and {@code SAMLResponse} for the HTML form from the provided content.
+     * Finds the {@code SAMLResponse} for the HTML form from the provided content.
      */
-    private Tuple<URI, String> parseSamlSubmissionForm(InputStream content) throws IOException {
+    private String parseSamlSubmissionForm(InputStream content) throws IOException {
         final List<String> lines = Streams.readAllLines(content);
-        return new Tuple<>(
-                toUri(htmlDecode(findLine(lines, "<form action=\"([^\"]+)\""))),
-                findLine(lines, "name=\"" + SAML_RESPONSE_FIELD + "\" value=\"([^\"]+)\"")
-        );
+        return findLine(lines, "name=\"" + SAML_RESPONSE_FIELD + "\" value=\"([^\"]+)\"");
     }
 
     private String findLine(List<String> lines, String regex) {
@@ -457,27 +399,6 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             }
         }
         return null;
-    }
-
-    private String htmlDecode(String text) {
-        final Pattern hexEntity = Pattern.compile("&#x([0-9a-f]{2});");
-        while (true) {
-            final Matcher matcher = hexEntity.matcher(text);
-            if (matcher.find() == false) {
-                return text;
-            }
-            char ch = (char) Integer.parseInt(matcher.group(1), 16);
-            text = matcher.replaceFirst(Character.toString(ch));
-        }
-    }
-
-    private URI toUri(String uri) {
-        try {
-            return new URI(uri);
-        } catch (URISyntaxException e) {
-            fail("Cannot parse URI " + uri + " - " + e);
-            return null;
-        }
     }
 
     private Map<String, Object> parseResponseAsMap(HttpEntity entity) throws IOException {
@@ -503,92 +424,12 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         }
     }
 
-    private String getUrl(String path) {
-        return getWebServerUri().resolve(path).toString();
-    }
-
-    /**
-     * Provides the "login" handler for the fake WebApp.
-     * This interacts with Elasticsearch (using the rest client) to find the login page for the IdP, and then
-     * sends a redirect to that page.
-     */
-    private void httpLogin(HttpExchange http) throws IOException {
-        final Map<String, String> body = Collections.singletonMap("acs", this.acs.toString());
-        Request request = buildRequest("POST", "/_security/saml/prepare", body, kibanaAuth());
-        final Response prepare = client().performRequest(request);
-        assertOK(prepare);
-        final Map<String, Object> responseBody = parseResponseAsMap(prepare.getEntity());
-        logger.info("Created SAML authentication request {}", responseBody);
-        http.getResponseHeaders().add("Set-Cookie", REQUEST_ID_COOKIE + "=" + responseBody.get("id"));
-        http.getResponseHeaders().add("Location", (String) responseBody.get("redirect"));
-        http.sendResponseHeaders(302, 0);
-        http.close();
-    }
-
-    /**
-     * Provides the "Assertion-Consumer-Service" handler for the fake WebApp.
-     * This interacts with Elasticsearch (using the rest client) to perform a SAML login, and just
-     * forwards the JSON response back to the client.
-     */
-    private void httpAcs(HttpExchange http) throws IOException {
-        final Response saml = samlAuthenticate(http);
-        assertOK(saml);
-        final byte[] content = Streams.copyToString(new InputStreamReader(saml.getEntity().getContent())).getBytes();
-        http.getResponseHeaders().add("Content-Type", "application/json");
-        http.sendResponseHeaders(200, content.length);
-        http.getResponseBody().write(content);
-        http.close();
-    }
-
-    private Response samlAuthenticate(HttpExchange http) throws IOException {
-        final List<NameValuePair> pairs = parseRequestForm(http);
-        assertThat(pairs, iterableWithSize(1));
-        final String saml = pairs.stream()
-                .filter(p -> SAML_RESPONSE_FIELD.equals(p.getName()))
-                .map(p -> p.getValue())
-                .findFirst()
-                .orElseGet(() -> {
-                    fail("Cannot find " + SAML_RESPONSE_FIELD + " in form fields");
-                    return null;
-                });
-
-        final String id = getCookie(REQUEST_ID_COOKIE, http);
-        assertThat(id, notNullValue());
-
-        final Map<String, ?> body = MapBuilder.<String, Object>newMapBuilder()
-            .put("content", saml)
-            .put("ids", Collections.singletonList(id))
-            .map();
-        return client().performRequest(buildRequest("POST", "/_security/saml/authenticate", body, kibanaAuth()));
-    }
-
-    private List<NameValuePair> parseRequestForm(HttpExchange http) throws IOException {
-        String reqContent = Streams.copyToString(new InputStreamReader(http.getRequestBody()));
-        final CharArrayBuffer buffer = new CharArrayBuffer(reqContent.length());
-        buffer.append(reqContent);
-        return URLEncodedUtils.parse(buffer, HTTP.DEF_CONTENT_CHARSET, '&');
-    }
-
-    private String getCookie(String name, HttpExchange http) throws IOException {
-        try {
-            final String cookies = http.getRequestHeaders().getFirst("Cookie");
-            if (cookies == null) {
-                logger.warn("No cookies in: {}", http.getResponseHeaders());
-                return null;
-            }
-            Header header = new BasicHeader("Cookie", cookies);
-            final URI serverUri = getWebServerUri();
-            final URI requestURI = http.getRequestURI();
-            final CookieOrigin origin = new CookieOrigin(serverUri.getHost(), serverUri.getPort(), requestURI.getPath(), false);
-            final List<Cookie> parsed = new DefaultCookieSpec().parse(header, origin);
-            return parsed.stream().filter(c -> name.equals(c.getName())).map(c -> c.getValue()).findFirst().orElse(null);
-        } catch (MalformedCookieException e) {
-            throw new IOException("Cannot read cookies", e);
-        }
-    }
-
     private void assertHttpOk(StatusLine status) {
         assertThat("Unexpected HTTP Response status: " + status, status.getStatusCode(), Matchers.equalTo(200));
+    }
+
+    private void assertHttpUnauthorized(StatusLine status) {
+        assertThat("Unexpected HTTP Response status: " + status, status.getStatusCode(), Matchers.equalTo(401));
     }
 
     private static void assertSingletonList(Object value, String expectedElement) {
@@ -611,7 +452,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     private static BasicHeader kibanaAuth() {
-        final String auth = UsernamePasswordToken.basicAuthHeaderValue("kibana", new SecureString(KIBANA_PASSWORD.toCharArray()));
+        final String auth = UsernamePasswordToken.basicAuthHeaderValue("kibana_system", new SecureString(KIBANA_PASSWORD.toCharArray()));
         return new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, auth);
     }
 
@@ -620,23 +461,12 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     private SSLContext getClientSslContext() throws Exception {
-        final Path pem = getDataPath("/ca.crt");
+        final Path pem = getDataPath("/idp-browser.pem");
         final Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(pem));
         final X509ExtendedTrustManager trustManager = CertParsingUtils.trustManager(certificates);
         SSLContext context = SSLContext.getInstance("TLS");
         context.init(new KeyManager[0], new TrustManager[] { trustManager }, new SecureRandom());
         return context;
-    }
-
-    private URI getWebServerUri() {
-        final InetSocketAddress address = httpServer.getAddress();
-        final String host = address.getHostString();
-        final int port = address.getPort();
-        try {
-            return new URI("http", null, host, port, "/", null, null);
-        } catch (URISyntaxException e) {
-            throw new ElasticsearchException("Cannot construct URI for httpServer @ {}:{}", e, host, port);
-        }
     }
 
 }

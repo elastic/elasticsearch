@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.settings.get;
@@ -41,8 +30,8 @@ import java.util.Objects;
 
 public class GetSettingsResponse extends ActionResponse implements ToXContentObject {
 
-    private ImmutableOpenMap<String, Settings> indexToSettings = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, Settings> indexToDefaultSettings = ImmutableOpenMap.of();
+    private final ImmutableOpenMap<String, Settings> indexToSettings;
+    private final ImmutableOpenMap<String, Settings> indexToDefaultSettings;
 
     public GetSettingsResponse(ImmutableOpenMap<String, Settings> indexToSettings,
                                ImmutableOpenMap<String, Settings> indexToDefaultSettings) {
@@ -50,7 +39,10 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         this.indexToDefaultSettings = indexToDefaultSettings;
     }
 
-    GetSettingsResponse() {
+    public GetSettingsResponse(StreamInput in) throws IOException {
+        super(in);
+        indexToSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
+        indexToDefaultSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
     }
 
     /**
@@ -100,41 +92,9 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-
-        int settingsSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, Settings> settingsBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < settingsSize; i++) {
-            settingsBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
-        }
-        ImmutableOpenMap.Builder<String, Settings> defaultSettingsBuilder = ImmutableOpenMap.builder();
-
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_6_4_0)) {
-            int defaultSettingsSize = in.readVInt();
-            for (int i = 0; i < defaultSettingsSize ; i++) {
-                defaultSettingsBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
-            }
-        }
-        indexToSettings = settingsBuilder.build();
-        indexToDefaultSettings = defaultSettingsBuilder.build();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(indexToSettings.size());
-        for (ObjectObjectCursor<String, Settings> cursor : indexToSettings) {
-            out.writeString(cursor.key);
-            Settings.writeSettingsToStream(cursor.value, out);
-        }
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_6_4_0)) {
-            out.writeVInt(indexToDefaultSettings.size());
-            for (ObjectObjectCursor<String, Settings> cursor : indexToDefaultSettings) {
-                out.writeString(cursor.key);
-                Settings.writeSettingsToStream(cursor.value, out);
-            }
-        }
+        out.writeMap(indexToSettings, StreamOutput::writeString, (o, s) -> Settings.writeSettingsToStream(s, o));
+        out.writeMap(indexToDefaultSettings, StreamOutput::writeString, (o, s) -> Settings.writeSettingsToStream(s, o));
     }
 
     private static void parseSettingsField(XContentParser parser, String currentIndexName, Map<String, Settings> indexToSettings,
@@ -161,7 +121,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
     Map<String, Settings> indexToDefaultSettings) throws IOException {
         String indexName = parser.currentName();
         parser.nextToken();
-        while (!parser.isClosed() && parser.currentToken() != XContentParser.Token.END_OBJECT) {
+        while (parser.isClosed() == false && parser.currentToken() != XContentParser.Token.END_OBJECT) {
             parseSettingsField(parser, indexName, indexToSettings, indexToDefaultSettings);
         }
     }
@@ -172,10 +132,10 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         parser.nextToken();
 
-        while (!parser.isClosed()) {
+        while (parser.isClosed() == false) {
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 //we must assume this is an index entry
                 parseIndexEntry(parser, indexToSettings, indexToDefaultSettings);

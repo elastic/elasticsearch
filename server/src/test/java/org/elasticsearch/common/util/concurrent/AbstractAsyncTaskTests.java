@@ -1,35 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class AbstractAsyncTaskTests extends ESTestCase {
 
@@ -202,5 +196,32 @@ public class AbstractAsyncTaskTests extends ESTestCase {
         task.close();
         assertFalse(task.isScheduled());
         assertTrue(task.isClosed());
+    }
+
+    public void testIsScheduledRemainFalseAfterClose() throws Exception {
+        int numTasks = between(10, 50);
+        List<AbstractAsyncTask> tasks = new ArrayList<>(numTasks);
+        AtomicLong counter = new AtomicLong();
+        for (int i = 0; i < numTasks; i++) {
+            AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueMillis(randomIntBetween(1, 2)), true) {
+                @Override
+                protected boolean mustReschedule() {
+                    return counter.get() <= 1000;
+                }
+                @Override
+                protected void runInternal() {
+                    counter.incrementAndGet();
+                }
+            };
+            task.rescheduleIfNecessary();
+            tasks.add(task);
+        }
+        Randomness.shuffle(tasks);
+        IOUtils.close(tasks);
+        Randomness.shuffle(tasks);
+        for (AbstractAsyncTask task : tasks) {
+            assertTrue(task.isClosed());
+            assertFalse(task.isScheduled());
+        }
     }
 }

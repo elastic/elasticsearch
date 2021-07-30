@@ -1,35 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.merge;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class MergeStats implements Streamable, ToXContentFragment {
+public class MergeStats implements Writeable, ToXContentFragment {
 
     private long total;
     private long totalTimeInMillis;
@@ -49,6 +38,20 @@ public class MergeStats implements Streamable, ToXContentFragment {
 
     public MergeStats() {
 
+    }
+
+    public MergeStats(StreamInput in) throws IOException {
+        total = in.readVLong();
+        totalTimeInMillis = in.readVLong();
+        totalNumDocs = in.readVLong();
+        totalSizeInBytes = in.readVLong();
+        current = in.readVLong();
+        currentNumDocs = in.readVLong();
+        currentSizeInBytes = in.readVLong();
+        // Added in 2.0:
+        totalStoppedTimeInMillis = in.readVLong();
+        totalThrottledTimeInMillis = in.readVLong();
+        totalBytesPerSecAutoThrottle = in.readVLong();
     }
 
     public void add(long totalMerges, long totalMergeTime, long totalNumDocs, long totalSizeInBytes,
@@ -221,21 +224,6 @@ public class MergeStats implements Streamable, ToXContentFragment {
         static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
         static final String TOTAL_THROTTLE_BYTES_PER_SEC_IN_BYTES = "total_auto_throttle_in_bytes";
         static final String TOTAL_THROTTLE_BYTES_PER_SEC = "total_auto_throttle";
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        total = in.readVLong();
-        totalTimeInMillis = in.readVLong();
-        totalNumDocs = in.readVLong();
-        totalSizeInBytes = in.readVLong();
-        current = in.readVLong();
-        currentNumDocs = in.readVLong();
-        currentSizeInBytes = in.readVLong();
-        // Added in 2.0:
-        totalStoppedTimeInMillis = in.readVLong();
-        totalThrottledTimeInMillis = in.readVLong();
-        totalBytesPerSecAutoThrottle = in.readVLong();
     }
 
     @Override

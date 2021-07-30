@@ -1,25 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.gen.pipeline;
 
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.processor.HitExtractorProcessor;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ScoreExtractor;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.gen.processor.HitExtractorProcessor;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 
 public class ScorePipe extends Pipe {
-    public ScorePipe(Location location, Expression expression) {
-        super(location, expression, emptyList());
+    public ScorePipe(Source source, Expression expression) {
+        super(source, expression, emptyList());
     }
 
     @Override
@@ -53,7 +55,7 @@ public class ScorePipe extends Pipe {
     }
 
     @Override
-    public void collectFields(SqlSourceBuilder sourceBuilder) {
+    public void collectFields(QlSourceBuilder sourceBuilder) {
         sourceBuilder.trackScores();
     }
 }

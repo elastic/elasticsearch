@@ -2,7 +2,7 @@
 === Sort context
 
 Use a Painless script to
-{ref}/search-request-sort.html[sort] the documents in a query.
+{ref}/sort-search-results.html[sort] the documents in a query.
 
 *Variables*
 
@@ -10,8 +10,8 @@ Use a Painless script to
         User-defined parameters passed in as part of the query.
 
 `doc` (`Map`, read-only)::
-        Contains the fields of the current document.  For single-valued fields,
-        the value can be accessed via `doc['fieldname'].value`.  For multi-valued
+        Contains the fields of the current document. For single-valued fields,
+        the value can be accessed via `doc['fieldname'].value`. For multi-valued
         fields, this returns the first value; other values can be accessed
         via `doc['fieldname'].get(index)`
 
@@ -25,7 +25,7 @@ Use a Painless script to
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+The standard <<painless-api-reference-shared, Painless API>> is available.
 
 *Example*
 
@@ -34,28 +34,28 @@ To run this example, first follow the steps in
 
 To sort results by the length of the `theatre` field, submit the following query:
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
-    "query" : {
-        "term" : { "sold" : "true" }
-    },
-    "sort" : {
-        "_script" : {
-            "type" : "number",
-            "script" : {
-                "lang": "painless",
-                "source": "doc['theatre'].value.length() * params.factor",
-                "params" : {
-                    "factor" : 1.1
-                }
-            },
-            "order" : "asc"
-        }
+  "query": {
+    "term": {
+      "sold": "true"
     }
+  },
+  "sort": {
+    "_script": {
+      "type": "number",
+      "script": {
+        "lang": "painless",
+        "source": "doc['theatre'].value.length() * params.factor",
+        "params": {
+          "factor": 1.1
+        }
+      },
+      "order": "asc"
+    }
+  }
 }
-
 ----
-// CONSOLE
 // TEST[setup:seats]

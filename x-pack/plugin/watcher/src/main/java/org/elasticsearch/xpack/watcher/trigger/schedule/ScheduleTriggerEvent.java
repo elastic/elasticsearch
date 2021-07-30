@@ -1,38 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 public class ScheduleTriggerEvent extends TriggerEvent {
 
-    private final DateTime scheduledTime;
+    private final ZonedDateTime scheduledTime;
 
-    public ScheduleTriggerEvent(DateTime triggeredTime, DateTime scheduledTime) {
+    public ScheduleTriggerEvent(ZonedDateTime triggeredTime, ZonedDateTime scheduledTime) {
         this(null, triggeredTime, scheduledTime);
     }
 
-    public ScheduleTriggerEvent(String jobName, DateTime triggeredTime, DateTime scheduledTime) {
+    public ScheduleTriggerEvent(String jobName, ZonedDateTime triggeredTime, ZonedDateTime scheduledTime) {
         super(jobName, triggeredTime);
         this.scheduledTime = scheduledTime;
         data.put(Field.SCHEDULED_TIME.getPreferredName(),
-            new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(scheduledTime.getMillis()), ZoneOffset.UTC));
+            new JodaCompatibleZonedDateTime(scheduledTime.toInstant(), ZoneOffset.UTC));
     }
 
     @Override
@@ -40,7 +39,7 @@ public class ScheduleTriggerEvent extends TriggerEvent {
         return ScheduleTrigger.TYPE;
     }
 
-    public DateTime scheduledTime() {
+    public ZonedDateTime scheduledTime() {
         return scheduledTime;
     }
 
@@ -60,8 +59,8 @@ public class ScheduleTriggerEvent extends TriggerEvent {
     }
 
     public static ScheduleTriggerEvent parse(XContentParser parser, String watchId, String context, Clock clock) throws IOException {
-        DateTime triggeredTime = null;
-        DateTime scheduledTime = null;
+        ZonedDateTime triggeredTime = null;
+        ZonedDateTime scheduledTime = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -70,7 +69,7 @@ public class ScheduleTriggerEvent extends TriggerEvent {
                 currentFieldName = parser.currentName();
             } else if (Field.TRIGGERED_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
-                    triggeredTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, DateTimeZone.UTC, clock);
+                    triggeredTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, ZoneOffset.UTC, clock);
                 } catch (ElasticsearchParseException pe) {
                     //Failed to parse as a date try datemath parsing
                     throw new ElasticsearchParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse " +
@@ -78,7 +77,7 @@ public class ScheduleTriggerEvent extends TriggerEvent {
                 }
             }  else if (Field.SCHEDULED_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
-                    scheduledTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, DateTimeZone.UTC, clock);
+                    scheduledTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, ZoneOffset.UTC, clock);
                 } catch (ElasticsearchParseException pe) {
                     throw new ElasticsearchParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse " +
                             "date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);

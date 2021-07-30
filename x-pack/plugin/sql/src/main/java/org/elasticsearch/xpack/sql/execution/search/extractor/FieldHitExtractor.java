@@ -1,32 +1,39 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.common.xcontent.XContentParseException;
+import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
+import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
-import org.joda.time.DateTime;
-
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
 
 /**
  * Extractor for ES fields. Works for both 'normal' fields but also nested ones (which require hitName to be set).
  * The latter is used as metadata in assembling the results in the tabular response.
  */
-public class FieldHitExtractor implements HitExtractor {
-
-    private static final boolean ARRAYS_LENIENCY = false;
+public class FieldHitExtractor extends AbstractFieldHitExtractor {
 
     /**
      * Stands for {@code field}. We try to use short names for {@link HitExtractor}s
@@ -34,45 +41,31 @@ public class FieldHitExtractor implements HitExtractor {
      */
     static final String NAME = "f";
 
-    /**
-     * Source extraction requires only the (relative) field name, without its parent path.
-     */
-    private static String[] sourcePath(String name, boolean useDocValue, String hitName) {
-        return useDocValue ? Strings.EMPTY_ARRAY : Strings
-                .tokenizeToStringArray(hitName == null ? name : name.substring(hitName.length() + 1), ".");
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean arrayLeniency) {
+        super(name, dataType, zoneId, arrayLeniency);
     }
 
-    private final String fieldName, hitName;
-    private final DataType dataType;
-    private final boolean useDocValue;
-    private final String[] path;
-
-    public FieldHitExtractor(String name, DataType dataType, boolean useDocValue) {
-        this(name, dataType, useDocValue, null);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId) {
+        super(name, dataType, zoneId);
     }
 
-    public FieldHitExtractor(String name, DataType dataType, boolean useDocValue, String hitName) {
-        this.fieldName = name;
-        this.dataType = dataType;
-        this.useDocValue = useDocValue;
-        this.hitName = hitName;
-
-        if (hitName != null) {
-            if (!name.contains(hitName)) {
-                throw new SqlIllegalArgumentException("Hitname [{}] specified but not part of the name [{}]", hitName, name);
-            }
-        }
-
-        this.path = sourcePath(fieldName, useDocValue, hitName);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, String hitName,
+            boolean arrayLeniency) {
+        super(name, dataType, zoneId, hitName, arrayLeniency);
     }
 
-    FieldHitExtractor(StreamInput in) throws IOException {
-        fieldName = in.readString();
-        String esType = in.readOptionalString();
-        dataType = esType != null ? DataType.fromTypeName(esType) : null;
-        useDocValue = in.readBoolean();
-        hitName = in.readOptionalString();
-        path = sourcePath(fieldName, useDocValue, hitName);
+    public FieldHitExtractor(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    protected DataType loadTypeFromName(String typeName) {
+        return SqlDataTypes.fromTypeName(typeName);
+    }
+
+    @Override
+    protected ZoneId readZoneId(StreamInput in) throws IOException {
+        return SqlStreamInput.asSqlStream(in).zoneId();
     }
 
     @Override
@@ -80,110 +73,60 @@ public class FieldHitExtractor implements HitExtractor {
         return NAME;
     }
 
+    // let's make sure first that we are not dealing with an geo_point represented as an array
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeOptionalString(dataType == null ? null : dataType.esType);
-        out.writeBoolean(useDocValue);
-        out.writeOptionalString(hitName);
+    protected boolean isPrimitive(List<?> list) {
+        return isGeoPointArray(list);
+    }
+
+    private boolean isGeoPointArray(List<?> list) {
+        if (dataType() != GEO_POINT) {
+            return false;
+        }
+        // we expect the point in [lon lat] or [lon lat alt] formats
+        if (list.size() > 3 || list.size() < 1) {
+            return false;
+        }
+        return list.get(0) instanceof Number;
     }
 
     @Override
-    public Object extract(SearchHit hit) {
-        Object value = null;
-        if (useDocValue) {
-            DocumentField field = hit.field(fieldName);
-            if (field != null) {
-                value = unwrapMultiValue(field.getValues());
-            }
-        } else {
-            Map<String, Object> source = hit.getSourceAsMap();
-            if (source != null) {
-                value = extractFromSource(source);
-            }
-        }
-        return value;
-    }
+    protected Object unwrapCustomValue(Object values) {
+        DataType dataType = dataType();
 
-    private Object unwrapMultiValue(Object values) {
-        if (values == null) {
-            return null;
+        if (dataType == GEO_POINT) {
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) values;
+                GeoPoint geoPoint = GeoUtils.parseGeoPoint(map.get("coordinates"), true);
+                return new GeoShape(geoPoint.lon(), geoPoint.lat());
+            } catch (ElasticsearchParseException ex) {
+                throw new SqlIllegalArgumentException("Cannot parse geo_point value [{}] (returned by [{}])", values, fieldName());
+            }
         }
-        if (values instanceof List) {
-            List<?> list = (List<?>) values;
-            if (list.isEmpty()) {
-                return null;
-            } else {
-                if (ARRAYS_LENIENCY || list.size() == 1) {
-                    return unwrapMultiValue(list.get(0));
-                } else {
-                    throw new SqlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
-                }
+        if (dataType == GEO_SHAPE) {
+            try {
+                return new GeoShape(values);
+            } catch (IOException | XContentParseException ex) {
+                throw new SqlIllegalArgumentException("Cannot read geo_shape value [{}] (returned by [{}])", values, fieldName());
+            }
+        }
+        if (dataType == SHAPE) {
+            try {
+                return new GeoShape(values);
+            } catch (IOException ex) {
+                throw new SqlIllegalArgumentException("Cannot read shape value [{}] (returned by [{}])", values, fieldName());
             }
         }
         if (values instanceof Map) {
-            throw new SqlIllegalArgumentException("Objects (returned by [{}]) are not supported", fieldName);
+            throw new SqlIllegalArgumentException("Objects (returned by [{}]) are not supported", fieldName());
         }
-        if (dataType == DataType.DATE) {
+        if (dataType == DATETIME) {
             if (values instanceof String) {
-                return DateUtils.of(Long.parseLong(values.toString()));
-            }
-            // returned by nested types...
-            if (values instanceof DateTime) {
-                return DateUtils.of((DateTime) values);
+                return DateUtils.asDateTimeWithNanos(values.toString()).withZoneSameInstant(zoneId());
             }
         }
-        if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean) {
-            return values;
-        }
-        throw new SqlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);
-    }
 
-    @SuppressWarnings("unchecked")
-    Object extractFromSource(Map<String, Object> map) {
-        Object value = map;
-        boolean first = true;
-        // each node is a key inside the map
-        for (String node : path) {
-            if (value == null) {
-                return null;
-            } else if (first || value instanceof Map) {
-                first = false;
-                value = ((Map<String, Object>) value).get(node);
-            } else {
-                throw new SqlIllegalArgumentException("Cannot extract value [{}] from source", fieldName);
-            }
-        }
-        return unwrapMultiValue(value);
-    }
-
-    @Override
-    public String hitName() {
-        return hitName;
-    }
-
-    public String fieldName() {
-        return fieldName;
-    }
-
-    @Override
-    public String toString() {
-        return fieldName + "@" + hitName;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        FieldHitExtractor other = (FieldHitExtractor) obj;
-        return fieldName.equals(other.fieldName)
-                && hitName.equals(other.hitName)
-                && useDocValue == other.useDocValue;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(fieldName, useDocValue, hitName);
+        return null;
     }
 }

@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -16,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
+import java.security.KeyException;
 import java.security.KeyFactory;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
@@ -72,7 +74,7 @@ public class PemUtils {
      * @param passwordSupplier A password supplier for the potentially encrypted (password protected) key
      * @return a private key from the contents of the file
      */
-    public static PrivateKey readPrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) {
+    public static PrivateKey readPrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) throws IOException {
         try (BufferedReader bReader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8)) {
             String line = bReader.readLine();
             while (null != line && line.startsWith(HEADER) == false){
@@ -103,7 +105,7 @@ public class PemUtils {
                 throw new IllegalStateException("Error parsing Private Key from: " + keyPath.toString() + ". File did not contain a " +
                         "supported key format");
             }
-        } catch (IOException | GeneralSecurityException e) {
+        } catch (GeneralSecurityException e) {
             throw new IllegalStateException("Error parsing Private Key from: " + keyPath.toString(), e);
         }
     }
@@ -176,7 +178,7 @@ public class PemUtils {
             line = bReader.readLine();
         }
         if (null == line || PKCS8_FOOTER.equals(line.trim()) == false) {
-            throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
+            throw new KeyException("Malformed PEM file, PEM footer is invalid or missing");
         }
         byte[] keyBytes = Base64.getDecoder().decode(sb.toString());
         String keyAlgo = getKeyAlgorithmIdentifier(keyBytes);
@@ -328,7 +330,6 @@ public class PemUtils {
         EncryptedPrivateKeyInfo encryptedPrivateKeyInfo = new EncryptedPrivateKeyInfo(keyBytes);
         SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance(encryptedPrivateKeyInfo.getAlgName());
         SecretKey secretKey = secretKeyFactory.generateSecret(new PBEKeySpec(keyPassword));
-        Arrays.fill(keyPassword, '\u0000');
         Cipher cipher = Cipher.getInstance(encryptedPrivateKeyInfo.getAlgName());
         cipher.init(Cipher.DECRYPT_MODE, secretKey, encryptedPrivateKeyInfo.getAlgParameters());
         PKCS8EncodedKeySpec keySpec = encryptedPrivateKeyInfo.getKeySpec(cipher);
@@ -374,7 +375,7 @@ public class PemUtils {
      * defined in RFC 1423. RFC 1423 only defines DES-CBS and triple DES (EDE) in CBC mode. AES in CBC mode is also widely used though ( 3
      * different variants of 128, 192, 256 bit keys )
      *
-     * @param dekHeaderValue The value of the the DEK-Info PEM header
+     * @param dekHeaderValue The value of the DEK-Info PEM header
      * @param password       The password with which the key is encrypted
      * @return a cipher of the appropriate algorithm and parameters to be used for decryption
      * @throws GeneralSecurityException if the algorithm is not available in the used security provider, or if the key is inappropriate
@@ -481,9 +482,12 @@ public class PemUtils {
         parser.readAsn1Object().getInteger(); // version
         String keyHex = parser.readAsn1Object().getString();
         BigInteger privateKeyInt = new BigInteger(keyHex, 16);
+        DerParser.Asn1Object choice = parser.readAsn1Object();
+        parser = choice.getParser();
+        String namedCurve = getEcCurveNameFromOid(parser.readAsn1Object().getOid());
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("EC");
-        AlgorithmParameterSpec prime256v1ParamSpec = new ECGenParameterSpec("secp256r1");
-        keyPairGenerator.initialize(prime256v1ParamSpec);
+        AlgorithmParameterSpec algorithmParameterSpec = new ECGenParameterSpec(namedCurve);
+        keyPairGenerator.initialize(algorithmParameterSpec);
         ECParameterSpec parameterSpec = ((ECKey) keyPairGenerator.generateKeyPair().getPrivate()).getParams();
         return new ECPrivateKeySpec(privateKeyInt, parameterSpec);
     }
@@ -555,7 +559,45 @@ public class PemUtils {
             case "1.2.840.10045.2.1":
                 return "EC";
         }
-        throw new GeneralSecurityException("Error parsing key algorithm identifier. Algorithm with OID: "+oidString+ " is not " +
+        throw new GeneralSecurityException("Error parsing key algorithm identifier. Algorithm with OID: " + oidString + " is not " +
+            "supported");
+    }
+
+    private static String getEcCurveNameFromOid(String oidString) throws GeneralSecurityException {
+        switch (oidString) {
+            // see https://tools.ietf.org/html/rfc5480#section-2.1.1.1
+            case "1.2.840.10045.3.1":
+                return "secp192r1";
+            case "1.3.132.0.1":
+                return "sect163k1";
+            case "1.3.132.0.15":
+                return "sect163r2";
+            case "1.3.132.0.33":
+                return "secp224r1";
+            case "1.3.132.0.26":
+                return "sect233k1";
+            case "1.3.132.0.27":
+                return "sect233r1";
+            case "1.2.840.10045.3.1.7":
+                return "secp256r1";
+            case "1.3.132.0.16":
+                return "sect283k1";
+            case "1.3.132.0.17":
+                return "sect283r1";
+            case "1.3.132.0.34":
+                return "secp384r1";
+            case "1.3.132.0.36":
+                return "sect409k1";
+            case "1.3.132.0.37":
+                return "sect409r1";
+            case "1.3.132.0.35":
+                return "secp521r1";
+            case "1.3.132.0.38":
+                return "sect571k1";
+            case "1.3.132.0.39":
+                return "sect571r1";
+        }
+        throw new GeneralSecurityException("Error parsing EC named curve identifier. Named curve with OID: " + oidString + " is not " +
             "supported");
     }
 }

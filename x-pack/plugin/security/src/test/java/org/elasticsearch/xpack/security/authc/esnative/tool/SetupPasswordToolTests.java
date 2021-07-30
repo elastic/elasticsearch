@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
@@ -10,21 +11,17 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
@@ -34,8 +31,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
-import org.hamcrest.CoreMatchers;
+import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
+import org.elasticsearch.xpack.security.tool.HttpResponse;
+import org.elasticsearch.xpack.security.tool.HttpResponse.HttpResponseBuilder;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Rule;
@@ -44,7 +42,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
@@ -58,10 +55,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.net.ssl.SSLException;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -72,8 +72,11 @@ public class SetupPasswordToolTests extends CommandTestCase {
     private final String pathHomeParameter = "-Epath.home=" + createTempDir();
     private SecureString bootstrapPassword;
     private CommandLineHttpClient httpClient;
-    private KeyStoreWrapper keyStore;
     private List<String> usersInSetOrder;
+    private KeyStoreWrapper passwordProtectedKeystore;
+    private KeyStoreWrapper keyStore;
+    private KeyStoreWrapper usedKeyStore;
+
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
@@ -83,37 +86,45 @@ public class SetupPasswordToolTests extends CommandTestCase {
         boolean useFallback = randomBoolean();
         bootstrapPassword = useFallback ? new SecureString("0xCAFEBABE".toCharArray()) :
                 new SecureString("bootstrap-password".toCharArray());
-        this.keyStore = mock(KeyStoreWrapper.class);
-        this.httpClient = mock(CommandLineHttpClient.class);
-
-        when(keyStore.isLoaded()).thenReturn(true);
-        if (useFallback) {
-            when(keyStore.getSettingNames()).thenReturn(new HashSet<>(Arrays.asList(ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.getKey(),
-                    KeyStoreWrapper.SEED_SETTING.getKey())));
-            when(keyStore.getString(ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.getKey())).thenReturn(bootstrapPassword);
-        } else {
-            when(keyStore.getSettingNames()).thenReturn(Collections.singleton(KeyStoreWrapper.SEED_SETTING.getKey()));
-            when(keyStore.getString(KeyStoreWrapper.SEED_SETTING.getKey())).thenReturn(bootstrapPassword);
+        keyStore = mockKeystore(false, useFallback);
+        // create a password protected keystore eitherway, so that it can be used for SetupPasswordToolTests#testWrongKeystorePassword
+        passwordProtectedKeystore = mockKeystore(true, useFallback);
+        usedKeyStore = randomFrom(keyStore, passwordProtectedKeystore);
+        if (usedKeyStore.hasPassword()) {
+            terminal.addSecretInput("keystore-password");
         }
 
+        this.httpClient = mock(CommandLineHttpClient.class);
         when(httpClient.getDefaultURL()).thenReturn("http://localhost:9200");
 
-        HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<String, Object>());
-        when(httpClient.execute(anyString(), any(URL.class), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-                any(CheckedFunction.class))).thenReturn(httpResponse);
+        HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
+        when(httpClient.execute(anyString(), any(URL.class), anyString(), any(SecureString.class), anyCheckedSupplier(),
+                anyCheckedFunction())).thenReturn(httpResponse);
 
         URL url = new URL(httpClient.getDefaultURL());
         httpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, Collections.singletonMap("status", randomFrom("yellow", "green")));
-        when(httpClient.execute(anyString(), eq(clusterHealthUrl(url)), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-                any(CheckedFunction.class))).thenReturn(httpResponse);
+        when(httpClient.execute(anyString(), eq(clusterHealthUrl(url)), anyString(), any(SecureString.class), anyCheckedSupplier(),
+                anyCheckedFunction())).thenReturn(httpResponse);
 
         URL xpackSecurityPluginQueryURL = queryXPackSecurityFeatureConfigURL(url);
-        HttpResponse queryXPackSecurityConfigHttpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<String, Object>());
+        HttpResponse queryXPackSecurityConfigHttpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
         when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), anyString(), any(SecureString.class),
-                any(CheckedSupplier.class), any(CheckedFunction.class))).thenReturn(queryXPackSecurityConfigHttpResponse);
+                anyCheckedSupplier(), anyCheckedFunction())).thenReturn(queryXPackSecurityConfigHttpResponse);
 
         // elastic user is updated last
         usersInSetOrder = new ArrayList<>(SetupPasswordTool.USERS);
+        usersInSetOrder.sort((user1, user2) -> {
+            if (SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsKey(user1)
+                && SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsValue(user2)) {
+                return -1;
+            }
+            if (SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsKey(user2)
+                && SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsValue(user1)) {
+                return 1;
+            }
+            return 0;
+        });
+
         for (int i = 0; i < usersInSetOrder.size() - 1; i++) {
             if (ElasticUser.NAME.equals(usersInSetOrder.get(i))) {
                 Collections.swap(usersInSetOrder, i, i + 1);
@@ -121,14 +132,396 @@ public class SetupPasswordToolTests extends CommandTestCase {
         }
 
         for (String user : SetupPasswordTool.USERS) {
+            if (SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsValue(user)) {
+                continue;
+            }
             terminal.addSecretInput(user + "-password");
             terminal.addSecretInput(user + "-password");
         }
     }
 
+    private KeyStoreWrapper mockKeystore(boolean isPasswordProtected, boolean useFallback) throws Exception {
+        KeyStoreWrapper keyStore = mock(KeyStoreWrapper.class);
+        when(keyStore.isLoaded()).thenReturn(true);
+        if (useFallback) {
+            when(keyStore.getSettingNames()).thenReturn(new HashSet<>(Arrays.asList(ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.getKey(),
+                KeyStoreWrapper.SEED_SETTING.getKey())));
+            when(keyStore.getString(ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.getKey())).thenReturn(bootstrapPassword);
+        } else {
+            when(keyStore.getSettingNames()).thenReturn(Collections.singleton(KeyStoreWrapper.SEED_SETTING.getKey()));
+            when(keyStore.getString(KeyStoreWrapper.SEED_SETTING.getKey())).thenReturn(bootstrapPassword);
+        }
+        if (isPasswordProtected) {
+            when(keyStore.hasPassword()).thenReturn(true);
+            doNothing().when(keyStore).decrypt("keystore-password".toCharArray());
+            doThrow(new SecurityException("Provided keystore password was incorrect", new IOException()))
+                .when(keyStore).decrypt("wrong-password".toCharArray());
+        }
+        return keyStore;
+    }
+
     @Override
     protected Command newCommand() {
-        return new SetupPasswordTool((e, s) -> httpClient, (e) -> keyStore) {
+        return getSetupPasswordCommandWithKeyStore(usedKeyStore);
+    }
+
+    public void testAutoSetup() throws Exception {
+        URL url = new URL(httpClient.getDefaultURL());
+        if (randomBoolean()) {
+            execute("auto", pathHomeParameter, "-b", "true");
+        } else {
+            terminal.addTextInput("Y");
+            execute("auto", pathHomeParameter);
+        }
+        if (usedKeyStore.hasPassword()) {
+            // SecureString is already closed (zero-filled) and keystore-password is 17 char long
+            verify(usedKeyStore).decrypt(new char[17]);
+        } else {
+            verify(usedKeyStore).decrypt(new char[0]);
+        }
+
+        InOrder inOrder = Mockito.inOrder(httpClient);
+
+        URL checkUrl = authenticateUrl(url);
+        inOrder.verify(httpClient).execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), anyCheckedSupplier(),
+                anyCheckedFunction());
+        Map<String, String> capturedPasswords = new HashMap<>(usersInSetOrder.size());
+        for (String user : usersInSetOrder) {
+            URL urlWithRoute = passwordUrl(url, user);
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            ArgumentCaptor<CheckedSupplier<String, Exception>> passwordCaptor = ArgumentCaptor.forClass((Class) CheckedSupplier.class);
+            inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
+                passwordCaptor.capture(), anyCheckedFunction());
+
+            String userPassword = passwordCaptor.getValue().get();
+            capturedPasswords.put(user, userPassword);
+        }
+
+       for (Map.Entry<String, String> entry : SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.entrySet()) {
+           assertEquals(capturedPasswords.get(entry.getKey()), capturedPasswords.get(entry.getValue()));
+
+           capturedPasswords.remove(entry.getKey());
+           capturedPasswords.remove(entry.getValue());
+       }
+
+        Set<String> uniqueCapturedPasswords = new HashSet<>(capturedPasswords.values());
+       assertEquals(uniqueCapturedPasswords.size(), capturedPasswords.size());
+    }
+
+    public void testAuthnFail() throws Exception {
+        URL url = new URL(httpClient.getDefaultURL());
+        URL authnURL = authenticateUrl(url);
+
+        HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_UNAUTHORIZED, new HashMap<>());
+
+        when(httpClient.execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), anyCheckedSupplier(),
+                anyCheckedFunction())).thenReturn(httpResponse);
+
+        try {
+            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+            fail("Should have thrown exception");
+        } catch (UserException e) {
+            assertEquals(ExitCodes.CONFIG, e.exitCode);
+        }
+    }
+
+    public void testErrorMessagesWhenXPackIsNotAvailableOnNode() throws Exception {
+        URL url = new URL(httpClient.getDefaultURL());
+        URL authnURL = authenticateUrl(url);
+
+        HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_NOT_FOUND, new HashMap<>());
+        when(httpClient.execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), anyCheckedSupplier(),
+                anyCheckedFunction())).thenReturn(httpResponse);
+
+        URL xpackSecurityPluginQueryURL = queryXPackSecurityFeatureConfigURL(url);
+        String securityPluginQueryResponseBody = null;
+        final IllegalArgumentException illegalArgException =
+                new IllegalArgumentException("request [/_xpack] contains unrecognized parameter: [categories]");
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject();
+            ElasticsearchException.generateFailureXContent(builder, ToXContent.EMPTY_PARAMS, illegalArgException, true);
+            builder.field("status", RestStatus.BAD_REQUEST.getStatus());
+            builder.endObject();
+            securityPluginQueryResponseBody = Strings.toString(builder);
+        }
+        when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
+                anyCheckedSupplier(), anyCheckedFunction()))
+                .thenReturn(createHttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, securityPluginQueryResponseBody));
+
+        thrown.expect(UserException.class);
+        thrown.expectMessage("X-Pack is not available on this Elasticsearch node.");
+        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+    }
+
+    public void testErrorMessagesWhenXPackIsAvailableWithCorrectLicenseAndIsEnabledButStillFailedForUnknown() throws Exception {
+        URL url = new URL(httpClient.getDefaultURL());
+        URL authnURL = authenticateUrl(url);
+
+        HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_NOT_FOUND, new HashMap<>());
+        when(httpClient.execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), anyCheckedSupplier(),
+                anyCheckedFunction())).thenReturn(httpResponse);
+
+        URL xpackSecurityPluginQueryURL = queryXPackSecurityFeatureConfigURL(url);
+
+        Set<FeatureSet> featureSets = new HashSet<>();
+        featureSets.add(new FeatureSet("logstash", true, true));
+        featureSets.add(new FeatureSet("security", true, true));
+        FeatureSetsInfo featureInfos = new FeatureSetsInfo(featureSets);
+        XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
+        String securityPluginQueryResponseBody = null;
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject();
+            builder.field("features", xpackInfo.getFeatureSetsInfo());
+            builder.endObject();
+            securityPluginQueryResponseBody = Strings.toString(builder);
+        }
+        when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
+                anyCheckedSupplier(), anyCheckedFunction()))
+                .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, securityPluginQueryResponseBody));
+
+        thrown.expect(UserException.class);
+        thrown.expectMessage("Unknown error");
+        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+
+    }
+
+    public void testErrorMessagesWhenXPackPluginIsAvailableButNoSecurityLicense() throws Exception {
+        URL url = new URL(httpClient.getDefaultURL());
+        URL authnURL = authenticateUrl(url);
+        URL xpackSecurityPluginQueryURL = queryXPackSecurityFeatureConfigURL(url);
+
+        HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_NOT_FOUND, new HashMap<>());
+        when(httpClient.execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), anyCheckedSupplier(),
+                anyCheckedFunction())).thenReturn(httpResponse);
+
+        Set<FeatureSet> featureSets = new HashSet<>();
+        featureSets.add(new FeatureSet("logstash", true, true));
+        featureSets.add(new FeatureSet("security", false, false));
+        FeatureSetsInfo featureInfos = new FeatureSetsInfo(featureSets);
+        XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
+        String securityPluginQueryResponseBody = null;
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject();
+            builder.field("features", xpackInfo.getFeatureSetsInfo());
+            builder.endObject();
+            securityPluginQueryResponseBody = Strings.toString(builder);
+        }
+        when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
+                anyCheckedSupplier(), anyCheckedFunction()))
+                .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, securityPluginQueryResponseBody));
+
+        thrown.expect(UserException.class);
+        thrown.expectMessage("X-Pack Security is not available.");
+        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+
+    }
+
+    public void testErrorMessagesWhenXPackPluginIsAvailableWithValidLicenseButDisabledSecurity() throws Exception {
+        URL url = new URL(httpClient.getDefaultURL());
+        URL authnURL = authenticateUrl(url);
+        URL xpackSecurityPluginQueryURL = queryXPackSecurityFeatureConfigURL(url);
+
+        HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_NOT_FOUND, new HashMap<>());
+        when(httpClient.execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), anyCheckedSupplier(),
+                anyCheckedFunction())).thenReturn(httpResponse);
+
+        Set<FeatureSet> featureSets = new HashSet<>();
+        featureSets.add(new FeatureSet("logstash", true, true));
+        featureSets.add(new FeatureSet("security", true, false));
+        FeatureSetsInfo featureInfos = new FeatureSetsInfo(featureSets);
+        XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
+        String securityPluginQueryResponseBody = null;
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject();
+            builder.field("features", xpackInfo.getFeatureSetsInfo());
+            builder.endObject();
+            securityPluginQueryResponseBody = Strings.toString(builder);
+        }
+        when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
+                anyCheckedSupplier(), anyCheckedFunction()))
+                .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, securityPluginQueryResponseBody));
+
+        thrown.expect(UserException.class);
+        thrown.expectMessage("X-Pack Security is disabled by configuration.");
+        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+    }
+
+    public void testWrongServer() throws Exception {
+        URL url = new URL(httpClient.getDefaultURL());
+        URL authnURL = authenticateUrl(url);
+        doThrow(randomFrom(new IOException(), new SSLException(""))).when(httpClient).execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME),
+                any(SecureString.class), anyCheckedSupplier(), anyCheckedFunction());
+
+        try {
+            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+            fail("Should have thrown exception");
+        } catch (UserException e) {
+            assertEquals(ExitCodes.CONFIG, e.exitCode);
+        }
+    }
+
+    public void testRedCluster() throws Exception {
+        URL url = new URL(httpClient.getDefaultURL());
+
+        HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
+        when(httpClient.execute(eq("GET"), eq(authenticateUrl(url)), eq(ElasticUser.NAME), any(SecureString.class),
+                anyCheckedSupplier(), anyCheckedFunction())).thenReturn(httpResponse);
+
+        httpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, MapBuilder.<String, Object>newMapBuilder()
+                .put("cluster_name", "elasticsearch").put("status", "red").put("number_of_nodes", 1).map());
+        when(httpClient.execute(eq("GET"), eq(clusterHealthUrl(url)), eq(ElasticUser.NAME), any(SecureString.class),
+                anyCheckedSupplier(), anyCheckedFunction())).thenReturn(httpResponse);
+
+        terminal.addTextInput("n");
+        try {
+            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+            fail("Should have thrown exception");
+        } catch (UserException e) {
+            assertEquals(ExitCodes.OK, e.exitCode);
+            assertThat(terminal.getErrorOutput(), Matchers.containsString("Your cluster health is currently RED."));
+        }
+    }
+
+    public void testUrlOption() throws Exception {
+        URL url = new URL("http://localhost:9202" + randomFrom("", "/", "//", "/smth", "//smth/", "//x//x/"));
+        execute("auto", pathHomeParameter, "-u", url.toString(), "-b");
+
+        InOrder inOrder = Mockito.inOrder(httpClient);
+
+        URL checkUrl = authenticateUrl(url);
+        inOrder.verify(httpClient).execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), anyCheckedSupplier(),
+                anyCheckedFunction());
+        for (String user : usersInSetOrder) {
+            URL urlWithRoute = passwordUrl(url, user);
+            inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
+                    anyCheckedSupplier(), anyCheckedFunction());
+        }
+    }
+
+    public void testSetUserPassFail() throws Exception {
+        URL url = new URL(httpClient.getDefaultURL());
+        String userToFail = randomFrom(SetupPasswordTool.USERS);
+        URL userToFailURL = passwordUrl(url, userToFail);
+
+        doThrow(new IOException()).when(httpClient).execute(eq("PUT"), eq(userToFailURL), anyString(), any(SecureString.class),
+                anyCheckedSupplier(), anyCheckedFunction());
+        try {
+            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter, "-b");
+            fail("Should have thrown exception");
+        } catch (UserException e) {
+            assertEquals(ExitCodes.TEMP_FAILURE, e.exitCode);
+        }
+    }
+
+    public void testInteractiveSetup() throws Exception {
+        URL url = new URL(httpClient.getDefaultURL());
+
+        terminal.addTextInput("Y");
+        execute("interactive", pathHomeParameter);
+
+        InOrder inOrder = Mockito.inOrder(httpClient);
+
+        URL checkUrl = authenticateUrl(url);
+        inOrder.verify(httpClient).execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), anyCheckedSupplier(),
+                anyCheckedFunction());
+
+        for (String user : usersInSetOrder) {
+            URL urlWithRoute = passwordUrl(url, user);
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<CheckedSupplier<String, Exception>> passwordCaptor = ArgumentCaptor.forClass((Class) CheckedSupplier.class);
+            inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
+                    passwordCaptor.capture(), anyCheckedFunction());
+            assertThat(passwordCaptor.getValue().get(), containsString(getExpectedPasswordForUser(user)));
+        }
+    }
+
+    public void testInteractivePasswordsFatFingers() throws Exception {
+        URL url = new URL(httpClient.getDefaultURL());
+
+        terminal.reset();
+        if (usedKeyStore.hasPassword()) {
+            terminal.addSecretInput("keystore-password");
+        }
+        terminal.addTextInput("Y");
+        for (String user : SetupPasswordTool.USERS) {
+            if (SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsValue(user)) {
+                continue;
+            }
+
+            // fail in strength and match
+            int failCount = randomIntBetween(3, 10);
+            while (failCount-- > 0) {
+                String password1 = randomAlphaOfLength(randomIntBetween(3, 10));
+                terminal.addSecretInput(password1);
+                Validation.Error err = Validation.Users.validatePassword(new SecureString(password1.toCharArray()));
+                if (err == null) {
+                    // passes strength validation, fail by mismatch
+                    terminal.addSecretInput(password1 + "typo");
+                }
+            }
+            // two good passwords
+            terminal.addSecretInput(user + "-password");
+            terminal.addSecretInput(user + "-password");
+        }
+
+        execute("interactive", pathHomeParameter);
+
+        InOrder inOrder = Mockito.inOrder(httpClient);
+
+        URL checkUrl = authenticateUrl(url);
+        inOrder.verify(httpClient).execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), anyCheckedSupplier(),
+                anyCheckedFunction());
+        for (String user : usersInSetOrder) {
+            URL urlWithRoute = passwordUrl(url, user);
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            ArgumentCaptor<CheckedSupplier<String, Exception>> passwordCaptor = ArgumentCaptor.forClass((Class) CheckedSupplier.class);
+            inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
+                    passwordCaptor.capture(), anyCheckedFunction());
+            assertThat(passwordCaptor.getValue().get(), containsString(getExpectedPasswordForUser(user)));
+        }
+    }
+
+    public void testWrongKeystorePassword() throws Exception {
+        Command commandWithPasswordProtectedKeystore = getSetupPasswordCommandWithKeyStore(passwordProtectedKeystore);
+        terminal.reset();
+        terminal.addSecretInput("wrong-password");
+        final UserException e = expectThrows(UserException.class, () -> {
+            if (randomBoolean()) {
+                execute(commandWithPasswordProtectedKeystore, "auto", pathHomeParameter, "-b", "true");
+            } else {
+                terminal.addTextInput("Y");
+                execute(commandWithPasswordProtectedKeystore, "auto", pathHomeParameter);
+            }
+        });
+        assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
+    }
+
+    private URL authenticateUrl(URL url) throws MalformedURLException, URISyntaxException {
+        return new URL(url, (url.toURI().getPath() + "/_security/_authenticate").replaceAll("/+", "/") + "?pretty");
+    }
+
+    private URL passwordUrl(URL url, String user) throws MalformedURLException, URISyntaxException {
+        return new URL(url, (url.toURI().getPath() + "/_security/user/" + user + "/_password").replaceAll("/+", "/") + "?pretty");
+    }
+
+    private URL clusterHealthUrl(URL url) throws MalformedURLException, URISyntaxException {
+        return new URL(url, (url.toURI().getPath() + "/_cluster/health").replaceAll("/+", "/") + "?pretty");
+    }
+
+    private URL queryXPackSecurityFeatureConfigURL(URL url) throws MalformedURLException, URISyntaxException {
+        return new URL(url,
+                (url.toURI().getPath() + "/_xpack").replaceAll("/+", "/") + "?categories=features&human=false&pretty");
+    }
+
+    private HttpResponse createHttpResponse(final int httpStatus, final String responseJson) throws IOException {
+        HttpResponseBuilder builder = new HttpResponseBuilder();
+        builder.withHttpStatus(httpStatus);
+        builder.withResponseBody(responseJson);
+        return builder.build();
+    }
+
+    private Command getSetupPasswordCommandWithKeyStore(KeyStoreWrapper keyStore) {
+        return new SetupPasswordTool(env -> httpClient, (e) -> keyStore) {
 
             @Override
             protected AutoSetup newAutoSetup() {
@@ -155,330 +548,28 @@ public class SetupPasswordToolTests extends CommandTestCase {
             }
 
         };
-    }
-
-    public void testAutoSetup() throws Exception {
-        URL url = new URL(httpClient.getDefaultURL());
-        if (randomBoolean()) {
-            execute("auto", pathHomeParameter, "-b", "true");
-        } else {
-            terminal.addTextInput("Y");
-            execute("auto", pathHomeParameter);
-        }
-
-        verify(keyStore).decrypt(new char[0]);
-
-        InOrder inOrder = Mockito.inOrder(httpClient);
-
-        URL checkUrl = authenticateUrl(url);
-        inOrder.verify(httpClient).execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), any(CheckedSupplier.class),
-                any(CheckedFunction.class));
-        for (String user : usersInSetOrder) {
-            URL urlWithRoute = passwordUrl(url, user);
-            inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
-                    any(CheckedSupplier.class), any(CheckedFunction.class));
-        }
-    }
-
-    public void testAuthnFail() throws Exception {
-        URL url = new URL(httpClient.getDefaultURL());
-        URL authnURL = authenticateUrl(url);
-
-        HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_UNAUTHORIZED, new HashMap<String, Object>());
-
-        when(httpClient.execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), any(CheckedSupplier.class),
-                any(CheckedFunction.class))).thenReturn(httpResponse);
-
-        try {
-            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
-            fail("Should have thrown exception");
-        } catch (UserException e) {
-            assertEquals(ExitCodes.CONFIG, e.exitCode);
-        }
-    }
-
-    public void testErrorMessagesWhenXPackIsNotAvailableOnNode() throws Exception {
-        URL url = new URL(httpClient.getDefaultURL());
-        URL authnURL = authenticateUrl(url);
-
-        HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_NOT_FOUND, new HashMap<String, Object>());
-        when(httpClient.execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), any(CheckedSupplier.class),
-                any(CheckedFunction.class))).thenReturn(httpResponse);
-
-        URL xpackSecurityPluginQueryURL = queryXPackSecurityFeatureConfigURL(url);
-        String securityPluginQueryResponseBody = null;
-        final IllegalArgumentException illegalArgException =
-                new IllegalArgumentException("request [/_xpack] contains unrecognized parameter: [categories]");
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject();
-            ElasticsearchException.generateFailureXContent(builder, ToXContent.EMPTY_PARAMS, illegalArgException, true);
-            builder.field("status", RestStatus.BAD_REQUEST.getStatus());
-            builder.endObject();
-            securityPluginQueryResponseBody = Strings.toString(builder);
-        }
-        when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
-                any(CheckedSupplier.class), any(CheckedFunction.class)))
-                .thenReturn(createHttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, securityPluginQueryResponseBody));
-
-        thrown.expect(UserException.class);
-        thrown.expectMessage("X-Pack is not available on this Elasticsearch node.");
-        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
-    }
-
-    public void testErrorMessagesWhenXPackIsAvailableWithCorrectLicenseAndIsEnabledButStillFailedForUnknown() throws Exception {
-        URL url = new URL(httpClient.getDefaultURL());
-        URL authnURL = authenticateUrl(url);
-
-        HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_NOT_FOUND, new HashMap<String, Object>());
-        when(httpClient.execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), any(CheckedSupplier.class),
-                any(CheckedFunction.class))).thenReturn(httpResponse);
-
-        URL xpackSecurityPluginQueryURL = queryXPackSecurityFeatureConfigURL(url);
-
-        Set<FeatureSet> featureSets = new HashSet<>();
-        featureSets.add(new FeatureSet("logstash", null, true, true, null));
-        featureSets.add(new FeatureSet("security", null, true, true, null));
-        FeatureSetsInfo featureInfos = new FeatureSetsInfo(featureSets);
-        XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
-        String securityPluginQueryResponseBody = null;
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject();
-            builder.field("features", xpackInfo.getFeatureSetsInfo());
-            builder.endObject();
-            securityPluginQueryResponseBody = Strings.toString(builder);
-        }
-        when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
-                any(CheckedSupplier.class), any(CheckedFunction.class)))
-                .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, securityPluginQueryResponseBody));
-
-        thrown.expect(UserException.class);
-        thrown.expectMessage("Unknown error");
-        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
 
     }
 
-    public void testErrorMessagesWhenXPackPluginIsAvailableButNoSecurityLicense() throws Exception {
-        URL url = new URL(httpClient.getDefaultURL());
-        URL authnURL = authenticateUrl(url);
-        URL xpackSecurityPluginQueryURL = queryXPackSecurityFeatureConfigURL(url);
-
-        HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_NOT_FOUND, new HashMap<String, Object>());
-        when(httpClient.execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), any(CheckedSupplier.class),
-                any(CheckedFunction.class))).thenReturn(httpResponse);
-
-        Set<FeatureSet> featureSets = new HashSet<>();
-        featureSets.add(new FeatureSet("logstash", null, true, true, null));
-        featureSets.add(new FeatureSet("security", null, false, false, null));
-        FeatureSetsInfo featureInfos = new FeatureSetsInfo(featureSets);
-        XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
-        String securityPluginQueryResponseBody = null;
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject();
-            builder.field("features", xpackInfo.getFeatureSetsInfo());
-            builder.endObject();
-            securityPluginQueryResponseBody = Strings.toString(builder);
-        }
-        when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
-                any(CheckedSupplier.class), any(CheckedFunction.class)))
-                .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, securityPluginQueryResponseBody));
-
-        thrown.expect(UserException.class);
-        thrown.expectMessage("X-Pack Security is not available.");
-        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
-
-    }
-
-    public void testErrorMessagesWhenXPackPluginIsAvailableWithValidLicenseButDisabledSecurity() throws Exception {
-        URL url = new URL(httpClient.getDefaultURL());
-        URL authnURL = authenticateUrl(url);
-        URL xpackSecurityPluginQueryURL = queryXPackSecurityFeatureConfigURL(url);
-
-        HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_NOT_FOUND, new HashMap<String, Object>());
-        when(httpClient.execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), any(CheckedSupplier.class),
-                any(CheckedFunction.class))).thenReturn(httpResponse);
-
-        Set<FeatureSet> featureSets = new HashSet<>();
-        featureSets.add(new FeatureSet("logstash", null, true, true, null));
-        featureSets.add(new FeatureSet("security", null, true, false, null));
-        FeatureSetsInfo featureInfos = new FeatureSetsInfo(featureSets);
-        XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
-        String securityPluginQueryResponseBody = null;
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject();
-            builder.field("features", xpackInfo.getFeatureSetsInfo());
-            builder.endObject();
-            securityPluginQueryResponseBody = Strings.toString(builder);
-        }
-        when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
-                any(CheckedSupplier.class), any(CheckedFunction.class)))
-                .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, securityPluginQueryResponseBody));
-
-        thrown.expect(UserException.class);
-        thrown.expectMessage("X-Pack Security is disabled by configuration.");
-        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
-    }
-
-    public void testWrongServer() throws Exception {
-        URL url = new URL(httpClient.getDefaultURL());
-        URL authnURL = authenticateUrl(url);
-        doThrow(randomFrom(new IOException(), new SSLException(""))).when(httpClient).execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME),
-                any(SecureString.class), any(CheckedSupplier.class), any(CheckedFunction.class));
-
-        try {
-            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
-            fail("Should have thrown exception");
-        } catch (UserException e) {
-            assertEquals(ExitCodes.CONFIG, e.exitCode);
-        }
-    }
-
-    public void testRedCluster() throws Exception {
-        URL url = new URL(httpClient.getDefaultURL());
-
-        HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
-        when(httpClient.execute(eq("GET"), eq(authenticateUrl(url)), eq(ElasticUser.NAME), any(SecureString.class),
-                any(CheckedSupplier.class), any(CheckedFunction.class))).thenReturn(httpResponse);
-
-        httpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, MapBuilder.<String, Object>newMapBuilder()
-                .put("cluster_name", "elasticsearch").put("status", "red").put("number_of_nodes", 1).map());
-        when(httpClient.execute(eq("GET"), eq(clusterHealthUrl(url)), eq(ElasticUser.NAME), any(SecureString.class),
-                any(CheckedSupplier.class), any(CheckedFunction.class))).thenReturn(httpResponse);
-
-        terminal.addTextInput("n");
-        try {
-            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
-            fail("Should have thrown exception");
-        } catch (UserException e) {
-            assertEquals(ExitCodes.OK, e.exitCode);
-            assertThat(terminal.getOutput(), Matchers.containsString("Your cluster health is currently RED."));
-        }
-    }
-
-    public void testUrlOption() throws Exception {
-        URL url = new URL("http://localhost:9202" + randomFrom("", "/", "//", "/smth", "//smth/", "//x//x/"));
-        execute("auto", pathHomeParameter, "-u", url.toString(), "-b");
-
-        InOrder inOrder = Mockito.inOrder(httpClient);
-
-        URL checkUrl = authenticateUrl(url);
-        inOrder.verify(httpClient).execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), any(CheckedSupplier.class),
-                any(CheckedFunction.class));
-        for (String user : usersInSetOrder) {
-            URL urlWithRoute = passwordUrl(url, user);
-            inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
-                    any(CheckedSupplier.class), any(CheckedFunction.class));
-        }
-    }
-
-    public void testSetUserPassFail() throws Exception {
-        URL url = new URL(httpClient.getDefaultURL());
-        String userToFail = randomFrom(SetupPasswordTool.USERS);
-        URL userToFailURL = passwordUrl(url, userToFail);
-
-        doThrow(new IOException()).when(httpClient).execute(eq("PUT"), eq(userToFailURL), anyString(), any(SecureString.class),
-                any(CheckedSupplier.class), any(CheckedFunction.class));
-        try {
-            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter, "-b");
-            fail("Should have thrown exception");
-        } catch (UserException e) {
-            assertEquals(ExitCodes.TEMP_FAILURE, e.exitCode);
-        }
-    }
-
-    public void testInteractiveSetup() throws Exception {
-        URL url = new URL(httpClient.getDefaultURL());
-
-        terminal.addTextInput("Y");
-        execute("interactive", pathHomeParameter);
-
-        InOrder inOrder = Mockito.inOrder(httpClient);
-
-        URL checkUrl = authenticateUrl(url);
-        inOrder.verify(httpClient).execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), any(CheckedSupplier.class),
-                any(CheckedFunction.class));
-        for (String user : usersInSetOrder) {
-            URL urlWithRoute = passwordUrl(url, user);
-            ArgumentCaptor<CheckedSupplier<String, Exception>> passwordCaptor = ArgumentCaptor.forClass((Class) CheckedSupplier.class);
-            inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
-                    passwordCaptor.capture(), any(CheckedFunction.class));
-            assertThat(passwordCaptor.getValue().get(), CoreMatchers.containsString(user + "-password"));
-        }
-    }
-
-    public void testInteractivePasswordsFatFingers() throws Exception {
-        URL url = new URL(httpClient.getDefaultURL());
-
-        terminal.reset();
-        terminal.addTextInput("Y");
-        for (String user : SetupPasswordTool.USERS) {
-            // fail in strength and match
-            int failCount = randomIntBetween(3, 10);
-            while (failCount-- > 0) {
-                String password1 = randomAlphaOfLength(randomIntBetween(3, 10));
-                terminal.addSecretInput(password1);
-                Validation.Error err = Validation.Users.validatePassword(password1.toCharArray());
-                if (err == null) {
-                    // passes strength validation, fail by mismatch
-                    terminal.addSecretInput(password1 + "typo");
+    private String getExpectedPasswordForUser(String user) throws Exception {
+        if (SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsValue(user)) {
+            for(Map.Entry<String, String> entry : SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.entrySet()) {
+                if (entry.getValue().equals(user)) {
+                    return entry.getKey() + "-password";
                 }
             }
-            // two good passwords
-            terminal.addSecretInput(user + "-password");
-            terminal.addSecretInput(user + "-password");
+            throw new Exception("Expected to find corresponding user for " + user);
         }
+        return user + "-password";
+     }
 
-        execute("interactive", pathHomeParameter);
-
-        InOrder inOrder = Mockito.inOrder(httpClient);
-
-        URL checkUrl = authenticateUrl(url);
-        inOrder.verify(httpClient).execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), any(CheckedSupplier.class),
-                any(CheckedFunction.class));
-        for (String user : usersInSetOrder) {
-            URL urlWithRoute = passwordUrl(url, user);
-            ArgumentCaptor<CheckedSupplier<String, Exception>> passwordCaptor = ArgumentCaptor.forClass((Class) CheckedSupplier.class);
-            inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
-                    passwordCaptor.capture(), any(CheckedFunction.class));
-            assertThat(passwordCaptor.getValue().get(), CoreMatchers.containsString(user + "-password"));
-        }
+    @SuppressWarnings("unchecked")
+    private static <T, R, E extends Exception> CheckedFunction<T, R, E> anyCheckedFunction() {
+        return any(CheckedFunction.class);
     }
 
-    private String parsePassword(String value) throws IOException {
-        try (XContentParser parser = JsonXContent.jsonXContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, value)) {
-            XContentParser.Token token = parser.nextToken();
-            if (token == XContentParser.Token.START_OBJECT) {
-                if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                    if (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
-                        return parser.text();
-                    }
-                }
-            }
-        }
-        throw new RuntimeException("Did not properly parse password.");
-    }
-
-    private URL authenticateUrl(URL url) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_security/_authenticate").replaceAll("/+", "/") + "?pretty");
-    }
-
-    private URL passwordUrl(URL url, String user) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_security/user/" + user + "/_password").replaceAll("/+", "/") + "?pretty");
-    }
-
-    private URL clusterHealthUrl(URL url) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_cluster/health").replaceAll("/+", "/") + "?pretty");
-    }
-
-    private URL queryXPackSecurityFeatureConfigURL(URL url) throws MalformedURLException, URISyntaxException {
-        return new URL(url,
-                (url.toURI().getPath() + "/_xpack").replaceAll("/+", "/") + "?categories=features&human=false&pretty");
-    }
-
-    private HttpResponse createHttpResponse(final int httpStatus, final String responseJson) throws IOException {
-        HttpResponseBuilder builder = new HttpResponseBuilder();
-        builder.withHttpStatus(httpStatus);
-        builder.withResponseBody(responseJson);
-        return builder.build();
+    @SuppressWarnings("unchecked")
+    private static <T, E extends Exception> CheckedSupplier<T, E> anyCheckedSupplier() {
+        return any(CheckedSupplier.class);
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -28,12 +17,12 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -74,7 +63,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         createIndex(UNMAPPED_IDX_NAME);
         assertAcked(prepareCreate(IDX_NAME)
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point",
+                .setMapping(SINGLE_VALUED_FIELD_NAME, "type=geo_point",
                         MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long", "tag", "type=keyword"));
 
         singleTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
@@ -115,7 +104,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
             singleVal = singleValues[i % numUniqueGeoPoints];
             multiVal[0] = multiValues[i % numUniqueGeoPoints];
             multiVal[1] = multiValues[(i+1) % numUniqueGeoPoints];
-            builders.add(client().prepareIndex(IDX_NAME, "type").setSource(jsonBuilder()
+            builders.add(client().prepareIndex(IDX_NAME).setSource(jsonBuilder()
                     .startObject()
                     .array(SINGLE_VALUED_FIELD_NAME, singleVal.lon(), singleVal.lat())
                     .startArray(MULTI_VALUED_FIELD_NAME)
@@ -133,10 +122,10 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                     multiCentroid.lon() + (newMVLon - multiCentroid.lon()) / (i+1));
         }
 
-        assertAcked(prepareCreate(EMPTY_IDX_NAME).addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
+        assertAcked(prepareCreate(EMPTY_IDX_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
 
         assertAcked(prepareCreate(DATELINE_IDX_NAME)
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME,
+                .setMapping(SINGLE_VALUED_FIELD_NAME,
                     "type=geo_point", MULTI_VALUED_FIELD_NAME,
                     "type=geo_point", NUMBER_FIELD_NAME,
                     "type=long", "tag", "type=keyword"));
@@ -149,7 +138,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         geoValues[4] = new GeoPoint(-11, 178);
 
         for (int i = 0; i < 5; i++) {
-            builders.add(client().prepareIndex(DATELINE_IDX_NAME, "type").setSource(jsonBuilder()
+            builders.add(client().prepareIndex(DATELINE_IDX_NAME).setSource(jsonBuilder()
                     .startObject()
                     .array(SINGLE_VALUED_FIELD_NAME, geoValues[i].lon(), geoValues[i].lat())
                     .field(NUMBER_FIELD_NAME, i)
@@ -157,7 +146,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                     .endObject()));
         }
         assertAcked(prepareCreate(HIGH_CARD_IDX_NAME).setSettings(Settings.builder().put("number_of_shards", 2))
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME,
+                .setMapping(SINGLE_VALUED_FIELD_NAME,
                     "type=geo_point", MULTI_VALUED_FIELD_NAME,
                     "type=geo_point", NUMBER_FIELD_NAME,
                     "type=long,store=true",
@@ -165,7 +154,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
 
         for (int i = 0; i < 2000; i++) {
             singleVal = singleValues[i % numUniqueGeoPoints];
-            builders.add(client().prepareIndex(HIGH_CARD_IDX_NAME, "type").setSource(jsonBuilder()
+            builders.add(client().prepareIndex(HIGH_CARD_IDX_NAME).setSource(jsonBuilder()
                     .startObject()
                     .array(SINGLE_VALUED_FIELD_NAME, singleVal.lon(), singleVal.lat())
                     .startArray(MULTI_VALUED_FIELD_NAME)
@@ -184,9 +173,9 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
            updateGeohashBucketsCentroid(singleVal);
         }
 
-        builders.add(client().prepareIndex(IDX_ZERO_NAME, "type").setSource(
+        builders.add(client().prepareIndex(IDX_ZERO_NAME).setSource(
                 jsonBuilder().startObject().array(SINGLE_VALUED_FIELD_NAME, 0.0, 1.0).endObject()));
-        assertAcked(prepareCreate(IDX_ZERO_NAME).addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
+        assertAcked(prepareCreate(IDX_ZERO_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
 
         indexRandom(true, builders);
         ensureSearchable();
@@ -205,7 +194,6 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         for (int i = 0; i < totalHits; i++) {
             SearchHit searchHit = response.getHits().getAt(i);
             assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getIndex(), equalTo("high_card_idx"));
-            assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getType(), equalTo("type"));
             DocumentField hitField = searchHit.field(NUMBER_FIELD_NAME);
 
             assertThat("Hit " + i + " has wrong number of values", hitField.getValues().size(), equalTo(1));
@@ -216,8 +204,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     }
 
     private void updateGeohashBucketsCentroid(final GeoPoint location) {
-        String hash = GeoHashUtils.stringEncode(location.lon(), location.lat(), GeoHashUtils.PRECISION);
-        for (int precision = GeoHashUtils.PRECISION; precision > 0; --precision) {
+        String hash = Geohash.stringEncode(location.lon(), location.lat(), Geohash.PRECISION);
+        for (int precision = Geohash.PRECISION; precision > 0; --precision) {
             final String h = hash.substring(0, precision);
             expectedDocCountsForGeoHash.put(h, expectedDocCountsForGeoHash.getOrDefault(h, 0) + 1);
             expectedCentroidsForGeoHash.put(h, updateHashCentroid(h, location));

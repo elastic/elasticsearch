@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -26,8 +15,10 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
@@ -37,6 +28,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -72,7 +64,7 @@ public class ClusterRequestConvertersTests extends ESTestCase {
     public void testClusterHealth() {
         ClusterHealthRequest healthRequest = new ClusterHealthRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomLocal(healthRequest, expectedParams);
+        RequestConvertersTests.setRandomLocal(healthRequest::local, expectedParams);
         String timeoutType = ESTestCase.randomFrom("timeout", "masterTimeout", "both", "none");
         String timeout = ESTestCase.randomTimeValue();
         String masterTimeout = ESTestCase.randomTimeValue();
@@ -140,11 +132,19 @@ public class ClusterRequestConvertersTests extends ESTestCase {
         Assert.assertThat(request, CoreMatchers.notNullValue());
         Assert.assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
         Assert.assertThat(request.getEntity(), nullValue());
-        if (indices != null && indices.length > 0) {
+        if (CollectionUtils.isEmpty(indices) == false) {
             Assert.assertThat(request.getEndpoint(), equalTo("/_cluster/health/" + String.join(",", indices)));
         } else {
             Assert.assertThat(request.getEndpoint(), equalTo("/_cluster/health"));
         }
         Assert.assertThat(request.getParameters(), equalTo(expectedParams));
+    }
+
+    public void testRemoteInfo() {
+        RemoteInfoRequest request = new RemoteInfoRequest();
+        Request expectedRequest = ClusterRequestConverters.remoteInfo(request);
+        assertEquals("/_remote/info", expectedRequest.getEndpoint());
+        assertEquals(HttpGet.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(emptyMap(), expectedRequest.getParameters());
     }
 }

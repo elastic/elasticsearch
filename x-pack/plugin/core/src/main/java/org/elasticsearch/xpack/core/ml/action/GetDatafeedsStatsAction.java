@@ -1,92 +1,93 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction.Response.RunningState;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
-public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Response> {
+public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.Response> {
 
     public static final GetDatafeedsStatsAction INSTANCE = new GetDatafeedsStatsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/datafeeds/stats/get";
 
     public static final String ALL = "_all";
     private static final String STATE = "state";
+    private static final String NODE = "node";
+    private static final String ASSIGNMENT_EXPLANATION = "assignment_explanation";
+    private static final String TIMING_STATS = "timing_stats";
+    private static final String RUNNING_STATE = "running_state";
 
     private GetDatafeedsStatsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
+        @Deprecated
+        public static final String ALLOW_NO_DATAFEEDS = "allow_no_datafeeds";
+        public static final String ALLOW_NO_MATCH = "allow_no_match";
 
         private String datafeedId;
-        private boolean allowNoDatafeeds = true;
+        private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 
-        public Request() {}
-
         public Request(StreamInput in) throws IOException {
             super(in);
             datafeedId = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoDatafeeds = in.readBoolean();
-            }
+            allowNoMatch = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoDatafeeds);
-            }
+            out.writeBoolean(allowNoMatch);
         }
 
         public String getDatafeedId() {
             return datafeedId;
         }
 
-        public boolean allowNoDatafeeds() {
-            return allowNoDatafeeds;
+        public boolean allowNoMatch() {
+            return allowNoMatch;
         }
 
-        public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
-            this.allowNoDatafeeds = allowNoDatafeeds;
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
         }
 
         @Override
@@ -95,13 +96,8 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, allowNoDatafeeds);
+            return Objects.hash(datafeedId, allowNoMatch);
         }
 
         @Override
@@ -113,34 +109,39 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoDatafeeds, other.allowNoDatafeeds);
+            return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoMatch, other.allowNoMatch);
         }
     }
 
-    public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, GetDatafeedsStatsAction action) {
-            super(client, action, new Request());
-        }
-    }
-
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends AbstractGetResourcesResponse<Response.DatafeedStats> implements ToXContentObject {
 
         public static class DatafeedStats implements ToXContentObject, Writeable {
 
             private final String datafeedId;
             private final DatafeedState datafeedState;
             @Nullable
-            private DiscoveryNode node;
+            private final DiscoveryNode node;
             @Nullable
-            private String assignmentExplanation;
+            private final String assignmentExplanation;
+            @Nullable
+            private final DatafeedTimingStats timingStats;
+            @Nullable
+            private final RunningState runningState;
 
-            public DatafeedStats(String datafeedId, DatafeedState datafeedState, @Nullable DiscoveryNode node,
-                          @Nullable String assignmentExplanation) {
+            public DatafeedStats(
+                String datafeedId,
+                DatafeedState datafeedState,
+                @Nullable DiscoveryNode node,
+                @Nullable String assignmentExplanation,
+                @Nullable DatafeedTimingStats timingStats,
+                @Nullable RunningState runningState
+            ) {
                 this.datafeedId = Objects.requireNonNull(datafeedId);
                 this.datafeedState = Objects.requireNonNull(datafeedState);
                 this.node = node;
                 this.assignmentExplanation = assignmentExplanation;
+                this.timingStats = timingStats;
+                this.runningState = runningState;
             }
 
             DatafeedStats(StreamInput in) throws IOException {
@@ -148,6 +149,8 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
                 datafeedState = DatafeedState.fromStream(in);
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
+                timingStats = in.readOptionalWriteable(DatafeedTimingStats::new);
+                runningState = in.readOptionalWriteable(RunningState::new);
             }
 
             public String getDatafeedId() {
@@ -166,13 +169,17 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
                 return assignmentExplanation;
             }
 
+            public DatafeedTimingStats getTimingStats() {
+                return timingStats;
+            }
+
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
                 builder.field(DatafeedConfig.ID.getPreferredName(), datafeedId);
                 builder.field(STATE, datafeedState.toString());
                 if (node != null) {
-                    builder.startObject("node");
+                    builder.startObject(NODE);
                     builder.field("id", node.getId());
                     builder.field("name", node.getName());
                     builder.field("ephemeral_id", node.getEphemeralId());
@@ -188,7 +195,16 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
                     builder.endObject();
                 }
                 if (assignmentExplanation != null) {
-                    builder.field("assignment_explanation", assignmentExplanation);
+                    builder.field(ASSIGNMENT_EXPLANATION, assignmentExplanation);
+                }
+                if (timingStats != null) {
+                    builder.field(
+                        TIMING_STATS,
+                        timingStats,
+                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true")));
+                }
+                if (runningState != null) {
+                    builder.field(RUNNING_STATE, runningState);
                 }
                 builder.endObject();
                 return builder;
@@ -200,11 +216,13 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
                 datafeedState.writeTo(out);
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
+                out.writeOptionalWriteable(timingStats);
+                out.writeOptionalWriteable(runningState);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(datafeedId, datafeedState, node, assignmentExplanation);
+                return Objects.hash(datafeedId, datafeedState, node, assignmentExplanation, timingStats, runningState);
             }
 
             @Override
@@ -216,66 +234,134 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
                     return false;
                 }
                 DatafeedStats other = (DatafeedStats) obj;
-                return Objects.equals(datafeedId, other.datafeedId) &&
-                        Objects.equals(this.datafeedState, other.datafeedState) &&
-                        Objects.equals(this.node, other.node) &&
-                        Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
+                return Objects.equals(this.datafeedId, other.datafeedId)
+                    && Objects.equals(this.datafeedState, other.datafeedState)
+                    && Objects.equals(this.node, other.node)
+                    && Objects.equals(this.assignmentExplanation, other.assignmentExplanation)
+                    && Objects.equals(this.runningState, other.runningState)
+                    && Objects.equals(this.timingStats, other.timingStats);
+            }
+
+            public static Builder builder(String datafeedId) {
+                return new Builder(datafeedId);
+            }
+
+            private static class Builder {
+                private final String datafeedId;
+                private DatafeedState datafeedState;
+                private DiscoveryNode node;
+                private String assignmentExplanation;
+                private DatafeedTimingStats timingStats;
+                private RunningState runningState;
+
+                private Builder(String datafeedId) {
+                    this.datafeedId = datafeedId;
+                }
+
+                private String getDatafeedId() {
+                    return datafeedId;
+                }
+
+                private Builder setDatafeedState(DatafeedState datafeedState) {
+                    this.datafeedState = datafeedState;
+                    return this;
+                }
+
+                private Builder setNode(DiscoveryNode node) {
+                    this.node = node;
+                    return this;
+                }
+
+                private Builder setAssignmentExplanation(String assignmentExplanation) {
+                    this.assignmentExplanation = assignmentExplanation;
+                    return this;
+                }
+
+                private Builder setTimingStats(DatafeedTimingStats timingStats) {
+                    this.timingStats = timingStats;
+                    return this;
+                }
+
+                private Builder setRunningState(RunningState runningState) {
+                    this.runningState = runningState;
+                    return this;
+                }
+
+                private DatafeedStats build() {
+                    return new DatafeedStats(datafeedId, datafeedState, node, assignmentExplanation, timingStats, runningState);
+                }
             }
         }
-
-        private QueryPage<DatafeedStats> datafeedsStats;
 
         public Response(QueryPage<DatafeedStats> datafeedsStats) {
-            this.datafeedsStats = datafeedsStats;
+            super(datafeedsStats);
         }
 
-        public Response() {}
+        public Response(StreamInput in) throws IOException {
+            super(in);
+        }
 
         public QueryPage<DatafeedStats> getResponse() {
-            return datafeedsStats;
+            return getResources();
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeedsStats = new QueryPage<>(in, DatafeedStats::new);
+        protected Reader<DatafeedStats> getReader() {
+            return DatafeedStats::new;
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            datafeedsStats.writeTo(out);
-        }
+        public static class Builder {
+            private List<DatafeedStats.Builder> statsBuilders;
+            private Map<String, String> datafeedToJobId;
+            private Map<String, DatafeedTimingStats> timingStatsMap;
+            private GetDatafeedRunningStateAction.Response datafeedRuntimeState;
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            datafeedsStats.doXContentBody(builder, params);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(datafeedsStats);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
+            public Builder setDatafeedIds(Collection<String> datafeedIds) {
+                this.statsBuilders = datafeedIds.stream()
+                    .map(GetDatafeedsStatsAction.Response.DatafeedStats::builder)
+                    .collect(Collectors.toList());
+                return this;
             }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Response other = (Response) obj;
-            return Objects.equals(datafeedsStats, other.datafeedsStats);
-        }
 
-        @Override
-        public final String toString() {
-            return Strings.toString(this);
+            public List<String> getDatafeedIds() {
+                return statsBuilders.stream().map(DatafeedStats.Builder::getDatafeedId).collect(Collectors.toList());
+            }
+
+            public Builder setDatafeedToJobId(Map<String, String> datafeedToJobId) {
+                this.datafeedToJobId = datafeedToJobId;
+                return this;
+            }
+
+            public Builder setTimingStatsMap(Map<String, DatafeedTimingStats> timingStatsMap) {
+                this.timingStatsMap = timingStatsMap;
+                return this;
+            }
+
+            public Builder setDatafeedRuntimeState(GetDatafeedRunningStateAction.Response datafeedRuntimeState) {
+                this.datafeedRuntimeState = datafeedRuntimeState;
+                return this;
+            }
+
+            public Response build(PersistentTasksCustomMetadata tasksInProgress, ClusterState state) {
+                List<DatafeedStats> stats = statsBuilders.stream().map(statsBuilder-> {
+                    final String jobId = datafeedToJobId.get(statsBuilder.datafeedId);
+                    DatafeedTimingStats timingStats = jobId == null ?
+                        null :
+                        timingStatsMap.getOrDefault(jobId, new DatafeedTimingStats(jobId));
+                    PersistentTasksCustomMetadata.PersistentTask<?> maybeTask = MlTasks.getDatafeedTask(
+                        statsBuilder.datafeedId,
+                        tasksInProgress
+                    );
+                    DatafeedState datafeedState = MlTasks.getDatafeedState(statsBuilder.datafeedId, tasksInProgress);
+                    return statsBuilder.setNode(maybeTask != null ? state.getNodes().get(maybeTask.getExecutorNode()) : null)
+                        .setDatafeedState(datafeedState)
+                        .setAssignmentExplanation(maybeTask != null ? maybeTask.getAssignment().getExplanation() : null)
+                        .setTimingStats(timingStats)
+                        .setRunningState(datafeedRuntimeState.getRunningState(statsBuilder.datafeedId).orElse(null))
+                        .build();
+                }).collect(Collectors.toList());
+                return new Response(new QueryPage<>(stats, stats.size(), DatafeedConfig.RESULTS_FIELD));
+            }
         }
     }
-
 }

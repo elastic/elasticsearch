@@ -1,0 +1,178 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-update-datafeed]]
+= Update {dfeeds} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Update {dfeeds}</titleabbrev>
+++++
+
+Updates certain properties of a {dfeed}.
+
+
+[[ml-update-datafeed-request]]
+== {api-request-title}
+
+`POST _ml/datafeeds/<feed_id>/_update`
+
+
+[[ml-update-datafeed-prereqs]]
+== {api-prereq-title}
+
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
+
+[[ml-update-datafeed-desc]]
+== {api-description-title}
+
+If you update a {dfeed} property, you must stop and start the {dfeed} for the
+change to be applied.
+
+IMPORTANT: When {es} {security-features} are enabled, your {dfeed} remembers
+which roles the user who updated it had at the time of update and runs the query
+using those same roles. If you provide
+<<http-clients-secondary-authorization,secondary authorization headers>>, those
+credentials are used instead.
+
+[[ml-update-datafeed-path-parms]]
+== {api-path-parms-title}
+
+`<feed_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+
+[role="child_attributes"]
+[[ml-update-datafeed-request-body]]
+== {api-request-body-title}
+
+The following properties can be updated after the {dfeed} is created:
+
+`aggregations`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=aggregations]
+
+`chunking_config`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=chunking-config]
++
+.Properties of `chunking_config`
+[%collapsible%open]
+====
+`mode`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=mode]
+
+`time_span`:::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-span]
+====
+
+`delayed_data_check_config`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
++
+.Properties of `delayed_data_check_config`
+[%collapsible%open]
+====
+`check_window`::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-check-window]
+
+`enabled`::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-enabled]
+====
+
+`frequency`::
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=frequency]
+
+`indices`::
+(Optional, array)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices]
+
+`indices_options`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
+
+`max_empty_searches`::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
++
+--
+The special value `-1` unsets this setting.
+--
+
+`query`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query]
++
+--
+WARNING: If you change the query, the analyzed data is also changed. Therefore,
+the required time to learn might be long and the understandability of the
+results is unpredictable. If you want to make significant changes to the source
+data, we would recommend you clone it and create a second job containing the
+amendments. Let both run in parallel and close one when you are satisfied with
+the results of the other job.
+
+--
+
+`query_delay`::
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query-delay]
+
+`runtime_mappings`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=runtime-mappings]
+
+`script_fields`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=script-fields]
+
+`scroll_size`::
+(Optional, unsigned integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
+
+
+[[ml-update-datafeed-example]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _ml/datafeeds/datafeed-total-requests/_update
+{
+  "query": {
+    "term": {
+      "level": "error"
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:setup:server_metrics_datafeed]
+
+When the {dfeed} is updated, you receive the full {dfeed} configuration with
+the updated values:
+
+[source,console-result]
+----
+{
+  "datafeed_id": "datafeed-total-requests",
+  "job_id": "total-requests",
+  "query_delay": "83474ms",
+  "indices": ["server-metrics"],
+  "query": {
+    "term": {
+      "level": {
+        "value": "error",
+        "boost": 1.0
+      }
+    }
+  },
+  "scroll_size": 1000,
+  "chunking_config": {
+    "mode": "auto"
+  }
+}
+----
+// TESTRESPONSE[s/"query.boost": "1.0"/"query.boost": $body.query.boost/]

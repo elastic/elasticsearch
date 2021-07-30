@@ -1,36 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -71,7 +58,7 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-            new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables());
+            new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
     private AggregationsTests aggregationsTests = new AggregationsTests();
 
     @Before
@@ -128,7 +115,7 @@ public class SearchResponseTests extends ESTestCase {
             shardSearchFailures, randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY);
     }
 
-    private static SearchResponse.Clusters randomClusters() {
+    static SearchResponse.Clusters randomClusters() {
         int totalClusters = randomIntBetween(0, 10);
         int successfulClusters = randomIntBetween(0, totalClusters);
         int skippedClusters = totalClusters - successfulClusters;
@@ -182,7 +169,7 @@ public class SearchResponseTests extends ESTestCase {
         int numFailures = randomIntBetween(1, 5);
         ShardSearchFailure[] failures = new ShardSearchFailure[numFailures];
         for (int i = 0; i < failures.length; i++) {
-            failures[i] = ShardSearchFailureTests.createTestItem(IndexMetaData.INDEX_UUID_NA_VALUE);
+            failures[i] = ShardSearchFailureTests.createTestItem(IndexMetadata.INDEX_UUID_NA_VALUE);
         }
         SearchResponse response = createTestItem(failures);
         XContentType xcontentType = randomFrom(XContentType.values());
@@ -209,7 +196,7 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testToXContent() {
-        SearchHit hit = new SearchHit(1, "id1", new Text("type"), Collections.emptyMap());
+        SearchHit hit = new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap());
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
         {
@@ -235,7 +222,7 @@ public class SearchResponseTests extends ESTestCase {
                 {
                     expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
                     expectedString.append("\"max_score\":1.5,");
-                    expectedString.append("\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":2.0}]}");
+                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]}");
                 }
             }
             expectedString.append("}");
@@ -246,7 +233,8 @@ public class SearchResponseTests extends ESTestCase {
                     new InternalSearchResponse(
                         new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f), null, null, null, false, null, 1
                     ),
-                null, 0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY, new SearchResponse.Clusters(5, 3, 2));
+                null, 0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
+                new SearchResponse.Clusters(5, 3, 2));
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
@@ -269,7 +257,7 @@ public class SearchResponseTests extends ESTestCase {
                 {
                     expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
                     expectedString.append("\"max_score\":1.5,");
-                    expectedString.append("\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":2.0}]}");
+                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]}");
                 }
             }
             expectedString.append("}");
@@ -279,24 +267,27 @@ public class SearchResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         SearchResponse searchResponse = createTestItem(false);
-        BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-        searchResponse.writeTo(bytesStreamOutput);
-        try (StreamInput in = new NamedWriteableAwareStreamInput(
-                StreamInput.wrap(bytesStreamOutput.bytes().toBytesRef().bytes), namedWriteableRegistry)) {
-            SearchResponse serialized = new SearchResponse();
-            serialized.readFrom(in);
-            if (searchResponse.getHits().getTotalHits() == null) {
-                assertNull(serialized.getHits().getTotalHits());
-            } else {
-                assertEquals(searchResponse.getHits().getTotalHits().value, serialized.getHits().getTotalHits().value);
-                assertEquals(searchResponse.getHits().getTotalHits().relation, serialized.getHits().getTotalHits().relation);
-            }
-            assertEquals(searchResponse.getHits().getHits().length, serialized.getHits().getHits().length);
-            assertEquals(searchResponse.getNumReducePhases(), serialized.getNumReducePhases());
-            assertEquals(searchResponse.getFailedShards(), serialized.getFailedShards());
-            assertEquals(searchResponse.getTotalShards(), serialized.getTotalShards());
-            assertEquals(searchResponse.getSkippedShards(), serialized.getSkippedShards());
-            assertEquals(searchResponse.getClusters(), serialized.getClusters());
+        SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
+        if (searchResponse.getHits().getTotalHits() == null) {
+            assertNull(deserialized.getHits().getTotalHits());
+        } else {
+            assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
+            assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
         }
+        assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
+        assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());
+        assertEquals(searchResponse.getFailedShards(), deserialized.getFailedShards());
+        assertEquals(searchResponse.getTotalShards(), deserialized.getTotalShards());
+        assertEquals(searchResponse.getSkippedShards(), deserialized.getSkippedShards());
+        assertEquals(searchResponse.getClusters(), deserialized.getClusters());
+    }
+
+    public void testToXContentEmptyClusters() throws IOException {
+        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null, 1, 1, 0, 1,
+            ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+        SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        deserialized.getClusters().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(0, Strings.toString(builder).length());
     }
 }

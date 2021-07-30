@@ -1,79 +1,80 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(':x-pack:qa')
 }
 
-task remoteClusterTest(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
-}
-
-remoteClusterTestCluster {
-  numNodes = 2
-  clusterName = 'remote-cluster'
-  setting 'cluster.remote.connect', false
-  setting 'xpack.ilm.enabled', 'false'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setupCommand 'setupDummyUser',
-          'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: 'test_user',
-            password: 'x-pack-test-password',
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
+restResources {
+  restApi {
+    include '_common', 'bulk', 'field_caps', 'security', 'search', 'clear_scroll', 'scroll', 'async_search', 'cluster',
+      'indices', 'open_point_in_time', 'close_point_in_time', 'terms_enum'
   }
 }
 
-remoteClusterTestRunner {
+tasks.register('remote-cluster', RestIntegTestTask) {
+  mustRunAfter("precommit")
   systemProperty 'tests.rest.suite', 'remote_cluster'
 }
 
-task mixedClusterTest(type: RestIntegTestTask) {}
+// randomise between sniff and proxy modes
+boolean proxyMode = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
 
-mixedClusterTestCluster {
-  dependsOn remoteClusterTestRunner
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setupCommand 'setupDummyUser',
-          'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: 'test_user',
-            password: 'x-pack-test-password',
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
+testClusters {
+  'remote-cluster' {
+    testDistribution = 'DEFAULT'
+    numberOfNodes = 2
+    setting 'node.roles', '[data,ingest,master]'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+
+    user username: "test_user", password: "x-pack-test-password"
   }
-  setting 'cluster.remote.my_remote_cluster.seeds', "\"${-> remoteClusterTest.nodes.get(0).transportUri()}\""
-  setting 'cluster.remote.connections_per_cluster', 1
-  setting 'cluster.remote.connect', true
+
+  'mixed-cluster' {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+    if (proxyMode) {
+      setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
+      setting 'cluster.remote.my_remote_cluster.proxy_address', {
+        "\"${testClusters.'remote-cluster'.getAllTransportPortURI().get(0)}\""
+      }
+    } else {
+      setting 'cluster.remote.my_remote_cluster.seeds', {
+        testClusters.'remote-cluster'.getAllTransportPortURI().collect { "\"$it\"" }.toString()
+      }
+    }
+    setting 'cluster.remote.connections_per_cluster', "1"
+
+    user username: "test_user", password: "x-pack-test-password"
+  }
 }
 
-mixedClusterTestRunner {
+tasks.register('mixed-cluster', RestIntegTestTask) {
+  dependsOn 'remote-cluster'
+  useCluster testClusters.'remote-cluster'
   systemProperty 'tests.rest.suite', 'multi_cluster'
-  finalizedBy 'remoteClusterTestCluster#node0.stop','remoteClusterTestCluster#node1.stop'
+  if (proxyMode) {
+    systemProperty 'tests.rest.blacklist', [
+      'multi_cluster/10_basic/Add transient remote cluster based on the preset cluster',
+      'multi_cluster/20_info/Add transient remote cluster based on the preset cluster and check remote info',
+      'multi_cluster/20_info/Fetch remote cluster info for existing cluster',
+      'multi_cluster/70_connection_mode_configuration/*',
+    ].join(",")
+  }
 }
 
-task integTest {
-  dependsOn = [mixedClusterTest]
+tasks.register("integTest") {
+  dependsOn 'mixed-cluster'
 }
 
-test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
-check.dependsOn(integTest)
+tasks.named("check").configure { dependsOn("integTest") }

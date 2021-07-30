@@ -3,7 +3,7 @@
 
 Elasticsearch allows you to configure a scoring algorithm or _similarity_ per
 field. The `similarity` setting provides a simple way of choosing a similarity
-algorithm other than the default `BM25`, such as `TF/IDF`.
+algorithm other than the default `BM25`, such as `boolean`.
 
 Similarities are mostly useful for <<text,`text`>> fields, but can also apply
 to other field types.
@@ -16,43 +16,35 @@ The only similarities which can be used out of the box, without any further
 configuration are:
 
 `BM25`::
-        The Okapi BM25 algorithm. The algorithm used by default in Elasticsearch and Lucene.
-        See {defguide}/pluggable-similarites.html[Pluggable Similarity Algorithms]
-        for more information.
-
-`classic`::
-        The TF/IDF algorithm which used to be the default in Elasticsearch and
-        Lucene. See {defguide}/practical-scoring-function.html[Lucene’s Practical Scoring Function]
-        for more information.
+The {wikipedia}/Okapi_BM25[Okapi BM25 algorithm]. The
+algorithm used by default in {es} and Lucene.
 
 `boolean`::
-        A simple boolean similarity, which is used when full-text ranking is not needed
-        and the score should only be based on whether the query terms match or not.
-        Boolean similarity gives terms a score equal to their query boost.
+A simple boolean similarity, which is used when full-text ranking is not needed
+and the score should only be based on whether the query terms match or not.
+Boolean similarity gives terms a score equal to their query boost.
 
 
 The `similarity` can be set on the field level when a field is first created,
 as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "default_field": { <1>
-          "type": "text"
-        },
-        "boolean_sim_field": {
-          "type": "text",
-          "similarity": "boolean" <2>
-        }
+    "properties": {
+      "default_field": { <1>
+        "type": "text"
+      },
+      "boolean_sim_field": {
+        "type": "text",
+        "similarity": "boolean" <2>
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `default_field` uses the `BM25` similarity.
 <2> The `boolean_sim_field` uses the `boolean` similarity.

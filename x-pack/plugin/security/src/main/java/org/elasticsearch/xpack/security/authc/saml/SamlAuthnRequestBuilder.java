@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -10,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
 import org.opensaml.saml.saml2.core.AuthnContextComparisonTypeEnumeration;
 import org.opensaml.saml.saml2.core.AuthnRequest;
-import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.core.NameIDPolicy;
 import org.opensaml.saml.saml2.core.RequestedAuthnContext;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
@@ -31,7 +31,7 @@ class SamlAuthnRequestBuilder extends SamlMessageBuilder {
         super(idpDescriptor, spConfig, clock);
         this.spBinding = spBinding;
         this.idpBinding = idBinding;
-        this.nameIdSettings = new NameIDPolicySettings(NameID.TRANSIENT, false, null);
+        this.nameIdSettings = new NameIDPolicySettings(null, false, null);
     }
 
     SamlAuthnRequestBuilder forceAuthn(Boolean forceAuthn) {
@@ -80,7 +80,7 @@ class SamlAuthnRequestBuilder extends SamlMessageBuilder {
 
     private NameIDPolicy buildNameIDPolicy() {
         NameIDPolicy nameIDPolicy = SamlUtils.buildObject(NameIDPolicy.class, NameIDPolicy.DEFAULT_ELEMENT_NAME);
-        nameIDPolicy.setFormat(nameIdSettings.format);
+        nameIDPolicy.setFormat(Strings.isNullOrEmpty(nameIdSettings.format) ? null : nameIdSettings.format);
         nameIDPolicy.setAllowCreate(nameIdSettings.allowCreate);
         nameIDPolicy.setSPNameQualifier(Strings.isNullOrEmpty(nameIdSettings.spNameQualifier) ? null : nameIdSettings.spNameQualifier);
         return nameIDPolicy;

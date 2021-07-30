@@ -1,28 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.AliasMetaData.Builder;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.AliasMetadata.Builder;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -30,7 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-public class GetAliasesResponseTests extends AbstractStreamableTestCase<GetAliasesResponse> {
+public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<GetAliasesResponse> {
 
     @Override
     protected GetAliasesResponse createTestInstance() {
@@ -38,23 +30,24 @@ public class GetAliasesResponseTests extends AbstractStreamableTestCase<GetAlias
     }
 
     @Override
-    protected GetAliasesResponse createBlankInstance() {
-        return new GetAliasesResponse();
+    protected Writeable.Reader<GetAliasesResponse> instanceReader() {
+        return GetAliasesResponse::new;
     }
 
     @Override
     protected GetAliasesResponse mutateInstance(GetAliasesResponse response) {
-        return new GetAliasesResponse(mutateAliases(response.getAliases()));
+        return new GetAliasesResponse(mutateAliases(response.getAliases()),
+            randomMap(5, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomList(5, DataStreamTestHelper::randomAliasInstance))));
     }
 
-    private static ImmutableOpenMap<String, List<AliasMetaData>> mutateAliases(ImmutableOpenMap<String, List<AliasMetaData>> aliases) {
+    private static ImmutableOpenMap<String, List<AliasMetadata>> mutateAliases(ImmutableOpenMap<String, List<AliasMetadata>> aliases) {
         if (aliases.isEmpty()) {
             return createIndicesAliasesMap(1, 3).build();
         }
 
         if (randomBoolean()) {
-            ImmutableOpenMap.Builder<String, List<AliasMetaData>> builder = ImmutableOpenMap.builder(aliases);
-            ImmutableOpenMap<String, List<AliasMetaData>> list = createIndicesAliasesMap(1, 2).build();
+            ImmutableOpenMap.Builder<String, List<AliasMetadata>> builder = ImmutableOpenMap.builder(aliases);
+            ImmutableOpenMap<String, List<AliasMetadata>> list = createIndicesAliasesMap(1, 2).build();
             list.forEach(e -> builder.put(e.key, e.value));
             return builder.build();
         }
@@ -66,17 +59,17 @@ public class GetAliasesResponseTests extends AbstractStreamableTestCase<GetAlias
         }
 
         List<String> indicesToBeModified = randomSubsetOf(randomIntBetween(1, indices.size()), indices);
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> builder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<AliasMetadata>> builder = ImmutableOpenMap.builder();
 
         for (String index : indices) {
-            List<AliasMetaData> list = new ArrayList<>(aliases.get(index));
+            List<AliasMetadata> list = new ArrayList<>(aliases.get(index));
             if (indicesToBeModified.contains(index)) {
                 if (randomBoolean() || list.isEmpty()) {
-                    list.add(createAliasMetaData());
+                    list.add(createAliasMetadata());
                 } else {
                     int aliasIndex = randomInt(list.size() - 1);
-                    AliasMetaData aliasMetaData = list.get(aliasIndex);
-                    list.add(aliasIndex, mutateAliasMetaData(aliasMetaData));
+                    AliasMetadata aliasMetadata = list.get(aliasIndex);
+                    list.add(aliasIndex, mutateAliasMetadata(aliasMetadata));
                 }
             }
             builder.put(index, list);
@@ -85,26 +78,27 @@ public class GetAliasesResponseTests extends AbstractStreamableTestCase<GetAlias
     }
 
     private static GetAliasesResponse createTestItem() {
-        return new GetAliasesResponse(createIndicesAliasesMap(0, 5).build());
+        return new GetAliasesResponse(mutateAliases(createIndicesAliasesMap(0, 5).build()
+        ), randomMap(5, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomList(5, DataStreamTestHelper::randomAliasInstance))));
     }
 
-    private static ImmutableOpenMap.Builder<String, List<AliasMetaData>> createIndicesAliasesMap(int min, int max) {
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> builder = ImmutableOpenMap.builder();
+    private static ImmutableOpenMap.Builder<String, List<AliasMetadata>> createIndicesAliasesMap(int min, int max) {
+        ImmutableOpenMap.Builder<String, List<AliasMetadata>> builder = ImmutableOpenMap.builder();
         int indicesNum = randomIntBetween(min, max);
         for (int i = 0; i < indicesNum; i++) {
             String index = randomAlphaOfLength(5);
-            List<AliasMetaData> aliasMetaData = new ArrayList<>();
+            List<AliasMetadata> aliasMetadata = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
             for (int alias = 0; alias < aliasesNum; alias++) {
-                aliasMetaData.add(createAliasMetaData());
+                aliasMetadata.add(createAliasMetadata());
             }
-            builder.put(index, aliasMetaData);
+            builder.put(index, aliasMetadata);
         }
         return builder;
     }
 
-    public static AliasMetaData createAliasMetaData() {
-        Builder builder = AliasMetaData.builder(randomAlphaOfLengthBetween(3, 10));
+    public static AliasMetadata createAliasMetadata() {
+        Builder builder = AliasMetadata.builder(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             builder.routing(randomAlphaOfLengthBetween(3, 10));
         }
@@ -120,9 +114,9 @@ public class GetAliasesResponseTests extends AbstractStreamableTestCase<GetAlias
         return builder.build();
     }
 
-    public static AliasMetaData mutateAliasMetaData(AliasMetaData alias) {
+    public static AliasMetadata mutateAliasMetadata(AliasMetadata alias) {
         boolean changeAlias = randomBoolean();
-        AliasMetaData.Builder builder = AliasMetaData.builder(changeAlias ? randomAlphaOfLengthBetween(2, 5) : alias.getAlias());
+        AliasMetadata.Builder builder = AliasMetadata.builder(changeAlias ? randomAlphaOfLengthBetween(2, 5) : alias.getAlias());
         builder.searchRouting(alias.searchRouting());
         builder.indexRouting(alias.indexRouting());
         builder.filter(alias.filter());

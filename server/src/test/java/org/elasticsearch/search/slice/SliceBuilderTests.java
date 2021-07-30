@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.slice;
@@ -27,40 +16,28 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.search.SearchShardIterator;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 
@@ -77,141 +54,16 @@ import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SliceBuilderTests extends ESTestCase {
     private static final int MAX_SLICE = 20;
 
-    static class ShardSearchRequestTest implements IndicesRequest, ShardSearchRequest {
-        private final String[] indices;
-        private final int shardId;
-        private final String[] indexRoutings;
-        private final String preference;
-
-        ShardSearchRequestTest(String index, int shardId, String[] indexRoutings, String preference) {
-            this.indices = new String[] { index };
-            this.shardId = shardId;
-            this.indexRoutings = indexRoutings;
-            this.preference = preference;
-        }
-
-        @Override
-        public String[] indices() {
-            return indices;
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return null;
-        }
-
-        @Override
-        public ShardId shardId() {
-            return new ShardId(new Index(indices[0], indices[0]), shardId);
-        }
-
-        @Override
-        public String[] types() {
-            return new String[0];
-        }
-
-        @Override
-        public SearchSourceBuilder source() {
-            return null;
-        }
-
-        @Override
-        public AliasFilter getAliasFilter() {
-            return null;
-        }
-
-        @Override
-        public void setAliasFilter(AliasFilter filter) {
-
-        }
-
-        @Override
-        public void source(SearchSourceBuilder source) {
-
-        }
-
-        @Override
-        public int numberOfShards() {
-            return 0;
-        }
-
-        @Override
-        public SearchType searchType() {
-            return null;
-        }
-
-        @Override
-        public float indexBoost() {
-            return 0;
-        }
-
-        @Override
-        public long nowInMillis() {
-            return 0;
-        }
-
-        @Override
-        public Boolean requestCache() {
-            return null;
-        }
-
-        @Override
-        public Boolean allowPartialSearchResults() {
-            return null;
-        }
-
-        @Override
-        public Scroll scroll() {
-            return null;
-        }
-
-        @Override
-        public String[] indexRoutings() {
-            return indexRoutings;
-        }
-
-        @Override
-        public String preference() {
-            return preference;
-        }
-
-        @Override
-        public void setProfile(boolean profile) {
-
-        }
-
-        @Override
-        public boolean isProfile() {
-            return false;
-        }
-
-        @Override
-        public BytesReference cacheKey() throws IOException {
-            return null;
-        }
-
-        @Override
-        public String getClusterAlias() {
-            return null;
-        }
-
-        @Override
-        public Rewriteable<Rewriteable> getRewriteable() {
-            return null;
-        }
-    }
-
     private static SliceBuilder randomSliceBuilder() {
         int max = randomIntBetween(2, MAX_SLICE);
         int id = randomIntBetween(1, max - 1);
-        String field = randomAlphaOfLengthBetween(5, 20);
+        String field = randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null;
         return new SliceBuilder(field, id, max);
     }
 
@@ -221,37 +73,52 @@ public class SliceBuilderTests extends ESTestCase {
 
     private static SliceBuilder mutate(SliceBuilder original) {
         switch (randomIntBetween(0, 2)) {
-            case 0: return new SliceBuilder(original.getField() + "_xyz", original.getId(), original.getMax());
+            case 0:
+                String newField;
+                if (original.getField() == null) {
+                    newField = randomAlphaOfLength(5);
+                } else {
+                    newField = randomBoolean() ? original.getField() + "_xyz" : null;
+                }
+                return new SliceBuilder(newField, original.getId(), original.getMax());
             case 1: return new SliceBuilder(original.getField(), original.getId() - 1, original.getMax());
             case 2:
             default: return new SliceBuilder(original.getField(), original.getId(), original.getMax() + 1);
         }
     }
 
-    private IndexSettings createIndexSettings(Version indexVersionCreated, int numShards) {
+    private IndexSettings createIndexSettings(Version indexVersionCreated) {
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        IndexMetaData indexState = IndexMetaData.builder("index").settings(settings).build();
+        IndexMetadata indexState = IndexMetadata.builder("index").settings(settings).build();
         return new IndexSettings(indexState, Settings.EMPTY);
     }
 
-    private ShardSearchRequest createRequest(int shardId) {
-        return createRequest(shardId, Strings.EMPTY_ARRAY, null);
+    private ShardSearchRequest createPointInTimeRequest(int shardIndex, int numShards) {
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true)
+            .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("1m")));
+        return new ShardSearchRequest(OriginalIndices.NONE, searchRequest,
+            new ShardId("index", "index", 0), shardIndex, numShards, null, 0f, System.currentTimeMillis(), null);
     }
 
-    private ShardSearchRequest createRequest(int shardId, String[] routings, String preference) {
-        return new ShardSearchRequestTest("index", shardId, routings, preference);
+    private ShardSearchRequest createScrollRequest(int shardIndex, int numShards) {
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true)
+            .scroll("1m");
+        return new ShardSearchRequest(OriginalIndices.NONE, searchRequest,
+            new ShardId("index", "index", 0), shardIndex, numShards, null, 0f, System.currentTimeMillis(), null);
     }
 
-    private QueryShardContext createShardContext(Version indexVersionCreated, IndexReader reader,
-                                                 String fieldName, DocValuesType dvType, int numShards, int shardId) {
-        MappedFieldType fieldType = new MappedFieldType() {
+    private SearchExecutionContext createShardContext(Version indexVersionCreated, IndexReader reader,
+                                                      String fieldName, DocValuesType dvType) {
+        MappedFieldType fieldType = new MappedFieldType(fieldName, true, false, dvType != null,
+            TextSearchInfo.NONE, Collections.emptyMap()) {
+
             @Override
-            public MappedFieldType clone() {
-                return null;
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                throw new UnsupportedOperationException();
             }
 
             @Override
@@ -260,24 +127,20 @@ public class SliceBuilderTests extends ESTestCase {
             }
 
             @Override
-            public Query termQuery(Object value, @Nullable QueryShardContext context) {
+            public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
                 return null;
             }
 
-            public Query existsQuery(QueryShardContext context) {
+            public Query existsQuery(SearchExecutionContext context) {
                 return null;
             }
         };
-        fieldType.setName(fieldName);
-        QueryShardContext context = mock(QueryShardContext.class);
-        when(context.fieldMapper(fieldName)).thenReturn(fieldType);
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        when(context.getFieldType(fieldName)).thenReturn(fieldType);
         when(context.getIndexReader()).thenReturn(reader);
-        when(context.getShardId()).thenReturn(shardId);
-        IndexSettings indexSettings = createIndexSettings(indexVersionCreated, numShards);
+        IndexSettings indexSettings = createIndexSettings(indexVersionCreated);
         when(context.getIndexSettings()).thenReturn(indexSettings);
         if (dvType != null) {
-            fieldType.setHasDocValues(true);
-            fieldType.setDocValuesType(dvType);
             IndexNumericFieldData fd = mock(IndexNumericFieldData.class);
             when(context.getForField(fieldType)).thenReturn(fd);
         }
@@ -334,40 +197,60 @@ public class SliceBuilderTests extends ESTestCase {
     }
 
     public void testToFilterSimple() throws IOException {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
             writer.commit();
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            QueryShardContext context =
-                createShardContext(Version.CURRENT, reader, "_id", DocValuesType.SORTED_NUMERIC, 1,0);
+            SearchExecutionContext context = createShardContext(Version.CURRENT, reader, "field", null);
             SliceBuilder builder = new SliceBuilder(5, 10);
-            Query query = builder.toFilter(null, createRequest(0), context, Version.CURRENT);
-            assertThat(query, instanceOf(TermsSliceQuery.class));
+            Query query = builder.toFilter(createPointInTimeRequest(0, 1), context);
+            assertThat(query, instanceOf(DocIdSliceQuery.class));
 
-            assertThat(builder.toFilter(null, createRequest(0), context, Version.CURRENT), equalTo(query));
+            assertThat(builder.toFilter(createPointInTimeRequest(0, 1), context), equalTo(query));
             try (IndexReader newReader = DirectoryReader.open(dir)) {
                 when(context.getIndexReader()).thenReturn(newReader);
-                assertThat(builder.toFilter(null, createRequest(0), context, Version.CURRENT), equalTo(query));
+                assertThat(builder.toFilter(createPointInTimeRequest(0, 1), context), equalTo(query));
+            }
+        }
+    }
+
+    public void testToFilterSimpleWithScroll() throws IOException {
+        Directory dir = new ByteBuffersDirectory();
+        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
+            writer.commit();
+        }
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            SearchExecutionContext context =
+                createShardContext(Version.CURRENT, reader, "_id", null);
+            SliceBuilder builder = new SliceBuilder(5, 10);
+            Query query = builder.toFilter(createScrollRequest(0, 1), context);
+            assertThat(query, instanceOf(TermsSliceQuery.class));
+
+            assertThat(builder.toFilter(createScrollRequest(0, 1), context), equalTo(query));
+            try (IndexReader newReader = DirectoryReader.open(dir)) {
+                when(context.getIndexReader()).thenReturn(newReader);
+                assertThat(builder.toFilter(createScrollRequest(0, 1), context), equalTo(query));
             }
         }
     }
 
     public void testToFilterRandom() throws IOException {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
             writer.commit();
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            QueryShardContext context =
-                createShardContext(Version.CURRENT, reader, "field", DocValuesType.SORTED_NUMERIC, 1,0);
+            SearchExecutionContext context =
+                createShardContext(Version.CURRENT, reader, "field", DocValuesType.SORTED_NUMERIC);
             SliceBuilder builder = new SliceBuilder("field", 5, 10);
-            Query query = builder.toFilter(null, createRequest(0), context, Version.CURRENT);
+            Query query = builder.toFilter(createScrollRequest(0, 1), context);
             assertThat(query, instanceOf(DocValuesSliceQuery.class));
-            assertThat(builder.toFilter(null, createRequest(0), context, Version.CURRENT), equalTo(query));
+
+            assertThat(builder.toFilter(createScrollRequest(0, 1), context), equalTo(query));
             try (IndexReader newReader = DirectoryReader.open(dir)) {
                 when(context.getIndexReader()).thenReturn(newReader);
-                assertThat(builder.toFilter(null, createRequest(0), context, Version.CURRENT), equalTo(query));
+                assertThat(builder.toFilter(createScrollRequest(0, 1), context), equalTo(query));
             }
 
             // numSlices > numShards
@@ -377,8 +260,8 @@ public class SliceBuilderTests extends ESTestCase {
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
                     SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
-                    context = createShardContext(Version.CURRENT, reader, "_id", DocValuesType.SORTED, numShards, j);
-                    Query q = slice.toFilter(null, createRequest(j), context, Version.CURRENT);
+                    context = createShardContext(Version.CURRENT, reader, "_id", null);
+                    Query q = slice.toFilter(createScrollRequest(j, numShards), context);
                     if (q instanceof TermsSliceQuery || q instanceof MatchAllDocsQuery) {
                         AtomicInteger count = numSliceMap.get(j);
                         if (count == null) {
@@ -407,8 +290,8 @@ public class SliceBuilderTests extends ESTestCase {
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
                     SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
-                    context = createShardContext(Version.CURRENT, reader, "_id", DocValuesType.SORTED, numShards, j);
-                    Query q = slice.toFilter(null, createRequest(j), context, Version.CURRENT);
+                    context = createShardContext(Version.CURRENT, reader, "_id", null);
+                    Query q = slice.toFilter(createScrollRequest(j, numShards), context);
                     if (q instanceof MatchNoDocsQuery == false) {
                         assertThat(q, instanceOf(MatchAllDocsQuery.class));
                         targetShards.add(j);
@@ -424,8 +307,8 @@ public class SliceBuilderTests extends ESTestCase {
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
                     SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
-                    context = createShardContext(Version.CURRENT, reader, "_id", DocValuesType.SORTED, numShards, j);
-                    Query q = slice.toFilter(null, createRequest(j), context, Version.CURRENT);
+                    context = createShardContext(Version.CURRENT, reader, "_id", null);
+                    Query q = slice.toFilter(createScrollRequest(j, numShards), context);
                     if (i == j) {
                         assertThat(q, instanceOf(MatchAllDocsQuery.class));
                     } else {
@@ -437,77 +320,16 @@ public class SliceBuilderTests extends ESTestCase {
     }
 
     public void testInvalidField() throws IOException {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
             writer.commit();
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            QueryShardContext context = createShardContext(Version.CURRENT, reader, "field", null, 1,0);
+            SearchExecutionContext context = createShardContext(Version.CURRENT, reader, "field", null);
             SliceBuilder builder = new SliceBuilder("field", 5, 10);
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-                () -> builder.toFilter(null, createRequest(0), context, Version.CURRENT));
+                () -> builder.toFilter(createScrollRequest(0, 1), context));
             assertThat(exc.getMessage(), containsString("cannot load numeric doc values"));
-        }
-    }
-
-    public void testToFilterDeprecationMessage() throws IOException {
-        Directory dir = new RAMDirectory();
-        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
-            writer.commit();
-        }
-        try (IndexReader reader = DirectoryReader.open(dir)) {
-            QueryShardContext context = createShardContext(Version.V_6_3_0, reader, "_uid", null, 1,0);
-            SliceBuilder builder = new SliceBuilder("_uid", 5, 10);
-            Query query = builder.toFilter(null, createRequest(0), context, Version.CURRENT);
-            assertThat(query, instanceOf(TermsSliceQuery.class));
-            assertThat(builder.toFilter(null, createRequest(0), context, Version.CURRENT), equalTo(query));
-            assertWarnings("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
-        }
-    }
-
-    public void testSerializationBackcompat() throws IOException {
-        SliceBuilder sliceBuilder = new SliceBuilder(1, 5);
-        assertEquals(IdFieldMapper.NAME, sliceBuilder.getField());
-
-        SliceBuilder copy62 = copyWriteable(sliceBuilder,
-                new NamedWriteableRegistry(Collections.emptyList()),
-                SliceBuilder::new, Version.V_6_2_0);
-        assertEquals(sliceBuilder, copy62);
-
-        SliceBuilder copy63 = copyWriteable(copy62,
-                new NamedWriteableRegistry(Collections.emptyList()),
-                SliceBuilder::new, Version.V_6_3_0);
-        assertEquals(sliceBuilder, copy63);
-    }
-
-    public void testToFilterWithRouting() throws IOException {
-        Directory dir = new RAMDirectory();
-        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
-            writer.commit();
-        }
-        ClusterService clusterService = mock(ClusterService.class);
-        ClusterState state = mock(ClusterState.class);
-        when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
-        when(clusterService.state()).thenReturn(state);
-        OperationRouting routing = mock(OperationRouting.class);
-        GroupShardsIterator<ShardIterator> it = new GroupShardsIterator<>(
-            Collections.singletonList(
-                new SearchShardIterator(null, new ShardId("index", "index", 1), null, null)
-            )
-        );
-        when(routing.searchShards(any(), any(), any(), any())).thenReturn(it);
-        when(clusterService.operationRouting()).thenReturn(routing);
-        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        try (IndexReader reader = DirectoryReader.open(dir)) {
-            QueryShardContext context = createShardContext(Version.CURRENT, reader, "field", DocValuesType.SORTED, 5, 0);
-            SliceBuilder builder = new SliceBuilder("field", 6, 10);
-            String[] routings = new String[] { "foo" };
-            Query query = builder.toFilter(clusterService, createRequest(1, routings, null), context, Version.CURRENT);
-            assertEquals(new DocValuesSliceQuery("field", 6, 10), query);
-            query = builder.toFilter(clusterService, createRequest(1, Strings.EMPTY_ARRAY, "foo"), context, Version.CURRENT);
-            assertEquals(new DocValuesSliceQuery("field", 6, 10), query);
-            query = builder.toFilter(clusterService, createRequest(1, Strings.EMPTY_ARRAY, "foo"), context, Version.V_6_2_0);
-            assertEquals(new DocValuesSliceQuery("field", 1, 2), query);
         }
     }
 }

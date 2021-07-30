@@ -1,170 +1,221 @@
 [[query-dsl-term-query]]
-=== Term Query
+=== Term query
+++++
+<titleabbrev>Term</titleabbrev>
+++++
 
-The `term` query finds documents that contain the *exact* term specified
-in the inverted index.  For instance:
+Returns documents that contain an *exact* term in a provided field.
 
-[source,js]
---------------------------------------------------
-POST _search
+You can use the `term` query to find documents based on a precise value such as
+a price, a product ID, or a username.
+
+[WARNING]
+====
+Avoid using the `term` query for <<text, `text`>> fields.
+
+By default, {es} changes the values of `text` fields as part of <<analysis,
+analysis>>. This can make finding exact matches for `text` field values
+difficult.
+
+To search `text` field values, use the <<query-dsl-match-query,`match`>> query
+instead.
+====
+
+[[term-query-ex-request]]
+==== Example request
+
+[source,console]
+----
+GET /_search
 {
   "query": {
-    "term" : { "user" : "Kimchy" } <1>
-  }
-}
---------------------------------------------------
-// CONSOLE
-<1> Finds documents which contain the exact term `Kimchy` in the inverted index
-    of the `user` field.
-
-A `boost` parameter can be specified to give this `term` query a higher
-relevance score than another query, for instance:
-
-[source,js]
---------------------------------------------------
-GET _search
-{
-  "query": {
-    "bool": {
-      "should": [
-        {
-          "term": {
-            "status": {
-              "value": "urgent",
-              "boost": 2.0 <1>
-            }
-          }
-        },
-        {
-          "term": {
-            "status": "normal" <2>
-          }
-        }
-      ]
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-
-<1> The `urgent` query clause has a boost of `2.0`, meaning it is twice as important
-    as the query clause for `normal`.
-<2> The `normal` clause has the default neutral boost of `1.0`.
-
-A `term` query can also match against <<range, range data types>>.
-
-.Why doesn't the `term` query match my document?
-**************************************************
-
-String fields can be of type `text` (treated as full text, like the body of an
-email), or `keyword` (treated as exact values, like an email address or a
-zip code).  Exact values (like numbers, dates, and keywords) have
-the exact value specified in the field added to the inverted index in order
-to make them searchable.
-
-However, `text` fields are `analyzed`. This means that their
-values are first passed through an <<analysis,analyzer>> to produce a list of
-terms, which are then added to the inverted index.
-
-There are many ways to analyze text: the default
-<<analysis-standard-analyzer,`standard` analyzer>> drops most punctuation,
-breaks up text into individual words, and lower cases them.    For instance,
-the `standard` analyzer would turn the string ``Quick Brown Fox!'' into the
-terms [`quick`, `brown`, `fox`].
-
-This analysis process makes it possible to search for individual words
-within a big block of full text.
-
-The `term` query looks for the *exact* term in the field's inverted index --
-it doesn't know anything about the field's analyzer.  This makes it useful for
-looking up values in keyword fields, or in numeric or date
-fields.  When querying full text fields, use the
-<<query-dsl-match-query,`match` query>> instead, which understands how the field
-has been analyzed.
-
-
-To demonstrate, try out the example below.  First, create an index, specifying the field mappings, and index a document:
-
-[source,js]
---------------------------------------------------
-PUT my_index
-{
-  "mappings": {
-    "_doc": {
-      "properties": {
-        "full_text": {
-          "type":  "text" <1>
-        },
-        "exact_value": {
-          "type":  "keyword" <2>
-        }
+    "term": {
+      "user.id": {
+        "value": "kimchy",
+        "boost": 1.0
       }
     }
   }
 }
+----
 
-PUT my_index/_doc/1
+[[term-top-level-params]]
+==== Top-level parameters for `term`
+`<field>`::
+(Required, object) Field you wish to search.
+
+[[term-field-params]]
+==== Parameters for `<field>`
+`value`::
+(Required, string) Term you wish to find in the provided `<field>`. To return a
+document, the term must exactly match the field value, including whitespace and
+capitalization.
+
+`boost`::
+(Optional, float) Floating point number used to decrease or increase the
+<<relevance-scores,relevance scores>> of a query. Defaults to `1.0`.
++
+You can use the `boost` parameter to adjust relevance scores for searches
+containing two or more queries.
++
+Boost values are relative to the default value of `1.0`. A boost value between
+`0` and `1.0` decreases the relevance score. A value greater than `1.0`
+increases the relevance score.
+
+`case_insensitive` added:[7.10.0]::
+(Optional, Boolean) Allows ASCII case insensitive matching of the
+value with the indexed field values when set to true. Default is false which means
+the case sensitivity of matching depends on the underlying field's mapping.
+
+[[term-query-notes]]
+==== Notes
+
+[[avoid-term-query-text-fields]]
+===== Avoid using the `term` query for `text` fields
+By default, {es} changes the values of `text` fields during analysis. For
+example, the default <<analysis-standard-analyzer, standard analyzer>> changes
+`text` field values as follows:
+
+* Removes most punctuation
+* Divides the remaining content into individual words, called
+<<analysis-tokenizers, tokens>>
+* Lowercases the tokens
+
+To better search `text` fields, the `match` query also analyzes your provided
+search term before performing a search. This means the `match` query can search
+`text` fields for analyzed tokens rather than an exact term.
+
+The `term` query does *not* analyze the search term. The `term` query only
+searches for the *exact* term you provide. This means the `term` query may
+return poor or no results when searching `text` fields.
+
+To see the difference in search results, try the following example.
+
+. Create an index with a `text` field called `full_text`.
++
+--
+
+[source,console]
+----
+PUT my-index-000001
 {
-  "full_text":   "Quick Foxes!", <3>
-  "exact_value": "Quick Foxes!"  <4>
-}
---------------------------------------------------
-// CONSOLE
-
-<1> The `full_text` field is of type `text` and will be analyzed.
-<2> The `exact_value` field is of type `keyword` and will NOT be analyzed.
-<3> The `full_text` inverted index will contain the terms: [`quick`, `foxes`].
-<4> The `exact_value` inverted index will contain the exact term: [`Quick Foxes!`].
-
-Now, compare the results for the `term` query and the `match` query:
-
-[source,js]
---------------------------------------------------
-GET my_index/_search
-{
-  "query": {
-    "term": {
-      "exact_value": "Quick Foxes!" <1>
+  "mappings": {
+    "properties": {
+      "full_text": { "type": "text" }
     }
   }
 }
+----
 
-GET my_index/_search
+--
+
+. Index a document with a value of `Quick Brown Foxes!` in the `full_text`
+field.
++
+--
+
+[source,console]
+----
+PUT my-index-000001/_doc/1
+{
+  "full_text":   "Quick Brown Foxes!"
+}
+----
+// TEST[continued]
+
+Because `full_text` is a `text` field, {es} changes `Quick Brown Foxes!` to
+`[quick, brown, fox]` during analysis.
+
+--
+
+. Use the `term` query to search for `Quick Brown Foxes!` in the `full_text`
+field. Include the `pretty` parameter so the response is more readable.
++
+--
+
+[source,console]
+----
+GET my-index-000001/_search?pretty
 {
   "query": {
     "term": {
-      "full_text": "Quick Foxes!" <2>
+      "full_text": "Quick Brown Foxes!"
     }
   }
 }
+----
+// TEST[continued]
 
-GET my_index/_search
-{
-  "query": {
-    "term": {
-      "full_text": "foxes" <3>
-    }
-  }
-}
+Because the `full_text` field no longer contains the *exact* term `Quick Brown
+Foxes!`, the `term` query search returns no results.
 
-GET my_index/_search
+--
+
+. Use the `match` query to search for `Quick Brown Foxes!` in the `full_text`
+field.
++
+--
+
+////
+
+[source,console]
+----
+POST my-index-000001/_refresh
+----
+// TEST[continued]
+
+////
+
+[source,console]
+----
+GET my-index-000001/_search?pretty
 {
   "query": {
     "match": {
-      "full_text": "Quick Foxes!" <4>
+      "full_text": "Quick Brown Foxes!"
     }
   }
 }
---------------------------------------------------
-// CONSOLE
+----
 // TEST[continued]
 
-<1> This query matches because the `exact_value` field contains the exact
-    term `Quick Foxes!`.
-<2> This query does not match, because the `full_text` field only contains
-    the terms `quick` and `foxes`. It does not contain the exact term
-    `Quick Foxes!`.
-<3> A `term` query for the term `foxes` matches the `full_text` field.
-<4> This `match` query on the `full_text` field first analyzes the query string,
-    then looks for documents containing `quick` or `foxes` or both.
-**************************************************
+Unlike the `term` query, the `match` query analyzes your provided search term,
+`Quick Brown Foxes!`, before performing a search. The `match` query then returns
+any documents containing the `quick`, `brown`, or `fox` tokens in the
+`full_text` field.
+
+Here's the response for the `match` query search containing the indexed document
+in the results.
+
+[source,console-result]
+----
+{
+  "took" : 1,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 0.8630463,
+    "hits" : [
+      {
+        "_index" : "my-index-000001",
+        "_id" : "1",
+        "_score" : 0.8630463,
+        "_source" : {
+          "full_text" : "Quick Brown Foxes!"
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took" : 1/"took" : $body.took/]
+--

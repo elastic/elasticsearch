@@ -1,0 +1,38 @@
+---
+"Update check shard header":
+
+
+
+ - do:
+      indices.create:
+        index: foobar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+ - do:
+      cluster.health:
+          wait_for_status: green
+
+ - do:
+      index:
+          index:  foobar
+          id:     1
+          body:   { foo: bar }
+
+ - do:
+      update:
+           index:  foobar
+           id:     1
+           body:
+               doc:
+                   foo: baz
+
+ - match:   { _index:   foobar }
+ - match:   { _id:      "1"}
+ - match:   { _version: 2}
+ - match:   { _shards.total: 1}
+ - match:   { _shards.successful: 1}
+ - match:   { _shards.failed: 0}
+ - is_false:   _shards.pending

@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.UnknownHostException;
@@ -30,13 +20,16 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.index.reindex.TransportReindexAction.buildRemoteWhitelist;
-import static org.elasticsearch.index.reindex.TransportReindexAction.checkRemoteWhitelist;
+import static org.elasticsearch.index.reindex.ReindexValidator.buildRemoteWhitelist;
+import static org.elasticsearch.index.reindex.ReindexValidator.checkRemoteWhitelist;
 
 /**
  * Tests the reindex-from-remote whitelist of remotes.
  */
 public class ReindexFromRemoteWhitelistTests extends ESTestCase {
+
+    private final BytesReference query = new BytesArray("{ \"foo\" : \"bar\" }");
+
     public void testLocalRequestWithoutWhitelist() {
         checkRemoteWhitelist(buildRemoteWhitelist(emptyList()), null);
     }
@@ -49,7 +42,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
      * Build a {@link RemoteInfo}, defaulting values that we don't care about in this test to values that don't hurt anything.
      */
     private RemoteInfo newRemoteInfo(String host, int port) {
-        return new RemoteInfo(randomAlphaOfLength(5), host, port, null, new BytesArray("test"), null, null, emptyMap(),
+        return new RemoteInfo(randomAlphaOfLength(5), host, port, null, query, null, null, emptyMap(),
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
     }
 
@@ -63,7 +56,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
 
     public void testWhitelistedByPrefix() {
         checkRemoteWhitelist(buildRemoteWhitelist(singletonList("*.example.com:9200")),
-                new RemoteInfo(randomAlphaOfLength(5), "es.example.com", 9200, null, new BytesArray("test"), null, null, emptyMap(),
+                new RemoteInfo(randomAlphaOfLength(5), "es.example.com", 9200, null, query, null, null, emptyMap(),
                         RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         checkRemoteWhitelist(buildRemoteWhitelist(singletonList("*.example.com:9200")),
                 newRemoteInfo("6e134134a1.us-east-1.aws.example.com", 9200));
@@ -100,6 +93,12 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         List<String> random = randomWhitelist();
         random.add("*");
         assertMatchesTooMuch(random);
+    }
+
+    public void testIPv6Address() {
+        List<String> whitelist = randomWhitelist();
+        whitelist.add("[::1]:*");
+        checkRemoteWhitelist(buildRemoteWhitelist(whitelist), newRemoteInfo("[::1]", 9200));
     }
 
     private void assertMatchesTooMuch(List<String> whitelist) {

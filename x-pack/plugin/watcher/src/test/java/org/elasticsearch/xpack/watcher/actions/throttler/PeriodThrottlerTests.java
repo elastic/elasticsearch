@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.throttler;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.PeriodThrottler;
@@ -13,9 +14,10 @@ import org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
-import org.joda.time.DateTime;
 
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -32,7 +34,7 @@ public class PeriodThrottlerTests extends ESTestCase {
 
         WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
         ActionStatus actionStatus = mock(ActionStatus.class);
-        DateTime now = new DateTime(Clock.systemUTC().millis());
+        ZonedDateTime now = Clock.systemUTC().instant().atZone(ZoneOffset.UTC);
         when(actionStatus.lastSuccessfulExecution())
                 .thenReturn(ActionStatus.Execution.successful(now.minusSeconds((int) period.seconds() - 1)));
         WatchStatus status = mock(WatchStatus.class);
@@ -53,7 +55,7 @@ public class PeriodThrottlerTests extends ESTestCase {
 
         WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
         ActionStatus actionStatus = mock(ActionStatus.class);
-        DateTime now = new DateTime(Clock.systemUTC().millis());
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         when(actionStatus.lastSuccessfulExecution())
                 .thenReturn(ActionStatus.Execution.successful(now.minusSeconds((int) period.seconds() + 1)));
         WatchStatus status = mock(WatchStatus.class);

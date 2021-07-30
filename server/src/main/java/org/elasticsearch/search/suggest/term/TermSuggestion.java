@@ -1,26 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
@@ -44,15 +32,10 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
-    @Deprecated
-    public static final int TYPE = 1;
-
     public static final Comparator<Suggestion.Entry.Option> SCORE = new Score();
     public static final Comparator<Suggestion.Entry.Option> FREQUENCY = new Frequency();
 
     private SortBy sort;
-
-    public TermSuggestion() {}
 
     public TermSuggestion(String name, int size, SortBy sort) {
         super(name, size);
@@ -61,10 +44,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
     public TermSuggestion(StreamInput in) throws IOException {
         super(in);
-
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            sort = SortBy.readFromStream(in);
-        }
+        sort = SortBy.readFromStream(in);
     }
 
     // Same behaviour as comparators in suggest module, but for SuggestedWord
@@ -80,7 +60,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             }
             return FREQUENCY.compare(first, second);
         }
-
     }
 
     // Same behaviour as comparators in suggest module, but for SuggestedWord
@@ -105,12 +84,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             // third criteria: term text
             return first.getText().compareTo(second.getText());
         }
-
-    }
-
-    @Override
-    public int getWriteableType() {
-        return TYPE;
     }
 
     public void setSort(SortBy sort) {
@@ -136,10 +109,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            sort.writeTo(out);
-        }
+        sort.writeTo(out);
     }
 
     @Override
@@ -152,11 +122,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         TermSuggestion suggestion = new TermSuggestion(name, -1, SortBy.SCORE);
         parseEntries(parser, suggestion, TermSuggestion.Entry::fromXContent);
         return suggestion;
-    }
-
-    @Override
-    protected Entry newEntry() {
-        return new Entry();
     }
 
     @Override
@@ -184,15 +149,10 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             super(text, offset, length);
         }
 
-        public Entry() {}
+        private Entry() {}
 
         public Entry(StreamInput in) throws IOException {
             super(in);
-        }
-
-        @Override
-        protected Option newOption() {
-            return new Option();
         }
 
         @Override
@@ -200,11 +160,14 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             return new Option(in);
         }
 
-        private static ObjectParser<Entry, Void> PARSER = new ObjectParser<>("TermSuggestionEntryParser", true, Entry::new);
-
+        private static final ObjectParser<Entry, Void> PARSER = new ObjectParser<>("TermSuggestionEntryParser", true, Entry::new);
         static {
             declareCommonFields(PARSER);
-            PARSER.declareObjectArray(Entry::addOptions, (p,c) -> Option.fromXContent(p), new ParseField(OPTIONS));
+            /*
+             * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
+             * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
+             */
+            PARSER.declareObjectArray((e, o) -> e.addOptions(o), (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
         }
 
         public static Entry fromXContent(XContentParser parser) {
@@ -234,10 +197,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             protected void mergeInto(Suggestion.Entry.Option otherOption) {
                 super.mergeInto(otherOption);
                 freq += ((Option) otherOption).freq;
-            }
-
-            protected Option() {
-                super();
             }
 
             public void setFreq(int freq) {
@@ -283,6 +242,5 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
                 return PARSER.apply(parser, null);
             }
         }
-
     }
 }

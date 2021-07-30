@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
@@ -29,8 +30,8 @@ import java.util.Objects;
 public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutPrivilegesRequest, PutPrivilegesResponse>
     implements WriteRequestBuilder<PutPrivilegesRequestBuilder> {
 
-    public PutPrivilegesRequestBuilder(ElasticsearchClient client, PutPrivilegesAction action) {
-        super(client, action, new PutPrivilegesRequest());
+    public PutPrivilegesRequestBuilder(ElasticsearchClient client) {
+        super(client, PutPrivilegesAction.INSTANCE, new PutPrivilegesRequest());
     }
 
     ApplicationPrivilegeDescriptor parsePrivilege(XContentParser parser, String applicationName, String privilegeName) throws IOException {

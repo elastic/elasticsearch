@@ -1,27 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
@@ -29,14 +19,15 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.TreeMap;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
@@ -48,6 +39,27 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
     private final Map<String, String> bucketsPathsMap;
     private String format = null;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
+
+    public static final ConstructingObjectParser<BucketScriptPipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
+            NAME, false, (args, name) -> {
+                @SuppressWarnings("unchecked")
+                var bucketsPathsMap = (Map<String, String>) args[0];
+                return new BucketScriptPipelineAggregationBuilder(name, bucketsPathsMap, (Script) args[1]);
+            });
+    static {
+        PARSER.declareField(constructorArg(), BucketScriptPipelineAggregationBuilder::extractBucketPath,
+                BUCKETS_PATH_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
+        Script.declareScript(PARSER, constructorArg());
+
+        PARSER.declareString(BucketScriptPipelineAggregationBuilder::format, FORMAT);
+        PARSER.declareField(BucketScriptPipelineAggregationBuilder::gapPolicy, p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return GapPolicy.parse(p.text().toLowerCase(Locale.ROOT), p.getTokenLocation());
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, GAP_POLICY, ObjectParser.ValueType.STRING);
+    };
+
 
     public BucketScriptPipelineAggregationBuilder(String name, Map<String, String> bucketsPathsMap, Script script) {
         super(name, NAME, new TreeMap<>(bucketsPathsMap).values().toArray(new String[bucketsPathsMap.size()]));
@@ -84,6 +96,27 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
         script.writeTo(out);
         out.writeOptionalString(format);
         gapPolicy.writeTo(out);
+    }
+
+    private static Map<String, String> extractBucketPath(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+       if (token == XContentParser.Token.VALUE_STRING) {
+           // input is a string, name of the path set to '_value'.
+           // This is a bit odd as there is not constructor for it
+           return Collections.singletonMap("_value", parser.text());
+       } else if (token == XContentParser.Token.START_ARRAY) {
+           // input is an array, name of the path set to '_value' + position
+           Map<String, String> bucketsPathsMap = new HashMap<>();
+           int i =0;
+           while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+               String path = parser.text();
+               bucketsPathsMap.put("_value" + i++, path);
+           }
+           return bucketsPathsMap;
+       } else  {
+           // input is an object, it should contain name / value pairs
+           return parser.mapStrings();
+       }
     }
 
     private static Map<String, String> convertToBucketsPathMap(String[] bucketsPaths) {
@@ -139,8 +172,8 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-        return new BucketScriptPipelineAggregator(name, bucketsPathsMap, script, formatter(), gapPolicy, metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new BucketScriptPipelineAggregator(name, bucketsPathsMap, script, formatter(), gapPolicy, metadata);
     }
 
     @Override
@@ -154,85 +187,10 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
         return builder;
     }
 
-    public static BucketScriptPipelineAggregationBuilder parse(String reducerName, XContentParser parser) throws IOException {
-        XContentParser.Token token;
-        Script script = null;
-        String currentFieldName = null;
-        Map<String, String> bucketsPathsMap = null;
-        String format = null;
-        GapPolicy gapPolicy = null;
-
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (FORMAT.match(currentFieldName, parser.getDeprecationHandler())) {
-                    format = parser.text();
-                } else if (BUCKETS_PATH.match(currentFieldName, parser.getDeprecationHandler())) {
-                    bucketsPathsMap = new HashMap<>();
-                    bucketsPathsMap.put("_value", parser.text());
-                } else if (GAP_POLICY.match(currentFieldName, parser.getDeprecationHandler())) {
-                    gapPolicy = GapPolicy.parse(parser.text(), parser.getTokenLocation());
-                } else if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    script = Script.parse(parser);
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if (BUCKETS_PATH.match(currentFieldName, parser.getDeprecationHandler())) {
-                    List<String> paths = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        String path = parser.text();
-                        paths.add(path);
-                    }
-                    bucketsPathsMap = new HashMap<>();
-                    for (int i = 0; i < paths.size(); i++) {
-                        bucketsPathsMap.put("_value" + i, paths.get(i));
-                    }
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    script = Script.parse(parser);
-                } else if (BUCKETS_PATH.match(currentFieldName, parser.getDeprecationHandler())) {
-                    Map<String, Object> map = parser.map();
-                    bucketsPathsMap = new HashMap<>();
-                    for (Map.Entry<String, Object> entry : map.entrySet()) {
-                        bucketsPathsMap.put(entry.getKey(), String.valueOf(entry.getValue()));
-                    }
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
-                }
-            } else {
-                throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + reducerName + "].");
-            }
-        }
-
-        if (bucketsPathsMap == null) {
-            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + BUCKETS_PATH.getPreferredName()
-                    + "] for series_arithmetic aggregation [" + reducerName + "]");
-        }
-
-        if (script == null) {
-            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + Script.SCRIPT_PARSE_FIELD.getPreferredName()
-                    + "] for series_arithmetic aggregation [" + reducerName + "]");
-        }
-
-        BucketScriptPipelineAggregationBuilder factory =
-                new BucketScriptPipelineAggregationBuilder(reducerName, bucketsPathsMap, script);
-        if (format != null) {
-            factory.format(format);
-        }
-        if (gapPolicy != null) {
-            factory.gapPolicy(gapPolicy);
-        }
-        return factory;
+    @Override
+    protected void validate(ValidationContext context) {
+        context.validateHasParent(NAME, name);
     }
-
 
     @Override
     protected boolean overrideBucketsPath() {
@@ -240,15 +198,20 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(bucketsPathsMap, script, format, gapPolicy);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), bucketsPathsMap, script, format, gapPolicy);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         BucketScriptPipelineAggregationBuilder other = (BucketScriptPipelineAggregationBuilder) obj;
-        return Objects.equals(bucketsPathsMap, other.bucketsPathsMap) && Objects.equals(script, other.script)
-                && Objects.equals(format, other.format) && Objects.equals(gapPolicy, other.gapPolicy);
+        return Objects.equals(bucketsPathsMap, other.bucketsPathsMap)
+            && Objects.equals(script, other.script)
+            && Objects.equals(format, other.format)
+            && Objects.equals(gapPolicy, other.gapPolicy);
     }
 
     @Override

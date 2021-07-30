@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-min-bucket-aggregation]]
-=== Min Bucket Aggregation
+=== Min bucket aggregation
+++++
+<titleabbrev>Min bucket</titleabbrev>
+++++
 
 A sibling pipeline aggregation which identifies the bucket(s) with the minimum value of a specified metric in a sibling aggregation
 and outputs both the value and the key(s) of the bucket(s). The specified metric must be numeric and the sibling aggregation must
@@ -12,14 +15,16 @@ A `min_bucket` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "min_bucket": {
-        "buckets_path": "the_sum"
-    }
+  "min_bucket": {
+    "buckets_path": "the_sum"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
 
+[[min-bucket-params]]
 .`min_bucket` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to find the minimum for (see <<buckets-path-syntax>> for more
@@ -31,34 +36,33 @@ A `min_bucket` aggregation looks like this in isolation:
 
 The following snippet calculates the minimum of the total monthly `sales`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                }
-            }
-        },
-        "min_monthly_sales": {
-            "min_bucket": {
-                "buckets_path": "sales_per_month>sales" <1>
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
         }
+      }
+    },
+    "min_monthly_sales": {
+      "min_bucket": {
+        "buckets_path": "sales_per_month>sales" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> `buckets_path` instructs this min_bucket aggregation that we want the minimum value of the `sales` aggregation in the
@@ -66,7 +70,7 @@ POST /sales/_search
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,

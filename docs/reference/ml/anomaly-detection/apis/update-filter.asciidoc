@@ -1,0 +1,64 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-update-filter]]
+= Update filters API
+++++
+<titleabbrev>Update filters</titleabbrev>
+++++
+
+Updates the description of a filter, adds items, or removes items. 
+
+[[ml-update-filter-request]]
+== {api-request-title}
+
+`POST _ml/filters/<filter_id>/_update`
+
+[[ml-update-filter-prereqs]]
+== {api-prereq-title}
+
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
+
+[[ml-update-filter-path-parms]]
+== {api-path-parms-title}
+
+`<filter_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter-id]
+
+[[ml-update-filter-request-body]]
+== {api-request-body-title}
+
+`add_items`::
+  (Optional, array of strings) The items to add to the filter.
+
+`description`::
+  (Optional, string) A description for the filter.
+	
+`remove_items`::
+  (Optional, array of strings) The items to remove from the filter.
+
+[[ml-update-filter-example]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _ml/filters/safe_domains/_update
+{
+  "description": "Updated list of domains",
+  "add_items": ["*.myorg.com"],
+  "remove_items": ["wikipedia.org"]
+}
+--------------------------------------------------
+// TEST[skip:setup:ml_filter_safe_domains]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+  "filter_id": "safe_domains",
+  "description": "Updated list of domains",
+  "items": ["*.google.com", "*.myorg.com"]
+}
+----

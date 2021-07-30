@@ -5,13 +5,13 @@
   "settings": {
     "index.auto_expand_replicas": "0-1",
     "index.codec": "best_compression",
-    "index.format": 6,
+    "index.format": 7,
     "index.number_of_replicas": 0,
     "index.number_of_shards": 1
   },
-  "version": 7000099,
+  "version": 7140099,
   "mappings": {
-    "doc": {
+    "_doc": {
       "dynamic": false,
       "properties": {
         "beats_state": {
@@ -50,6 +50,9 @@
                       "type": "keyword"
                     },
                     "name": {
+                      "type": "keyword"
+                    },
+                    "hostname": {
                       "type": "keyword"
                     },
                     "os": {
@@ -143,6 +146,91 @@
               "properties": {
                 "beat": {
                   "properties": {
+                    "cgroup": {
+                      "properties": {
+                        "cpu": {
+                          "properties": {
+                            "id": {
+                              "type": "keyword"
+                            },
+                            "cfs": {
+                              "properties": {
+                                "period": {
+                                  "properties": {
+                                    "us": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "quota": {
+                                  "properties": {
+                                    "us": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "stats": {
+                              "properties": {
+                                "periods": {
+                                  "type": "long"
+                                },
+                                "throttled": {
+                                  "properties": {
+                                    "periods": {
+                                      "type": "long"
+                                    },
+                                    "ns": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "cpuacct": {
+                          "properties": {
+                            "id": {
+                              "type": "keyword"
+                            },
+                            "total": {
+                              "properties": {
+                                "ns": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "memory": {
+                          "properties": {
+                            "id": {
+                              "type": "keyword"
+                            },
+                            "mem": {
+                              "properties": {
+                                "limit": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "usage": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
                     "cpu": {
                       "properties": {
                         "system": {
@@ -203,6 +291,9 @@
                               "type": "long"
                             }
                           }
+                        },
+                        "version": {
+                          "type": "keyword"
                         }
                       }
                     },
@@ -243,6 +334,96 @@
                 },
                 "apm-server": {
                   "properties": {
+                    "acm": {
+                      "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                                "type": "long"
+                            },
+                            "errors": {
+                              "properties": {
+                                "validate": {
+                                  "type": "long"
+                                },
+                                "internal": {
+                                  "type": "long"
+                                },
+                                "queue": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "decode": {
+                                  "type": "long"
+                                },
+                                "toolarge": {
+                                  "type": "long"
+                                },
+                                "unavailable": {
+                                  "type": "long"
+                                },
+                                "forbidden": {
+                                  "type": "long"
+                                },
+                                "method": {
+                                  "type": "long"
+                                },
+                                "notfound": {
+                                  "type": "long"
+                                },
+                                "invalidquery": {
+                                  "type": "long"
+                                },
+                                "ratelimit": {
+                                  "type": "long"
+                                },
+                                "closed": {
+                                  "type": "long"
+                                },
+                                "unauthorized": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "notmodified": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "ok": {
+                                  "type": "long"
+                                },
+                                "accepted": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "unset": {
+                              "type": "long"
+                            },
+                            "request": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
                     "server": {
                       "properties": {
                         "request": {

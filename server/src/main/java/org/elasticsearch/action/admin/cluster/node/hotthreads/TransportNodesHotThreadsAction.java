@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
@@ -22,14 +11,15 @@ package org.elasticsearch.action.admin.cluster.node.hotthreads;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.monitor.jvm.HotThreads;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -54,17 +44,17 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, NodesHotThreadsRequest request) {
-        return new NodeRequest(nodeId, request);
+    protected NodeRequest newNodeRequest(NodesHotThreadsRequest request) {
+        return new NodeRequest(request);
     }
 
     @Override
-    protected NodeHotThreads newNodeResponse() {
-        return new NodeHotThreads();
+    protected NodeHotThreads newNodeResponse(StreamInput in) throws IOException {
+        return new NodeHotThreads(in);
     }
 
     @Override
-    protected NodeHotThreads nodeOperation(NodeRequest request) {
+    protected NodeHotThreads nodeOperation(NodeRequest request, Task task) {
         HotThreads hotThreads = new HotThreads()
                 .busiestThreads(request.request.threads)
                 .type(request.request.type)
@@ -78,23 +68,17 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
         }
     }
 
-    public static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends TransportRequest {
 
         NodesHotThreadsRequest request;
 
-        public NodeRequest() {
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new NodesHotThreadsRequest(in);
         }
 
-        NodeRequest(String nodeId, NodesHotThreadsRequest request) {
-            super(nodeId);
+        NodeRequest(NodesHotThreadsRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new NodesHotThreadsRequest();
-            request.readFrom(in);
         }
 
         @Override

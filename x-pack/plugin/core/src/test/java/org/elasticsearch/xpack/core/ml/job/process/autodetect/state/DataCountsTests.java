@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.joda.time.DateTime;
 
+import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.util.Date;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -21,9 +23,13 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
                 randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
                 randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
                 randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
-                new DateTime(randomDateTimeZone()).toDate(), new DateTime(randomDateTimeZone()).toDate(),
-                new DateTime(randomDateTimeZone()).toDate(), new DateTime(randomDateTimeZone()).toDate(),
-                new DateTime(randomDateTimeZone()).toDate());
+            dateWithRandomTimeZone(), dateWithRandomTimeZone(),
+            dateWithRandomTimeZone(), dateWithRandomTimeZone(),
+            dateWithRandomTimeZone(), randomBoolean() ? Instant.now() : null);
+    }
+
+    private static Date dateWithRandomTimeZone() {
+        return Date.from(ZonedDateTime.now(randomZone()).toInstant());
     }
 
     @Override
@@ -42,21 +48,21 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
     }
 
     public void testCountsEquals_GivenEqualCounts() {
-        DataCounts counts1 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-        DataCounts counts2 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+        DataCounts counts1 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16);
+        DataCounts counts2 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16);
 
         assertTrue(counts1.equals(counts2));
         assertTrue(counts2.equals(counts1));
     }
 
     public void testCountsHashCode_GivenEqualCounts() {
-        DataCounts counts1 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-        DataCounts counts2 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+        DataCounts counts1 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16);
+        DataCounts counts2 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16);
         assertEquals(counts1.hashCode(), counts2.hashCode());
     }
 
     public void testCountsCopyConstructor() {
-        DataCounts counts1 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+        DataCounts counts1 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16);
         DataCounts counts2 = new DataCounts(counts1);
 
         assertEquals(counts1.hashCode(), counts2.hashCode());
@@ -68,7 +74,7 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
     }
 
     public void testCountCopyCreatedFieldsNotZero() throws Exception {
-        DataCounts counts1 = createCounts(1, 200, 400, 3, 4, 5, 6, 7, 8, 9, 1479211200000L, 1479384000000L, 13, 14, 15);
+        DataCounts counts1 = createCounts(1, 200, 400, 3, 4, 5, 6, 7, 8, 9, 1479211200000L, 1479384000000L, 13, 14, 15, 16);
         assertAllFieldsGreaterThanZero(counts1);
 
         DataCounts counts2 = new DataCounts(counts1);
@@ -108,13 +114,13 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
 
     public void testCalcProcessedFieldCount() {
         DataCounts counts = new DataCounts(randomAlphaOfLength(16), 10L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, new Date(), new Date(),
-                new Date(), new Date(), new Date());
+                new Date(), new Date(), new Date(), Instant.now());
         counts.calcProcessedFieldCount(3);
 
         assertEquals(30, counts.getProcessedFieldCount());
 
         counts = new DataCounts(randomAlphaOfLength(16), 10L, 0L, 0L, 0L, 0L, 5L, 0L, 0L, 0L, 0L, new Date(), new Date(),
-                new Date(), new Date(), new Date());
+                new Date(), new Date(), new Date(), Instant.now());
         counts.calcProcessedFieldCount(3);
         assertEquals(25, counts.getProcessedFieldCount());
     }
@@ -122,7 +128,7 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
     public void testEquals() {
         DataCounts counts1 = new DataCounts(
                 randomAlphaOfLength(16), 10L, 5000L, 2000L, 300L, 6L, 15L, 0L, 0L, 0L, 0L, new Date(), new Date(1435000000L),
-                new Date(), new Date(), new Date());
+                new Date(), new Date(), new Date(), Instant.now());
         DataCounts counts2 = new DataCounts(counts1);
 
         assertEquals(counts1, counts2);
@@ -170,16 +176,17 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
 
     private static DataCounts createCounts(
             long processedRecordCount, long processedFieldCount, long inputBytes, long inputFieldCount,
-            long invalidDateCount, long missingFieldCount, long outOfOrderTimeStampCount, 
+            long invalidDateCount, long missingFieldCount, long outOfOrderTimeStampCount,
             long emptyBucketCount, long sparseBucketCount, long bucketCount,
             long earliestRecordTime, long latestRecordTime, long lastDataTimeStamp, long latestEmptyBucketTimeStamp,
-            long latestSparseBucketTimeStamp) {
+            long latestSparseBucketTimeStamp, long logTime) {
 
         DataCounts counts = new DataCounts("foo", processedRecordCount, processedFieldCount, inputBytes,
                 inputFieldCount, invalidDateCount, missingFieldCount, outOfOrderTimeStampCount,
                 emptyBucketCount, sparseBucketCount, bucketCount,
                 new Date(earliestRecordTime), new Date(latestRecordTime),
-                new Date(lastDataTimeStamp), new Date(latestEmptyBucketTimeStamp), new Date(latestSparseBucketTimeStamp));
+                new Date(lastDataTimeStamp), new Date(latestEmptyBucketTimeStamp), new Date(latestSparseBucketTimeStamp),
+            Instant.ofEpochMilli(logTime));
 
         return counts;
     }

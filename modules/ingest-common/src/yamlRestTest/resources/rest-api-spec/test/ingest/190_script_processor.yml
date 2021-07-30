@@ -1,0 +1,279 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test invoke bytes processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.target_field = Processors.bytes(ctx.source_field)"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {source_field: "1kb"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.source_field: "1kb" }
+  - match: { _source.target_field: 1024 }
+
+---
+"Test invoke lowercase processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.target_field = Processors.lowercase(ctx.source_field)"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {source_field: "FooBar"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.source_field: "FooBar" }
+  - match: { _source.target_field: "foobar" }
+
+---
+"Test invoke uppercase processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.target_field = Processors.uppercase(ctx.source_field)"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {source_field: "FooBar"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.source_field: "FooBar" }
+  - match: { _source.target_field: "FOOBAR" }
+
+---
+"Test invoke json processor, assign to field":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.target_field = Processors.json(ctx.source_field)"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {source_field: "{\"foo\":\"bar\"}"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.source_field: "{\"foo\":\"bar\"}" }
+  - match: { _source.target_field.foo: "bar" }
+
+---
+"Test invoke json processor, assign to root":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "Processors.json(ctx, 'source_field')"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {source_field: "{\"foo\":\"bar\"}"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.source_field: "{\"foo\":\"bar\"}" }
+  - match: { _source.foo: "bar" }
+
+---
+"Test invoke urlDecode processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.target_field = Processors.urlDecode(ctx.source_field)"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {source_field: "foo%20bar"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.source_field: "foo%20bar" }
+  - match: { _source.target_field: "foo bar" }
+
+---
+"Test invoke community_id processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.target_field1 = Processors.communityId('128.232.110.120', '66.35.250.204', null, 'TCP', 34855, 80, null, null, 123);"
+                }
+              },
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.target_field2 = Processors.communityId('128.232.110.120', '66.35.250.204', null, 'TCP', 34855, 80, null, null);"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {source_field: "foo"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.source_field: "foo" }
+  - match: { _source.target_field1: "1:hTSGlFQnR58UCk+NfKRZzA32dPg=" }
+  - match: { _source.target_field2: "1:LQU9qZlK+B5F3KDmev6m5PMibrg=" }
+
+---
+"Test invoke uri_parts processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.target_field = Processors.uriParts(ctx.source_field)"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {source_field: "http://www.example.com/index.html"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.source_field: "http://www.example.com/index.html" }
+  - match: { _source.target_field.scheme: "http" }
+  - match: { _source.target_field.domain: "www.example.com" }
+  - match: { _source.target_field.path: "/index.html" }

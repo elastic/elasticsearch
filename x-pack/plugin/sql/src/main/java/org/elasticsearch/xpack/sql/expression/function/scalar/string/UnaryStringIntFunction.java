@@ -1,33 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
 
 import java.util.Locale;
 import java.util.Objects;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Base unary function for text manipulating SQL functions that receive as parameter a number
  */
 public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
 
-    protected UnaryStringIntFunction(Location location, Expression field) {
-        super(location, field);
+    protected UnaryStringIntFunction(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -42,10 +44,10 @@ public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return Expressions.typeMustBeInteger(field(), operation().toString(), ParamOrdinal.DEFAULT);
+        return isInteger(field(), sourceText(), DEFAULT);
     }
 
     @Override
@@ -54,14 +56,14 @@ public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
     }
 
     protected abstract StringOperation operation();
-    
+
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript("doc[{}].value"),
+        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
                 paramsBuilder().variable(field.name()).build(),
                 dataType());
     }
-    
+
     @Override
     public String processScript(String template) {
         return super.processScript(

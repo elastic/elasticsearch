@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.script.mustache;
 
@@ -50,7 +39,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
             int successfulShards = randomIntBetween(0, totalShards);
             int skippedShards = totalShards - successfulShards;
             InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-            SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalShards, successfulShards, skippedShards);
+            SearchResponse.Clusters clusters = randomClusters();
             SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
             SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
                     successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
@@ -59,7 +48,13 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         }
         return new MultiSearchTemplateResponse(items, overallTookInMillis);
     }
-    
+
+    private static SearchResponse.Clusters randomClusters() {
+        int totalClusters = randomIntBetween(0, 10);
+        int successfulClusters = randomIntBetween(0, totalClusters);
+        int skippedClusters = totalClusters - successfulClusters;
+        return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
+    }
 
     private static  MultiSearchTemplateResponse createTestInstanceWithFailures() {
         int numItems = randomIntBetween(0, 128);
@@ -67,14 +62,13 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[numItems];
         for (int i = 0; i < numItems; i++) {
             if (randomBoolean()) {
-                // Creating a minimal response is OK, because SearchResponse self
-                // is tested elsewhere.
+                // Creating a minimal response is OK, because SearchResponse is tested elsewhere.
                 long tookInMillis = randomNonNegativeLong();
                 int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
                 int successfulShards = randomIntBetween(0, totalShards);
                 int skippedShards = totalShards - successfulShards;
                 InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-                SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalShards, successfulShards, skippedShards);
+                SearchResponse.Clusters clusters = randomClusters();
                 SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
                 SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
                         successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
@@ -99,7 +93,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
 
     protected Predicate<String> getRandomFieldsExcludeFilterWhenResultHasErrors() {
         return field -> field.startsWith("responses");
-    }    
+    }
 
     @Override
     protected void assertEqualInstances(MultiSearchTemplateResponse expectedInstance, MultiSearchTemplateResponse newInstance) {
@@ -117,7 +111,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
             }
         }
     }
-    
+
     /**
      * Test parsing {@link MultiSearchTemplateResponse} with inner failures as they don't support asserting on xcontent equivalence, given
      * exceptions are not parsed back as the same original class. We run the usual {@link AbstractXContentTestCase#testFromXContent()}
@@ -133,6 +127,5 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
                 getRandomFieldsExcludeFilterWhenResultHasErrors(), this::createParser, this::doParseInstance,
                 this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
-    }    
-
+    }
 }

@@ -1,81 +1,113 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask;
+import org.elasticsearch.gradle.internal.info.BuildParams;
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
 
 dependencies {
-  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
-  compile "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}"
-  compile "org.elasticsearch:elasticsearch-nio:${version}"
-  compile "org.elasticsearch:elasticsearch:${version}"
-  compile "org.elasticsearch:elasticsearch-cli:${version}"
-  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  compile "junit:junit:${versions.junit}"
-  compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
-  compile "org.apache.lucene:lucene-test-framework:${versions.lucene}"
-  compile "org.apache.lucene:lucene-codecs:${versions.lucene}"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "org.elasticsearch:securemock:${versions.securemock}"
-  compile "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  api project(":client:rest")
+  api project(":client:sniffer")
+  api project(':libs:elasticsearch-nio')
+  api project(':libs:elasticsearch-ssl-config')
+  api project(":server")
+  api project(":libs:elasticsearch-cli")
+  api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  api "junit:junit:${versions.junit}"
+  api "org.hamcrest:hamcrest:${versions.hamcrest}"
+  api "org.apache.lucene:lucene-test-framework:${versions.lucene}"
+  api "org.apache.lucene:lucene-codecs:${versions.lucene}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "org.elasticsearch:securemock:${versions.securemock}"
+  api "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  api "io.github.nik9000:mapmatcher:0.0.3"
+
+  // json schema validation dependencies
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "org.apache.commons:commons-compress:1.19"
+  api "org.apache.commons:commons-lang3:${versions.commons_lang3}"
 }
 
-compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes,-try,-unchecked'
-compileTestJava.options.compilerArgs << '-Xlint:-rawtypes'
-
 // the main files are actually test files, so use the appropriate forbidden api sigs
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures', 'es-all-signatures', 'es-test-signatures'
 }
 
 // TODO: should we have licenses for our test deps?
-dependencyLicenses.enabled = false
-dependenciesInfo.enabled = false
+tasks.named("dependencyLicenses").configure { enabled = false }
+tasks.named("dependenciesInfo").configure { enabled = false }
+tasks.named("dependenciesGraph").configure { enabled = false }
 
-thirdPartyAudit.excludes = [
-  // classes are missing
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener',
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger',
-   // we intentionally exclude the ant tasks because people were depending on them from their tests!!!!!!!
-  'org.apache.tools.ant.BuildException',
-  'org.apache.tools.ant.DirectoryScanner',
-  'org.apache.tools.ant.Task',
-  'org.apache.tools.ant.types.FileSet',
-  'org.easymock.EasyMock',
-  'org.easymock.IArgumentMatcher',
-  'org.jmock.core.Constraint',
-]
-
-task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
-  checkForTestsInMain = true
-  javaHome = project.compilerJavaHome
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // classes are missing
+          'com.github.luben.zstd.ZstdInputStream',
+          'com.github.luben.zstd.ZstdOutputStream',
+          'java.util.jar.Pack200',
+          'java.util.jar.Pack200$Packer',
+          'java.util.jar.Pack200$Unpacker',
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener',
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger',
+          'org.apache.log4j.Category',
+          'org.apache.log4j.Level',
+          'org.apache.log4j.Logger',
+          'org.apache.log4j.Priority',
+          'org.brotli.dec.BrotliInputStream',
+          'org.jcodings.specific.UTF8Encoding',
+          'org.joni.Matcher',
+          'org.joni.Regex',
+          'org.joni.Syntax',
+          'org.slf4j.Logger',
+          'org.slf4j.LoggerFactory',
+          'org.tukaani.xz.ARMOptions',
+          'org.tukaani.xz.ARMThumbOptions',
+          'org.tukaani.xz.DeltaOptions',
+          'org.tukaani.xz.FilterOptions',
+          'org.tukaani.xz.FinishableWrapperOutputStream',
+          'org.tukaani.xz.IA64Options',
+          'org.tukaani.xz.LZMA2InputStream',
+          'org.tukaani.xz.LZMA2Options',
+          'org.tukaani.xz.LZMAInputStream',
+          'org.tukaani.xz.LZMAOutputStream',
+          'org.tukaani.xz.MemoryLimitException',
+          'org.tukaani.xz.PowerPCOptions',
+          'org.tukaani.xz.SPARCOptions',
+          'org.tukaani.xz.SingleXZInputStream',
+          'org.tukaani.xz.UnsupportedOptionsException',
+          'org.tukaani.xz.X86Options',
+          'org.tukaani.xz.XZ',
+          'org.tukaani.xz.XZInputStream',
+          'org.tukaani.xz.XZOutputStream'
+  )
 }
-precommit.dependsOn namingConventionsMain
 
-test.configure {
-  systemProperty 'tests.gradle_index_compat_versions', bwcVersions.indexCompatible.join(',')
-  systemProperty 'tests.gradle_wire_compat_versions', bwcVersions.wireCompatible.join(',')
-  systemProperty 'tests.gradle_unreleased_versions', bwcVersions.unreleased.join(',')
+tasks.named("test").configure {
+  systemProperty 'tests.gradle_index_compat_versions', BuildParams.bwcVersions.indexCompatible.join(',')
+  systemProperty 'tests.gradle_wire_compat_versions', BuildParams.bwcVersions.wireCompatible.join(',')
+  systemProperty 'tests.gradle_unreleased_versions', BuildParams.bwcVersions.unreleased.join(',')
 }
 
-task integTest(type: RandomizedTestingTask) {
+tasks.register("integTest", Test) {
   include "**/*IT.class"
+}
+
+tasks.register("verifyVersions") {
+  dependsOn "test"
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // for now we always run tests with the classpath, so we are ok with split packages for tests
+  onlyIf { false }
 }

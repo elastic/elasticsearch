@@ -1,28 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.snapshots.blobstore;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Contains a list of files participating in a snapshot
@@ -33,15 +24,64 @@ public class SnapshotFiles {
 
     private final List<FileInfo> indexFiles;
 
+    @Nullable
+    private final String shardStateIdentifier;
+
     private Map<String, FileInfo> physicalFiles = null;
 
+    /**
+     * Returns snapshot name
+     *
+     * @return snapshot name
+     */
     public String snapshot() {
         return snapshot;
     }
 
-    public SnapshotFiles(String snapshot, List<FileInfo> indexFiles ) {
+    /**
+     * @param snapshot             snapshot name
+     * @param indexFiles           index files
+     * @param shardStateIdentifier unique identifier for the state of the shard that this snapshot was taken from
+     */
+    public SnapshotFiles(String snapshot, List<FileInfo> indexFiles, @Nullable String shardStateIdentifier) {
         this.snapshot = snapshot;
         this.indexFiles = indexFiles;
+        this.shardStateIdentifier = shardStateIdentifier;
+    }
+
+    /**
+     * Creates a new instance with the given snapshot name but otherwise identical to the current instance.
+     */
+    public SnapshotFiles withSnapshotName(String snapshotName) {
+        return new SnapshotFiles(snapshotName, indexFiles, shardStateIdentifier);
+    }
+
+    /**
+     * Checks if the given other instance contains the same files as well as the same {@link #shardStateIdentifier}.
+     */
+    public boolean isSame(SnapshotFiles other) {
+        if (Objects.equals(shardStateIdentifier, other.shardStateIdentifier) == false) {
+            return false;
+        }
+        final int fileCount = indexFiles.size();
+        if (other.indexFiles.size() != fileCount) {
+            return false;
+        }
+        for (int i = 0; i < fileCount; i++) {
+            if (indexFiles.get(i).isSame(other.indexFiles.get(i)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Returns an identifier for the shard state that can be used to check whether a shard has changed between
+     * snapshots or not.
+     */
+    @Nullable
+    public String shardStateIdentifier() {
+        return shardStateIdentifier;
     }
 
     /**
@@ -66,10 +106,10 @@ public class SnapshotFiles {
      * @param physicalName the original file name
      * @return information about this file
      */
-    public FileInfo findPhysicalIndexFile(String physicalName) {
+    private FileInfo findPhysicalIndexFile(String physicalName) {
         if (physicalFiles == null) {
             Map<String, FileInfo> files = new HashMap<>();
-            for(FileInfo fileInfo : indexFiles) {
+            for (FileInfo fileInfo : indexFiles) {
                 files.put(fileInfo.physicalName(), fileInfo);
             }
             this.physicalFiles = files;
@@ -77,4 +117,18 @@ public class SnapshotFiles {
         return physicalFiles.get(physicalName);
     }
 
+    public long totalSize() {
+        return BlobStoreIndexShardSnapshot.totalSize(indexFiles);
+    }
+
+    @Override
+    public String toString() {
+        return "SnapshotFiles{snapshot=["
+            + snapshot
+            + "], shardStateIdentifier=["
+            + shardStateIdentifier
+            + "], indexFiles="
+            + indexFiles
+            + "}";
+    }
 }

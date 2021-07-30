@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,6 +25,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -50,7 +40,12 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
 
     private String failure;
 
-    private SnapshotIndexShardStatus() {
+    public SnapshotIndexShardStatus(StreamInput in) throws IOException {
+        super(in);
+        stage = SnapshotIndexShardStage.fromValue(in.readByte());
+        stats = new SnapshotStats(in);
+        nodeId = in.readOptionalString();
+        failure = in.readOptionalString();
     }
 
     SnapshotIndexShardStatus(ShardId shardId, SnapshotIndexShardStage stage) {
@@ -84,9 +79,16 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
             default:
                 throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.getStage());
         }
-        this.stats = new SnapshotStats(indexShardStatus.getStartTime(), indexShardStatus.getTotalTime(),
-            indexShardStatus.getIncrementalFileCount(), indexShardStatus.getTotalFileCount(), indexShardStatus.getProcessedFileCount(),
-            indexShardStatus.getIncrementalSize(), indexShardStatus.getTotalSize(), indexShardStatus.getProcessedSize());
+        this.stats = new SnapshotStats(
+            indexShardStatus.getStartTime(),
+            indexShardStatus.getTotalTime(),
+            indexShardStatus.getIncrementalFileCount(),
+            indexShardStatus.getTotalFileCount(),
+            indexShardStatus.getProcessedFileCount(),
+            indexShardStatus.getIncrementalSize(),
+            indexShardStatus.getTotalSize(),
+            indexShardStatus.getProcessedSize()
+        );
         this.failure = indexShardStatus.getFailure();
         this.nodeId = nodeId;
     }
@@ -127,13 +129,6 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         return failure;
     }
 
-
-    public static SnapshotIndexShardStatus readShardSnapshotStatus(StreamInput in) throws IOException {
-        SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus();
-        shardStatus.readFrom(in);
-        return shardStatus;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -141,15 +136,6 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         stats.writeTo(out);
         out.writeOptionalString(nodeId);
         out.writeOptionalString(failure);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        stage = SnapshotIndexShardStage.fromValue(in.readByte());
-        stats = SnapshotStats.readSnapshotStats(in);
-        nodeId = in.readOptionalString();
-        failure = in.readOptionalString();
     }
 
     static final class Fields {
@@ -176,7 +162,8 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
     static final ObjectParser.NamedObjectParser<SnapshotIndexShardStatus, String> PARSER;
     static {
         ConstructingObjectParser<SnapshotIndexShardStatus, ShardId> innerParser = new ConstructingObjectParser<>(
-            "snapshot_index_shard_status", true,
+            "snapshot_index_shard_status",
+            true,
             (Object[] parsedObjects, ShardId shard) -> {
                 int i = 0;
                 String rawStage = (String) parsedObjects[i++];
@@ -189,8 +176,11 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
                     stage = SnapshotIndexShardStage.valueOf(rawStage);
                 } catch (IllegalArgumentException iae) {
                     throw new ElasticsearchParseException(
-                        "failed to parse snapshot index shard status [{}][{}], unknonwn stage [{}]",
-                        shard.getIndex().getName(), shard.getId(), rawStage);
+                        "failed to parse snapshot index shard status [{}][{}], unknown stage [{}]",
+                        shard.getIndex().getName(),
+                        shard.getId(),
+                        rawStage
+                    );
                 }
                 return new SnapshotIndexShardStatus(shard, stage, stats, nodeId, failure);
             }
@@ -207,29 +197,34 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
                 shard = Integer.parseInt(shardName);
             } catch (NumberFormatException nfe) {
                 throw new ElasticsearchParseException(
-                    "failed to parse snapshot index shard status [{}], expected numeric shard id but got [{}]", indexId, shardName);
+                    "failed to parse snapshot index shard status [{}], expected numeric shard id but got [{}]",
+                    indexId,
+                    shardName
+                );
             }
-            ShardId shardId = new ShardId(new Index(indexId, IndexMetaData.INDEX_UUID_NA_VALUE), shard);
+            ShardId shardId = new ShardId(new Index(indexId, IndexMetadata.INDEX_UUID_NA_VALUE), shard);
             return innerParser.parse(p, shardId);
         };
     }
 
     public static SnapshotIndexShardStatus fromXContent(XContentParser parser, String indexId) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
         return PARSER.parse(parser, indexId, parser.currentName());
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SnapshotIndexShardStatus that = (SnapshotIndexShardStatus) o;
-
-        if (stage != that.stage) return false;
-        if (stats != null ? !stats.equals(that.stats) : that.stats != null) return false;
-        if (nodeId != null ? !nodeId.equals(that.nodeId) : that.nodeId != null) return false;
-        return failure != null ? failure.equals(that.failure) : that.failure == null;
+        return stage == that.stage
+            && Objects.equals(stats, that.stats)
+            && Objects.equals(nodeId, that.nodeId)
+            && Objects.equals(failure, that.failure);
     }
 
     @Override

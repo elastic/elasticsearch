@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -29,7 +18,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -45,6 +33,11 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
 
     @Override
     protected boolean supportsQueryName() {
+        return false;
+    }
+
+    @Override
+    protected boolean builderGeneratesCacheableQueries() {
         return false;
     }
 
@@ -72,9 +65,9 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     }
 
     @Override
-    protected void doAssertLuceneQuery(WrapperQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        QueryBuilder innerQuery = queryBuilder.rewrite(createShardContext());
-        Query expected = rewrite(innerQuery.toQuery(context.getQueryShardContext()));
+    protected void doAssertLuceneQuery(WrapperQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+        QueryBuilder innerQuery = queryBuilder.rewrite(createSearchExecutionContext());
+        Query expected = rewrite(innerQuery.toQuery(context));
         assertEquals(rewrite(query), expected);
     }
 
@@ -120,48 +113,49 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
 
     @Override
     public void testMustRewrite() throws IOException {
-        TermQueryBuilder tqb = new TermQueryBuilder("foo", "bar");
+        TermQueryBuilder tqb = new TermQueryBuilder(TEXT_FIELD_NAME, "bar");
         WrapperQueryBuilder qb = new WrapperQueryBuilder(tqb.toString());
-        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> qb.toQuery(createShardContext()));
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
+            () -> qb.toQuery(createSearchExecutionContext()));
         assertEquals("this query must be rewritten first", e.getMessage());
-        QueryBuilder rewrite = qb.rewrite(createShardContext());
+        QueryBuilder rewrite = qb.rewrite(createSearchExecutionContext());
         assertEquals(tqb, rewrite);
     }
 
     public void testRewriteWithInnerName() throws IOException {
         QueryBuilder builder = new WrapperQueryBuilder("{ \"match_all\" : {\"_name\" : \"foobar\"}}");
-        QueryShardContext shardContext = createShardContext();
-        assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(shardContext));
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(searchExecutionContext));
         builder = new WrapperQueryBuilder("{ \"match_all\" : {\"_name\" : \"foobar\"}}").queryName("outer");
         assertEquals(new BoolQueryBuilder().must(new MatchAllQueryBuilder().queryName("foobar")).queryName("outer"),
-            builder.rewrite(shardContext));
+            builder.rewrite(searchExecutionContext));
     }
 
     public void testRewriteWithInnerBoost() throws IOException {
-        final TermQueryBuilder query = new TermQueryBuilder("foo", "bar").boost(2);
+        final TermQueryBuilder query = new TermQueryBuilder(TEXT_FIELD_NAME, "bar").boost(2);
         QueryBuilder builder = new WrapperQueryBuilder(query.toString());
-        QueryShardContext shardContext = createShardContext();
-        assertEquals(query, builder.rewrite(shardContext));
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        assertEquals(query, builder.rewrite(searchExecutionContext));
         builder = new WrapperQueryBuilder(query.toString()).boost(3);
-        assertEquals(new BoolQueryBuilder().must(query).boost(3), builder.rewrite(shardContext));
+        assertEquals(new BoolQueryBuilder().must(query).boost(3), builder.rewrite(searchExecutionContext));
     }
 
     public void testRewriteInnerQueryToo() throws IOException {
-        QueryShardContext shardContext = createShardContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
         QueryBuilder qb = new WrapperQueryBuilder(
-            new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()).toString()
+            new WrapperQueryBuilder(new TermQueryBuilder(TEXT_FIELD_NAME, "bar").toString()).toString()
         );
-        assertEquals(new TermQuery(new Term("foo", "bar")), qb.rewrite(shardContext).toQuery(shardContext));
+        assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), qb.rewrite(searchExecutionContext).toQuery(searchExecutionContext));
         qb = new WrapperQueryBuilder(
             new WrapperQueryBuilder(
-                new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()).toString()
+                new WrapperQueryBuilder(new TermQueryBuilder(TEXT_FIELD_NAME, "bar").toString()).toString()
             ).toString()
         );
-        assertEquals(new TermQuery(new Term("foo", "bar")), qb.rewrite(shardContext).toQuery(shardContext));
+        assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), qb.rewrite(searchExecutionContext).toQuery(searchExecutionContext));
 
         qb = new WrapperQueryBuilder(new BoolQueryBuilder().toString());
-        assertEquals(new MatchAllDocsQuery(), qb.rewrite(shardContext).toQuery(shardContext));
+        assertEquals(new MatchAllDocsQuery(), qb.rewrite(searchExecutionContext).toQuery(searchExecutionContext));
     }
 
     @Override

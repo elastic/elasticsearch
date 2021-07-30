@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
-import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.index.IndexResolver.IndexType;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -24,16 +26,18 @@ public class ShowTables extends Command {
 
     private final String index;
     private final LikePattern pattern;
+    private final boolean includeFrozen;
 
-    public ShowTables(Location location, String index, LikePattern pattern) {
-        super(location);
+    public ShowTables(Source source, String index, LikePattern pattern, boolean includeFrozen) {
+        super(source);
         this.index = index;
         this.pattern = pattern;
+        this.includeFrozen = includeFrozen;
     }
 
     @Override
     protected NodeInfo<ShowTables> info() {
-        return NodeInfo.create(this, ShowTables::new, index, pattern);
+        return NodeInfo.create(this, ShowTables::new, index, pattern, includeFrozen);
     }
 
     public String index() {
@@ -46,23 +50,28 @@ public class ShowTables extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(keyword("name"), keyword("type"));
+        return asList(keyword("name"), keyword("type"), keyword("kind"));
     }
 
     @Override
-    public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
+    public final void execute(SqlSession session, ActionListener<Page> listener) {
         String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
-        session.indexResolver().resolveNames(idx, regex, null, ActionListener.wrap(result -> {
-            listener.onResponse(Rows.of(output(), result.stream()
-                 .map(t -> asList(t.name(), t.type().toSql()))
+
+        // to avoid redundancy, indicate whether frozen fields are required by specifying the type
+        EnumSet<IndexType> withFrozen = session.configuration().includeFrozen() || includeFrozen ?
+                IndexType.VALID_INCLUDE_FROZEN : IndexType.VALID_REGULAR;
+
+        session.indexResolver().resolveNames(idx, regex, withFrozen, ActionListener.wrap(result -> {
+            listener.onResponse(of(session, result.stream()
+                 .map(t -> asList(t.name(), t.type().toSql(), t.type().toNative()))
                 .collect(toList())));
         }, listener::onFailure));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, pattern);
+        return Objects.hash(index, pattern, includeFrozen);
     }
 
     @Override
@@ -76,7 +85,8 @@ public class ShowTables extends Command {
         }
 
         ShowTables other = (ShowTables) obj;
-        return Objects.equals(index, other.index) 
-                && Objects.equals(pattern, other.pattern);
+        return Objects.equals(index, other.index)
+                && Objects.equals(pattern, other.pattern)
+                && includeFrozen == other.includeFrozen;
     }
 }

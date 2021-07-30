@@ -1,29 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,7 +25,7 @@ import java.util.Objects;
 /**
  * A request to retrieve overall buckets of set of jobs
  */
-public class GetOverallBucketsRequest extends ActionRequest implements ToXContentObject {
+public class GetOverallBucketsRequest implements Validatable, ToXContentObject {
 
     public static final ParseField TOP_N = new ParseField("top_n");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
@@ -45,7 +33,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
     public static final ParseField EXCLUDE_INTERIM = new ParseField("exclude_interim");
     public static final ParseField START = new ParseField("start");
     public static final ParseField END = new ParseField("end");
-    public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
+    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
     private static final String ALL_JOBS = "_all";
 
@@ -61,7 +49,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
         PARSER.declareDouble(GetOverallBucketsRequest::setOverallScore, OVERALL_SCORE);
         PARSER.declareStringOrNull(GetOverallBucketsRequest::setStart, START);
         PARSER.declareStringOrNull(GetOverallBucketsRequest::setEnd, END);
-        PARSER.declareBoolean(GetOverallBucketsRequest::setAllowNoJobs, ALLOW_NO_JOBS);
+        PARSER.declareBoolean(GetOverallBucketsRequest::setAllowNoMatch, ALLOW_NO_MATCH);
     }
 
     private final List<String> jobIds;
@@ -71,7 +59,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
     private Double overallScore;
     private String start;
     private String end;
-    private Boolean allowNoJobs;
+    private Boolean allowNoMatch;
 
     private GetOverallBucketsRequest(String jobId) {
         this(Strings.tokenizeToStringArray(jobId, ","));
@@ -187,11 +175,11 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
     }
 
     /**
-     * See {@link GetJobRequest#getAllowNoJobs()}
-     * @param allowNoJobs value of "allow_no_jobs".
+     * See {@link GetJobRequest#getAllowNoMatch()}
+     * @param allowNoMatch value of "allow_no_match".
      */
-    public void setAllowNoJobs(boolean allowNoJobs) {
-        this.allowNoJobs = allowNoJobs;
+    public void setAllowNoMatch(boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
     }
 
     /**
@@ -199,13 +187,8 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
      *
      * If this is {@code false}, then an error is returned when a wildcard (or {@code _all}) does not match any jobs
      */
-    public Boolean getAllowNoJobs() {
-        return allowNoJobs;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
+    public Boolean getAllowNoMatch() {
+        return allowNoMatch;
     }
 
     @Override
@@ -233,8 +216,8 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
         if (overallScore != null) {
             builder.field(OVERALL_SCORE.getPreferredName(), overallScore);
         }
-        if (allowNoJobs != null) {
-            builder.field(ALLOW_NO_JOBS.getPreferredName(), allowNoJobs);
+        if (allowNoMatch != null) {
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
         }
         builder.endObject();
         return builder;
@@ -242,7 +225,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobIds, topN, bucketSpan, excludeInterim, overallScore, start, end, allowNoJobs);
+        return Objects.hash(jobIds, topN, bucketSpan, excludeInterim, overallScore, start, end, allowNoMatch);
     }
 
     @Override
@@ -261,6 +244,6 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
                 Objects.equals(overallScore, other.overallScore) &&
                 Objects.equals(start, other.start) &&
                 Objects.equals(end, other.end) &&
-                Objects.equals(allowNoJobs, other.allowNoJobs);
+                Objects.equals(allowNoMatch, other.allowNoMatch);
     }
 }

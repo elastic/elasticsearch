@@ -1,83 +1,36 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
+apply plugin: 'elasticsearch.test.fixtures'
 
-apply plugin: 'elasticsearch.build'
+List<String> services = ["peppa", "hdfs"]
 
-Map<String, String> vagrantEnvVars = [
-        'VAGRANT_CWD'           : "${project.projectDir.absolutePath}",
-        'VAGRANT_VAGRANTFILE'   : 'Vagrantfile',
-        'VAGRANT_PROJECT_DIR'   : "${project.projectDir.absolutePath}"
-]
-
-String box = "krb5kdc"
-
-List<String> defaultPrincipals = [ "elasticsearch" ]
-
-task update(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'box'
-    subcommand 'update'
-    boxName box
-    environmentVars vagrantEnvVars
+tasks.named("preProcessFixture").configure {
+  doLast {
+    // We need to create these up-front because if docker creates them they will be owned by root and we won't be
+    // able to clean them up
+    services.each { file("${testFixturesDir}/shared/${it}").mkdirs() }
+  }
 }
 
-task up(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'up'
-    args '--provision', '--provider', 'virtualbox'
-    boxName box
-    environmentVars vagrantEnvVars
-    dependsOn update
-}
-
-task addDefaultPrincipals {
-    dependsOn up
-}
-
-for (String principal : defaultPrincipals) {
-    Task addTask = project.tasks.create("addPrincipal#${principal}", org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-        command 'ssh'
-        args '--command', "sudo bash /vagrant/src/main/resources/provision/addprinc.sh $principal"
-        boxName box
-        environmentVars vagrantEnvVars
-        dependsOn up
+tasks.named("postProcessFixture").configure {
+  inputs.dir("${testFixturesDir}/shared")
+  services.each { service ->
+    File confTemplate = file("${testFixturesDir}/shared/${service}/krb5.conf.template")
+    File confFile = file("${testFixturesDir}/shared/${service}/krb5.conf")
+    outputs.file(confFile)
+    doLast {
+      assert confTemplate.exists()
+      String confContents = confTemplate.text
+        .replace("\${MAPPED_PORT}", "${ext."test.fixtures.${service}.udp.88"}")
+      confFile.text = confContents
     }
-    addDefaultPrincipals.dependsOn(addTask)
+  }
 }
 
-task halt(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'halt'
-    boxName box
-    environmentVars vagrantEnvVars
-}
-
-task destroy(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'destroy'
-    args '-f'
-    boxName box
-    environmentVars vagrantEnvVars
-    dependsOn halt
-}
-
-thirdPartyAudit.enabled = false
-test.enabled = false
-
-// installKDC uses tabs in it for the Kerberos ACL file.
-// Ignore it for pattern checking.
-forbiddenPatterns {
-    exclude "**/installkdc.sh"
-}
+project.ext.krb5Conf = { service -> file("$testFixturesDir/shared/${service}/krb5.conf") }
+project.ext.krb5Keytabs = { service, fileName -> file("$testFixturesDir/shared/${service}/keytabs/${fileName}") }

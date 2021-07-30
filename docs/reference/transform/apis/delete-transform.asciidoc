@@ -1,0 +1,56 @@
+[role="xpack"]
+[testenv="basic"]
+[[delete-transform]]
+= Delete {transform} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Delete {transform}</titleabbrev>
+++++
+
+Deletes an existing {transform}.
+
+[[delete-transform-request]]
+== {api-request-title}
+
+`DELETE _transform/<transform_id>`
+
+[[delete-transform-prereqs]]
+== {api-prereq-title}
+
+* Requires the `manage_transform` cluster privilege. This privilege is included 
+in the `transform_admin` built-in role.
+* Before you can delete the {transform}, you must stop it.
+
+[[delete-transform-path-parms]]
+== {api-path-parms-title}
+
+`<transform_id>`::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
+
+[[delete-transform-query-parms]]
+== {api-query-parms-title}
+
+`force`::
+(Optional, Boolean) When `true`, the {transform} is deleted regardless of its
+current state. The default value is `false`, meaning that the {transform} must be
+`stopped` before it can be deleted.
+
+[[delete-transform-examples]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+DELETE _transform/ecommerce_transform
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+When the {transform} is deleted, you receive the following results:
+
+[source,console-result]
+----
+{
+  "acknowledged" : true
+}
+----

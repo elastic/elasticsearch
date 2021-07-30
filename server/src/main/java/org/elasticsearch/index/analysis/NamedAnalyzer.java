@@ -1,27 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.elasticsearch.index.mapper.MapperException;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -34,6 +26,7 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
     private final AnalyzerScope scope;
     private final Analyzer analyzer;
     private final int positionIncrementGap;
+    private final AnalysisMode analysisMode;
 
     public NamedAnalyzer(NamedAnalyzer analyzer, int positionIncrementGap) {
         this(analyzer.name(), analyzer.scope(), analyzer.analyzer(), positionIncrementGap);
@@ -49,6 +42,11 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
         this.scope = scope;
         this.analyzer = analyzer;
         this.positionIncrementGap = positionIncrementGap;
+        if (analyzer instanceof org.elasticsearch.index.analysis.AnalyzerComponentsProvider) {
+            this.analysisMode = ((org.elasticsearch.index.analysis.AnalyzerComponentsProvider) analyzer).getComponents().analysisMode();
+        } else {
+            this.analysisMode = AnalysisMode.ALL;
+        }
     }
 
     /**
@@ -63,6 +61,13 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
      */
     public AnalyzerScope scope() {
         return this.scope;
+    }
+
+    /**
+     * Returns whether this analyzer can be updated
+     */
+    public AnalysisMode getAnalysisMode() {
+        return this.analysisMode;
     }
 
     /**
@@ -85,9 +90,50 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
         return super.getPositionIncrementGap(fieldName);
     }
 
+    /**
+     * Checks the wrapped analyzer for the provided restricted {@link AnalysisMode} and throws
+     * an error if the analyzer is not allowed to run in that mode. The error contains more detailed information about
+     * the offending filters that caused the analyzer to not be allowed in this mode.
+     */
+    public void checkAllowedInMode(AnalysisMode mode) {
+        Objects.requireNonNull(mode);
+        if (this.getAnalysisMode() == AnalysisMode.ALL) {
+            return; // everything allowed if this analyzer is in ALL mode
+        }
+        if (this.getAnalysisMode() != mode) {
+            if (analyzer instanceof AnalyzerComponentsProvider) {
+                TokenFilterFactory[] tokenFilters = ((AnalyzerComponentsProvider) analyzer).getComponents().getTokenFilters();
+                List<String> offendingFilters = new ArrayList<>();
+                for (TokenFilterFactory tokenFilter : tokenFilters) {
+                    AnalysisMode filterMode = tokenFilter.getAnalysisMode();
+                    if (filterMode != AnalysisMode.ALL && filterMode != mode) {
+                        offendingFilters.add(tokenFilter.name());
+                    }
+                }
+                throw new MapperException("analyzer [" + name + "] contains filters " + offendingFilters
+                        + " that are not allowed to run in " + mode.getReadableName() + " mode.");
+            } else {
+                throw new MapperException(
+                        "analyzer [" + name + "] contains components that are not allowed to run in " + mode.getReadableName() + " mode.");
+            }
+        }
+    }
+
+    public boolean containsBrokenAnalysis() {
+        if (analyzer instanceof AnalyzerComponentsProvider) {
+            final TokenFilterFactory[] tokenFilters = ((AnalyzerComponentsProvider) analyzer).getComponents().getTokenFilters();
+            for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
+                if (tokenFilterFactory.breaksFastVectorHighlighter()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     @Override
     public String toString() {
-        return "analyzer name[" + name + "], analyzer [" + analyzer + "]";
+        return "analyzer name[" + name + "], analyzer [" + analyzer + "], analysisMode [" + analysisMode + "]";
     }
 
     /** It is an error if this is ever used, it means we screwed up! */
@@ -106,7 +152,7 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof NamedAnalyzer)) return false;
+        if ((o instanceof NamedAnalyzer) == false) return false;
         NamedAnalyzer that = (NamedAnalyzer) o;
         return Objects.equals(name, that.name);
     }

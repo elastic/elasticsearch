@@ -20,8 +20,3 @@ The returned `MainResponse` provides various kinds of information about the clus
 --------------------------------------------------
 include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[main-response]
 --------------------------------------------------
-<1> Retrieve the name of the cluster as a `ClusterName`
-<2> Retrieve the unique identifier of the cluster
-<3> Retrieve the name of the node the request has been executed on
-<4> Retrieve the version of the node the request has been executed on
-<5> Retrieve the build information of the node the request has been executed on

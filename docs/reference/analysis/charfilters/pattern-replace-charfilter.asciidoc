@@ -1,5 +1,8 @@
 [[analysis-pattern-replace-charfilter]]
-=== Pattern Replace Char Filter
+=== Pattern replace character filter
+++++
+<titleabbrev>Pattern replace</titleabbrev>
+++++
 
 The `pattern_replace` character filter uses a regular expression to match
 characters which should be replaced with the specified replacement string.
@@ -10,16 +13,16 @@ The replacement string can refer to capture groups in the regular expression.
 ========================================
 
 The pattern replace character filter uses
-http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java Regular Expressions].
+https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java Regular Expressions].
 
 A badly written regular expression could run very slowly or even throw a
 StackOverflowError and cause the node it is running on to exit suddenly.
 
-Read more about http://www.regular-expressions.info/catastrophic.html[pathological regular expressions and how to avoid them].
+Read more about https://www.regular-expressions.info/catastrophic.html[pathological regular expressions and how to avoid them].
 
 ========================================
 
-[float]
+[discrete]
 === Configuration
 
 The `pattern_replace` character filter accepts the following parameters:
@@ -27,29 +30,29 @@ The `pattern_replace` character filter accepts the following parameters:
 [horizontal]
 `pattern`::
 
-    A http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expression]. Required.
+    A https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expression]. Required.
 
 `replacement`::
 
     The replacement string, which can reference capture groups using the
     `$1`..`$9` syntax, as explained
-    http://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#appendReplacement-java.lang.StringBuffer-java.lang.String-[here].
+    https://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#appendReplacement-java.lang.StringBuffer-java.lang.String-[here].
 
 `flags`::
 
-    Java regular expression http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#field.summary[flags].
+    Java regular expression https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#field.summary[flags].
     Flags should be pipe-separated, eg `"CASE_INSENSITIVE|COMMENTS"`.
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `pattern_replace` character filter to
 replace any embedded dashes in numbers with underscores, i.e `123-456-789` ->
 `123_456_789`:
 
-[source,js]
+[source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -72,18 +75,17 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "My credit card is 123-456-789"
 }
 ----------------------------
-// CONSOLE
 // TEST[s/\$1//]
 // the test framework doesn't like the $1 so we just throw it away rather than
 // try to get it to work properly. At least we are still testing the charfilter.
 
-The above example produces the following term:
+The above example produces the following terms:
 
 [source,text]
 ---------------------------
@@ -98,9 +100,9 @@ This example inserts a space whenever it encounters a lower-case letter
 followed by an upper-case letter (i.e. `fooBarBaz` -> `foo Bar Baz`), allowing
 camelCase words to be queried individually:
 
-[source,js]
+[source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -125,28 +127,25 @@ PUT my_index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "text": {
-          "type": "text",
-          "analyzer": "my_analyzer"
-        }
+    "properties": {
+      "text": {
+        "type": "text",
+        "analyzer": "my_analyzer"
       }
     }
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "The fooBarBaz method"
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -188,7 +187,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -203,14 +201,14 @@ Querying for `bar` will find the document correctly, but highlighting on the
 result will produce incorrect highlights, because our character filter changed
 the length of the original text:
 
-[source,js]
+[source,console]
 ----------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "text": "The fooBarBaz method"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
@@ -224,12 +222,11 @@ GET my_index/_search
   }
 }
 ----------------------------
-// CONSOLE
 // TEST[continued]
 
 The output from the above is:
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "timed_out": false,
@@ -248,8 +245,7 @@ The output from the above is:
     "max_score": 0.2876821,
     "hits": [
       {
-        "_index": "my_index",
-        "_type": "_doc",
+        "_index": "my-index-000001",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {
@@ -266,4 +262,5 @@ The output from the above is:
 }
 ----------------------------
 // TESTRESPONSE[s/"took".*/"took": "$body.took",/]
+
 <1> Note the incorrect highlight.

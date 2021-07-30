@@ -1,49 +1,49 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.nullValue;
 
 public class StreamTests extends ESTestCase {
 
@@ -213,7 +213,6 @@ public class StreamTests extends ESTestCase {
     }
 
     public void testWritableArrays() throws IOException {
-
         final String[] strings = generateRandomStringArray(10, 10, false, true);
         WriteableString[] sourceArray = Arrays.stream(strings).<WriteableString>map(WriteableString::new).toArray(WriteableString[]::new);
         WriteableString[] targetArray;
@@ -233,6 +232,90 @@ public class StreamTests extends ESTestCase {
         assertThat(targetArray, equalTo(sourceArray));
     }
 
+    public void testArrays() throws IOException {
+        final String[] strings;
+        final String[] deserialized;
+        Writeable.Writer<String> writer = StreamOutput::writeString;
+        Writeable.Reader<String> reader = StreamInput::readString;
+        BytesStreamOutput out = new BytesStreamOutput();
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                strings = null;
+            } else {
+                strings = generateRandomStringArray(10, 10, false, true);
+            }
+            out.writeOptionalArray(writer, strings);
+            deserialized = out.bytes().streamInput().readOptionalArray(reader, String[]::new);
+        } else {
+            strings = generateRandomStringArray(10, 10, false, true);
+            out.writeArray(writer, strings);
+            deserialized = out.bytes().streamInput().readArray(reader, String[]::new);
+        }
+        assertThat(deserialized, equalTo(strings));
+    }
+
+    public void testCollection() throws IOException {
+        class FooBar implements Writeable {
+
+            private final int foo;
+            private final int bar;
+
+            private FooBar(final int foo, final int bar) {
+                this.foo = foo;
+                this.bar = bar;
+            }
+
+            private FooBar(final StreamInput in) throws IOException {
+                this.foo = in.readInt();
+                this.bar = in.readInt();
+            }
+
+            @Override
+            public void writeTo(final StreamOutput out) throws IOException {
+                out.writeInt(foo);
+                out.writeInt(bar);
+            }
+
+            @Override
+            public boolean equals(final Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                final FooBar that = (FooBar) o;
+                return foo == that.foo && bar == that.bar;
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(foo, bar);
+            }
+
+        }
+
+        runWriteReadCollectionTest(
+                () -> new FooBar(randomInt(), randomInt()), StreamOutput::writeCollection, in -> in.readList(FooBar::new));
+    }
+
+    public void testStringCollection() throws IOException {
+        runWriteReadCollectionTest(() -> randomUnicodeOfLength(16), StreamOutput::writeStringCollection, StreamInput::readStringList);
+    }
+
+    private <T> void runWriteReadCollectionTest(
+            final Supplier<T> supplier,
+            final CheckedBiConsumer<StreamOutput, Collection<T>, IOException> writer,
+            final CheckedFunction<StreamInput, Collection<T>, IOException> reader) throws IOException {
+        final int length = randomIntBetween(0, 10);
+        final Collection<T> collection = new ArrayList<>(length);
+        for (int i = 0; i < length; i++) {
+            collection.add(supplier.get());
+        }
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            writer.accept(out, collection);
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(collection, equalTo(reader.apply(in)));
+            }
+        }
+    }
+
     public void testSetOfLongs() throws IOException {
         final int size = randomIntBetween(0, 6);
         final Set<Long> sourceSet = new HashSet<>(size);
@@ -246,6 +329,37 @@ public class StreamTests extends ESTestCase {
 
         final Set<Long> targetSet = out.bytes().streamInput().readSet(StreamInput::readLong);
         assertThat(targetSet, equalTo(sourceSet));
+    }
+
+    public void testInstantSerialization() throws IOException {
+        final Instant instant = Instant.now();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeInstant(instant);
+            try (StreamInput in = out.bytes().streamInput()) {
+                final Instant serialized = in.readInstant();
+                assertEquals(instant, serialized);
+            }
+        }
+    }
+
+    public void testOptionalInstantSerialization() throws IOException {
+        final Instant instant = Instant.now();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeOptionalInstant(instant);
+            try (StreamInput in = out.bytes().streamInput()) {
+                final Instant serialized = in.readOptionalInstant();
+                assertEquals(instant, serialized);
+            }
+        }
+
+        final Instant missing = null;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeOptionalInstant(missing);
+            try (StreamInput in = out.bytes().streamInput()) {
+                final Instant serialized = in.readOptionalInstant();
+                assertEquals(missing, serialized);
+            }
+        }
     }
 
     static final class WriteableString implements Writeable {
@@ -283,6 +397,91 @@ public class StreamTests extends ESTestCase {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(string);
         }
+    }
+
+    public void testSecureStringSerialization() throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            final SecureString secureString = new SecureString("super secret".toCharArray());
+            output.writeSecureString(secureString);
+
+            final BytesReference bytesReference = output.bytes();
+            final StreamInput input = bytesReference.streamInput();
+
+            assertThat(secureString, is(equalTo(input.readSecureString())));
+        }
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            final SecureString secureString = randomBoolean() ? null : new SecureString("super secret".toCharArray());
+            output.writeOptionalSecureString(secureString);
+
+            final BytesReference bytesReference = output.bytes();
+            final StreamInput input = bytesReference.streamInput();
+
+            if (secureString != null) {
+                assertThat(input.readOptionalSecureString(), is(equalTo(secureString)));
+            } else {
+                assertThat(input.readOptionalSecureString(), is(nullValue()));
+            }
+        }
+    }
+
+    public void testGenericSet() throws IOException {
+        Set<String> set = Set.of("a", "b", "c", "d", "e");
+        assertGenericRoundtrip(set);
+        // reverse order in normal set so linked hashset does not match the order
+        var list = new ArrayList<>(set);
+        Collections.reverse(list);
+        assertGenericRoundtrip(new LinkedHashSet<>(list));
+    }
+
+    private static class Unwriteable {}
+
+    private void assertNotWriteable(Object o, Class<?> type) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> StreamOutput.checkWriteable(o));
+        assertThat(e.getMessage(), equalTo("Cannot write type [" + type.getCanonicalName() + "] to stream"));
+    }
+
+    public void testIsWriteable() throws IOException {
+        assertNotWriteable(new Unwriteable(), Unwriteable.class);
+    }
+
+    public void testSetIsWriteable() throws IOException {
+        StreamOutput.checkWriteable(Set.of("a", "b"));
+        assertNotWriteable(Set.of(new Unwriteable()), Unwriteable.class);
+    }
+
+    public void testListIsWriteable() throws IOException {
+        StreamOutput.checkWriteable(List.of("a", "b"));
+        assertNotWriteable(List.of(new Unwriteable()), Unwriteable.class);
+    }
+
+    public void testMapIsWriteable() throws IOException {
+        StreamOutput.checkWriteable(Map.of("a", "b", "c", "d"));
+        assertNotWriteable(Map.of("a", new Unwriteable()), Unwriteable.class);
+    }
+
+    public void testObjectArrayIsWriteable() throws IOException {
+        StreamOutput.checkWriteable(new Object[] {"a", "b"});
+        assertNotWriteable(new Object[] {new Unwriteable()}, Unwriteable.class);
+    }
+
+    private void assertSerialization(CheckedConsumer<StreamOutput, IOException> outputAssertions,
+                                     CheckedConsumer<StreamInput, IOException> inputAssertions) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            outputAssertions.accept(output);
+            final BytesReference bytesReference = output.bytes();
+            final StreamInput input = bytesReference.streamInput();
+            inputAssertions.accept(input);
+        }
+    }
+
+    private void assertGenericRoundtrip(Object original) throws IOException {
+        assertSerialization(output -> {
+            output.writeGenericValue(original);
+        }, input -> {
+            Object read = input.readGenericValue();
+            assertThat(read, equalTo(original));
+        });
     }
 
 }

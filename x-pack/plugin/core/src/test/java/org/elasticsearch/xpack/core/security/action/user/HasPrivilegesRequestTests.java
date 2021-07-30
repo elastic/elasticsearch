@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action.user;
@@ -15,7 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -25,29 +26,18 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class HasPrivilegesRequestTests extends ESTestCase {
 
-    public void testSerializationV64OrLater() throws IOException {
+    public void testSerializationCurrentVersion() throws IOException {
         final HasPrivilegesRequest original = randomRequest();
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, Version.CURRENT);
+        final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         final HasPrivilegesRequest copy = serializeAndDeserialize(original, version);
 
         assertThat(copy.username(), equalTo(original.username()));
         assertThat(copy.clusterPrivileges(), equalTo(original.clusterPrivileges()));
         assertThat(copy.indexPrivileges(), equalTo(original.indexPrivileges()));
         assertThat(copy.applicationPrivileges(), equalTo(original.applicationPrivileges()));
-    }
-
-    public void testSerializationV63() throws IOException {
-        final HasPrivilegesRequest original = randomRequest();
-        final HasPrivilegesRequest copy = serializeAndDeserialize(original, Version.V_6_3_0);
-
-        assertThat(copy.username(), equalTo(original.username()));
-        assertThat(copy.clusterPrivileges(), equalTo(original.clusterPrivileges()));
-        assertThat(copy.indexPrivileges(), equalTo(original.indexPrivileges()));
-        assertThat(copy.applicationPrivileges(), nullValue());
     }
 
     public void testValidateNullPrivileges() {
@@ -86,10 +76,10 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         out.setVersion(version);
         original.writeTo(out);
 
-        final HasPrivilegesRequest copy = new HasPrivilegesRequest();
+
         final StreamInput in = out.bytes().streamInput();
         in.setVersion(version);
-        copy.readFrom(in);
+        final HasPrivilegesRequest copy = new HasPrivilegesRequest(in);
         assertThat(in.read(), equalTo(-1));
         return copy;
     }
@@ -98,9 +88,11 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
         request.username(randomAlphaOfLength(8));
 
-        final List<String> clusterPrivileges = randomSubsetOf(Arrays.asList(ClusterPrivilege.MONITOR, ClusterPrivilege.MANAGE,
-            ClusterPrivilege.MANAGE_ML, ClusterPrivilege.MANAGE_SECURITY, ClusterPrivilege.MANAGE_PIPELINE, ClusterPrivilege.ALL))
-            .stream().flatMap(p -> p.name().stream()).collect(Collectors.toList());
+        final List<String> clusterPrivileges = randomSubsetOf(Arrays.asList(ClusterPrivilegeResolver.MONITOR,
+            ClusterPrivilegeResolver.MANAGE,
+            ClusterPrivilegeResolver.MANAGE_ML, ClusterPrivilegeResolver.MANAGE_SECURITY, ClusterPrivilegeResolver.MANAGE_PIPELINE,
+            ClusterPrivilegeResolver.ALL))
+            .stream().map(p -> p.name()).collect(Collectors.toList());
         request.clusterPrivileges(clusterPrivileges.toArray(Strings.EMPTY_ARRAY));
 
         IndicesPrivileges[] indicesPrivileges = new IndicesPrivileges[randomInt(5)];

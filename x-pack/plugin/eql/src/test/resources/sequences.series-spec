@@ -1,0 +1,260 @@
+//
+// Spec file describing a series of events and the expected results which can be
+// either a join or a sequence match
+//
+// A spec is defined by its name, followed by lines describing the events for each criteria
+// followed by the expected result.
+//
+
+// events describe in one line per join/seq rule
+// the number following the string is used as a timestamp/order
+// while the optional prefix followed by | indicates the key
+
+// since the spec checks only the way matching is done it returns
+// all the results in the first call and then an empty list.
+// Since the runtime component can make multiple requests and thus discard
+// returned data, use X99 as an token to force results from other lines
+// to be read in (as it makes a larger window for the runtime)
+
+// For example
+// A1 A2
+//       B3
+// fails because B3 should not be read in its first call as it goes beyond A1/A2 window.
+// however the testing infrastructure doesn't know this so it returns the item
+// which is then discarded. On the next call, empty results are returned.
+// To avoid the runtime behavior leaking in, adding an extra token at the end forces
+// the runtime window to be expanded and thus for all results to be properly read:
+//
+// A1 A2      X99 (event occurring last in the base query)
+//       B3
+
+// spec name
+trivialSequence
+// sequences
+
+// matches for first query
+A1
+// matches for the second query
+  B2
+
+;
+// expected results
+A1 B2
+;
+
+//
+// Trivial/Naive sequences
+//
+trivialSequenceWithLeftoverPrevStage
+A1   A3
+  B2
+;
+A1 B2
+;
+
+trivialSequenceWithLeftoverCurrentStage
+  A2
+B1   B3
+;
+A2 B3
+;
+
+//
+// Elementary, two-stage sequences with added noise
+//
+basicSequenceOneAfterTheOther
+A1    A3
+   B2   B4
+;
+A1 B2
+A3 B4
+;
+
+basicSequenceMergingPreviousStage
+A1 A2       X99
+      B3
+;
+A2 B3
+;
+
+basicSequenceMergingLastStage
+A1
+  B2 B3 B4
+;
+A1 B2
+;
+
+basicSequenceWithDualMergingPreviousStage
+A1 A2   A4 A5 A6    A8 A9
+      B3         B7
+;
+A2 B3
+A6 B7
+;
+
+basicSequenceWithMultipleLeftoverEvents
+A1  A3 A4
+  B2
+;
+A1 B2
+;
+
+basicSequenceWithMultipleLeftoverEventsOnCurrentStage
+     A3  A5 A6
+B1 B2  B4
+;
+A3 B4
+;
+
+
+basicSequenceMergingCurrentStage
+A1 A2       X99
+      B3 B4
+;
+A2 B3
+;
+
+basicSequenceWithMergingCurrentStageAndLeftOverInPreviousStage
+A1 A2       A5
+      B3 B4
+;
+A2 B3
+;
+
+basicSequenceWithMergingOnBothStagesAndLeftoverInPreviousStage
+A1 A2    A4       A7
+      B3    B5 B6
+;
+
+A2 B3
+A4 B5
+;
+
+//
+// Three stage sequences
+//
+
+threeStageBasicSequence
+A1     A4
+  B2      B5
+    C3      C6
+;
+A1 B2 C3
+A4 B5 C6
+;
+
+threeStageWithOverridingSequence
+A1  A3      X99
+  B2  B4
+         C5
+;
+A3 B4 C5
+;
+
+threeStageWithOverridingSequenceOnSecondStage
+A1
+  B2  B4
+    C3
+;
+A1 B2 C3
+;
+
+threeStageWithNoise
+      A4   A6       X99
+  B2    B5
+C1  C3        C7
+;
+
+A4 B5 C7
+;
+
+threeStageWithIntermittentUpdates
+A1      A4          X99
+     B3    B5
+  C2          C6
+;
+A4 B5 C6
+;
+
+threeStageWithMoreIntermittentUpdates
+A1      A4    A6            X99
+     B3    B5   B7 B8
+  C2                  C9
+;
+A6 B7 C9
+;
+
+threeStageWithReverseMatch
+    A3  A5    A8        X99
+  B2        B7
+C1    C4  C6    C9
+;
+A5 B7 C9
+;
+
+threeStageWithLeftoversOnTheLastStage
+A1  A3  A5                  X99
+  B2  B4  B6
+            C7 C8 C9 C10
+;
+A5 B6 C7
+;
+
+threeStageWithOverlap
+A1   A3             X99
+  B2       B5
+        C4    B6
+;
+A1 B2 C4
+A3 B5 B6
+;
+
+//
+// Four stage sequences
+//
+
+fourStageBasic
+A1      A5
+  B2       B6
+    C3       C7
+      D4       D8
+;
+A1 B2 C3 D4
+A5 B6 C7 D8
+;
+
+fourStageIncomplete
+A1      A5          X99
+  B2       B6
+    C3       C7
+               D8
+;
+A5 B6 C7 D8
+;
+
+fourStageOverlapping
+A1      A4              X99
+  B2       B5
+     C3          C7
+             D6     D8
+;
+A1 B2 C3 D6
+A4 B5 C7 D8
+;
+
+//
+// Sequences with keys
+//
+
+// https://eql.readthedocs.io/en/0.8/query-guide/implementation.html#sequences
+
+// AwaitsFix: https://github.com/elastic/elasticsearch/issues/67102
+//exampleWithTwoStagesAndKeyFromTheDocs
+//
+//r|W1 r|W2                u|W6 r|W7                          x|X99
+//          u|H3 r|H4 r|H5           u|H8
+//                                        r|I9 u|I10 r|I11
+//;
+//r|W2 H4 I9
+//u|W6 H8 I10
+//;

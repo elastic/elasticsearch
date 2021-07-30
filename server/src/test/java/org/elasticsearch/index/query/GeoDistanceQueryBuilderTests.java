@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -28,10 +17,11 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.locationtech.spatial4j.shape.Point;
 
 import java.io.IOException;
 
@@ -43,7 +33,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
 
     @Override
     protected GeoDistanceQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME);
+        String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME, GEO_SHAPE_FIELD_NAME);
         GeoDistanceQueryBuilder qb = new GeoDistanceQueryBuilder(fieldName);
         String distance = "" + randomDouble();
         if (randomBoolean()) {
@@ -63,8 +53,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 break;
         }
 
-        Point p = RandomShapeGenerator.xRandomPoint(random());
-        qb.point(new GeoPoint(p.getY(), p.getX()));
+        qb.point(new GeoPoint(GeometryTestUtils.randomLat(), GeometryTestUtils.randomLon()));
 
         if (randomBoolean()) {
             qb.setValidationMethod(randomFrom(GeoValidationMethod.values()));
@@ -126,9 +115,12 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     @Override
-    protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        // TODO: remove the if statement once we always use LatLonPoint
-        if (query instanceof IndexOrDocValuesQuery) {
+    protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query,
+                                       SearchExecutionContext context) throws IOException {
+        final MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
+        if (fieldType == null) {
+            assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
+        } else if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType) {
             Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
 
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
@@ -143,6 +135,8 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                     queryBuilder.point().lon(),
                     queryBuilder.distance()),
                     dvQuery);
+        } else {
+            assertEquals(GeoShapeFieldMapper.GeoShapeFieldType.class, fieldType.getClass());
         }
     }
 
@@ -301,7 +295,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
 
     private void assertGeoDistanceRangeQuery(String query, double lat, double lon, double distance, DistanceUnit distanceUnit)
             throws IOException {
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         // The parsedQuery contains IndexOrDocValuesQuery, which wraps LatLonPointDistanceQuery which in turn has default visibility,
         // so we cannot access its fields directly to check and have to use toString() here instead.
         assertEquals(parsedQuery.toString(),
@@ -331,16 +325,17 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         final GeoDistanceQueryBuilder queryBuilder =
             new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
         queryBuilder.ignoreUnmapped(true);
-        QueryShardContext shardContext = createShardContext();
-        Query query = queryBuilder.toQuery(shardContext);
+
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        Query query = queryBuilder.toQuery(searchExecutionContext);
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final GeoDistanceQueryBuilder failingQueryBuilder =
             new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(shardContext));
-        assertThat(e.getMessage(), containsString("failed to find geo_point field [unmapped]"));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(searchExecutionContext));
+        assertThat(e.getMessage(), containsString("failed to find geo field [unmapped]"));
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {

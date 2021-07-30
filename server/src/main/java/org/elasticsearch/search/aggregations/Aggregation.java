@@ -1,24 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 
@@ -50,7 +39,7 @@ public interface Aggregation extends ToXContentFragment {
     /**
      * Get the optional byte array metadata that was set on the aggregation
      */
-    Map<String, Object> getMetaData();
+    Map<String, Object> getMetadata();
 
     /**
      * Common xcontent fields that are shared among addAggregation
@@ -68,5 +57,9 @@ public interface Aggregation extends ToXContentFragment {
         public static final ParseField FROM_AS_STRING = new ParseField("from_as_string");
         public static final ParseField TO = new ParseField("to");
         public static final ParseField TO_AS_STRING = new ParseField("to_as_string");
+        public static final ParseField MIN = new ParseField("min");
+        public static final ParseField MIN_AS_STRING = new ParseField("min_as_string");
+        public static final ParseField MAX = new ParseField("max");
+        public static final ParseField MAX_AS_STRING = new ParseField("max_as_string");
     }
 }

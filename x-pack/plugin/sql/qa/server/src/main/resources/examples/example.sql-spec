@@ -1,0 +1,40 @@
+// some comment
+
+// name of the test - translated into 'testName'
+name
+// SQL query to be executed against H2 and ES
+SELECT COUNT(*) FROM "emp";
+
+// repeat the above
+
+
+// Test failure example:
+// org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT > test {agg.testGroupByOnText} FAILED
+//     org.h2.jdbc.JdbcSQLException: Column "gender2" not found; SQL statement:
+//     SELECT gender g FROM "test_emp" GROUP BY gender2 ORDER BY gender ASC [42122-197]
+//         at __randomizedtesting.SeedInfo.seed([880F4E292A732941:5B71F3848F44B9]:0)
+//         at org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT.agg.testGroupByOnText(agg.sql-spec:11)
+// REPRODUCE WITH: ./gradlew ':x-pack:plugin:sql:qa:security:without-ssl:integTestRunner' --tests "org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT" -Dtests.method="test {agg.testGroupByOnText}" -Dtests.seed=BB1082EEC0023E5C -Dtests.security.manager=true -Dtests.locale=pt-TL -Dtests.timezone=MST7MDT -Dcompiler.java=12 -Druntime.java=12
+
+// Muting test example:
+// The name of the file which contains the failing test can be found by 2 components:
+// - JdbcSqlSpecIT shows that it's a .sql-spec suffixed file
+// - The name of the file is the part before the . so in our case: agg.testGroupByOnText => agg
+// Which in our example gives: agg.sql-spec
+//
+// You can also find the whole name in the stacktrace of the exception along with the line where the failed test resides:
+//    at org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT.agg.testGroupByOnText(agg.sql-spec:11)
+//
+// BEFORE (file: agg.sql-spec):
+//----------------------------------------------
+// groupByOnText
+// SELECT gender g FROM "test_emp" GROUP BY gender ORDER BY gender ASC;
+//----------------------------------------------
+//
+//
+// AFTER (muted), Just add the suffix -Ignore to the test name and a comment pointing to the Github issue:
+//----------------------------------------------
+// // AwaitsFix https://github.com/elastic/elasticsearch/issues/33519
+// groupByOnText-Ignore
+// SELECT gender g FROM "test_emp" GROUP BY gender ORDER BY gender ASC;
+// ---------------------------------------------

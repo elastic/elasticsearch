@@ -1,24 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.stats.AnalysisStats;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodeResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.action.admin.cluster.stats.MappingStats;
+import org.elasticsearch.action.admin.cluster.stats.VersionStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -30,7 +36,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -43,6 +49,7 @@ import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -55,6 +62,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -62,6 +70,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -90,14 +99,16 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         usages = emptyList();
         clusterStats = mock(ClusterStatsResponse.class);
         clusterState = mock(ClusterState.class);
+        final License.OperationMode operationMode = randomFrom(License.OperationMode.values());
         license = License.builder()
                          .uid(randomAlphaOfLength(5))
-                         .type(randomFrom(License.OperationMode.values()).name())
+                         .type(operationMode.name().toLowerCase(Locale.ROOT))
                          .issuer(randomAlphaOfLength(5))
                          .issuedTo(randomAlphaOfLength(5))
                          .issueDate(timestamp)
                          .expiryDate(timestamp + randomIntBetween(1, 10) * 1_000L)
-                         .maxNodes(randomIntBetween(1, 5))
+                         .maxNodes(License.OperationMode.ENTERPRISE == operationMode ? -1 : randomIntBetween(1, 5))
+                         .maxResourceUnits(License.OperationMode.ENTERPRISE == operationMode ? randomIntBetween(1, 42) : -1)
                          .build();
 
         final DiscoveryNode masterNode = masterNode();
@@ -174,7 +185,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                   randomAlphaOfLength(5),
                                   new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i),
                                   randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap,
-                                  singleton(randomFrom(DiscoveryNode.Role.values())),
+                                  singleton(randomValueOtherThan(
+                                      DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE, () -> randomFrom(DiscoveryNodeRole.roles()))
+                                  ),
                                   Version.CURRENT));
         }
 
@@ -200,11 +213,11 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                 "_host_address",
                                                                 transportAddress,
                                                                 singletonMap("attr", "value"),
-                                                                singleton(DiscoveryNode.Role.MASTER),
-                                                                Version.V_6_0_0_beta1);
+                                                                singleton(DiscoveryNodeRole.MASTER_ROLE),
+                                                                Version.CURRENT);
 
         final ClusterState clusterState = ClusterState.builder(clusterName)
-                                                        .metaData(MetaData.builder()
+                                                        .metadata(Metadata.builder()
                                                             .clusterUUID(clusterUuid)
                                                             .transientSettings(Settings.builder()
                                                                 .put("cluster.metadata.display_name", "my_prod_cluster")
@@ -229,14 +242,15 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                         .maxNodes(2)
                                         .build();
 
-        final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, true, false, null));
+        final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, null));
 
         final NodeInfo mockNodeInfo = mock(NodeInfo.class);
-        when(mockNodeInfo.getVersion()).thenReturn(Version.V_6_0_0_alpha2);
+        Version mockNodeVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
+        when(mockNodeInfo.getVersion()).thenReturn(mockNodeVersion);
         when(mockNodeInfo.getNode()).thenReturn(discoveryNode);
 
         final TransportInfo mockTransportInfo = mock(TransportInfo.class);
-        when(mockNodeInfo.getTransport()).thenReturn(mockTransportInfo);
+        when(mockNodeInfo.getInfo(TransportInfo.class)).thenReturn(mockTransportInfo);
 
         final BoundTransportAddress bound = new BoundTransportAddress(new TransportAddress[]{transportAddress}, transportAddress);
         when(mockTransportInfo.address()).thenReturn(bound);
@@ -247,24 +261,32 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                             .build());
 
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
-        when(mockNodeInfo.getPlugins()).thenReturn(mockPluginsAndModules);
+        when(mockNodeInfo.getInfo(PluginsAndModules.class)).thenReturn(mockPluginsAndModules);
         final PluginInfo pluginInfo = new PluginInfo("_plugin", "_plugin_desc", "_plugin_version", Version.CURRENT,
-            "1.8", "_plugin_class", Collections.emptyList(), false);
+            "1.8", "_plugin_class", Collections.emptyList(), false, PluginType.ISOLATED, "", false);
         when(mockPluginsAndModules.getPluginInfos()).thenReturn(singletonList(pluginInfo));
 
         final OsInfo mockOsInfo = mock(OsInfo.class);
-        when(mockNodeInfo.getOs()).thenReturn(mockOsInfo);
+        when(mockNodeInfo.getInfo(OsInfo.class)).thenReturn(mockOsInfo);
         when(mockOsInfo.getAvailableProcessors()).thenReturn(32);
         when(mockOsInfo.getAllocatedProcessors()).thenReturn(16);
         when(mockOsInfo.getName()).thenReturn("_os_name");
         when(mockOsInfo.getPrettyName()).thenReturn("_pretty_os_name");
+        when(mockOsInfo.getArch()).thenReturn("_architecture");
 
         final JvmInfo mockJvmInfo = mock(JvmInfo.class);
-        when(mockNodeInfo.getJvm()).thenReturn(mockJvmInfo);
+        when(mockNodeInfo.getInfo(JvmInfo.class)).thenReturn(mockJvmInfo);
         when(mockJvmInfo.version()).thenReturn("_jvm_version");
         when(mockJvmInfo.getVmName()).thenReturn("_jvm_vm_name");
         when(mockJvmInfo.getVmVersion()).thenReturn("_jvm_vm_version");
         when(mockJvmInfo.getVmVendor()).thenReturn("_jvm_vm_vendor");
+        when(mockJvmInfo.getBundledJdk()).thenReturn(true);
+        when(mockJvmInfo.getUsingBundledJdk()).thenReturn(true);
+
+        final Build mockBuild = mock(Build.class);
+        when(mockBuild.flavor()).thenReturn(Build.Flavor.DEFAULT);
+        when(mockBuild.type()).thenReturn(Build.Type.DOCKER);
+        when(mockNodeInfo.getBuild()).thenReturn(mockBuild);
 
         final NodeStats mockNodeStats = mock(NodeStats.class);
         when(mockNodeStats.getTimestamp()).thenReturn(0L);
@@ -310,11 +332,15 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeResponse.nodeStats()).thenReturn(mockNodeStats);
         when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[]{mockShardStats});
 
+        final Metadata metadata = clusterState.metadata();
         final ClusterStatsResponse clusterStats = new ClusterStatsResponse(1451606400000L,
                                                                             "_cluster",
                                                                             clusterName,
                                                                             singletonList(mockNodeResponse),
-                                                                            emptyList());
+                                                                            emptyList(),
+                                                                            MappingStats.of(metadata, () -> {}),
+                                                                            AnalysisStats.of(metadata, () -> {}),
+                                                                            VersionStats.of(metadata, singletonList(mockNodeResponse)));
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
 
@@ -333,231 +359,289 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                             needToEnableTLS);
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, false);
-        assertEquals("{"
-                  + "\"cluster_uuid\":\"_cluster\","
-                  + "\"timestamp\":\"2017-08-07T12:03:22.133Z\","
-                  + "\"interval_ms\":1506593717631,"
-                  + "\"type\":\"cluster_stats\","
-                  + "\"source_node\":{"
-                    + "\"uuid\":\"_uuid\","
-                    + "\"host\":\"_host\","
-                    + "\"transport_address\":\"_addr\","
-                    + "\"ip\":\"_ip\","
-                    + "\"name\":\"_name\","
-                    + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
-                  + "},"
-                  + "\"cluster_name\":\"_cluster_name\","
-                  + "\"version\":\"_version\","
-                  + "\"license\":{"
-                    + "\"status\":\"expired\","
-                    + "\"uid\":\"442ca961-9c00-4bb2-b5c9-dfaacd547403\","
-                    + "\"type\":\"trial\","
-                    + "\"issue_date\":\"2016-01-01T00:00:00.000Z\","
-                    + "\"issue_date_in_millis\":1451606400000,"
-                    + "\"expiry_date\":\"2017-08-07T12:03:22.133Z\","
-                    + "\"expiry_date_in_millis\":1502107402133,"
-                    + "\"max_nodes\":2,"
-                    + "\"issued_to\":\"customer\","
-                    + "\"issuer\":\"elasticsearch\","
-                    + "\"start_date_in_millis\":-1"
-                    + (needToEnableTLS ? ",\"cluster_needs_tls\":true" : "")
-                  + "},"
-                  + "\"cluster_stats\":{"
-                    + "\"cluster_uuid\":\"_cluster\","
-                    + "\"timestamp\":1451606400000,"
-                    + "\"status\":\"red\","
-                    + "\"indices\":{"
-                      + "\"count\":1,"
-                      + "\"shards\":{"
-                        + "\"total\":1,"
-                        + "\"primaries\":1,"
-                        + "\"replication\":0.0,"
-                        + "\"index\":{"
-                          + "\"shards\":{"
-                            + "\"min\":1,"
-                            + "\"max\":1,"
-                            + "\"avg\":1.0"
-                          + "},"
-                          + "\"primaries\":{"
-                            + "\"min\":1,"
-                            + "\"max\":1,"
-                            + "\"avg\":1.0"
-                          + "},"
-                          + "\"replication\":{"
-                            + "\"min\":0.0,"
-                            + "\"max\":0.0,"
-                            + "\"avg\":0.0"
-                          + "}"
-                        + "}"
-                      + "},"
-                      + "\"docs\":{"
-                        + "\"count\":0,"
-                        + "\"deleted\":0"
-                      + "},"
-                      + "\"store\":{"
-                        + "\"size_in_bytes\":0"
-                      + "},"
-                      + "\"fielddata\":{"
-                        + "\"memory_size_in_bytes\":0,"
-                        + "\"evictions\":0"
-                      + "},"
-                      + "\"query_cache\":{"
-                        + "\"memory_size_in_bytes\":0,"
-                        + "\"total_count\":0,"
-                        + "\"hit_count\":0,"
-                        + "\"miss_count\":0,"
-                        + "\"cache_size\":0,"
-                        + "\"cache_count\":0,"
-                        + "\"evictions\":0"
-                      + "},"
-                      + "\"completion\":{"
-                        + "\"size_in_bytes\":0"
-                      + "},"
-                      + "\"segments\":{"
-                        + "\"count\":0,"
-                        + "\"memory_in_bytes\":0,"
-                        + "\"terms_memory_in_bytes\":0,"
-                        + "\"stored_fields_memory_in_bytes\":0,"
-                        + "\"term_vectors_memory_in_bytes\":0,"
-                        + "\"norms_memory_in_bytes\":0,"
-                        + "\"points_memory_in_bytes\":0,"
-                        + "\"doc_values_memory_in_bytes\":0,"
-                        + "\"index_writer_memory_in_bytes\":0,"
-                        + "\"version_map_memory_in_bytes\":0,"
-                        + "\"fixed_bit_set_memory_in_bytes\":0,"
-                        + "\"max_unsafe_auto_id_timestamp\":-9223372036854775808,"
-                        + "\"file_sizes\":{}"
-                      + "}"
-                    + "},"
-                    + "\"nodes\":{"
-                      + "\"count\":{"
-                        + "\"total\":1,"
-                        + "\"data\":0,"
-                        + "\"coordinating_only\":0,"
-                        + "\"master\":1,"
-                        + "\"ingest\":0"
-                      + "},"
-                      + "\"versions\":["
-                        + "\"6.0.0-alpha2\""
-                      + "],"
-                      + "\"os\":{"
-                        + "\"available_processors\":32,"
-                        + "\"allocated_processors\":16,"
-                        + "\"names\":["
-                          + "{"
-                            + "\"name\":\"_os_name\","
-                            + "\"count\":1"
-                          + "}"
-                        + "],"
-                        + "\"pretty_names\":["
-                          + "{"
-                            + "\"pretty_name\":\"_pretty_os_name\","
-                            + "\"count\":1"
-                          + "}"
-                        + "],"
-                        + "\"mem\":{"
-                          + "\"total_in_bytes\":100,"
-                          + "\"free_in_bytes\":79,"
-                          + "\"used_in_bytes\":21,"
-                          + "\"free_percent\":79,"
-                          + "\"used_percent\":21"
-                        + "}"
-                      + "},"
-                      + "\"process\":{"
-                        + "\"cpu\":{"
-                          + "\"percent\":3"
-                        + "},"
-                        + "\"open_file_descriptors\":{"
-                          + "\"min\":42,"
-                          + "\"max\":42,"
-                          + "\"avg\":42"
-                        + "}"
-                      + "},"
-                      + "\"jvm\":{"
-                        + "\"max_uptime_in_millis\":10800000,"
-                        + "\"versions\":["
-                          + "{"
-                            + "\"version\":\"_jvm_version\","
-                            + "\"vm_name\":\"_jvm_vm_name\","
-                            + "\"vm_version\":\"_jvm_vm_version\","
-                            + "\"vm_vendor\":\"_jvm_vm_vendor\","
-                            + "\"count\":1"
-                          + "}"
-                        + "],"
-                        + "\"mem\":{"
-                          + "\"heap_used_in_bytes\":536870912,"
-                          + "\"heap_max_in_bytes\":25769803776"
-                        + "},"
-                        + "\"threads\":9"
-                      + "},"
-                      + "\"fs\":{"
-                        + "\"total_in_bytes\":100,"
-                        + "\"free_in_bytes\":49,"
-                        + "\"available_in_bytes\":51"
-                      + "},"
-                      + "\"plugins\":["
-                        + "{"
-                          + "\"name\":\"_plugin\","
-                          + "\"version\":\"_plugin_version\","
-                          + "\"elasticsearch_version\":\"" + Version.CURRENT + "\","
-                          + "\"java_version\":\"1.8\","
-                          + "\"description\":\"_plugin_desc\","
-                          + "\"classname\":\"_plugin_class\","
-                          + "\"extended_plugins\":[],"
-                          + "\"has_native_controller\":false"
-                        + "}"
-                      + "],"
-                      + "\"network_types\":{"
-                        + "\"transport_types\":{"
-                          + "\"_transport\":1"
-                        + "},"
-                        + "\"http_types\":{"
-                          + "\"_http\":1"
-                        + "}"
-                      + "},"
-                      + "\"discovery_types\":{"
-                        + "\"_disco\":1"
-                      + "}"
-                    + "}"
-                  + "},"
-                  + "\"cluster_state\":{"
-                    + "\"nodes_hash\":1314980060,"
-                    + "\"status\":\"green\","
-                    + "\"cluster_uuid\":\"_cluster\","
-                    + "\"version\":12,"
-                    + "\"state_uuid\":\"_state_uuid\","
-                    + "\"master_node\":\"_node\","
-                    + "\"nodes\":{"
-                      + "\"_node_id\":{"
-                        + "\"name\":\"_node_name\","
-                        + "\"ephemeral_id\":\"_ephemeral_id\","
-                        + "\"transport_address\":\"0.0.0.0:9300\","
-                        + "\"attributes\":{"
-                          + "\"attr\":\"value\""
-                        + "}"
-                      + "}"
-                    + "}"
-                  + "},"
-                  + "\"cluster_settings\":{"
-                    + "\"cluster\":{"
-                      + "\"metadata\":{"
-                        + "\"display_name\":\"my_prod_cluster\""
-                      + "}"
-                    + "}"
-                  + "},"
-                  + "\"stack_stats\":{"
-                    + "\"apm\":{"
-                      + "\"found\":" + apmIndicesExist
-                    + "},"
-                    + "\"xpack\":{"
-                      + "\"monitoring\":{"
-                        + "\"available\":false,"
-                        + "\"enabled\":true,"
-                        + "\"collection_enabled\":false"
-                      + "}"
-                    + "}"
-                  + "}"
-                + "}" , xContent.utf8ToString());
+        final String expectedJson = String.format(
+            Locale.ROOT,
+            "{"
+                + "  \"cluster_uuid\": \"_cluster\","
+                + "  \"timestamp\": \"2017-08-07T12:03:22.133Z\","
+                + "  \"interval_ms\": 1506593717631,"
+                + "  \"type\": \"cluster_stats\","
+                + "  \"source_node\": {"
+                + "    \"uuid\": \"_uuid\","
+                + "    \"host\": \"_host\","
+                + "    \"transport_address\": \"_addr\","
+                + "    \"ip\": \"_ip\","
+                + "    \"name\": \"_name\","
+                + "    \"timestamp\": \"2017-08-31T08:46:30.855Z\""
+                + "  },"
+                + "  \"cluster_name\": \"_cluster_name\","
+                + "  \"version\": \"_version\","
+                + "  \"license\": {"
+                + "    \"status\": \"expired\","
+                + "    \"uid\": \"442ca961-9c00-4bb2-b5c9-dfaacd547403\","
+                + "    \"type\": \"trial\","
+                + "    \"issue_date\": \"2016-01-01T00:00:00.000Z\","
+                + "    \"issue_date_in_millis\": 1451606400000,"
+                + "    \"expiry_date\": \"2017-08-07T12:03:22.133Z\","
+                + "    \"expiry_date_in_millis\": 1502107402133,"
+                + "    \"max_nodes\": 2,"
+                + "    \"max_resource_units\": null,"
+                + "    \"issued_to\": \"customer\","
+                + "    \"issuer\": \"elasticsearch\","
+                + "    \"start_date_in_millis\": -1%s"
+                + "  },"
+                + "  \"cluster_stats\": {"
+                + "    \"cluster_uuid\": \"_cluster\","
+                + "    \"timestamp\": 1451606400000,"
+                + "    \"status\": \"red\","
+                + "    \"indices\": {"
+                + "      \"count\": 1,"
+                + "      \"shards\": {"
+                + "        \"total\": 1,"
+                + "        \"primaries\": 1,"
+                + "        \"replication\": 0.0,"
+                + "        \"index\": {"
+                + "          \"shards\": {"
+                + "            \"min\": 1,"
+                + "            \"max\": 1,"
+                + "            \"avg\": 1.0"
+                + "          },"
+                + "          \"primaries\": {"
+                + "            \"min\": 1,"
+                + "            \"max\": 1,"
+                + "            \"avg\": 1.0"
+                + "          },"
+                + "          \"replication\": {"
+                + "            \"min\": 0.0,"
+                + "            \"max\": 0.0,"
+                + "            \"avg\": 0.0"
+                + "          }"
+                + "        }"
+                + "      },"
+                + "      \"docs\": {"
+                + "        \"count\": 0,"
+                + "        \"deleted\": 0"
+                + "      },"
+                + "      \"store\": {"
+                + "        \"size_in_bytes\": 0,"
+                + "        \"total_data_set_size_in_bytes\": 0,"
+                + "        \"reserved_in_bytes\": 0"
+                + "      },"
+                + "      \"fielddata\": {"
+                + "        \"memory_size_in_bytes\": 0,"
+                + "        \"evictions\": 0"
+                + "      },"
+                + "      \"query_cache\": {"
+                + "        \"memory_size_in_bytes\": 0,"
+                + "        \"total_count\": 0,"
+                + "        \"hit_count\": 0,"
+                + "        \"miss_count\": 0,"
+                + "        \"cache_size\": 0,"
+                + "        \"cache_count\": 0,"
+                + "        \"evictions\": 0"
+                + "      },"
+                + "      \"completion\": {"
+                + "        \"size_in_bytes\": 0"
+                + "      },"
+                + "      \"segments\": {"
+                + "        \"count\": 0,"
+                + "        \"memory_in_bytes\": 0,"
+                + "        \"terms_memory_in_bytes\": 0,"
+                + "        \"stored_fields_memory_in_bytes\": 0,"
+                + "        \"term_vectors_memory_in_bytes\": 0,"
+                + "        \"norms_memory_in_bytes\": 0,"
+                + "        \"points_memory_in_bytes\": 0,"
+                + "        \"doc_values_memory_in_bytes\": 0,"
+                + "        \"index_writer_memory_in_bytes\": 0,"
+                + "        \"version_map_memory_in_bytes\": 0,"
+                + "        \"fixed_bit_set_memory_in_bytes\": 0,"
+                + "        \"max_unsafe_auto_id_timestamp\": -9223372036854775808,"
+                + "        \"file_sizes\": {}"
+                + "      },"
+                + "      \"mappings\":{"
+                + "        \"field_types\":[],"
+                + "        \"runtime_field_types\":[]"
+                + "      },"
+                + "      \"analysis\":{"
+                + "        \"char_filter_types\":[],"
+                + "        \"tokenizer_types\":[],"
+                + "        \"filter_types\":[],"
+                + "        \"analyzer_types\":[],"
+                + "        \"built_in_char_filters\":[],"
+                + "        \"built_in_tokenizers\":[],"
+                + "        \"built_in_filters\":[],"
+                + "        \"built_in_analyzers\":[]"
+                + "      },"
+                + "      \"versions\":[]"
+                + "    },"
+                + "    \"nodes\": {"
+                + "      \"count\": {"
+                + "        \"total\": 1,"
+                + "        \"coordinating_only\": 0,"
+                + "        \"data\": 0,"
+                + "        \"data_cold\": 0,"
+                + "        \"data_content\": 0,"
+                + "        \"data_frozen\": 0,"
+                + "        \"data_hot\": 0,"
+                + "        \"data_warm\": 0,"
+                + "        \"ingest\": 0,"
+                + "        \"master\": 1,"
+                + "        \"ml\": 0,"
+                + "        \"remote_cluster_client\": 0,"
+                + "        \"transform\": 0,"
+                + "        \"voting_only\": 0"
+                + "      },"
+                + "      \"versions\": ["
+                + "        \"%s\""
+                + "      ],"
+                + "      \"os\": {"
+                + "        \"available_processors\": 32,"
+                + "        \"allocated_processors\": 16,"
+                + "        \"names\": ["
+                + "          {"
+                + "            \"name\": \"_os_name\","
+                + "            \"count\": 1"
+                + "          }"
+                + "        ],"
+                + "        \"pretty_names\": ["
+                + "          {"
+                + "            \"pretty_name\": \"_pretty_os_name\","
+                + "            \"count\": 1"
+                + "          }"
+                + "        ],"
+                + "        \"architectures\": ["
+                + "          {"
+                + "            \"arch\": \"_architecture\","
+                + "            \"count\": 1"
+                + "          }"
+                + "        ],"
+                + "        \"mem\": {"
+                + "          \"total_in_bytes\": 100,"
+                + "          \"free_in_bytes\": 79,"
+                + "          \"used_in_bytes\": 21,"
+                + "          \"free_percent\": 79,"
+                + "          \"used_percent\": 21"
+                + "        }"
+                + "      },"
+                + "      \"process\": {"
+                + "        \"cpu\": {"
+                + "          \"percent\": 3"
+                + "        },"
+                + "        \"open_file_descriptors\": {"
+                + "          \"min\": 42,"
+                + "          \"max\": 42,"
+                + "          \"avg\": 42"
+                + "        }"
+                + "      },"
+                + "      \"jvm\": {"
+                + "        \"max_uptime_in_millis\": 10800000,"
+                + "        \"versions\": ["
+                + "          {"
+                + "            \"version\": \"_jvm_version\","
+                + "            \"vm_name\": \"_jvm_vm_name\","
+                + "            \"vm_version\": \"_jvm_vm_version\","
+                + "            \"vm_vendor\": \"_jvm_vm_vendor\","
+                + "            \"bundled_jdk\": true,"
+                + "            \"using_bundled_jdk\": true,"
+                + "            \"count\": 1"
+                + "          }"
+                + "        ],"
+                + "        \"mem\": {"
+                + "          \"heap_used_in_bytes\": 536870912,"
+                + "          \"heap_max_in_bytes\": 25769803776"
+                + "        },"
+                + "        \"threads\": 9"
+                + "      },"
+                + "      \"fs\": {"
+                + "        \"total_in_bytes\": 100,"
+                + "        \"free_in_bytes\": 49,"
+                + "        \"available_in_bytes\": 51"
+                + "      },"
+                + "      \"plugins\": ["
+                + "        {"
+                + "          \"name\": \"_plugin\","
+                + "          \"version\": \"_plugin_version\","
+                + "          \"elasticsearch_version\": \"%s\","
+                + "          \"java_version\": \"1.8\","
+                + "          \"description\": \"_plugin_desc\","
+                + "          \"classname\": \"_plugin_class\","
+                + "          \"extended_plugins\": [],"
+                + "          \"has_native_controller\": false,"
+                + "          \"licensed\": false,"
+                + "          \"type\": \"isolated\""
+                + "        }"
+                + "      ],"
+                + "      \"network_types\": {"
+                + "        \"transport_types\": {"
+                + "          \"_transport\": 1"
+                + "        },"
+                + "        \"http_types\": {"
+                + "          \"_http\": 1"
+                + "        }"
+                + "      },"
+                + "      \"discovery_types\": {"
+                + "        \"_disco\": 1"
+                + "      },"
+                + "      \"packaging_types\": ["
+                + "        {"
+                + "          \"flavor\": \"default\","
+                + "          \"type\": \"docker\","
+                + "          \"count\": 1"
+                + "        }"
+                + "      ],"
+                + "      \"ingest\": {"
+                + "        \"number_of_pipelines\": 0,"
+                + "        \"processor_stats\": {}"
+                + "      }"
+                + "    }"
+                + "  },"
+                + "  \"cluster_state\": {"
+                + "    \"nodes_hash\": 1314980060,"
+                + "    \"status\": \"green\","
+                + "    \"cluster_uuid\": \"_cluster\","
+                + "    \"version\": 12,"
+                + "    \"state_uuid\": \"_state_uuid\","
+                + "    \"master_node\": \"_node\","
+                + "    \"nodes\": {"
+                + "      \"_node_id\": {"
+                + "        \"name\": \"_node_name\","
+                + "        \"ephemeral_id\": \"_ephemeral_id\","
+                + "        \"transport_address\": \"0.0.0.0:9300\","
+                + "        \"attributes\": {"
+                + "          \"attr\": \"value\""
+                + "        },"
+                + "        \"roles\" : ["
+                + "          \"master\""
+                + "        ]"
+                + "      }"
+                + "    }"
+                + "  },"
+                + "  \"cluster_settings\": {"
+                + "    \"cluster\": {"
+                + "      \"metadata\": {"
+                + "        \"display_name\": \"my_prod_cluster\""
+                + "      }"
+                + "    }"
+                + "  },"
+                + "  \"stack_stats\": {"
+                + "    \"apm\": {"
+                + "      \"found\": %s"
+                + "    },"
+                + "    \"xpack\": {"
+                + "      \"monitoring\": {"
+                + "        \"available\": true,"
+                + "        \"enabled\": true,"
+                + "        \"collection_enabled\": false"
+                + "      }"
+                + "    }"
+                + "  }"
+                + "}",
+            needToEnableTLS ? ",\"cluster_needs_tls\": true" : "",
+            mockNodeVersion,
+            Version.CURRENT,
+            apmIndicesExist
+        );
+        assertEquals(stripWhitespace(expectedJson), xContent.utf8ToString());
     }
 
     private DiscoveryNode masterNode() {
@@ -568,7 +652,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                  "_host_address",
                                  new TransportAddress(TransportAddress.META_ADDRESS, 9300),
                                  singletonMap("attr", "value"),
-                                 singleton(DiscoveryNode.Role.MASTER),
+                                 singleton(DiscoveryNodeRole.MASTER_ROLE),
                                  Version.CURRENT);
     }
 

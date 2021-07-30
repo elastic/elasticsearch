@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,6 +29,7 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
     private final String username;
     private final char[] password;
     private final String refreshToken;
+    private final char[] kerberosTicket;
 
     /**
      * General purpose constructor. This constructor is typically not useful, and one of the following factory methods should be used
@@ -48,10 +38,11 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
      * <li>{@link #passwordGrant(String, char[])}</li>
      * <li>{@link #refreshTokenGrant(String)}</li>
      * <li>{@link #clientCredentialsGrant()}</li>
+     * <li>{@link #kerberosGrant(char[])}</li>
      * </ul>
      */
     public CreateTokenRequest(String grantType, @Nullable String scope, @Nullable String username, @Nullable char[] password,
-                              @Nullable String refreshToken) {
+                              @Nullable String refreshToken, @Nullable char[] kerberosTicket) {
         if (Strings.isNullOrEmpty(grantType)) {
             throw new IllegalArgumentException("grant_type is required");
         }
@@ -60,6 +51,7 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
         this.password = password;
         this.scope = scope;
         this.refreshToken = refreshToken;
+        this.kerberosTicket = kerberosTicket;
     }
 
     public static CreateTokenRequest passwordGrant(String username, char[] password) {
@@ -69,18 +61,25 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
         if (password == null || password.length == 0) {
             throw new IllegalArgumentException("password is required");
         }
-        return new CreateTokenRequest("password", null, username, password, null);
+        return new CreateTokenRequest("password", null, username, password, null, null);
     }
 
     public static CreateTokenRequest refreshTokenGrant(String refreshToken) {
         if (Strings.isNullOrEmpty(refreshToken)) {
             throw new IllegalArgumentException("refresh_token is required");
         }
-        return new CreateTokenRequest("refresh_token", null, null, null, refreshToken);
+        return new CreateTokenRequest("refresh_token", null, null, null, refreshToken, null);
     }
 
     public static CreateTokenRequest clientCredentialsGrant() {
-        return new CreateTokenRequest("client_credentials", null, null, null, null);
+        return new CreateTokenRequest("client_credentials", null, null, null, null, null);
+    }
+
+    public static CreateTokenRequest kerberosGrant(char[] kerberosTicket) {
+        if (kerberosTicket == null || kerberosTicket.length == 0) {
+            throw new IllegalArgumentException("kerberos ticket is required");
+        }
+        return new CreateTokenRequest("_kerberos", null, null, null, null, kerberosTicket);
     }
 
     public String getGrantType() {
@@ -101,6 +100,10 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
 
     public String getRefreshToken() {
         return refreshToken;
+    }
+
+    public char[] getKerberosTicket() {
+        return kerberosTicket;
     }
 
     @Override
@@ -124,6 +127,14 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
         if (refreshToken != null) {
             builder.field("refresh_token", refreshToken);
         }
+        if (kerberosTicket != null) {
+            byte[] kerberosTicketBytes = CharArrays.toUtf8Bytes(kerberosTicket);
+            try {
+                builder.field("kerberos_ticket").utf8Value(kerberosTicketBytes, 0, kerberosTicketBytes.length);
+            } finally {
+                Arrays.fill(kerberosTicketBytes, (byte) 0);
+            }
+        }
         return builder.endObject();
     }
 
@@ -140,13 +151,15 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
             Objects.equals(scope, that.scope) &&
             Objects.equals(username, that.username) &&
             Arrays.equals(password, that.password) &&
-            Objects.equals(refreshToken, that.refreshToken);
+            Objects.equals(refreshToken, that.refreshToken) &&
+            Arrays.equals(kerberosTicket, that.kerberosTicket);
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(grantType, scope, username, refreshToken);
         result = 31 * result + Arrays.hashCode(password);
+        result = 31 * result + Arrays.hashCode(kerberosTicket);
         return result;
     }
 }

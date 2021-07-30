@@ -1,108 +1,63 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionCollection
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.bwc-test'
 
-// This is a top level task which we will add dependencies to below.
-// It is a single task that can be used to backcompat tests against all versions.
-task bwcTest {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
-}
+for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
+  String baseName = "v${bwcVersion}"
 
-for (Version version : bwcVersions.indexCompatible) {
-  String baseName = "v${version}"
-
-  Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
-    mustRunAfter(precommit)
+  testClusters {
+    "${baseName}" {
+      versions = [bwcVersion.toString(), project.version]
+      numberOfNodes = 2
+      // some tests rely on the translog not being flushed
+      setting 'indices.memory.shard_inactive_time', '60m'
+      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      setting 'xpack.security.enabled', 'false'
+    }
   }
-  tasks.getByName("${baseName}#oldClusterTestRunner").configure {
+
+  tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
+    useCluster testClusters."${baseName}"
+    mustRunAfter("precommit")
+    doFirst {
+      delete("${buildDir}/cluster/shared/repo/${baseName}")
+    }
+
     systemProperty 'tests.is_old_cluster', 'true'
-    systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
-    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
   }
 
-  Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
-  configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-    bwcVersion = version
-    numBwcNodes = 2
-    numNodes = 2
-    clusterName = 'full-cluster-restart'
-
-    // some tests rely on the translog not being flushed
-    setting 'indices.memory.shard_inactive_time', '20m'
-
-    if (version.onOrAfter('5.3.0')) {
-      setting 'http.content_type.required', 'true'
+  tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
+    useCluster testClusters."${baseName}"
+    dependsOn "${baseName}#oldClusterTest"
+    doFirst {
+      testClusters."${baseName}".goToNextVersion()
     }
-  }
-
-
-  Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask) {
-    dependsOn(oldClusterTest, "${baseName}#oldClusterTestCluster#node0.stop")
-  }
-
-  configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
-    dependsOn oldClusterTest,
-        "${baseName}#oldClusterTestCluster#node0.stop",
-        "${baseName}#oldClusterTestCluster#node1.stop"
-    clusterName = 'full-cluster-restart'
-
-    // some tests rely on the translog not being flushed
-    setting 'indices.memory.shard_inactive_time', '20m'
-
-    numNodes = 2
-    dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
-    cleanShared = false // We want to keep snapshots made by the old cluster!
-  }
-
-  tasks.getByName("${baseName}#upgradedClusterTestRunner").configure {
     systemProperty 'tests.is_old_cluster', 'false'
-    systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
-    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
-
   }
 
-  Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
-    dependsOn = [upgradedClusterTest]
+  String oldVersion = bwcVersion.toString().minus("-SNAPSHOT")
+  tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
+    it.systemProperty 'tests.old_cluster_version', oldVersion
+    it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+    it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-  if (project.bwc_tests_enabled) {
-    bwcTest.dependsOn(versionBwcTest)
-  }
-}
-
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
-
-// basic integ tests includes testing bwc against the most recent version
-task integTest {
-  if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.unreleasedIndexCompatible) {
-      dependsOn "v${version}#bwcTest"
-    }
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn tasks.named("${baseName}#upgradedClusterTest")
   }
 }
-
-check.dependsOn(integTest)
-

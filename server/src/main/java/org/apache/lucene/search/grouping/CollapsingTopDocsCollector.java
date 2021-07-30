@@ -1,30 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.apache.lucene.search.grouping;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -37,21 +30,35 @@ import static org.apache.lucene.search.SortField.Type.SCORE;
  * output. The collapsing is done in a single pass by selecting only the top sorted document per collapse key.
  * The value used for the collapse key of each group can be found in {@link CollapseTopFieldDocs#collapseValues}.
  *
+ * This collector optionally supports searching after a previous result through the 'after' parameter.
+ *
  * TODO: If the sort is based on score we should propagate the mininum competitive score when <code>orderedGroups</code> is full.
  * This is safe for collapsing since the group <code>sort</code> is the same as the query sort.
  */
 public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollector<T> {
     protected final String collapseField;
-
     protected final Sort sort;
-    protected Scorable scorer;
-
     private int totalHitCount;
 
-    CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Sort sort, int topN) {
+    private final FieldDoc after;
+    private final FieldComparator<?> comparator;
+    private final int reversed;
+    private LeafFieldComparator leafComparator;
+
+    @SuppressWarnings("unchecked")
+    CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Sort sort, int topN, FieldDoc after) {
         super(groupSelector, sort, topN);
         this.collapseField = collapseField;
         this.sort = sort;
+        this.after = after;
+        assert after == null || (sort.getSort().length == 1 && after.doc == Integer.MAX_VALUE);
+
+        SortField sortField = sort.getSort()[0];
+        this.comparator = sortField.getComparator(0, 0);
+        if (after != null) {
+            ((FieldComparator<Object>) comparator).setTopValue(after.fields[0]);
+        }
+        this.reversed = sortField.getReverse() ? -1 : 1;
     }
 
     /**
@@ -62,7 +69,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     public CollapseTopFieldDocs getTopDocs() throws IOException {
         Collection<SearchGroup<T>> groups = super.getTopGroups(0);
         if (groups == null) {
-            TotalHits totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
+            TotalHits totalHits = new TotalHits(totalHitCount, TotalHits.Relation.EQUAL_TO);
             return new CollapseTopFieldDocs(collapseField, totalHits, new ScoreDoc[0], sort.getSort(), new Object[0]);
         }
         FieldDoc[] docs = new FieldDoc[groups.size()];
@@ -102,15 +109,21 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     }
 
     @Override
-    public void setScorer(Scorable scorer) throws IOException {
-        super.setScorer(scorer);
-        this.scorer = scorer;
+    protected void doSetNextReader(LeafReaderContext readerContext) throws IOException {
+        leafComparator = comparator.getLeafComparator(readerContext);
+        super.doSetNextReader(readerContext);
     }
 
     @Override
     public void collect(int doc) throws IOException {
-        super.collect(doc);
         totalHitCount++;
+        if (after != null) {
+            int cmp = reversed * leafComparator.compareTop(doc);
+            if (cmp >= 0) {
+                return;
+            }
+        }
+        super.collect(doc);
     }
 
     /**
@@ -119,18 +132,22 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
      * the collect will fail with an {@link IllegalStateException} if a document contains more than one value for the
      * field.
      *
-     * @param collapseField The sort field used to group
-     *                      documents.
-     * @param sort          The {@link Sort} used to sort the collapsed hits.
-     *                      The collapsing keeps only the top sorted document per collapsed key.
-     *                      This must be non-null, ie, if you want to groupSort by relevance
-     *                      use Sort.RELEVANCE.
-     * @param topN          How many top groups to keep.
+     * @param collapseField     The sort field used to group documents.
+     * @param collapseFieldType The {@link MappedFieldType} for this sort field.
+     * @param sort              The {@link Sort} used to sort the collapsed hits.
+     *                          The collapsing keeps only the top sorted document per collapsed key.
+     *                          This must be non-null, ie, if you want to groupSort by relevance
+     *                          use Sort.RELEVANCE.
+     * @param topN              How many top groups to keep.
+     * @param after             The field values to search after. Can be null.
      */
-    public static CollapsingTopDocsCollector<?> createNumeric(String collapseField, Sort sort,
-                                                              int topN)  {
-        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseField),
-                collapseField, sort, topN);
+    public static CollapsingTopDocsCollector<?> createNumeric(String collapseField,
+                                                              MappedFieldType collapseFieldType,
+                                                              Sort sort,
+                                                              int topN,
+                                                              @Nullable FieldDoc after)  {
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseFieldType),
+                collapseField, sort, topN, after);
     }
 
     /**
@@ -139,16 +156,20 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
      * the collect will fail with an {@link IllegalStateException} if a document contains more than one value for the
      * field.
      *
-     * @param collapseField The sort field used to group
-     *                      documents.
-     * @param sort          The {@link Sort} used to sort the collapsed hits. The collapsing keeps only the top sorted
-     *                      document per collapsed key.
-     *                      This must be non-null, ie, if you want to groupSort by relevance use Sort.RELEVANCE.
-     * @param topN          How many top groups to keep.
+     * @param collapseField     The sort field used to group documents.
+     * @param collapseFieldType The {@link MappedFieldType} for this sort field.
+     * @param sort              The {@link Sort} used to sort the collapsed hits. The collapsing keeps only the top sorted
+     *                          document per collapsed key.
+     *                          This must be non-null, ie, if you want to groupSort by relevance use Sort.RELEVANCE.
+     * @param topN              How many top groups to keep.
+     * @param after             The field values to search after. Can be null.
      */
-    public static CollapsingTopDocsCollector<?> createKeyword(String collapseField, Sort sort,
-                                                              int topN)  {
-        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseField),
-                collapseField, sort, topN);
+    public static CollapsingTopDocsCollector<?> createKeyword(String collapseField,
+                                                              MappedFieldType collapseFieldType,
+                                                              Sort sort,
+                                                              int topN,
+                                                              @Nullable FieldDoc after)  {
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseFieldType),
+                collapseField, sort, topN, after);
     }
 }

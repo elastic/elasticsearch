@@ -1,27 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,12 +21,12 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests failure capturing and abort-on-failure behavior of reindex.
  */
-@TestLogging("_root:DEBUG")
 public class ReindexFailureTests extends ReindexTestCase {
     public void testFailuresCauseAbortDefault() throws Exception {
         /*
@@ -46,7 +34,7 @@ public class ReindexFailureTests extends ReindexTestCase {
          * conflict on every request.
          */
         indexRandom(true,
-                client().prepareIndex("dest", "test", "test").setSource("test", 10) /* Its a string in the source! */);
+                client().prepareIndex("dest").setId("test").setSource("test", 10) /* Its a string in the source! */);
 
         indexDocs(100);
 
@@ -63,14 +51,15 @@ public class ReindexFailureTests extends ReindexTestCase {
                 .batches(1)
                 .failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
         for (Failure failure: response.getBulkFailures()) {
-            assertThat(failure.getMessage(), containsString("IllegalArgumentException[For input string: \"words words\"]"));
+            assertThat(failure.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(failure.getCause().getCause().getMessage(), containsString("For input string: \"words words\""));
         }
     }
 
     public void testAbortOnVersionConflict() throws Exception {
         // Just put something in the way of the copy.
         indexRandom(true,
-                client().prepareIndex("dest", "test", "1").setSource("test", "test"));
+                client().prepareIndex("dest").setId("1").setSource("test", "test"));
 
         indexDocs(100);
 
@@ -81,7 +70,7 @@ public class ReindexFailureTests extends ReindexTestCase {
         BulkByScrollResponse response = copy.get();
         assertThat(response, matcher().batches(1).versionConflicts(1).failures(1).created(99));
         for (Failure failure: response.getBulkFailures()) {
-            assertThat(failure.getMessage(), containsString("VersionConflictEngineException[[test]["));
+            assertThat(failure.getMessage(), containsString("VersionConflictEngineException: ["));
         }
     }
 
@@ -114,14 +103,15 @@ public class ReindexFailureTests extends ReindexTestCase {
                  * so we *try* and wait for the delete to be fully
                  * complete here.
                  */
-                assertBusy(() -> assertFalse(client().admin().indices().prepareExists("source").get().isExists()));
+                assertBusy(() -> assertFalse(indexExists("source")));
             } catch (ExecutionException e) {
                 logger.info("Triggered a reindex failure on the {} attempt: {}", attempt, e.getMessage());
                 assertThat(e.getMessage(),
                         either(containsString("all shards failed"))
                         .or(containsString("No search context found"))
                         .or(containsString("no such index [source]"))
-                        );
+                        .or(containsString("Partial shards failure"))
+                );
                 return;
             }
         }
@@ -131,7 +121,7 @@ public class ReindexFailureTests extends ReindexTestCase {
     private void indexDocs(int count) throws Exception {
         List<IndexRequestBuilder> docs = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            docs.add(client().prepareIndex("source", "test", Integer.toString(i)).setSource("test", "words words"));
+            docs.add(client().prepareIndex("source").setId(Integer.toString(i)).setSource("test", "words words"));
         }
         indexRandom(true, docs);
     }

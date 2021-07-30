@@ -1,0 +1,12 @@
+apply plugin: 'elasticsearch.build'
+tasks.named("test").configure { enabled = false }
+
+dependencies {
+  api project(':test:framework')
+  api project(path: xpackModule('core'))
+  api(testArtifact(project(xpackModule('core'))))
+  api project(xpackModule('ql:test-fixtures'))
+
+  // TOML parser for EqlActionIT tests
+  api 'io.ous:jtoml:2.0.0'
+}

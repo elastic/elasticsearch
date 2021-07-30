@@ -1,290 +1,410 @@
 [[query-dsl-query-string-query]]
-=== Query String Query
+=== Query string query
+++++
+<titleabbrev>Query string</titleabbrev>
+++++
 
-A query that uses a query parser in order to parse its content. Here is
-an example:
+Returns documents based on a provided query string, using a parser with a strict
+syntax.
 
-[source,js]
+This query uses a <<query-string-syntax,syntax>> to parse and split the provided
+query string based on operators, such as `AND` or `NOT`. The query
+then <<analysis,analyzes>> each split text independently before returning
+matching documents.
+
+You can use the `query_string` query to create a complex search that includes
+wildcard characters, searches across multiple fields, and more. While versatile,
+the query is strict and returns an error if the query string includes any
+invalid syntax.
+
+[WARNING]
+====
+Because it returns an error for any invalid syntax, we don't recommend using
+the `query_string` query for search boxes.
+
+If you don't need to support a query syntax, consider using the
+<<query-dsl-match-query, `match`>> query. If you need the features of a query
+syntax, use the <<query-dsl-simple-query-string-query,`simple_query_string`>>
+query, which is less strict.
+====
+ 
+
+[[query-string-query-ex-request]]
+==== Example request
+
+When running the following search, the `query_string` query splits `(new york
+city) OR (big apple)` into two parts: `new york city` and `big apple`. The
+`content` field's analyzer then independently converts each part into tokens
+before returning matching documents. Because the query syntax does not use
+whitespace as an operator, `new york city` is passed as-is to the analyzer.
+
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "default_field" : "content",
-            "query" : "this AND that OR thus"
-        }
+  "query": {
+    "query_string": {
+      "query": "(new york city) OR (big apple)",
+      "default_field": "content"
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
-The `query_string` query parses the input and splits text around operators.
-Each textual part is analyzed independently of each other. For instance the following query:
+[[query-string-top-level-params]]
+==== Top-level parameters for `query_string`
+`query`::
+(Required, string) Query string you wish to parse and use for search. See
+<<query-string-syntax>>.
 
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "query_string" : {
-            "default_field" : "content",
-            "query" : "(new york city) OR (big apple)" <1>
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
+`default_field`::
++
+--
+(Optional, string) Default field you wish to search if no field is provided in
+the query string.
 
-<1> will be split into `new york city` and `big apple` and each part is then
-analyzed independently by the analyzer configured for the field.
+Defaults to the `index.query.default_field` index setting, which has a default
+value of `*`. The `*` value extracts all fields that are eligible for term
+queries and filters the metadata fields. All extracted fields are then
+combined to build a query if no `prefix` is specified.
 
-WARNING: Whitespaces are not considered operators, this means that `new york city`
-will be passed "as is" to the analyzer configured for the field. If the field is a `keyword`
-field the analyzer will create a single term `new york city` and the query builder will
-use this term in the query. If you want to query each term separately you need to add explicit
-operators around the terms (e.g. `new AND york AND city`).
+Searching across all eligible fields does not include <<nested,nested
+documents>>. Use a <<query-dsl-nested-query,`nested` query>> to search those
+documents.
 
-When multiple fields are provided it is also possible to modify how the different
-field queries are combined inside each textual part using the `type` parameter.
-The possible modes are described <<multi-match-types, here>> and the default is `best_fields`.
+[[WARNING]]
+====
+For mappings with a large number of fields, searching across all eligible fields
+could be expensive.
 
-The `query_string` top level parameters include:
+There is a limit on the number of fields times terms that can be queried at once.
+It is defined by the `indices.query.bool.max_clause_count`
+<<search-settings,search setting>>, which defaults to 4096.
+====
+--
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Parameter |Description
-|`query` |The actual query to be parsed. See <<query-string-syntax>>.
+`allow_leading_wildcard`::
+(Optional, Boolean) If `true`, the wildcard characters `*` and `?` are allowed
+as the first character of the query string. Defaults to `true`.
 
-|`default_field` |The default field for query terms if no prefix field is
-specified. Defaults to the `index.query.default_field` index settings, which in
-turn defaults to `*`. `*` extracts all fields in the mapping that are eligible
-to term queries and filters the metadata fields. All extracted fields are then
-combined to build a query when no prefix field is provided.
+`analyze_wildcard`::
+(Optional, Boolean) If `true`, the query attempts to analyze wildcard terms in
+the query string. Defaults to `false`.
 
-WARNING: There is a limit on the number of fields that can be queried
-at once. It is defined by the `indices.query.bool.max_clause_count` <<search-settings>>
-which defaults to 1024.
+`analyzer`::
+(Optional, string) <<analysis,Analyzer>> used to convert text in the
+query string into tokens. Defaults to the
+<<specify-index-time-analyzer,index-time analyzer>> mapped for the
+`default_field`. If no analyzer is mapped, the index's default analyzer is used.
 
-|`default_operator` |The default operator used if no explicit operator
-is specified. For example, with a default operator of `OR`, the query
-`capital of Hungary` is translated to `capital OR of OR Hungary`, and
-with default operator of `AND`, the same query is translated to
-`capital AND of AND Hungary`. The default value is `OR`.
+`auto_generate_synonyms_phrase_query`::
+(Optional, Boolean) If `true`, <<query-dsl-match-query-phrase,match phrase>>
+queries are automatically created for multi-term synonyms. Defaults to `true`.
+See <<query-string-synonyms>> for an example.
 
-|`analyzer` |The analyzer name used to analyze the query string.
+`boost`::
++
+--
+(Optional, float) Floating point number used to decrease or increase the
+<<relevance-scores,relevance scores>> of the query. Defaults to `1.0`.
 
-|`quote_analyzer` |The name of the analyzer that is used to analyze
-quoted phrases in the query string. For those parts, it overrides other
-analyzers that are set using the `analyzer` parameter or the
-<<search-quote-analyzer,`search_quote_analyzer`>> setting.
+Boost values are relative to the default value of `1.0`. A boost value between
+`0` and `1.0` decreases the relevance score. A value greater than `1.0`
+increases the relevance score.
+--
 
-|`allow_leading_wildcard` |When set, `*` or `?` are allowed as the first
-character. Defaults to `true`.
+`default_operator`::
++
+--
+(Optional, string) Default boolean logic used to interpret text in the query
+string if no operators are specified. Valid values are:
 
-|`enable_position_increments` |Set to `true` to enable position
-increments in result queries. Defaults to `true`.
+ `OR` (Default)::
+For example, a query string of `capital of Hungary` is interpreted as `capital
+OR of OR Hungary`.
 
-|`fuzzy_max_expansions` |Controls the number of terms fuzzy queries will
-expand to. Defaults to `50`
+ `AND`::
+For example, a query string of `capital of Hungary` is interpreted as `capital
+AND of AND Hungary`.
+--
 
-|`fuzziness` |Set the fuzziness for fuzzy queries. Defaults
-to `AUTO`. See <<fuzziness>> for allowed settings.
+`enable_position_increments`::
+(Optional, Boolean) If `true`, enable position increments in queries constructed
+from a `query_string` search. Defaults to `true`.
 
-|`fuzzy_prefix_length` |Set the prefix length for fuzzy queries. Default
-is `0`.
+`fields`::
++
+--
+(Optional, array of strings) Array of fields you wish to search.
 
-|`fuzzy_transpositions` |Set to `false` to disable fuzzy transpositions (`ab` -> `ba`).
-Default is `true`.
+You can use this parameter query to search across multiple fields. See
+<<query-string-multi-field>>.
+--
 
-|`phrase_slop` |Sets the default slop for phrases. If zero, then exact
-phrase matches are required. Default value is `0`.
+`fuzziness`::
+(Optional, string) Maximum edit distance allowed for fuzzy matching. For fuzzy
+syntax, see <<query-string-fuzziness>>.
 
-|`boost` |Sets the boost value of the query. Defaults to `1.0`.
+`fuzzy_max_expansions`::
+(Optional, integer) Maximum number of terms to which the query expands for fuzzy
+matching. Defaults to `50`.
 
-|`analyze_wildcard` |By default, wildcards terms in a query string are
-not analyzed. By setting this value to `true`, a best effort will be
-made to analyze those as well.
+`fuzzy_prefix_length`::
+(Optional, integer) Number of beginning characters left unchanged for fuzzy
+matching. Defaults to `0`.
 
-|`max_determinized_states` |Limit on how many automaton states regexp
-queries are allowed to create. This protects against too-difficult
-(e.g. exponentially hard) regexps. Defaults to 10000.
+`fuzzy_transpositions`::
+(Optional, Boolean) If `true`, edits for fuzzy matching include
+transpositions of two adjacent characters (ab → ba). Defaults to `true`.
 
-|`minimum_should_match` |A value controlling how many "should" clauses
-in the resulting boolean query should match. It can be an absolute value
-(`2`), a percentage (`30%`) or a
-<<query-dsl-minimum-should-match,combination of
-both>>.
+`lenient`::
+(Optional, Boolean) If `true`, format-based errors, such as providing a text
+value for a <<number,numeric>> field, are ignored. Defaults to `false`.
 
-|`lenient` |If set to `true` will cause format based failures (like
-providing text to a numeric field) to be ignored.
+`max_determinized_states`::
++
+--
+(Optional, integer) Maximum number of
+{wikipedia}/Deterministic_finite_automaton[automaton states]
+required for the query. Default is `10000`.
 
-|`time_zone` | Time Zone to be applied to any range query related to dates. See also
-http://www.joda.org/joda-time/apidocs/org/joda/time/DateTimeZone.html[JODA timezone].
+{es} uses https://lucene.apache.org/core/[Apache Lucene] internally to parse
+regular expressions. Lucene converts each regular expression to a finite
+automaton containing a number of determinized states.
 
-|`quote_field_suffix` | A suffix to append to fields for quoted parts of
-the query string. This allows to use a field that has a different analysis chain
-for exact matching. Look <<mixing-exact-search-with-stemming,here>> for a
-comprehensive example.
+You can use this parameter to prevent that conversion from unintentionally
+consuming too many resources. You may need to increase this limit to run complex
+regular expressions.
+--
 
-|`auto_generate_synonyms_phrase_query` |Whether phrase queries should be automatically generated for multi terms synonyms.
-Defaults to `true`.
+`minimum_should_match`::
+(Optional, string) Minimum number of clauses that must match for a document to
+be returned. See the <<query-dsl-minimum-should-match, `minimum_should_match`
+parameter>> for valid values and more information. See
+<<query-string-min-should-match>> for an example.
 
-|=======================================================================
+`quote_analyzer`::
++
+--
+(Optional, string) <<analysis,Analyzer>> used to convert quoted text in the
+query string into tokens. Defaults to the
+<<search-quote-analyzer,`search_quote_analyzer`>> mapped for the
+`default_field`.
 
-When a multi term query is being generated, one can control how it gets
-rewritten using the
-<<query-dsl-multi-term-rewrite,rewrite>>
-parameter.
+For quoted text, this parameter overrides the analyzer specified in the
+`analyzer` parameter.
+--
 
-[float]
-==== Default Field
+`phrase_slop`::
+(Optional, integer) Maximum number of positions allowed between matching tokens
+for phrases. Defaults to `0`. If `0`, exact phrase matches are required.
+Transposed terms have a slop of `2`.
 
-When not explicitly specifying the field to search on in the query
-string syntax, the `index.query.default_field` will be used to derive
-which field to search on. If the `index.query.default_field` is not specified,
-the `query_string` will automatically attempt to determine the existing fields in the index's
-mapping that are queryable, and perform the search on those fields. 
-This will not include nested documents, use a nested query to search those documents.
+`quote_field_suffix`::
++
+--
+(Optional, string) Suffix appended to quoted text in the query string.
 
-NOTE: For mappings with a large number of fields, searching across all queryable
-fields in the mapping could be expensive.
+You can use this suffix to use a different analysis method for exact matches.
+See <<mixing-exact-search-with-stemming>>.
+--
 
-[float]
-==== Multi Field
+`rewrite`::
+(Optional, string) Method used to rewrite the query. For valid values and more
+information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 
-The `query_string` query can also run against multiple fields. Fields can be
-provided via the `fields` parameter (example below).
+`time_zone`::
++
+--
+(Optional, string)
+{wikipedia}/List_of_UTC_time_offsets[Coordinated Universal
+Time (UTC) offset] or
+{wikipedia}/List_of_tz_database_time_zones[IANA time zone]
+used to convert `date` values in the query string to UTC.
+
+Valid values are ISO 8601 UTC offsets, such as `+01:00` or -`08:00`, and IANA
+time zone IDs, such as `America/Los_Angeles`.
+
+[NOTE]
+====
+The `time_zone` parameter does **not** affect the <<date-math,date math>> value
+of `now`. `now` is always the current system time in UTC. However, the
+`time_zone` parameter does convert dates calculated using `now` and
+<<date-math,date math rounding>>. For example, the `time_zone` parameter will
+convert a value of `now/d`.
+====
+--
+
+[[query-string-query-notes]]
+==== Notes
+
+include::query-string-syntax.asciidoc[]
+
+[[query-string-nested]]
+====== Avoid using the `query_string` query for nested documents
+
+`query_string` searches do not return <<nested,nested>> documents. To search
+nested documents, use the <<query-dsl-nested-query, `nested` query>>.
+
+[[query-string-multi-field]]
+====== Search multiple fields
+
+You can use the `fields` parameter to perform a `query_string` search across
+multiple fields.
 
 The idea of running the `query_string` query against multiple fields is to
 expand each query term to an OR clause like this:
 
-    field1:query_term OR field2:query_term | ...
+```
+field1:query_term OR field2:query_term | ...
+```
 
 For example, the following query
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "fields" : ["content", "name"],
-            "query" : "this AND that"
-        }
+  "query": {
+    "query_string": {
+      "fields": [ "content", "name" ],
+      "query": "this AND that"
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 matches the same words as
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "query": "(content:this OR name:this) AND (content:that OR name:that)"
-        }
+  "query": {
+    "query_string": {
+      "query": "(content:this OR name:this) AND (content:that OR name:that)"
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 Since several queries are generated from the individual search terms,
 combining them is automatically done using a `dis_max` query with a `tie_breaker`.
 For example (the `name` is boosted by 5 using `^5` notation):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "fields" : ["content", "name^5"],
-            "query" : "this AND that OR thus",
-            "tie_breaker" : 0
-        }
+  "query": {
+    "query_string" : {
+      "fields" : ["content", "name^5"],
+      "query" : "this AND that OR thus",
+      "tie_breaker" : 0
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 Simple wildcard can also be used to search "within" specific inner
 elements of the document. For example, if we have a `city` object with
 several fields (or inner object with fields) in it, we can automatically
 search on all "city" fields:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "fields" : ["city.*"],
-            "query" : "this AND that OR thus"
-        }
+  "query": {
+    "query_string" : {
+      "fields" : ["city.*"],
+      "query" : "this AND that OR thus"
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 Another option is to provide the wildcard fields search in the query
 string itself (properly escaping the `*` sign), for example:
 `city.\*:something`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "query" : "city.\\*:(this AND that OR thus)"
-        }
+  "query": {
+    "query_string" : {
+      "query" : "city.\\*:(this AND that OR thus)"
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 NOTE: Since `\` (backslash) is a special character in json strings, it needs to
 be escaped, hence the two backslashes in the above `query_string`.
-
-When running the `query_string` query against multiple fields, the
-following additional parameters are allowed:
-
-[cols="<,<",options="header",]
-|=======================================================================
-|Parameter |Description
-
-|`type` |How the fields should be combined to build the text query.
-See <<multi-match-types, types>> for a complete example.
-Defaults to `best_fields`
-
-|`tie_breaker` |The disjunction max tie breaker for multi fields.
-Defaults to `0`
-|=======================================================================
 
 The fields parameter can also include pattern based field names,
 allowing to automatically expand to the relevant fields (dynamically
 introduced fields included). For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "fields" : ["content", "name.*^5"],
-            "query" : "this AND that OR thus"
-        }
+  "query": {
+    "query_string" : {
+      "fields" : ["content", "name.*^5"],
+      "query" : "this AND that OR thus"
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
-[float]
-==== Synonyms
+[[query-string-multi-field-parms]]
+====== Additional parameters for multiple field searches
+
+When running the `query_string` query against multiple fields, the
+following additional parameters are supported.
+
+`type`::
++
+--
+(Optional, string) Determines how the query matches and scores documents. Valid
+values are:
+
+`best_fields` (Default)::
+Finds documents which match any field and uses the highest
+<<relevance-scores,`_score`>> from any matching field. See
+<<type-best-fields>>.
+
+`bool_prefix`::
+Creates a `match_bool_prefix` query on each field and combines the `_score` from
+each field. See <<type-bool-prefix>>.
+
+`cross_fields`::
+Treats fields with the same `analyzer` as though they were one big field. Looks
+for each word in **any** field. See <<type-cross-fields>>.
+
+`most_fields`::
+Finds documents which match any field and combines the `_score` from each field.
+See <<type-most-fields>>.
+
+`phrase`::
+Runs a `match_phrase` query on each field and uses the `_score` from the best
+field. See <<type-phrase>>.
+
+`phrase_prefix`::
+Runs a `match_phrase_prefix` query on each field and uses the `_score` from the
+best field. See <<type-phrase>>.
+
+NOTE:
+Additional top-level `multi_match` parameters may be available based on the
+<<multi-match-types,`type`>> value.
+--
+
+[[query-string-synonyms]]
+===== Synonyms and the `query_string` query
 
 The `query_string` query supports multi-terms synonym expansion with the <<analysis-synonym-graph-tokenfilter,
 synonym_graph>> token filter. When this filter is used, the parser creates a phrase query for each multi-terms synonyms.
@@ -294,7 +414,7 @@ For example, the following synonym: `ny, new york` would produce:
 
 It is also possible to match multi terms synonyms with conjunctions instead:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -307,7 +427,6 @@ GET /_search
    }
 }
 --------------------------------------------------
-// CONSOLE
 
 The example above creates a boolean query:
 
@@ -316,29 +435,28 @@ The example above creates a boolean query:
 that matches documents with the term `ny` or the conjunction `new AND york`.
 By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.
 
-[float]
-==== Minimum should match
+[[query-string-min-should-match]]
+===== How `minimum_should_match` works
 
 The `query_string` splits the query around each operator to create a boolean
 query for the entire input. You can use `minimum_should_match` to control how
 many "should" clauses in the resulting query should match.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "fields": [
-                "title"
-            ],
-            "query": "this that thus",
-            "minimum_should_match": 2
-        }
+  "query": {
+    "query_string": {
+      "fields": [
+        "title"
+      ],
+      "query": "this that thus",
+      "minimum_should_match": 2
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 The example above creates a boolean query:
 
@@ -347,26 +465,25 @@ The example above creates a boolean query:
 that matches documents with at least two of the terms `this`, `that` or `thus`
 in the single field `title`.
 
-[float]
-===== Multi Field
+[[query-string-min-should-match-multi]]
+===== How `minimum_should_match` works for multiple fields
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "fields": [
-                "title",
-                "content"
-            ],
-            "query": "this that thus",
-            "minimum_should_match": 2
-        }
+  "query": {
+    "query_string": {
+      "fields": [
+        "title",
+        "content"
+      ],
+      "query": "this that thus",
+      "minimum_should_match": 2
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 The example above creates a boolean query:
 
@@ -375,23 +492,22 @@ The example above creates a boolean query:
 that matches documents with the disjunction max over the fields `title` and
 `content`. Here the `minimum_should_match` parameter can't be applied.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "fields": [
-                "title",
-                "content"
-            ],
-            "query": "this OR that OR thus",
-            "minimum_should_match": 2
-        }
+  "query": {
+    "query_string": {
+      "fields": [
+        "title",
+        "content"
+      ],
+      "query": "this OR that OR thus",
+      "minimum_should_match": 2
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 Adding explicit operators forces each term to be considered as a separate clause.
 
@@ -402,30 +518,29 @@ The example above creates a boolean query:
 that matches documents with at least two of the three "should" clauses, each of
 them made of the disjunction max over the fields for each term.
 
-[float]
-===== Cross Field
+[[query-string-min-should-match-cross]]
+===== How `minimum_should_match` works for cross-field searches
 
-[source,js]
+A `cross_fields` value in the `type` field indicates fields with the same
+analyzer are grouped together when the input is analyzed.
+
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "fields": [
-                "title",
-                "content"
-            ],
-            "query": "this OR that OR thus",
-            "type": "cross_fields",
-            "minimum_should_match": 2
-        }
+  "query": {
+    "query_string": {
+      "fields": [
+        "title",
+        "content"
+      ],
+      "query": "this OR that OR thus",
+      "type": "cross_fields",
+      "minimum_should_match": 2
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
-
-The `cross_fields` value in the `type` field indicates that fields that have the
-same analyzer should be grouped together when the input is analyzed.
 
 The example above creates a boolean query:
 
@@ -433,4 +548,7 @@ The example above creates a boolean query:
 
 that matches documents with at least two of the three per-term blended queries.
 
-include::query-string-syntax.asciidoc[]
+===== Allow expensive queries
+Query string query can be internally be transformed to a <<query-dsl-prefix-query, `prefix query`>> which means
+that if the prefix queries are disabled as explained <<prefix-query-allow-expensive-queries, here>> the query will not be
+executed and an exception will be thrown.

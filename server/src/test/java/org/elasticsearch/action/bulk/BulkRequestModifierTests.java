@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -35,9 +24,9 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 
 public class BulkRequestModifierTests extends ESTestCase {
 
@@ -45,7 +34,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         int numRequests = scaledRandomIntBetween(8, 64);
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numRequests; i++) {
-            bulkRequest.add(new IndexRequest("_index", "_type", String.valueOf(i)).source("{}", XContentType.JSON));
+            bulkRequest.add(new IndexRequest("_index").id(String.valueOf(i)).source("{}", XContentType.JSON));
         }
         CaptureActionListener actionListener = new CaptureActionListener();
         TransportBulkAction.BulkRequestModifier bulkRequestModifier = new TransportBulkAction.BulkRequestModifier(bulkRequest);
@@ -55,7 +44,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         while (bulkRequestModifier.hasNext()) {
             bulkRequestModifier.next();
             if (randomBoolean()) {
-                bulkRequestModifier.markCurrentItemAsFailed(new RuntimeException());
+                bulkRequestModifier.markItemAsFailed(i, new RuntimeException());
                 failedSlots.add(i);
             }
             i++;
@@ -74,7 +63,6 @@ public class BulkRequestModifierTests extends ESTestCase {
                 BulkItemResponse item = bulkResponse.getItems()[j];
                 assertThat(item.isFailed(), is(true));
                 assertThat(item.getFailure().getIndex(), equalTo("_index"));
-                assertThat(item.getFailure().getType(), equalTo("_type"));
                 assertThat(item.getFailure().getId(), equalTo(String.valueOf(j)));
                 assertThat(item.getFailure().getMessage(), equalTo("java.lang.RuntimeException"));
             } else {
@@ -86,14 +74,14 @@ public class BulkRequestModifierTests extends ESTestCase {
     public void testPipelineFailures() {
         BulkRequest originalBulkRequest = new BulkRequest();
         for (int i = 0; i < 32; i++) {
-            originalBulkRequest.add(new IndexRequest("index", "type", String.valueOf(i)));
+            originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)));
         }
 
         TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(originalBulkRequest);
         for (int i = 0; modifier.hasNext(); i++) {
             modifier.next();
             if (i % 2 == 0) {
-                modifier.markCurrentItemAsFailed(new RuntimeException());
+                modifier.markItemAsFailed(i, new RuntimeException());
             }
         }
 
@@ -102,7 +90,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         assertThat(bulkRequest.requests().size(), Matchers.equalTo(16));
 
         List<BulkItemResponse> responses = new ArrayList<>();
-        ActionListener<BulkResponse> bulkResponseListener = modifier.wrapActionListenerIfNeeded(1L, new ActionListener<BulkResponse>() {
+        ActionListener<BulkResponse> bulkResponseListener = modifier.wrapActionListenerIfNeeded(1L, new ActionListener<>() {
             @Override
             public void onResponse(BulkResponse bulkItemResponses) {
                 responses.addAll(Arrays.asList(bulkItemResponses.getItems()));
@@ -116,7 +104,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         List<BulkItemResponse> originalResponses = new ArrayList<>();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests()) {
             IndexRequest indexRequest = (IndexRequest) actionRequest;
-            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "_na_", 0), indexRequest.type(),
+            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "_na_", 0),
                                                                indexRequest.id(), 1, 17, 1, true);
             originalResponses.add(new BulkItemResponse(Integer.parseInt(indexRequest.id()), indexRequest.opType(), indexResponse));
         }
@@ -131,7 +119,7 @@ public class BulkRequestModifierTests extends ESTestCase {
     public void testNoFailures() {
         BulkRequest originalBulkRequest = new BulkRequest();
         for (int i = 0; i < 32; i++) {
-            originalBulkRequest.add(new IndexRequest("index", "type", String.valueOf(i)));
+            originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)));
         }
 
         TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(originalBulkRequest);
@@ -141,9 +129,8 @@ public class BulkRequestModifierTests extends ESTestCase {
 
         BulkRequest bulkRequest = modifier.getBulkRequest();
         assertThat(bulkRequest, Matchers.sameInstance(originalBulkRequest));
-        @SuppressWarnings("unchecked")
-        ActionListener<BulkResponse> actionListener = mock(ActionListener.class);
-        assertThat(modifier.wrapActionListenerIfNeeded(1L, actionListener).getClass().isAnonymousClass(), is(true));
+        ActionListener<BulkResponse> actionListener = ActionListener.wrap(() -> {});
+        assertThat(modifier.wrapActionListenerIfNeeded(1L, actionListener), instanceOf(ActionListener.MappedActionListener.class));
     }
 
     private static class CaptureActionListener implements ActionListener<BulkResponse> {

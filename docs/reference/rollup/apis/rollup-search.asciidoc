@@ -1,115 +1,139 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-search]]
-=== Rollup Search
+=== Rollup search
 ++++
-<titleabbrev>Rollup Search</titleabbrev>
+<titleabbrev>Rollup search</titleabbrev>
 ++++
+
+Enables searching rolled-up data using the standard Query DSL.
 
 experimental[]
 
-The Rollup Search endpoint allows searching rolled-up data using the standard query DSL.  The Rollup Search endpoint
-is needed because, internally, rolled-up documents utilize a different document structure than the original data.  The
-Rollup Search endpoint rewrites standard query DSL into a format that matches the rollup documents, then takes the response
-and rewrites it back to what a client would expect given the original query.
+[[rollup-search-request]]
+==== {api-request-title}
 
-==== Request
+`GET <target>/_rollup_search`
 
-`GET {index}/_rollup_search`
+[[rollup-search-desc]]
+==== {api-description-title}
 
-//===== Description
+The rollup search endpoint is needed because, internally, rolled-up documents
+utilize a different document structure than the original data. The rollup search
+endpoint rewrites standard Query DSL into a format that matches the rollup
+documents, then takes the response and rewrites it back to what a client would
+expect given the original query.
 
-==== Path Parameters
+[[rollup-search-path-params]]
+==== {api-path-parms-title}
 
-`index`::
-  (string) Index, indices or index-pattern to execute a rollup search against.  This can include both rollup and non-rollup
-  indices.
+`<target>`::
++
+--
+(Required, string)
+Comma-separated list of data streams and indices used to limit
+the request. Wildcard expressions (`*`) are supported.
 
-Rules for the `index` parameter:
+This target can include both rollup and non-rollup indices.
 
-- At least one index/index-pattern must be specified.  This can be either a rollup or non-rollup index.  Omitting the index parameter,
-or using `_all`, is not permitted
-- Multiple non-rollup indices may be specified
-- Only one rollup index may be specified.  If more than one are supplied an exception will be thrown
-- Index patterns may be used, but if they match more than one rollup index an exception will be thrown.
+Rules for the `<target>` parameter:
 
-==== Request Body
+- At least one data stream, index, or wildcard expression must be specified.
+This target can include a rollup or non-rollup index. For data streams, the
+stream's backing indices can only serve as non-rollup indices. Omitting the
+`<target>` parameter or using `_all` is not permitted.
+- Multiple non-rollup indices may be specified.
+- Only one rollup index may be specified. If more than one are supplied, an
+exception occurs.
+- Wildcard expressions may be used, but, if they match more than one rollup index, an
+exception occurs. However, you can use an expression to match multiple non-rollup
+indices or data streams.
+--
 
-The request body supports a subset of features from the regular Search API.  It supports:
+[[rollup-search-request-body]]
+==== {api-request-body-title}
 
-- `query` param for specifying an DSL query, subject to some limitations (see <<rollup-search-limitations>> and <<rollup-agg-limitations>>
+The request body supports a subset of features from the regular Search API. It
+supports:
+
+- `query` param for specifying an DSL query, subject to some limitations
+(see <<rollup-search-limitations>> and <<rollup-agg-limitations>>
 - `aggregations` param for specifying aggregations
 
 Functionality that is not available:
 
-- `size`: because rollups work on pre-aggregated data, no search hits can be returned and so size must be set to zero or
-omitted entirely.
-- `highlighter`, `suggestors`, `post_filter`, `profile`, `explain` are similarly disallowed
+- `size`: Because rollups work on pre-aggregated data, no search hits can be
+returned and so size must be set to zero or omitted entirely.
+- `highlighter`, `suggestors`, `post_filter`, `profile`, `explain`: These are
+similarly disallowed.
 
+[[rollup-search-example]]
+==== {api-examples-title}
 
-==== Historical-only search example
+===== Historical-only search example
 
-Imagine we have an index named `sensor-1` full of raw data, and we have created a rollup job with the following configuration:
+Imagine we have an index named `sensor-1` full of raw data, and we have created
+a {rollup-job} with the following configuration:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _rollup/job/sensor
 {
-    "index_pattern": "sensor-*",
-    "rollup_index": "sensor_rollup",
-    "cron": "*/30 * * * * ?",
-    "page_size" :1000,
-    "groups" : {
-      "date_histogram": {
-        "field": "timestamp",
-        "interval": "1h",
-        "delay": "7d"
-      },
-      "terms": {
-        "fields": ["node"]
-      }
+  "index_pattern": "sensor-*",
+  "rollup_index": "sensor_rollup",
+  "cron": "*/30 * * * * ?",
+  "page_size": 1000,
+  "groups": {
+    "date_histogram": {
+      "field": "timestamp",
+      "fixed_interval": "1h",
+      "delay": "7d"
     },
-    "metrics": [
-        {
-            "field": "temperature",
-            "metrics": ["min", "max", "sum"]
-        },
-        {
-            "field": "voltage",
-            "metrics": ["avg"]
-        }
-    ]
+    "terms": {
+      "fields": [ "node" ]
+    }
+  },
+  "metrics": [
+    {
+      "field": "temperature",
+      "metrics": [ "min", "max", "sum" ]
+    },
+    {
+      "field": "voltage",
+      "metrics": [ "avg" ]
+    }
+  ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_index]
 
-This rolls up the `sensor-*` pattern and stores the results in `sensor_rollup`.  To search this rolled up data, we
-need to use the `_rollup_search` endpoint.  However, you'll notice that we can use regular query DSL to search the
-rolled-up data:
+This rolls up the `sensor-*` pattern and stores the results in `sensor_rollup`.
+To search this rolled up data, we need to use the `_rollup_search` endpoint.
+However, you'll notice that we can use regular Query DSL to search the rolled-up
+data:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /sensor_rollup/_rollup_search
 {
-    "size": 0,
-    "aggregations": {
-        "max_temperature": {
-            "max": {
-                "field": "temperature"
-            }
-        }
+  "size": 0,
+  "aggregations": {
+    "max_temperature": {
+      "max": {
+        "field": "temperature"
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_prefab_data]
 // TEST[s/_rollup_search/_rollup_search?filter_path=took,timed_out,terminated_early,_shards,hits,aggregations/]
 
-The query is targeting the `sensor_rollup` data, since this contains the rollup data as configured in the job.  A `max`
-aggregation has been used on the `temperature` field, yielding the following response:
+The query is targeting the `sensor_rollup` data, since this contains the rollup
+data as configured in the job. A `max` aggregation has been used on the
+`temperature` field, yielding the following response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "took" : 102,
@@ -134,88 +158,90 @@ aggregation has been used on the `temperature` field, yielding the following res
 // TESTRESPONSE[s/"took" : 102/"took" : $body.$_path/]
 // TESTRESPONSE[s/"_shards" : \.\.\. /"_shards" : $body.$_path/]
 
-The response is exactly as you'd expect from a regular query + aggregation; it provides some metadata about the request
-(`took`, `_shards`, etc), the search hits (which is always empty for rollup searches), and the aggregation response.
+The response is exactly as you'd expect from a regular query + aggregation; it
+provides some metadata about the request (`took`, `_shards`, etc), the search
+hits (which is always empty for rollup searches), and the aggregation response.
 
-Rollup searches are limited to functionality that was configured in the rollup job.  For example, we are not able to calculate
-the average temperature because `avg` was not one of the configured metrics for the `temperature` field.  If we try
-to execute that search:
+Rollup searches are limited to functionality that was configured in the
+{rollup-job}. For example, we are not able to calculate the average temperature
+because `avg` was not one of the configured metrics for the `temperature` field.
+If we try to execute that search:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET sensor_rollup/_rollup_search
 {
-    "size": 0,
-    "aggregations": {
-        "avg_temperature": {
-            "avg": {
-                "field": "temperature"
-            }
-        }
+  "size": 0,
+  "aggregations": {
+    "avg_temperature": {
+      "avg": {
+        "field": "temperature"
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 // TEST[catch:/illegal_argument_exception/]
 
-[source,js]
+[source,console-result]
 ----
 {
-    "error" : {
-        "root_cause" : [
-            {
-                "type" : "illegal_argument_exception",
-                "reason" : "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
-                "stack_trace": ...
-            }
-        ],
-        "type" : "illegal_argument_exception",
-        "reason" : "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
+  "error": {
+    "root_cause": [
+      {
+        "type": "illegal_argument_exception",
+        "reason": "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
         "stack_trace": ...
-    },
-    "status": 400
+      }
+    ],
+    "type": "illegal_argument_exception",
+    "reason": "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
+    "stack_trace": ...
+  },
+  "status": 400
 }
 ----
 // TESTRESPONSE[s/"stack_trace": \.\.\./"stack_trace": $body.$_path/]
 
-==== Searching both historical rollup and non-rollup data
+===== Searching both historical rollup and non-rollup data
 
-The Rollup Search API has the capability to search across both "live", non-rollup data as well as the aggregated rollup
-data.  This is done by simply adding the live indices to the URI:
+The rollup search API has the capability to search across both "live"
+non-rollup data and the aggregated rollup data. This is done by simply adding
+the live indices to the URI:
 
-
-[source,js]
+[source,console]
 --------------------------------------------------
 GET sensor-1,sensor_rollup/_rollup_search <1>
 {
-    "size": 0,
-    "aggregations": {
-        "max_temperature": {
-            "max": {
-                "field": "temperature"
-            }
-        }
+  "size": 0,
+  "aggregations": {
+    "max_temperature": {
+      "max": {
+        "field": "temperature"
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 // TEST[s/_rollup_search/_rollup_search?filter_path=took,timed_out,terminated_early,_shards,hits,aggregations/]
 <1> Note the URI now searches `sensor-1` and `sensor_rollup` at the same time
 
-When the search is executed, the Rollup Search endpoint will do two things:
+When the search is executed, the rollup search endpoint does two things:
 
-1. The original request will be sent to the non-rollup index unaltered
-2. A rewritten version of the original request will be sent to the rollup index.
+1. The original request is sent to the non-rollup index unaltered.
+2. A rewritten version of the original request is sent to the rollup index.
 
-When the two responses are received, the endpoint will then rewrite the rollup response and merge the two together.
-During the merging process, if there is any overlap in buckets between the two responses, the buckets from the non-rollup
-index will be used.
+When the two responses are received, the endpoint rewrites the rollup response
+and merges the two together. During the merging process, if there is any overlap
+in buckets between the two responses, the buckets from the non-rollup index are
+used.
 
-The response to the above query will look as expected, despite spanning rollup and non-rollup indices:
+The response to the above query looks as expected, despite spanning rollup and
+non-rollup indices:
 
-[source,js]
+[source,console-result]
 ----
 {
   "took" : 102,

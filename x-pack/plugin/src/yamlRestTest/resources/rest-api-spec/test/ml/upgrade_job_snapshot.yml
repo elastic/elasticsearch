@@ -1,0 +1,33 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: upgrade-model-snapshot
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time"
+            }
+          }
+
+---
+"Test with unknown job id":
+  - do:
+      catch: missing
+      ml.upgrade_job_snapshot:
+        job_id: "non-existent-job"
+        snapshot_id: "san"
+---
+"Test with unknown snapshot id":
+  - do:
+      catch: missing
+      ml.upgrade_job_snapshot:
+        job_id: "upgrade-model-snapshot"
+        snapshot_id: "snapshot-9999"

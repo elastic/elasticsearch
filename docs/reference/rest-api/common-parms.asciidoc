@@ -1,0 +1,1139 @@
+tag::actions[]
+`actions`::
++
+--
+(Optional, string)
+Comma-separated list or wildcard expression
+of actions used to limit the request.
+
+Omit this parameter to return all actions.
+--
+end::actions[]
+
+tag::active-only[]
+`active_only`::
+(Optional, Boolean)
+If `true`,
+the response only includes ongoing shard recoveries.
+Defaults to `false`.
+end::active-only[]
+
+tag::allow-no-indices[]
+`allow_no_indices`::
+(Optional, Boolean)
+If `false`, the request returns an error if any wildcard expression,
+<<alias,index alias>>, or `_all` value targets only missing or closed indices.
+This behavior applies even if the request targets other open indices. For
+example, a request targeting `foo*,bar*` returns an error if an index starts
+with `foo` but no index starts with `bar`.
+end::allow-no-indices[]
+
+tag::allow-no-match-transforms1[]
+Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no {transforms} that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches.
+
+The default value is `true`, which returns an empty `transforms` array when
+there are no matches and the subset of results when there are partial matches.
+
+If this parameter is `false`, the request returns a `404` status code when there
+are no matches or only partial matches.
+--
+end::allow-no-match-transforms1[]
+
+tag::allow-no-match-transforms2[]
+Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no {transforms} that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches.
+
+The default value is `true`, which returns a successful acknowledgement message
+when there are no matches. When there are only partial matches, the API stops
+the appropriate {transforms}. For example, if the request contains
+`test-id1*,test-id2*` as the identifiers and there are no {transforms}
+that match `test-id2*`, the API nonetheless stops the {transforms}
+that match `test-id1*`.
+
+If this parameter is `false`, the request returns a `404` status code when there
+are no matches or only partial matches.
+--
+end::allow-no-match-transforms2[]
+
+tag::analyzer[]
+`analyzer`::
+(Optional, string) Analyzer to use for the query string.
+end::analyzer[]
+
+tag::analyze_wildcard[]
+`analyze_wildcard`::
+(Optional, Boolean) If `true`, wildcard and prefix queries are
+analyzed. Defaults to `false`.
+end::analyze_wildcard[]
+
+tag::bytes[]
+`bytes`::
+(Optional, <<byte-units,byte size units>>) Unit used to display byte values.
+end::bytes[]
+
+tag::checkpointing-changes-last-detected-at[]
+The timestamp when changes were last detected in the source indices.
+end::checkpointing-changes-last-detected-at[]
+
+tag::checkpointing-last-search-time[]
+The timestamp of the last search in the source indices. This field is only
+shown if the transform is running.
+end::checkpointing-last-search-time[]
+
+tag::cluster-health-status[]
+(string)
+Health status of the cluster, based on the state of its primary and replica
+shards. Statuses are:
+
+  `green`:::
+  All shards are assigned.
+
+  `yellow`:::
+  All primary shards are assigned, but one or more replica shards are
+  unassigned. If a node in the cluster fails, some
+  data could be unavailable until that node is repaired.
+
+  `red`:::
+  One or more primary shards are unassigned, so some data is unavailable. This
+  can occur briefly during cluster startup as primary shards are assigned.
+end::cluster-health-status[]
+
+tag::committed[]
+If `true`,
+the segments is synced to disk. Segments that are synced can survive a hard reboot.
++
+If `false`,
+the data from uncommitted segments is also stored in
+the transaction log so that Elasticsearch is able to replay
+changes on the next start.
+end::committed[]
+
+tag::completion-fields[]
+`completion_fields`::
+(Optional, string)
+Comma-separated list or wildcard expressions of fields
+to include in `fielddata` and `suggest` statistics.
+end::completion-fields[]
+
+tag::delete-time-ms[]
+The amount of time spent deleting, in milliseconds.
+end::delete-time-ms[]
+
+tag::default_operator[]
+`default_operator`::
+(Optional, string) The default operator for query string query: AND or OR.
+Defaults to `OR`.
+end::default_operator[]
+
+tag::dest[]
+The destination for the {transform}.
+end::dest[]
+
+tag::dest-index[]
+The _destination index_ for the {transform}. The mappings of the destination
+index are deduced based on the source fields when possible. If alternate
+mappings are required, use the
+https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API]
+prior to starting the {transform}.
+end::dest-index[]
+
+tag::dest-pipeline[]
+The unique identifier for an <<ingest,ingest pipeline>>.
+end::dest-pipeline[]
+
+tag::detailed[]
+`detailed`::
+(Optional, Boolean)
+If `true`,
+the response includes detailed information about shard recoveries.
+Defaults to `false`.
+end::detailed[]
+
+tag::df[]
+`df`::
+(Optional, string) Field to use as default where no field prefix is
+given in the query string.
+end::df[]
+
+tag::docs-count[]
+The number of documents as reported by Lucene. This excludes deleted documents
+and counts any <<nested,nested documents>> separately from their parents. It
+also excludes documents which were indexed recently and do not yet belong to a
+segment.
+end::docs-count[]
+
+tag::docs-deleted[]
+The number of deleted documents as reported by Lucene, which may be higher or
+lower than the number of delete operations you have performed. This number
+excludes deletes that were performed recently and do not yet belong to a
+segment. Deleted documents are cleaned up by the
+<<index-modules-merge,automatic merge process>> if it makes sense to do so.
+Also, {es} creates extra deleted documents to internally track the recent
+history of operations on a shard.
+end::docs-deleted[]
+
+tag::docs-deleted-transform[]
+The number of documents that have been deleted from the destination index due to
+the retention policy for this {transform}.
+end::docs-deleted-transform[]
+
+tag::docs-indexed[]
+The number of documents that have been indexed into the destination index
+for the {transform}.
+end::docs-indexed[]
+
+tag::docs-processed[]
+The number of documents that have been processed from the source index of
+the {transform}.
+end::docs-processed[]
+
+tag::ds-expand-wildcards[]
+`expand_wildcards`::
++
+--
+(Optional, string)
+Type of data stream that wildcard patterns can match. Supports
+comma-separated values, such as `open,hidden`. Valid values are:
+
+`all`, `hidden`::
+Match any data stream, including <<hidden,hidden>> ones.
+
+`open`, `closed`::
+Matches any non-hidden data stream. Data streams cannot be closed.
+
+`none`::
+Wildcard patterns are not accepted.
+--
+end::ds-expand-wildcards[]
+
+tag::expand-wildcards[]
+`expand_wildcards`::
++
+--
+(Optional, string)
+Type of index that wildcard patterns can match. If the request can target data
+streams, this argument determines whether wildcard expressions match hidden data
+streams. Supports comma-separated values, such as `open,hidden`. Valid values
+are:
+
+`all`::
+Match any data stream or index, including <<hidden,hidden>> ones.
+
+`open`::
+Match open, non-hidden indices. Also matches any non-hidden data stream.
+
+`closed`::
+Match closed, non-hidden indices. Also matches any non-hidden data stream. Data
+streams cannot be closed.
+
+`hidden`::
+Match hidden data streams and hidden indices. Must be combined with `open`,
+`closed`, or both.
+
+`none`::
+Wildcard patterns are not accepted.
+--
+end::expand-wildcards[]
+
+tag::exponential-avg-checkpoint-duration-ms[]
+Exponential moving average of the duration of the checkpoint, in milliseconds.
+end::exponential-avg-checkpoint-duration-ms[]
+
+tag::exponential-avg-documents-indexed[]
+Exponential moving average of the number of new documents that have been
+indexed.
+end::exponential-avg-documents-indexed[]
+
+tag::exponential-avg-documents-processed[]
+Exponential moving average of the number of documents that have been
+processed.
+end::exponential-avg-documents-processed[]
+
+tag::field_statistics[]
+`field_statistics`::
+(Optional, Boolean) If `true`, the response includes the document count, sum of document frequencies,
+and sum of total term frequencies.
+Defaults to `true`.
+end::field_statistics[]
+
+tag::fielddata-fields[]
+`fielddata_fields`::
+(Optional, string)
+Comma-separated list or wildcard expressions of fields
+to include in `fielddata` statistics.
+end::fielddata-fields[]
+
+tag::fields[]
+`fields`::
++
+--
+(Optional, string)
+Comma-separated list or wildcard expressions of fields
+to include in the statistics.
+
+Used as the default list
+unless a specific field list is provided
+in the `completion_fields` or `fielddata_fields` parameters.
+--
+end::fields[]
+
+tag::flat-settings[]
+`flat_settings`::
+(Optional, Boolean) If `true`, returns settings in flat format. Defaults to
+`false`.
+end::flat-settings[]
+
+tag::http-format[]
+`format`::
+(Optional, string) Short version of the
+https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html[HTTP accept header].
+Valid values include JSON, YAML, etc.
+end::http-format[]
+
+tag::frequency[]
+The interval between checks for changes in the source indices when the
+{transform} is running continuously. Also determines the retry interval in the
+event of transient failures while the {transform} is searching or indexing. The
+minimum value is `1s` and the maximum is `1h`. The default value is `1m`.
+end::frequency[]
+
+tag::from[]
+`from`::
+(Optional, integer) Starting document offset. Needs to be non-negative and defaults to `0`.
+end::from[]
+
+tag::from-transforms[]
+Skips the specified number of {transforms}. The default value is `0`.
+end::from-transforms[]
+
+tag::generation[]
+Generation number, such as `0`. {es} increments this generation number
+for each segment written. {es} then uses this number to derive the segment name.
+end::generation[]
+
+tag::group-by[]
+`group_by`::
++
+--
+(Optional, string)
+Key used to group tasks in the response.
+
+Possible values are:
+
+`nodes`::
+(Default)
+Node ID
+
+`parents`::
+Parent task ID
+
+`none`::
+Do not group tasks.
+--
+end::group-by[]
+
+tag::groups[]
+`groups`::
+(Optional, string)
+Comma-separated list of search groups
+to include in the `search` statistics.
+end::groups[]
+
+tag::cat-h[]
+`h`::
+(Optional, string) Comma-separated list of column names to display.
+end::cat-h[]
+
+tag::help[]
+`help`::
+(Optional, Boolean) If `true`, the response includes help information. Defaults
+to `false`.
+end::help[]
+
+tag::bulk-id[]
+`_id`::
+(Optional, string)
+The document ID.
+If no ID is specified, a document ID is automatically generated.
+end::bulk-id[]
+
+tag::if_primary_term[]
+`if_primary_term`::
+(Optional, integer) Only perform the operation if the document has
+this primary term. See <<optimistic-concurrency-control-index>>.
+end::if_primary_term[]
+
+tag::if_seq_no[]
+`if_seq_no`::
+(Optional, integer) Only perform the operation if the document has this
+sequence number. See <<optimistic-concurrency-control-index>>.
+end::if_seq_no[]
+
+tag::ignore_throttled[]
+`ignore_throttled`::
+(Optional, Boolean) If `true`, concrete, expanded or aliased indices are
+ignored when frozen. Defaults to `true`.
+end::ignore_throttled[]
+
+tag::index-ignore-unavailable[]
+`ignore_unavailable`::
+(Optional, Boolean) If `true`, missing or closed indices are not included in the
+response. Defaults to `false`.
+end::index-ignore-unavailable[]
+
+tag::include-defaults[]
+`include_defaults`::
+(Optional, Boolean) If `true`, return all default settings in the response.
+Defaults to `false`.
+end::include-defaults[]
+
+tag::include-segment-file-sizes[]
+`include_segment_file_sizes`::
+(Optional, Boolean)
+If `true`, the call reports the aggregated disk usage of
+each one of the Lucene index files (only applies if segment stats are
+requested). Defaults to `false`.
+end::include-segment-file-sizes[]
+
+tag::include-unloaded-segments[]
+`include_unloaded_segments`::
+(Optional, Boolean) If `true`, the response includes information from segments
+that are **not** loaded into memory. Defaults to `false`.
+end::include-unloaded-segments[]
+
+tag::index-query-parm[]
+`index`::
+(Optional, string)
+Comma-separated list or wildcard expression of index names
+used to limit the request.
+end::index-query-parm[]
+
+tag::index[]
+`<index>`::
+(Optional, string) Comma-separated list or wildcard expression of index names
+used to limit the request.
+end::index[]
+
+tag::index-failures[]
+The number of indexing failures.
+end::index-failures[]
+
+tag::index-time-ms[]
+The amount of time spent indexing, in milliseconds.
+end::index-time-ms[]
+
+tag::index-total[]
+The number of indices created.
+end::index-total[]
+
+tag::bulk-index[]
+`_index`::
+(Optional, string)
+Name of the data stream, index, or index alias to perform the action on. This
+parameter is required if a `<target>` is not specified in the request path.
+end::bulk-index[]
+
+tag::index-metric[]
+`<index-metric>`::
++
+--
+(Optional, string)
+Comma-separated list of metrics used to limit the request.
+Supported metrics are:
+
+`_all`::
+Return all statistics.
+
+`completion`::
+<<completion-suggester,Completion suggester>> statistics.
+
+`docs`::
+Number of documents and deleted docs, which have not yet merged out.
+<<indices-refresh,Index refreshes>> can affect this statistic.
+
+`fielddata`::
+<<fielddata,Fielddata>> statistics.
+
+`flush`::
+<<indices-flush,Flush>> statistics.
+
+`get`::
+Get statistics,
+including missing stats.
+
+`indexing`::
+<<docs-index_,Indexing>> statistics.
+
+`merge`::
+<<index-modules-merge,Merge>> statistics.
+
+`query_cache`::
+<<query-cache,Query cache>> statistics.
+
+`refresh`::
+<<indices-refresh,Refresh>> statistics.
+
+`request_cache`::
+<<shard-request-cache,Shard request cache>> statistics.
+
+`search`::
+Search statistics including suggest statistics.
+You can include statistics for custom groups
+by adding an extra `groups` parameter
+(search operations can be associated with one or more groups).
+The `groups` parameter accepts a comma separated list of group names.
+Use `_all` to return statistics for all groups.
+
+`segments`::
+Memory use of all open segments.
++
+If the `include_segment_file_sizes` parameter is `true`,
+this metric includes the aggregated disk usage
+of each Lucene index file.
+
+`store`::
+Size of the index in <<byte-units, byte units>>.
+
+`suggest`::
+<<search-suggesters,Suggester>> statistics.
+
+`translog`::
+<<index-modules-translog,Translog>> statistics.
+
+`warmer`::
+<<indices-warmers,Warmer>> statistics.
+--
+end::index-metric[]
+
+tag::index-template[]
+`<index-template>`::
+(Required, string)
+Comma-separated list of index template names used to limit the request. Wildcard
+(`*`) expressions are supported.
+end::index-template[]
+
+tag::component-template[]
+`<component-template>`::
+(Required, string)
+Comma-separated list or wildcard expression of component template names
+used to limit the request.
+end::component-template[]
+
+tag::lenient[]
+`lenient`::
+(Optional, Boolean) If `true`, format-based query failures (such as
+providing text to a numeric field) will be ignored. Defaults to `false`.
+end::lenient[]
+
+tag::level[]
+`level`::
++
+--
+(Optional, string)
+Indicates whether statistics are aggregated
+at the cluster, index, or shard level.
+
+Valid values are:
+
+*   `cluster`
+*   `indices`
+*   `shards`
+--
+end::level[]
+
+tag::local[]
+`local`::
+(Optional, Boolean) If `true`, the request retrieves information from the local
+node only. Defaults to `false`, which means information is retrieved from
+the master node.
+end::local[]
+
+tag::mappings[]
+`mappings`::
++
+--
+(Optional, <<mapping,mapping object>>) Mapping for fields in the index. If
+specified, this mapping can include:
+
+* Field names
+* <<mapping-types,Field data types>>
+* <<mapping-params,Mapping parameters>>
+
+See <<mapping>>.
+--
+end::mappings[]
+
+tag::max_docs[]
+`max_docs`::
+(Optional, integer) Maximum number of documents to process. Defaults to all
+documents.
+end::max_docs[]
+
+tag::memory[]
+Bytes of segment data stored in memory for efficient search,
+such as `1264`.
++
+A value of `-1` indicates {es} was unable to compute this number.
+end::memory[]
+
+tag::bulk-require-alias[]
+`require_alias`::
+(Optional, Boolean)
+If `true`, the action must target an <<alias,index alias>>. Defaults to
+`false`.
+end::bulk-require-alias[]
+
+tag::require-alias[]
+`require_alias`::
+(Optional, Boolean) If `true`, the destination must be an <<alias,index alias>>.
+Defaults to `false`.
+end::require-alias[]
+
+tag::bulk-dynamic-templates[]
+`dynamic_templates`::
+(Optional, map)
+A map from the full name of fields to the name of <<dynamic-templates, dynamic templates>.
+Defaults to an empty map. If a name matches a dynamic template, then that template will be
+applied regardless of other match predicates defined in the template. And if a field is
+already defined in the mapping, then this parameter won't be used.
+end::bulk-dynamic-templates[]
+
+tag::node-filter[]
+`<node_filter>`::
+(Optional, string)
+Comma-separated list of <<cluster-nodes,node filters>> used to limit returned
+information. Defaults to all nodes in the cluster.
+end::node-filter[]
+
+tag::node-id[]
+`<node_id>`::
+(Optional, string) Comma-separated list of node IDs or names used to limit
+returned information.
+end::node-id[]
+
+tag::node-id-query-parm[]
+`node_id`::
+(Optional, string)
+Comma-separated list of node IDs or names
+used to limit returned information.
+end::node-id-query-parm[]
+
+tag::offsets[]
+`<offsets>`::
+(Optional, Boolean) If `true`, the response includes term offsets.
+Defaults to `true`.
+end::offsets[]
+
+tag::parent-task-id[]
+`parent_task_id`::
++
+--
+(Optional, string)
+Parent task ID
+used to limit returned information.
+
+To return all tasks,
+omit this parameter
+or use a value of `-1`.
+--
+end::parent-task-id[]
+
+tag::payloads[]
+`payloads`::
+(Optional, Boolean) If `true`, the response includes term payloads.
+Defaults to `true`.
+end::payloads[]
+
+tag::pipeline[]
+`pipeline`::
+(Optional, string) ID of the pipeline to use to preprocess incoming documents.
+end::pipeline[]
+
+tag::pages-processed[]
+The number of search or bulk index operations processed. Documents are
+processed in batches instead of individually.
+end::pages-processed[]
+
+tag::pivot[]
+The `pivot` method transforms the data by aggregating and grouping it. These
+objects define the `group by` fields and the aggregation to reduce the data.
+end::pivot[]
+
+tag::pivot-aggs[]
+Defines how to aggregate the grouped data. The following aggregations are
+currently supported:
++
+--
+* <<search-aggregations-metrics-avg-aggregation,Average>>
+* <<search-aggregations-pipeline-bucket-script-aggregation,Bucket script>>
+* <<search-aggregations-pipeline-bucket-selector-aggregation,Bucket selector>>
+* <<search-aggregations-metrics-cardinality-aggregation,Cardinality>>
+* <<search-aggregations-bucket-filter-aggregation,Filter>>
+* <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
+* <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
+* <<search-aggregations-metrics-geo-line,Geo line>>
+* <<search-aggregations-metrics-max-aggregation,Max>>
+* <<search-aggregations-metrics-median-absolute-deviation-aggregation,Median absolute deviation>>
+* <<search-aggregations-metrics-min-aggregation,Min>>
+* <<search-aggregations-bucket-missing-aggregation,Missing>>
+* <<search-aggregations-metrics-percentile-aggregation,Percentiles>>
+* <<search-aggregations-bucket-rare-terms-aggregation, Rare Terms>>
+* <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
+* <<search-aggregations-metrics-stats-aggregation,Stats>>
+* <<search-aggregations-metrics-sum-aggregation,Sum>>
+* <<search-aggregations-bucket-terms-aggregation, Terms>>
+* <<search-aggregations-metrics-top-metrics,Top Metrics>>
+* <<search-aggregations-metrics-valuecount-aggregation,Value count>>
+* <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
+
+--
+end::pivot-aggs[]
+
+tag::pivot-group-by[]
+Defines how to group the data. More than one grouping can be defined per pivot.
+The following groupings are currently supported:
++
+--
+* <<_date_histogram,Date histogram>>
+* <<_geotile_grid,Geotile Grid>>
+* <<_histogram,Histogram>>
+* <<_terms,Terms>>
+
+--
+end::pivot-group-by[]
+
+tag::positions[]
+`positions`::
+(Optional, Boolean) If `true`, the response includes term positions.
+Defaults to `true`.
+end::positions[]
+
+tag::preference[]
+`preference`::
+(Optional, string) Specifies the node or shard the operation should be
+performed on. Random by default.
+end::preference[]
+
+tag::processing-time-ms[]
+The amount of time spent processing results, in milliseconds.
+end::processing-time-ms[]
+
+tag::processing-total[]
+The number of processing operations.
+end::processing-total[]
+
+tag::search-q[]
+`q`::
+(Optional, string) Query in the Lucene query string syntax.
+end::search-q[]
+
+tag::query[]
+`query`::
+(Optional, <<query-dsl,query object>>) Defines the search definition using the
+<<query-dsl,Query DSL>>.
+end::query[]
+
+tag::realtime[]
+`realtime`::
+(Optional, Boolean) If `true`, the request is real-time as opposed to near-real-time.
+Defaults to `true`. See <<realtime>>.
+end::realtime[]
+
+tag::refresh[]
+`refresh`::
+(Optional, enum) If `true`, {es} refreshes the affected shards to make this
+operation visible to search, if `wait_for` then wait for a refresh to make
+this operation visible to search, if `false` do nothing with refreshes.
+Valid values: `true`, `false`, `wait_for`. Default: `false`.
+end::refresh[]
+
+tag::request_cache[]
+`request_cache`::
+(Optional, Boolean) If `true`, the request cache is used for this request.
+Defaults to the index-level setting.
+end::request_cache[]
+
+tag::requests_per_second[]
+`requests_per_second`::
+(Optional, integer) The throttle for this request in sub-requests per second.
+Defaults to `-1` (no throttle).
+end::requests_per_second[]
+
+tag::routing[]
+`routing`::
+(Optional, string)
+Custom value used to route operations to a specific shard.
+end::routing[]
+
+tag::cat-s[]
+`s`::
+(Optional, string) Comma-separated list of column names or column aliases used
+to sort the response.
+end::cat-s[]
+
+tag::scroll[]
+`scroll`::
+(Optional, <<time-units, time units>>) Specifies how long a consistent view of
+the index should be maintained for scrolled search.
+end::scroll[]
+
+tag::scroll_size[]
+`scroll_size`::
+(Optional, integer) Size of the scroll request that powers the operation.
+Defaults to 1000.
+end::scroll_size[]
+
+tag::search-failures[]
+The number of search failures.
+end::search-failures[]
+
+tag::search-time-ms[]
+The amount of time spent searching, in milliseconds.
+end::search-time-ms[]
+
+tag::search-total[]
+The number of search operations on the source index for the {transform}.
+end::search-total[]
+
+tag::search_type[]
+`search_type`::
+(Optional, string) The type of the search operation. Available options:
+* `query_then_fetch`
+* `dfs_query_then_fetch`
+end::search_type[]
+
+tag::segment[]
+Name of the segment, such as `_0`. The segment name is derived from
+the segment generation and used internally to create file names in the directory
+of the shard.
+end::segment[]
+
+tag::segment-search[]
+If `true`,
+the segment is searchable.
++
+If `false`,
+the segment has most likely been written to disk
+but needs a <<indices-refresh,refresh>> to be searchable.
+end::segment-search[]
+
+tag::segment-size[]
+Disk space used by the segment, such as `50kb`.
+end::segment-size[]
+
+tag::settings[]
+`settings`::
+(Optional, <<index-modules-settings,index setting object>>) Configuration
+options for the index. See <<index-modules-settings>>.
+end::settings[]
+
+tag::target-index-settings[]
+`settings`::
+(Optional, <<index-modules-settings,index setting object>>)
+Configuration options for the target index.
+See <<index-modules-settings>>.
+end::target-index-settings[]
+
+tag::size-transforms[]
+Specifies the maximum number of {transforms} to obtain. The default value is
+`100`.
+end::size-transforms[]
+
+tag::slices[]
+`slices`::
+(Optional, integer) The number of slices this task should be divided into.
+Defaults to 1 meaning the task isn't sliced into subtasks.
+end::slices[]
+
+tag::sort[]
+`sort`::
+(Optional, string) A comma-separated list of <field>:<direction> pairs.
+end::sort[]
+
+tag::source[]
+`_source`::
+(Optional, string) True or false to return the `_source` field or not, or a
+list of fields to return.
+end::source[]
+
+tag::source_excludes[]
+`_source_excludes`::
+(Optional, string)
+A comma-separated list of <<mapping-source-field,source fields>> to exclude from
+the response.
++
+You can also use this parameter to exclude fields from the subset specified in
+`_source_includes` query parameter.
++
+If the `_source` parameter is `false`, this parameter is ignored.
+end::source_excludes[]
+
+tag::source_includes[]
+`_source_includes`::
+(Optional, string)
+A comma-separated list of <<mapping-source-field,source fields>> to
+include in the response.
++
+If this parameter is specified, only these source fields are returned. You can
+exclude fields from this subset using the `_source_excludes` query parameter.
++
+If the `_source` parameter is `false`, this parameter is ignored.
+end::source_includes[]
+
+tag::source-transforms[]
+The source of the data for the {transform}.
+end::source-transforms[]
+
+tag::source-index-transforms[]
+The _source indices_ for the {transform}. It can be a single index, an index
+pattern (for example, `"my-index-*"`), an array of indices (for example,
+`["my-index-000001", "my-index-000002"]`), or an array of index patterns (for
+example, `["my-index-*", "my-other-index-*"]`. For remote indices use the syntax
+`"remote_name:index_name"`.
+
+NOTE: If any indices are in remote clusters then the master node and at least
+one transform node must have the `remote_cluster_client` node role.
+end::source-index-transforms[]
+
+tag::source-query-transforms[]
+A query clause that retrieves a subset of data from the source index. See
+<<query-dsl>>.
+end::source-query-transforms[]
+
+tag::source-runtime-mappings-transforms[]
+Definitions of search-time runtime fields that can be used by the transform. For
+search runtime fields all data nodes, including remote nodes, must be 7.12 or
+later.
+end::source-runtime-mappings-transforms[]
+
+tag::state-transform[]
+The status of the {transform}, which can be one of the following values:
++
+--
+* `aborting`: The {transform} is aborting.
+* `failed`: The {transform} failed. For more information about the failure,
+check the reason field.
+* `indexing`: The {transform} is actively processing data and creating new
+documents.
+* `started`: The {transform} is running but not actively indexing data.
+* `stopped`: The {transform} is stopped.
+* `stopping`: The {transform} is stopping.
+--
+end::state-transform[]
+
+tag::state-transform-reason[]
+If a {transform} has a `failed` state, this property provides details about the
+reason for the failure.
+end::state-transform-reason[]
+
+tag::stats[]
+`stats`::
+(Optional, string) Specific `tag` of the request for logging and statistical
+purposes.
+end::stats[]
+
+tag::stored_fields[]
+`stored_fields`::
+(Optional, Boolean) If `true`, retrieves the document fields stored in the
+index rather than the document `_source`. Defaults to `false`.
+end::stored_fields[]
+
+tag::sync[]
+Defines the properties {transforms} require to run continuously.
+end::sync[]
+
+tag::sync-time[]
+Specifies that the {transform} uses a time field to synchronize the source and
+destination indices.
+end::sync-time[]
+
+tag::sync-time-field[]
+The date field that is used to identify new documents in the source.
+end::sync-time-field[]
+
+tag::sync-time-delay[]
+The time delay between the current time and the latest input data time. The
+default value is `60s`.
+end::sync-time-delay[]
+
+tag::transform-latest[]
+The `latest` method transforms the data by finding the latest document for each
+unique key.
+end::transform-latest[]
+
+tag::transform-retention[]
+Defines a retention policy for the {transform}. Data that meets the defined
+criteria is deleted from the destination index.
+end::transform-retention[]
+
+tag::transform-retention-time[]
+Specifies that the {transform} uses a time field to set the retention policy.
+end::transform-retention-time[]
+
+tag::transform-retention-time-field[]
+The date field that is used to calculate the age of the document.
+end::transform-retention-time-field[]
+
+tag::transform-retention-time-max-age[]
+Specifies the maximum age of a document in the destination index. Documents that
+are older than the configured value are removed from the destination index.
+end::transform-retention-time-max-age[]
+
+tag::transform-settings[]
+Defines optional {transform} settings.
+end::transform-settings[]
+
+tag::transform-settings-dates-as-epoch-milli[]
+Defines if dates in the output should be written as ISO formatted string (default)
+or as millis since epoch. `epoch_millis` has been the default for transforms created
+before version `7.11`. For compatible output set this to `true`.
+The default value is `false`.
+end::transform-settings-dates-as-epoch-milli[]
+
+tag::transform-settings-docs-per-second[]
+Specifies a limit on the number of input documents per second. This setting
+throttles the {transform} by adding a wait time between search requests. The
+default value is `null`, which disables throttling.
+end::transform-settings-docs-per-second[]
+
+tag::transform-settings-max-page-search-size[]
+Defines the initial page size to use for the composite aggregation for each
+checkpoint. If circuit breaker exceptions occur, the page size is dynamically
+adjusted to a lower value. The minimum value is `10` and the maximum is `65,536`.
+The default value is `500`.
+end::transform-settings-max-page-search-size[]
+
+tag::transform-sort[]
+Specifies the date field that is used to identify the latest documents.
+end::transform-sort[]
+
+tag::transform-unique-key[]
+Specifies an array of one or more fields that are used to group the data.
+end::transform-unique-key[]
+
+tag::target-index[]
+`<target-index>`::
++
+--
+(Required, string)
+Name of the target index to create.
+
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
+--
+end::target-index[]
+
+tag::task-id[]
+`<task_id>`::
+(Optional, string) ID of the task to return
+(`node_id:task_number`).
+end::task-id[]
+
+tag::term_statistics[]
+`term_statistics`::
+(Optional, Boolean) If `true`, the response includes term frequency and document frequency.
+Defaults to `false`.
+end::term_statistics[]
+
+tag::terminate_after[]
+`terminate_after`::
+(Optional, integer) Maximum number of documents to collect for each shard. If a
+query reaches this limit, {es} terminates the query early. {es} collects
+documents before sorting.
++
+IMPORTANT: Use with caution. {es} applies this parameter to each shard handling
+the request. When possible, let {es} perform early termination automatically.
+Avoid specifying this parameter for requests that target data streams with
+backing indices across multiple data tiers.
+end::terminate_after[]
+
+tag::time[]
+`time`::
+(Optional, <<time-units,time units>>)
+Unit used to display time values.
+end::time[]
+
+tag::timeoutparms[]
+tag::master-timeout[]
+`master_timeout`::
+(Optional, <<time-units, time units>>)
+Period to wait for a connection to the master node. If no response is received
+before the timeout expires, the request fails and returns an error. Defaults to
+`30s`.
+end::master-timeout[]
+
+tag::timeout[]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period to wait for a response. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
+end::timeout[]
+end::timeoutparms[]
+
+tag::transform-id[]
+Identifier for the {transform}. This identifier can contain lowercase
+alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start
+and end with alphanumeric characters.
+end::transform-id[]
+
+tag::transform-id-wildcard[]
+Identifier for the {transform}. It can be a {transform} identifier or a wildcard
+expression. If you do not specify one of these options, the API returns
+information for all {transforms}.
+end::transform-id-wildcard[]
+
+tag::trigger-count[]
+The number of times the {transform} has been triggered by the scheduler. For
+example, the scheduler triggers the {transform} indexer to check for updates
+or ingest new data at an interval specified in the
+<<put-transform-request-body,`frequency` property>>.
+end::trigger-count[]
+
+tag::cat-v[]
+`v`::
+(Optional, Boolean) If `true`, the response includes column headings.
+Defaults to `false`.
+end::cat-v[]
+
+tag::version[]
+`version`::
+(Optional, Boolean) If `true`, returns the document version as part of a hit.
+end::version[]
+
+tag::doc-version[]
+`version`::
+(Optional, integer) Explicit version number for concurrency control.
+The specified version must match the current version of the document for the
+request to succeed.
+end::doc-version[]
+
+tag::segment-version[]
+Version of Lucene used to write the segment.
+end::segment-version[]
+
+tag::version_type[]
+`version_type`::
+(Optional, enum) Specific version type: `external`,
+`external_gte`.
+end::version_type[]
+
+tag::wait_for_active_shards[]
+`wait_for_active_shards`::
++
+--
+(Optional, string) The number of shard copies that must be active before
+proceeding with the operation. Set to `all` or any positive integer up
+to the total number of shards in the index (`number_of_replicas+1`).
+Default: 1, the primary shard.
+
+See <<index-wait-for-active-shards>>.
+--
+end::wait_for_active_shards[]

@@ -1,139 +1,155 @@
 [[query-dsl-script-score-query]]
-=== Script Score Query
+=== Script score query
+++++
+<titleabbrev>Script score</titleabbrev>
+++++
 
-experimental[]
+Uses a <<modules-scripting,script>> to provide a custom score for returned
+documents.
 
-The `script_score` allows you to modify the score of documents that are
-retrieved by a query. This can be useful if, for example, a score
-function is computationally expensive and it is sufficient to compute
-the score on a filtered set of documents.
-
-To use `script_score`, you have to define a query and a script -
-a function to be used to compute a new score for each document returned
-by the query. For more information on scripting see
-<<modules-scripting, scripting documentation>>.
+The `script_score` query is useful if, for example, a scoring function is expensive and you only need to calculate the score of a filtered set of documents.
 
 
-Here is an example of using `script_score` to assign each matched document
-a score equal to the number of likes divided by 10:
+[[script-score-query-ex-request]]
+==== Example request
+The following `script_score` query assigns each returned document a score equal to the `my-int` field value divided by `10`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "script_score" : {
-            "query" : {
-                "match": { "message": "elasticsearch" }
-            },
-            "script" : {
-                "source" : "doc['likes'].value / 10 "
-            }
-        }
-     }
+  "query": {
+    "script_score": {
+      "query": {
+        "match": { "message": "elasticsearch" }
+      },
+      "script": {
+        "source": "doc['my-int'].value / 10 "
+      }
+    }
+  }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
 
-==== Accessing the score of a document within a script
+
+[[script-score-top-level-params]]
+==== Top-level parameters for `script_score`
+`query`::
+(Required, query object) Query used to return documents.
+
+`script`::
++
+--
+(Required, <<modules-scripting-using,script object>>) Script used to compute the score of documents returned by the `query`.
+
+IMPORTANT: Final relevance scores from the `script_score` query cannot be
+negative. To support certain search optimizations, Lucene requires
+scores be positive or `0`.
+--
+
+`min_score`::
+(Optional, float) Documents with a score lower
+than this floating point number are excluded from the search results.
+
+`boost`::
+(Optional, float) Documents' scores produced by `script` are
+multiplied by `boost` to produce final documents' scores. Defaults to `1.0`.
+
+[[script-score-query-notes]]
+==== Notes
+
+[[script-score-access-scores]]
+===== Use relevance scores in a script
 
 Within a script, you can
-<<modules-scripting-fields#scripting-score, access>>
+{ref}/modules-scripting-fields.html#scripting-score[access] 
 the `_score` variable which represents the current relevance score of a
 document.
 
+[[script-score-predefined-functions]]
+===== Predefined functions
+You can use any of the available {painless}/painless-contexts.html[painless
+functions] in your `script`. You can also use the following predefined functions
+to customize scoring:
 
-==== Predefined functions within a Painless script
-You can use any of the available
-<<painless-api-reference, painless functions>> in the painless script.
-Besides these functions, there are a number of predefined functions
-that can help you with scoring. We suggest you to use them instead of
-rewriting equivalent functions of your own, as these functions try
-to be the most efficient by using the internal mechanisms.
+* <<script-score-saturation>>
+* <<script-score-sigmoid>>
+* <<random-score-function>>
+* <<decay-functions-numeric-fields>>
+* <<decay-functions-geo-fields>>
+* <<decay-functions-date-fields>>
+* <<script-score-functions-vector-fields>>
 
-===== rational
-latexmath:[rational(value,k) = value/(k + value)]
+We suggest using these predefined functions instead of writing your own.
+These functions take advantage of efficiencies from {es}' internal mechanisms.
 
-[source,js]
---------------------------------------------------
-"script" : {
-    "source" : "rational(doc['likes'].value, 1)"
-}
---------------------------------------------------
-// NOTCONSOLE
-
-===== sigmoid
-latexmath:[sigmoid(value, k, a) = value^a/ (k^a + value^a)]
+[[script-score-saturation]]
+====== Saturation
+`saturation(value,k) = value/(k + value)`
 
 [source,js]
 --------------------------------------------------
 "script" : {
-    "source" : "sigmoid(doc['likes'].value, 2, 1)"
+    "source" : "saturation(doc['my-int'].value, 1)"
 }
 --------------------------------------------------
 // NOTCONSOLE
 
+[[script-score-sigmoid]]
+====== Sigmoid
+`sigmoid(value, k, a) = value^a/ (k^a + value^a)`
 
-[[random-functions]]
-===== Random functions
-There are two predefined ways to produce random values:
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "sigmoid(doc['my-int'].value, 2, 1)"
+}
+--------------------------------------------------
+// NOTCONSOLE
 
-1. `randomNotReproducible()` uses `java.util.Random` class
-to generate a random value of the type `long`.
-The generated values are not reproducible between requests' invocations.
+[[random-score-function]]
+====== Random score function
+`random_score` function generates scores that are uniformly distributed
+from 0 up to but not including 1.
 
-    [source,js]
-    --------------------------------------------------
-    "script" : {
-        "source" : "randomNotReproducible()"
-    }
-    --------------------------------------------------
-    // NOTCONSOLE
+`randomScore` function has the following syntax:
+`randomScore(<seed>, <fieldName>)`.
+It has a required parameter - `seed` as an integer value,
+and an optional parameter - `fieldName` as a string value.
 
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "randomScore(100, '_seq_no')"
+}
+--------------------------------------------------
+// NOTCONSOLE
 
-2. `randomReproducible(String seedValue, int seed)` produces
-reproducible random values of type `long`. This function requires
-more computational time and memory than the non-reproducible version.
+If the `fieldName` parameter is omitted, the internal Lucene
+document ids will be used as a source of randomness. This is very efficient,
+but unfortunately not reproducible since documents might be renumbered
+by merges.
 
-A good candidate for the `seedValue` is document field values that
-are unique across documents and already pre-calculated and preloaded
-in the memory. For example, values of the document's `_seq_no` field
-is a good candidate, as documents on the same shard have unique values
-for the `_seq_no` field.
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "randomScore(100)"
+}
+--------------------------------------------------
+// NOTCONSOLE
 
-    [source,js]
-    --------------------------------------------------
-    "script" : {
-        "source" : "randomReproducible(Long.toString(doc['_seq_no'].value), 100)"
-    }
-    --------------------------------------------------
-    // NOTCONSOLE
-
-
-A drawback of using `_seq_no` is that generated values change if
-documents are updated. Another drawback is not absolute uniqueness, as
-documents from different shards with the same sequence numbers
-generate the same random values.
-
-If you need random values to be distinct across different shards,
-you can use a field with unique values across shards,
-such as  `_id`, but watch out for the memory usage as all
-these unique values need to be loaded into memory.
-
-    [source,js]
-    --------------------------------------------------
-    "script" : {
-        "source" : "randomReproducible(doc['_id'].value, 100)"
-    }
-    --------------------------------------------------
-    // NOTCONSOLE
+Note that documents that are within the same shard and have the
+same value for field will get the same score, so it is usually desirable
+to use a field that has unique values for all documents across a shard.
+A good default choice might be to use the `_seq_no`
+field, whose only drawback is that scores will change if the document is
+updated since update operations also update the value of the `_seq_no` field.
 
 
-[[decay-functions]]
-===== Decay functions for numeric fields
-You can read more about decay functions
-<<query-dsl-function-score-query#function-decay, here>>.
+[[decay-functions-numeric-fields]]
+====== Decay functions for numeric fields
+You can read more about decay functions 
+{ref}/query-dsl-function-score-query.html#function-decay[here].
 
 * `double decayNumericLinear(double origin, double scale, double offset, double decay, double docValue)`
 * `double decayNumericExp(double origin, double scale, double offset, double decay, double docValue)`
@@ -152,10 +168,10 @@ You can read more about decay functions
 }
 --------------------------------------------------
 // NOTCONSOLE
-<1> Use `params` to compile a script only once for different values of parameters
+<1> Using `params` allows to compile the script only once, even if params change.
 
-
-===== Decay functions for geo fields
+[[decay-functions-geo-fields]]
+====== Decay functions for geo fields
 
 * `double decayGeoLinear(String originStr, String scaleStr, String offsetStr, double decay, GeoPoint docValue)`
 
@@ -177,8 +193,8 @@ You can read more about decay functions
 --------------------------------------------------
 // NOTCONSOLE
 
-
-===== Decay functions for date fields
+[[decay-functions-date-fields]]
+====== Decay functions for date fields
 
 * `double decayDateLinear(String originStr, String scaleStr, String offsetStr, double decay, JodaCompatibleZonedDateTime docValueDate)`
 
@@ -203,28 +219,47 @@ You can read more about decay functions
 NOTE: Decay functions on dates are limited to dates in the default format
 and default time zone. Also calculations with `now` are not supported.
 
+[[script-score-functions-vector-fields]]
+====== Functions for vector fields
+<<vector-functions, Functions for vector fields>> are accessible through
+`script_score` query.
 
-==== Faster alternatives
-Script Score Query calculates the score for every hit (matching document).
-There are faster alternative query types that can efficiently skip
-non-competitive hits:
+===== Allow expensive queries
+Script score queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.
 
-* If you want to boost documents on some static fields, use
- <<query-dsl-feature-query, Feature Query>>.
+[[script-score-faster-alt]]
+===== Faster alternatives
+The `script_score` query calculates the score for
+every matching document, or hit. There are faster alternative query types that
+can efficiently skip non-competitive hits:
 
+* If you want to boost documents on some static fields, use the 
+ <<query-dsl-rank-feature-query, `rank_feature`>> query.
+ * If you want to boost documents closer to a date or geographic point, use the
+ <<query-dsl-distance-feature-query, `distance_feature`>> query.
 
-==== Transition from Function Score Query
-We are deprecating <<query-dsl-function-score-query, Function Score>>, and
-Script Score Query will be a substitute for it.
+[[script-score-function-score-transition]]
+===== Transition from the function score query
+We are deprecating the <<query-dsl-function-score-query, `function_score`>>
+query. We recommend using the `script_score` query instead.
 
-Here we describe how Function Score Query's functions can be
-equivalently implemented in Script Score Query:
+You can implement the following functions from the `function_score` query using
+the `script_score` query:
 
-===== `script_score`
+* <<script-score>>
+* <<weight>>
+* <<random-score>>
+* <<field-value-factor>>
+* <<decay-functions>>
+
+[[script-score]]
+====== `script_score`
 What you used in `script_score` of the Function Score query, you
 can copy into the Script Score query. No changes here.
 
-===== `weight`
+[[weight]]
+====== `weight`
 `weight` function can be implemented in the Script Score query through
 the following script:
 
@@ -239,20 +274,21 @@ the following script:
 --------------------------------------------------
 // NOTCONSOLE
 
-===== `random_score`
+[[random-score]]
+====== `random_score`
 
-Use `randomReproducible` and `randomNotReproducible` functions
-as described in <<random-functions, random functions>>.
+Use `randomScore` function
+as described in <<random-score-function, random score function>>.
 
-
-===== `field_value_factor`
+[[field-value-factor]]
+====== `field_value_factor`
 `field_value_factor` function can be easily implemented through script:
 
 [source,js]
 --------------------------------------------------
 "script" : {
     "source" : "Math.log10(doc['field'].value * params.factor)",
-    params" : {
+    "params" : {
         "factor" : 5
     }
 }
@@ -268,7 +304,7 @@ a value `1` if a document doesn't have a field `field`:
 --------------------------------------------------
 "script" : {
     "source" : "Math.log10((doc['field'].size() == 0 ? 1 : doc['field'].value()) * params.factor)",
-    params" : {
+    "params" : {
         "factor" : 5
     }
 }
@@ -294,10 +330,40 @@ through a script:
 | `reciprocal` | `1.0 / doc['f'].value`
 |=======================================================================
 
-
-===== `decay functions`
-Script Score query has equivalent <<decay-functions, decay functions>>
+[[decay-functions]]
+====== `decay` functions
+The `script_score` query has equivalent <<decay-functions, decay functions>>
 that can be used in script.
 
+include::{es-repo-dir}/vectors/vector-functions.asciidoc[]
 
+[[score-explanation]]
+====== Explain request
+Using an <<search-explain, explain request>> provides an explanation of how the parts of a score were computed. The `script_score` query can add its own explanation by setting the `explanation` parameter:
 
+[source,console]
+--------------------------------------------------
+GET /my-index-000001/_explain/0
+{
+  "query": {
+    "script_score": {
+      "query": {
+        "match": { "message": "elasticsearch" }
+      },
+      "script": {
+        "source": """
+          long count = doc['count'].value;
+          double normalizedCount = count / 10;
+          if (explanation != null) {
+            explanation.set('normalized count = count / 10 = ' + count + ' / 10 = ' + normalizedCount);
+          }
+          return normalizedCount;
+        """
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:my_index]
+
+Note that the `explanation` will be null when using in a normal `_search` request, so having a conditional guard is best practice.

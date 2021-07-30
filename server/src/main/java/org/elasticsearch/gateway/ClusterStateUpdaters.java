@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gateway;
@@ -25,14 +14,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndicesService;
 
 import java.util.Map;
 
@@ -49,19 +36,19 @@ public class ClusterStateUpdaters {
 
     static ClusterState upgradeAndArchiveUnknownOrInvalidSettings(final ClusterState clusterState,
                                                                   final ClusterSettings clusterSettings) {
-        final MetaData.Builder metaDataBuilder = MetaData.builder(clusterState.metaData());
+        final Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
 
-        metaDataBuilder.persistentSettings(
+        metadataBuilder.persistentSettings(
                 clusterSettings.archiveUnknownOrInvalidSettings(
-                        clusterSettings.upgradeSettings(metaDataBuilder.persistentSettings()),
+                        clusterSettings.upgradeSettings(metadataBuilder.persistentSettings()),
                         e -> logUnknownSetting("persistent", e),
                         (e, ex) -> logInvalidSetting("persistent", e, ex)));
-        metaDataBuilder.transientSettings(
+        metadataBuilder.transientSettings(
                 clusterSettings.archiveUnknownOrInvalidSettings(
-                        clusterSettings.upgradeSettings(metaDataBuilder.transientSettings()),
+                        clusterSettings.upgradeSettings(metadataBuilder.transientSettings()),
                         e -> logUnknownSetting("transient", e),
                         (e, ex) -> logInvalidSetting("transient", e, ex)));
-        return ClusterState.builder(clusterState).metaData(metaDataBuilder).build();
+        return ClusterState.builder(clusterState).metadata(metadataBuilder).build();
     }
 
     private static void logUnknownSetting(final String settingType, final Map.Entry<String, String> e) {
@@ -77,45 +64,25 @@ public class ClusterStateUpdaters {
     static ClusterState recoverClusterBlocks(final ClusterState state) {
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(state.blocks());
 
-        if (MetaData.SETTING_READ_ONLY_SETTING.get(state.metaData().settings())) {
-            blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
+        if (Metadata.SETTING_READ_ONLY_SETTING.get(state.metadata().settings())) {
+            blocks.addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK);
         }
 
-        if (MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(state.metaData().settings())) {
-            blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+        if (Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(state.metadata().settings())) {
+            blocks.addGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
         }
 
-        for (final IndexMetaData indexMetaData : state.metaData()) {
-            blocks.addBlocks(indexMetaData);
+        for (final IndexMetadata indexMetadata : state.metadata()) {
+            blocks.addBlocks(indexMetadata);
         }
 
         return ClusterState.builder(state).blocks(blocks).build();
     }
 
-    static ClusterState closeBadIndices(final ClusterState clusterState, final IndicesService indicesService) {
-        final MetaData.Builder builder = MetaData.builder(clusterState.metaData()).removeAllIndices();
-
-        for (IndexMetaData metaData : clusterState.metaData()) {
-            try {
-                if (metaData.getState() == IndexMetaData.State.OPEN) {
-                    // verify that we can actually create this index - if not we recover it as closed with lots of warn logs
-                    indicesService.verifyIndexMetadata(metaData, metaData);
-                }
-            } catch (final Exception e) {
-                final Index electedIndex = metaData.getIndex();
-                logger.warn(() -> new ParameterizedMessage("recovering index {} failed - recovering as closed", electedIndex), e);
-                metaData = IndexMetaData.builder(metaData).state(IndexMetaData.State.CLOSE).build();
-            }
-            builder.put(metaData, false);
-        }
-
-        return ClusterState.builder(clusterState).metaData(builder).build();
-    }
-
     static ClusterState updateRoutingTable(final ClusterState state) {
         // initialize all index routing tables as empty
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(state.routingTable());
-        for (final ObjectCursor<IndexMetaData> cursor : state.metaData().indices().values()) {
+        for (final ObjectCursor<IndexMetadata> cursor : state.metadata().indices().values()) {
             routingTableBuilder.addAsRecovery(cursor.value);
         }
         // start with 0 based versions for routing table
@@ -130,42 +97,49 @@ public class ClusterStateUpdaters {
                 .build();
     }
 
+    public static ClusterState addStateNotRecoveredBlock(ClusterState state) {
+        return ClusterState.builder(state)
+                .blocks(ClusterBlocks.builder()
+                        .blocks(state.blocks()).addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
+                .build();
+    }
+
     static ClusterState mixCurrentStateAndRecoveredState(final ClusterState currentState, final ClusterState recoveredState) {
-        assert currentState.metaData().indices().isEmpty();
+        assert currentState.metadata().indices().isEmpty();
 
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder()
                 .blocks(currentState.blocks())
                 .blocks(recoveredState.blocks());
 
-        final MetaData.Builder metaDataBuilder = MetaData.builder(recoveredState.metaData());
+        final Metadata.Builder metadataBuilder = Metadata.builder(recoveredState.metadata());
         // automatically generate a UID for the metadata if we need to
-        metaDataBuilder.generateClusterUuidIfNeeded();
+        metadataBuilder.generateClusterUuidIfNeeded();
 
-        for (final IndexMetaData indexMetaData : recoveredState.metaData()) {
-            metaDataBuilder.put(indexMetaData, false);
+        for (final IndexMetadata indexMetadata : recoveredState.metadata()) {
+            metadataBuilder.put(indexMetadata, false);
         }
 
         return ClusterState.builder(currentState)
                 .blocks(blocks)
-                .metaData(metaDataBuilder)
+                .metadata(metadataBuilder)
                 .build();
     }
 
     public static ClusterState hideStateIfNotRecovered(ClusterState state) {
         if (state.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(state.blocks());
-            blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
-            blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
-            for (IndexMetaData indexMetaData: state.metaData()) {
-                blocks.removeIndexBlocks(indexMetaData.getIndex().getName());
+            blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK);
+            blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+            for (IndexMetadata indexMetadata: state.metadata()) {
+                blocks.removeIndexBlocks(indexMetadata.getIndex().getName());
             }
-            final MetaData metaData = MetaData.builder()
-                    .clusterUUID(state.metaData().clusterUUID())
-                    .coordinationMetaData(state.metaData().coordinationMetaData())
+            final Metadata metadata = Metadata.builder()
+                    .clusterUUID(state.metadata().clusterUUID())
+                    .coordinationMetadata(state.metadata().coordinationMetadata())
                     .build();
 
             return ClusterState.builder(state)
-                    .metaData(metaData)
+                    .metadata(metadata)
                     .blocks(blocks.build())
                     .build();
         }

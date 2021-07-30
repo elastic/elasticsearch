@@ -1,0 +1,74 @@
+version: '3'
+services:
+  gcs-fixture:
+    build:
+      context: .
+      args:
+        port: 80
+        bucket: "bucket"
+        token: "o/oauth2/token"
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"
+  gcs-fixture-third-party:
+    build:
+      context: .
+      args:
+        port: 80
+        bucket: "bucket"
+        token: "o/oauth2/token"
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"
+  gcs-fixture-other:
+    build:
+      context: .
+      args:
+        port: 80
+        bucket: "bucket"
+        token: "o/oauth2/token"
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"
+  gcs-fixture-repositories-metering:
+    build:
+      context: .
+      args:
+        port: 80
+        bucket: "bucket"
+        token: "o/oauth2/token"
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"
+  gcs-fixture-repository-test-kit:
+    build:
+      context: .
+      args:
+        port: 80
+        bucket: "bucket"
+        token: "o/oauth2/token"
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"
+  gcs-fixture-with-application-default-credentials:
+    build:
+      context: .
+      args:
+        port: 80
+        bucket: "bucket"
+        token: "computeMetadata/v1/instance/service-accounts/default/token"
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"

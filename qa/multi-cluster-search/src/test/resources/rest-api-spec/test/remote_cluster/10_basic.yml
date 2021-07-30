@@ -1,5 +1,7 @@
 ---
 "Index data and search on the old cluster":
+  - skip:
+      features: allowed_warnings
 
   - do:
       indices.create:
@@ -10,71 +12,76 @@
               number_of_shards: 1
               number_of_replicas: 0
           mappings:
-            test_type:
-              properties:
-                created_at:
-                   type: date
-                   format: "yyyy-MM-dd"
+            properties:
+              created_at:
+                 type: date
+                 format: "yyyy-MM-dd"
 
   - do:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "single_doc_index", "_type": "test_type"}}'
+            - '{"index": {"_index": "single_doc_index"}}'
             - '{"f1": "remote_cluster", "sort_field": 1, "created_at" : "2016-01-01"}'
+  - do:
+        indices.create:
+          index: field_caps_empty_index
+          body:
+            settings:
+              index:
+                number_of_shards: 1
+                number_of_replicas: 0
 
   - do:
         indices.create:
           index: field_caps_index_1
           body:
-              settings:
-                index.number_of_shards: 1
               mappings:
-                t:
-                  properties:
-                    text:
-                      type:     text
-                    keyword:
-                      type:     keyword
-                    number:
-                      type:     double
-                    geo:
-                      type:     geo_point
-                    object:
-                      type: object
-                      properties:
-                        nested1 :
-                          type : text
-                          index: false
-                        nested2:
-                          type: float
-                          doc_values: false
+                properties:
+                  created_at:
+                    type:     date
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     double
+                  geo:
+                    type:     geo_point
+                  object:
+                    type: object
+                    properties:
+                      nested1 :
+                        type : text
+                        index: false
+                      nested2:
+                        type: float
+                        doc_values: false
   - do:
         indices.create:
           index: field_caps_index_3
           body:
-              settings:
-                index.number_of_shards: 1
               mappings:
-                t:
-                  properties:
-                    text:
-                      type:     text
-                    keyword:
-                      type:     keyword
-                    number:
-                      type:     long
-                    geo:
-                      type:     keyword
-                    object:
-                      type: object
-                      properties:
-                        nested1 :
-                          type : long
-                          index: false
-                        nested2:
-                          type: keyword
-                          doc_values: false
+                properties:
+                  created_at:
+                    type:     date
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     long
+                  geo:
+                    type:     keyword
+                  object:
+                    type: object
+                    properties:
+                      nested1 :
+                        type : long
+                        index: false
+                      nested2:
+                        type: keyword
+                        doc_values: false
   - do:
       indices.create:
         index: test_index
@@ -93,18 +100,32 @@
       bulk:
          refresh: true
          body:
-           - '{"index": {"_index": "test_index", "_type": "test_type"}}'
-           - '{"f1": "remote_cluster", "filter_field": 0}'
-           - '{"index": {"_index": "test_index", "_type": "test_type"}}'
-           - '{"f1": "remote_cluster", "filter_field": 1}'
-           - '{"index": {"_index": "test_index", "_type": "test_type"}}'
-           - '{"f1": "remote_cluster", "filter_field": 0}'
-           - '{"index": {"_index": "test_index", "_type": "test_type"}}'
-           - '{"f1": "remote_cluster", "filter_field": 1}'
-           - '{"index": {"_index": "test_index", "_type": "test_type"}}'
-           - '{"f1": "remote_cluster", "filter_field": 0}'
-           - '{"index": {"_index": "test_index", "_type": "test_type"}}'
-           - '{"f1": "remote_cluster", "filter_field": 0}'
+           - '{"index": {"_index": "test_index"}}'
+           - '{"f1": "remote_cluster", "animal": "pig", "filter_field": 0}'
+           - '{"index": {"_index": "test_index"}}'
+           - '{"f1": "remote_cluster", "animal": "pig", "filter_field": 1}'
+           - '{"index": {"_index": "test_index"}}'
+           - '{"f1": "remote_cluster", "animal": "chicken", "filter_field": 0}'
+           - '{"index": {"_index": "test_index"}}'
+           - '{"f1": "remote_cluster", "animal": "chicken", "filter_field": 1}'
+           - '{"index": {"_index": "test_index"}}'
+           - '{"f1": "remote_cluster", "animal": "chicken", "filter_field": 0}'
+           - '{"index": {"_index": "test_index"}}'
+           - '{"f1": "remote_cluster", "animal": "chicken", "filter_field": 0}'
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          # Force all documents to be in the same shard (same routing)
+          - '{"index": {"_index": "field_caps_index_1", "routing": "foo"}}'
+          - '{"created_at": "2018-01-05"}'
+          - '{"index": {"_index": "field_caps_index_1", "routing": "foo"}}'
+          - '{"created_at": "2017-12-01"}'
+          - '{"index": {"_index": "field_caps_index_3"}}'
+          - '{"created_at": "2019-10-01"}'
+          - '{"index": {"_index": "field_caps_index_3"}}'
+          - '{"created_at": "2020-01-01"}'
 
   - do:
       search:
@@ -131,5 +152,3 @@
   - match: { hits.total: 2 }
   - match: { hits.hits.0._source.filter_field: 1 }
   - match: { hits.hits.0._index: "test_index" }
-
-

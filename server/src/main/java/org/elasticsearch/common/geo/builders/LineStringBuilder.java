@@ -1,34 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo.builders;
-
-import org.apache.lucene.geo.Line;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.LineString;
 
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geometry.Line;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LineString;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
@@ -36,10 +24,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
-import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
-
-public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuilder> {
+public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.geometry.Geometry, LineStringBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
 
     /**
@@ -125,19 +110,9 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuild
     }
 
     @Override
-    public Object buildLucene() {
-        // decompose linestrings crossing dateline into array of Lines
-        Coordinate[] coordinates = this.coordinates.toArray(new Coordinate[this.coordinates.size()]);
-        if (wrapdateline) {
-            ArrayList<Line> linestrings = decomposeLucene(coordinates, new ArrayList<>());
-            if (linestrings.size() == 1) {
-                return linestrings.get(0);
-            } else {
-                return linestrings.toArray(new Line[linestrings.size()]);
-            }
-        }
-        return new Line(Arrays.stream(coordinates).mapToDouble(i->normalizeLat(i.y)).toArray(),
-            Arrays.stream(coordinates).mapToDouble(i->normalizeLon(i.x)).toArray());
+    public org.elasticsearch.geometry.Geometry buildGeometry() {
+        return new Line(coordinates.stream().mapToDouble(i->i.x).toArray(), coordinates.stream().mapToDouble(i->i.y).toArray()
+        );
     }
 
     static ArrayList<LineString> decomposeS4J(GeometryFactory factory, Coordinate[] coordinates, ArrayList<LineString> strings) {
@@ -147,16 +122,6 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuild
             }
         }
         return strings;
-    }
-
-    static ArrayList<Line> decomposeLucene(Coordinate[] coordinates, ArrayList<Line> lines) {
-        for (Coordinate[] part : decompose(+DATELINE, coordinates)) {
-            for (Coordinate[] line : decompose(-DATELINE, part)) {
-                lines.add(new Line(Arrays.stream(line).mapToDouble(i->normalizeLat(i.y)).toArray(),
-                    Arrays.stream(line).mapToDouble(i->normalizeLon(i.x)).toArray()));
-            }
-        }
-        return lines;
     }
 
     /**
@@ -174,7 +139,7 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuild
 
         for (int i = 1; i < coordinates.length; i++) {
             double t = intersection(coordinates[i-1], coordinates[i], dateline);
-            if(!Double.isNaN(t)) {
+            if(Double.isNaN(t) == false) {
                 Coordinate[] part;
                 if(t<1) {
                     part = Arrays.copyOfRange(coordinates, offset, i+1);

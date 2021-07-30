@@ -1,36 +1,40 @@
 [[query-dsl-geo-polygon-query]]
-=== Geo Polygon Query
+=== Geo-polygon query
+++++
+<titleabbrev>Geo-polygon</titleabbrev>
+++++
+deprecated::[7.12,Use <<query-dsl-geo-shape-query>> instead where polygons are defined in GeoJSON or http://docs.opengeospatial.org/is/18-010r7/18-010r7.html[Well-Known Text (WKT)].]
 
 A query returning hits that only fall within a polygon of
 points. Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_polygon" : {
-                    "person.location" : {
-                        "points" : [
-                            {"lat" : 40, "lon" : -70},
-                            {"lat" : 30, "lon" : -80},
-                            {"lat" : 20, "lon" : -90}
-                        ]
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_polygon": {
+          "person.location": {
+            "points": [
+              { "lat": 40, "lon": -70 },
+              { "lat": 30, "lon": -80 },
+              { "lat": 20, "lon": -90 }
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
+// TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
-[float]
+[discrete]
 ==== Query Options
 
 [cols="<,<",options="header",]
@@ -43,10 +47,10 @@ invalid latitude or longitude, `COERCE` to try and infer correct latitude
 or longitude, or `STRICT` (default is `STRICT`).
 |=======================================================================
 
-[float]
+[discrete]
 ==== Allowed Formats
 
-[float]
+[discrete]
 ===== Lat Long as Array
 
 Format as `[lon, lat]`
@@ -54,99 +58,99 @@ Format as `[lon, lat]`
 Note: the order of lon/lat here must
 conform with http://geojson.org/[GeoJSON].
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_polygon" : {
-                    "person.location" : {
-                        "points" : [
-                            [-70, 40],
-                            [-80, 30],
-                            [-90, 20]
-                        ]
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_polygon": {
+          "person.location": {
+            "points": [
+              [ -70, 40 ],
+              [ -80, 30 ],
+              [ -90, 20 ]
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
+// TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
-[float]
+[discrete]
 ===== Lat Lon as String
 
 Format in `lat,lon`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-               "geo_polygon" : {
-                    "person.location" : {
-                        "points" : [
-                            "40, -70",
-                            "30, -80",
-                            "20, -90"
-                        ]
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_polygon": {
+          "person.location": {
+            "points": [
+              "40, -70",
+              "30, -80",
+              "20, -90"
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
+// TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
-[float]
+[discrete]
 ===== Geohash
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-               "geo_polygon" : {
-                    "person.location" : {
-                        "points" : [
-                            "drn5x1g8cu2y",
-                            "30, -80",
-                            "20, -90"
-                        ]
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_polygon": {
+          "person.location": {
+            "points": [
+              "drn5x1g8cu2y",
+              "30, -80",
+              "20, -90"
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
+// TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
-[float]
+[discrete]
 ==== geo_point Type
 
 The query *requires* the <<geo-point,`geo_point`>> type to be set on the
 relevant field.
 
-[float]
+[discrete]
 ==== Ignore Unmapped
 
 When set to `true` the `ignore_unmapped` option will ignore an unmapped field

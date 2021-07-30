@@ -1,5 +1,8 @@
 [[number]]
-=== Numeric datatypes
+=== Numeric field types
+++++
+<titleabbrev>Numeric</titleabbrev>
+++++
 
 The following numeric types are supported:
 
@@ -12,32 +15,30 @@ The following numeric types are supported:
 `float`::        A single-precision 32-bit IEEE 754 floating point number, restricted to finite values.
 `half_float`::   A half-precision 16-bit IEEE 754 floating point number, restricted to finite values.
 `scaled_float`:: A floating point number that is backed by a `long`, scaled by a fixed `double` scaling factor.
+`unsigned_long`:: An unsigned 64-bit integer with a minimum value of 0 and a maximum value of +2^64^-1+.
 
 Below is an example of configuring a mapping with numeric fields:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "number_of_bytes": {
-          "type": "integer"
-        },
-        "time_in_seconds": {
-          "type": "float"
-        },
-        "price": {
-          "type": "scaled_float",
-          "scaling_factor": 100
-        }
+    "properties": {
+      "number_of_bytes": {
+        "type": "integer"
+      },
+      "time_in_seconds": {
+        "type": "float"
+      },
+      "price": {
+        "type": "scaled_float",
+        "scaling_factor": 100
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 NOTE: The `double`, `float` and `half_float` types consider that `-0.0` and
 `+0.0` are different values. As a consequence, doing a `term` query on
@@ -80,6 +81,31 @@ to help make a decision.
 |`half_float`|+2^-24^+ |+65504+ |+11+ / +3.31+
 |=======================================================================
 
+[TIP]
+.Mapping numeric identifiers
+====
+// tag::map-ids-as-keyword[]
+Not all numeric data should be mapped as a <<number,numeric>> field data type.
+{es} optimizes numeric fields, such as `integer` or `long`, for
+<<query-dsl-range-query,`range`>> queries. However, <<keyword,`keyword`>> fields
+are better for <<query-dsl-term-query,`term`>> and other
+<<term-level-queries,term-level>> queries.
+
+Identifiers, such as an ISBN or a product ID, are rarely used in `range`
+queries. However, they are often retrieved using term-level queries.
+
+Consider mapping a numeric identifier as a `keyword` if:
+
+* You don't plan to search for the identifier data using
+  <<query-dsl-range-query,`range`>> queries.
+* Fast retrieval is important. `term` query searches on `keyword` fields are
+  often faster than `term` searches on numeric fields.
+
+If you're unsure which to use, you can use a <<multi-fields,multi-field>> to map
+the data as both a `keyword` _and_ a numeric data type.
+// end::map-ids-as-keyword[]
+====
+
 [[number-params]]
 ==== Parameters for numeric fields
 
@@ -90,12 +116,13 @@ The following parameters are accepted by numeric types:
 <<coerce,`coerce`>>::
 
     Try to convert strings to numbers and truncate fractions for integers.
-    Accepts `true` (default) and `false`.
+    Accepts `true` (default) and `false`. Not applicable for `unsigned_long`.
+    Note that this cannot be set if the `script` parameter is used.
 
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
+include::keyword.asciidoc[tag=dimension]
++
+Of the numeric field types, only `byte`, `short`, `integer`, and `long` fields
+support this parameter.
 
 <<doc-values,`doc_values`>>::
 
@@ -106,7 +133,8 @@ The following parameters are accepted by numeric types:
 <<ignore-malformed,`ignore_malformed`>>::
 
     If `true`, malformed numbers are ignored. If `false` (default), malformed
-    numbers throw an exception and reject the whole document.
+    numbers throw an exception and reject the whole document.  Note that this
+    cannot be set if the `script` parameter is used.
 
 <<mapping-index,`index`>>::
 
@@ -115,14 +143,39 @@ The following parameters are accepted by numeric types:
 <<null-value,`null_value`>>::
 
     Accepts a numeric value of the same `type` as the field which is
-    substituted for any explicit `null` values.  Defaults to `null`, which
-    means the field is treated as missing.
+    substituted for any explicit `null` values. Defaults to `null`, which
+    means the field is treated as missing. Note that this cannot be set
+    if the `script` parameter is used.
+
+`on_script_error`::
+
+    Defines what to do if the script defined by the `script` parameter
+    throws an error at indexing time. Accepts `fail` (default), which
+    will cause the entire document to be rejected, and `continue`, which
+    will register the field in the document's
+    <<mapping-ignored-field,`_ignored`>> metadata field and continue
+    indexing. This parameter can only be set if the `script` field is
+    also set.
+
+`script`::
+
+    If this parameter is set, then the field will index values generated
+    by this script, rather than reading the values directly from the
+    source. If a value is set for this field on the input document, then
+    the document will be rejected with an error.
+    Scripts are in the same format as their
+    <<runtime-mapping-fields,runtime equivalent>>. Scripts can only be
+    configured on `long` and `double` field types.
 
 <<mapping-store,`store`>>::
 
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
+
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.
 
 [[scaled-float-params]]
 ==== Parameters for `scaled_float`

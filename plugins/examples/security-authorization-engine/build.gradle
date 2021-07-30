@@ -1,0 +1,39 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.java-rest-test'
+
+esplugin {
+  name 'security-authorization-engine'
+  description 'An example spi extension plugin for security that implements an Authorization Engine'
+  classname 'org.elasticsearch.example.AuthorizationEnginePlugin'
+  extendedPlugins = ['x-pack-security']
+  licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
+  noticeFile rootProject.file('NOTICE.txt')
+}
+
+dependencies {
+  compileOnly "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
+  javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
+  javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-high-level-client:${versions.elasticsearch}"
+  // let the javaRestTest see the classpath of main
+  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
+}
+//no unit tests
+tasks.named("test").configure { enabled = false }
+tasks.named("javaRestTest").configure {
+  dependsOn "buildZip"
+  systemProperty 'tests.security.manager', 'false'
+}
+
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+
+  // This is important, so that all the modules are available too.
+  // There are index templates that use token filters that are in analysis-module and
+  // processors are being used that are in ingest-common module.
+  testDistribution = 'DEFAULT'
+
+  user role: 'custom_superuser'
+}
+

@@ -1,35 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
 
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * The target that the search request was executed on.
@@ -49,26 +38,21 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         } else {
             nodeId = null;
         }
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         this.originalIndices = null;
         clusterAlias = in.readOptionalString();
     }
 
-    public SearchShardTarget(String nodeId, ShardId shardId, String clusterAlias, OriginalIndices originalIndices) {
+    public SearchShardTarget(String nodeId, ShardId shardId, @Nullable String clusterAlias, OriginalIndices originalIndices) {
         this.nodeId = nodeId == null ? null : new Text(nodeId);
         this.shardId = shardId;
         this.originalIndices = originalIndices;
         this.clusterAlias = clusterAlias;
     }
 
-    //this constructor is only used in tests
-    public SearchShardTarget(String nodeId, Index index, int shardId, String clusterAlias) {
-        this(nodeId,  new ShardId(index, shardId), clusterAlias, OriginalIndices.NONE);
-    }
-
     @Nullable
     public String getNodeId() {
-        return nodeId.string();
+        return nodeId != null ? nodeId.string() : null;
     }
 
     public Text getNodeIdText() {
@@ -87,15 +71,16 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         return originalIndices;
     }
 
+    @Nullable
     public String getClusterAlias() {
         return clusterAlias;
     }
 
     /**
-     * Returns the fully qualified index name, including the cluster alias.
+     * Returns the fully qualified index name, including the index prefix that indicates which cluster results come from.
      */
     public String getFullyQualifiedIndexName() {
-        return RemoteClusterAware.buildRemoteIndexName(getClusterAlias(), getIndex());
+        return RemoteClusterAware.buildRemoteIndexName(clusterAlias, getIndex());
     }
 
     @Override
@@ -121,28 +106,27 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchShardTarget that = (SearchShardTarget) o;
-        if (shardId.equals(that.shardId) == false) return false;
-        if (nodeId != null ? !nodeId.equals(that.nodeId) : that.nodeId != null) return false;
-        if (clusterAlias != null ? !clusterAlias.equals(that.clusterAlias) : that.clusterAlias != null) return false;
-        return true;
+        return Objects.equals(nodeId, that.nodeId) &&
+            Objects.equals(shardId, that.shardId) &&
+            Objects.equals(clusterAlias, that.clusterAlias);
     }
 
     @Override
     public int hashCode() {
-        int result = nodeId != null ? nodeId.hashCode() : 0;
-        result = 31 * result + (shardId.getIndexName() != null ? shardId.getIndexName().hashCode() : 0);
-        result = 31 * result + shardId.hashCode();
-        result = 31 * result + (clusterAlias != null ? clusterAlias.hashCode() : 0);
-        return result;
+        return Objects.hash(nodeId, shardId, clusterAlias);
     }
 
     @Override
     public String toString() {
-        String shardToString = "[" + RemoteClusterAware.buildRemoteIndexName(clusterAlias, shardId.getIndexName()) + "][" + shardId.getId()
-            + "]";
+        String shardToString = "[" + RemoteClusterAware.buildRemoteIndexName(
+            clusterAlias, shardId.getIndexName()) + "][" + shardId.getId() + "]";
         if (nodeId == null) {
             return "[_na_]" + shardToString;
         }

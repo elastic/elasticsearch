@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
@@ -43,7 +44,8 @@ public class JobWrapperSerializingTests extends AbstractSerializingTestCase<GetR
         return new GetRollupJobsAction.JobWrapper(ConfigTestHelpers.randomRollupJobConfig(random()),
                 new RollupIndexerJobStats(randomNonNegativeLong(), randomNonNegativeLong(),
                     randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-                    randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
-                new RollupJobStatus(state, Collections.emptyMap(), randomBoolean()));
+                    randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                    randomNonNegativeLong(), randomNonNegativeLong()),
+                new RollupJobStatus(state, Collections.emptyMap()));
     }
 }

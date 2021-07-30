@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util;
@@ -22,35 +11,31 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BigArraysTests extends ESTestCase {
-
-    private BigArrays randombigArrays() {
-        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-    }
-
-    private BigArrays bigArrays;
-
-    @Before
-    public void init() {
-        bigArrays = randombigArrays();
-    }
+    private final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
 
     public void testByteArrayGrowth() {
         final int totalLen = randomIntBetween(1, 4000000);
@@ -357,6 +342,7 @@ public class BigArraysTests extends ESTestCase {
                             .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
                             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                             .build(),
+                    Collections.emptyList(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
             BigArrays bigArrays = new BigArrays(null, hcbs, CircuitBreaker.REQUEST).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
@@ -384,6 +370,60 @@ public class BigArraysTests extends ESTestCase {
         for (final BigArraysHelper bigArraysHelper : bigArrayCreators(maxSize, false)) {
             final BigArray bigArray = bigArraysHelper.arrayAllocator.apply(size);
             assertEquals(bigArraysHelper.ramEstimator.apply(size).longValue(), bigArray.ramBytesUsed());
+        }
+    }
+
+    public void testOverSizeUsesMinPageCount() {
+        final int pageSize = 1 << (randomIntBetween(2, 16));
+        final int minSize = randomIntBetween(1, pageSize) * randomIntBetween(1, 100);
+        final long size = BigArrays.overSize(minSize, pageSize, 1);
+        assertThat(size, greaterThanOrEqualTo((long)minSize));
+        if (size >= pageSize) {
+            assertThat(size + " is a multiple of " + pageSize, size % pageSize, equalTo(0L));
+        }
+        assertThat(size - minSize, lessThan((long) pageSize));
+    }
+
+    /**
+     * Test the pattern we use to pre-allocate space for many {@link BigArray}s.
+     */
+    public void testPreallocate() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        try (HierarchyCircuitBreakerService realBreakers = new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings)) {
+            BigArrays unPreAllocated = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), realBreakers);
+            long toPreallocate = randomLongBetween(4000, 10000);
+            CircuitBreaker realBreaker = realBreakers.getBreaker(CircuitBreaker.REQUEST);
+            assertThat(realBreaker.getUsed(), equalTo(0L));
+            try (
+                PreallocatedCircuitBreakerService prealloctedBreakerService = new PreallocatedCircuitBreakerService(
+                    realBreakers,
+                    CircuitBreaker.REQUEST,
+                    toPreallocate,
+                    "test"
+                )
+            ) {
+                assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
+                BigArrays preallocated = unPreAllocated.withBreakerService(prealloctedBreakerService);
+
+                // We don't grab any bytes just making a new BigArrays
+                assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
+
+                List<BigArray> arrays = new ArrayList<>();
+                for (int i = 0; i < 30; i++) {
+                    // We're well under the preallocation so grabbing a little array doesn't allocate anything
+                    arrays.add(preallocated.newLongArray(1));
+                    assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
+                }
+
+                // Allocating a large array *does* allocate some bytes
+                arrays.add(preallocated.newLongArray(1024));
+                long expectedMin = (PageCacheRecycler.LONG_PAGE_SIZE + arrays.size()) * Long.BYTES;
+                assertThat(realBreaker.getUsed(), greaterThanOrEqualTo(expectedMin));
+                // 64 should be enough room for each BigArray object
+                assertThat(realBreaker.getUsed(), lessThanOrEqualTo(expectedMin + 64 * arrays.size()));
+                Releasables.close(arrays);
+            }
+            assertThat(realBreaker.getUsed(), equalTo(0L));
         }
     }
 
@@ -421,6 +461,7 @@ public class BigArraysTests extends ESTestCase {
                 .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
                 .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                 .build(),
+            Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         BigArrays bigArrays = new BigArrays(null, hcbs, CircuitBreaker.REQUEST);
         return (withBreaking ? bigArrays.withCircuitBreaking() : bigArrays);

@@ -1,10 +1,14 @@
+[role="xpack"]
 [[actions-index]]
-=== Index Action
+=== {watcher} index action
+++++
+<titleabbrev>Index action</titleabbrev>
+++++
 
 Use the `index` action to index data into Elasticsearch.
 See <<index-action-attributes>> for the supported attributes.
 
-==== Configuring Index Actions
+==== Configuring index actions
 
 The following snippet shows a simple `index` action definition:
 
@@ -15,34 +19,35 @@ The following snippet shows a simple `index` action definition:
     "condition": { ... }, <2>
     "transform": { ... }, <3>
     "index" : {
-      "index" : "my-index", <4>
-      "doc_type" : "my-type", <5>
-      "doc_id": "my-id" <6>
+      "index" : "my-index-000001", <4>
+      "doc_id": "my-id" <5>
     }
   }
 }
 --------------------------------------------------
 // NOTCONSOLE
 <1> The id of the action
-<2> An optional <<condition, condition>> to restrict action execution
-<3> An optional <<transform, transform>> to transform the payload and prepare the data that should be indexed
-<4> The elasticsearch index to store the data to
-<5> The document type to store the data as
-<6> An optional `_id` for the document, if it should always be the same document.
+<2> An optional <<condition,condition>> to restrict action execution
+<3> An optional <<transform,transform>> to transform the payload and prepare the data that should be indexed
+<4> The index, alias, or data stream to which the data will be written
+<5> An optional `_id` for the document
 
 
 [[index-action-attributes]]
-==== Index Action Attributes
+==== Index action attributes
 
 [options="header"]
 |======
 |Name                     |Required    | Default    | Description
 
-| `index`                 | yes        | -          | The Elasticsearch index to index into.
+| `index`                 | yes        | -          | The index, alias, or data stream to index into.
 
-| `doc_type`              | yes        | -          | The type of the document the data will be indexed as.
 
 | `doc_id`                | no         | -          | The optional `_id` of the document.
+
+| `op_type`               | no         | `index`    | The <<docs-index-api-op_type,op_type>> for the index operation.
+                                                      Must be one of either `index` or `create`. Must be `create` if
+                                                      `index` is a data stream.
 
 | `execution_time_field`  | no         | -          | The field that will store/index the watch execution
                                                       time.
@@ -50,7 +55,7 @@ The following snippet shows a simple `index` action definition:
 | `timeout`               | no         | 60s        | The timeout for waiting for the index api call to
                                                       return. If no response is returned within this time,
                                                       the index action times out and fails. This setting
-                                                      overrides  the default  timeouts.
+                                                      overrides the default timeouts.
 
 | `refresh`               | no         | -          | Optional setting of the {ref}/docs-refresh.html[refresh policy]
                                                       for the write request
@@ -58,7 +63,7 @@ The following snippet shows a simple `index` action definition:
 |======
 
 [[anatomy-actions-index-multi-doc-support]]
-==== Multi-Document Support
+==== Multi-document support
 
 Like with all other actions, you can use a <<transform, transform>> to replace
 the current execution context payload with another and by that change the document
@@ -75,5 +80,34 @@ When a `_doc` field exists, if the field holds an object, it is extracted and in
 as a single document. If the field holds an array of objects, each object is treated as
 a document and the index action indexes all of them in a bulk.
 
-An `_index`, `_type` or `_id` value can be added per document to dynamically set the ID
+An `_index`, or `_id` value can be added per document to dynamically set the index and ID
 of the indexed document.
+
+The following snippet shows a multi-document `index` action definition:
+
+[source,js]
+--------------------------------------------------
+"actions": {
+  "index_payload": {
+    "transform": {
+      "script": """
+      def documents = ctx.payload.hits.hits.stream()
+        .map(hit -> [
+          "_index": "my-index-000001", <1>
+          "_id": hit._id, <2>
+          "severity": "Sev: " + hit._source.severity <3>
+        ])
+        .collect(Collectors.toList());
+      return [ "_doc" : documents]; <4>
+      """
+    },
+    "index": {} <5>
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> The document's index
+<2> An optional `_id` for the document
+<3> A new `severity` field derived from the original document
+<4> The payload `_doc` field which is an array of documents
+<5> Since the `_index` was informed per document this should be empty

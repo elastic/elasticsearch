@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.token;
 
@@ -30,12 +31,11 @@ public class TransportRefreshTokenAction extends HandledTransportAction<CreateTo
 
     @Override
     protected void doExecute(Task task, CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
-        tokenService.refreshToken(request.getRefreshToken(), ActionListener.wrap(tuple -> {
-            final String tokenStr = tokenService.getUserTokenString(tuple.v1());
+        tokenService.refreshToken(request.getRefreshToken(), ActionListener.wrap(tokenResult -> {
             final String scope = getResponseScopeValue(request.getScope());
-
             final CreateTokenResponse response =
-                    new CreateTokenResponse(tokenStr, tokenService.getExpirationDelay(), scope, tuple.v2());
+                new CreateTokenResponse(tokenResult.getAccessToken(), tokenService.getExpirationDelay(), scope,
+                    tokenResult.getRefreshToken(), null, tokenResult.getAuthentication());
             listener.onResponse(response);
         }, listener::onFailure));
     }

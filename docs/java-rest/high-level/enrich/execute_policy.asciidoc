@@ -1,0 +1,30 @@
+--
+:api: enrich-execute-policy
+:request: ExecutePolicyRequest
+:response: ExecutePolicyResponse
+--
+
+[id="{upid}-{api}"]
+=== Execute Policy API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Execute Policy API allows to execute an enrich policy by name.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ includes either the status or task id.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+
+include::../execution.asciidoc[]

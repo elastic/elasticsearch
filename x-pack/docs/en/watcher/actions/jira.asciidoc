@@ -1,11 +1,15 @@
+[role="xpack"]
 [[actions-jira]]
-=== Jira Action
+=== {watcher} Jira action
+++++
+<titleabbrev>Jira action</titleabbrev>
+++++
 
-Use the `jira` action to create issues in  https://www.atlassian.com/software/jira[Atlassian's Jira Software].
+Use the `jira` action to create issues in https://www.atlassian.com/software/jira[Atlassian's Jira Software].
 To create issues you need to <<configuring-jira, configure at least one Jira account>> in `elasticsearch.yml`.
 
 [[configuring-jira-actions]]
-==== Configuring Jira Actions
+==== Configuring Jira actions
 
 You configure Jira actions in the `actions` array. Action-specific attributes
 are specified using the `jira` keyword.
@@ -27,8 +31,8 @@ The following snippet shows a simple jira action definition:
           "issuetype" : {
             "name": "Bug" <3>
           },
-          "summary" : "Encountered {{ctx.payload.hits.total.value}} errors in the last 5 minutes", <4>
-          "description" : "Encountered {{ctx.payload.hits.total.value}} errors in the last 5 minutes (facepalm)", <5>
+          "summary" : "Encountered {{ctx.payload.hits.total}} errors in the last 5 minutes", <4>
+          "description" : "Encountered {{ctx.payload.hits.total}} errors in the last 5 minutes (facepalm)", <5>
           "labels" : ["auto"], <6>
           "priority" : {
             "name" : "High" <7>
@@ -48,7 +52,7 @@ The following snippet shows a simple jira action definition:
 <7> The priority of the Jira issue.
 
 [[jira-action-attributes]]
-==== Jira Action Attributes
+==== Jira action attributes
 
 Depending of how Jira projects are configured, the issues can have many different fields and values. Therefore
 the `jira` action can accept any type of sub fields within its `issue` field. These fields will be directly used
@@ -99,7 +103,7 @@ always required to create an issue in Jira.
 |======
 
 [[configuring-jira]]
-==== Configuring Jira Accounts
+==== Configuring Jira accounts
 
 You configure the accounts {watcher} can use to communicate with Jira in the
 `xpack.notification.jira` namespace in `elasticsearch.yml`.
@@ -109,12 +113,15 @@ Jira account you need to specify (see {ref}/secure-settings.html[secure settings
 
 [source,yaml]
 --------------------------------------------------
-bin/elasticsearch-keystore xpack.notification.jira.account.monitoring.secure_url
-bin/elasticsearch-keystore xpack.notification.jira.account.monitoring.secure_user
-bin/elasticsearch-keystore xpack.notification.jira.account.monitoring.secure_password
+bin/elasticsearch-keystore add xpack.notification.jira.account.monitoring.secure_url
+bin/elasticsearch-keystore add xpack.notification.jira.account.monitoring.secure_user
+bin/elasticsearch-keystore add xpack.notification.jira.account.monitoring.secure_password
 --------------------------------------------------
 
-deprecated[The insecure way of storing sensitive data (`url`, `user` and `password`) in the configuration file or the cluster settings is deprecated]
+[WARNING]
+======
+Storing sensitive data (`url`, `user` and `password`) in the configuration file or the cluster settings is insecure and has been deprecated. Please use {es}'s secure {ref}/secure-settings.html[keystore] method instead.
+======
 
 To avoid credentials that transit in clear text over the network, {watcher} will
 reject `url` settings like `http://internal-jira.elastic.co` that are based on
@@ -137,7 +144,7 @@ WARNING: It is strongly advised to use Basic Authentication with secured HTTPS
  protocol only.
 
 You can also specify defaults for the
-{ref}/notification-settings.html#jira-account-attributes[Jira issues]:
+<<jira-account-attributes,Jira issues>>:
 
 [source,yaml]
 --------------------------------------------------
@@ -155,7 +162,7 @@ xpack.notification.jira:
 
 If you configure multiple Jira accounts, you either need to configure a default
 account or specify which account the notification should be sent with in the
-<<actions-jira, jira>> action.
+<<actions-jira,`jira`>> action.
 
 [source,yaml]
 --------------------------------------------------

@@ -1,27 +1,201 @@
 [[indices-recovery]]
-== Indices Recovery
+=== Index recovery API
+++++
+<titleabbrev>Index recovery</titleabbrev>
+++++
 
-The indices recovery API provides insight into on-going index shard recoveries.
-Recovery status may be reported for specific indices, or cluster-wide.
 
-For example, the following command would show recovery information for the indices "index1" and "index2".
+Returns information about ongoing and completed shard recoveries for one or more
+indices. For data streams, the API returns information for the stream's backing
+indices.
 
-[source,js]
+[source,console]
+----
+GET /my-index-000001/_recovery
+----
+// TEST[setup:my_index]
+
+
+[[index-recovery-api-request]]
+==== {api-request-title}
+
+`GET /<target>/_recovery`
+
+`GET /_recovery`
+
+[[index-recovery-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-indices,index privilege>> for the target data stream,
+index, or alias.
+
+[[index-recovery-api-desc]]
+==== {api-description-title}
+
+Use the index recovery API
+to get information about ongoing and completed shard recoveries.
+
+// tag::shard-recovery-desc[]
+Shard recovery is the process
+of syncing a replica shard from a primary shard.
+Upon completion,
+the replica shard is available for search.
+
+Recovery automatically occurs during the following processes:
+
+* Node startup or failure. This type of recovery is called a local store
+  recovery.
+* Primary shard replication.
+* Relocation of a shard to a different node in the same cluster.
+* <<snapshots-restore-snapshot,Snapshot restoration>>.
+
+// end::shard-recovery-desc[]
+
+[[index-recovery-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
+
+[[index-recovery-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=active-only]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
+
+
+[[index-recovery-api-response-body]]
+==== {api-response-body-title}
+
+`id`::
+(Integer)
+ID of the shard.
+
+`type`::
++
+--
+(String)
+Recovery type.
+Returned values include:
+
+`STORE`::
+The recovery is related to
+a node startup or failure.
+This type of recovery is called a local store recovery.
+
+`SNAPSHOT`::
+The recovery is related to
+a <<snapshots-restore-snapshot,snapshot restoration>>.
+
+`REPLICA`::
+The recovery is related to a primary shard replication.
+
+`RELOCATING`::
+The recovery is related to
+the relocation of a shard
+to a different node in the same cluster.
+--
+
+`STAGE`::
++
+--
+(String)
+Recovery stage.
+Returned values include:
+
+`DONE`::
+Complete.
+
+`FINALIZE`::
+Cleanup.
+
+`INDEX`::
+Reading index metadata and copying bytes from source to destination.
+
+`INIT`::
+Recovery has not started.
+
+`START`::
+Starting the recovery process; opening the index for use.
+
+`TRANSLOG`::
+Replaying transaction log .
+--
+
+`primary`::
+(Boolean)
+If `true`,
+the shard is a primary shard.
+
+`start_time`::
+(String)
+Timestamp of recovery start.
+
+`stop_time`::
+(String)
+Timestamp of recovery finish.
+
+`total_time_in_millis`::
+(String)
+Total time to recover shard in milliseconds.
+
+`source`::
++
+--
+(Object)
+Recovery source.
+This can include:
+
+  * A repository description if recovery is from a snapshot
+  * A description of source node
+--
+
+`target`::
+(Object)
+Destination node.
+
+`index`::
+(Object)
+Statistics about physical index recovery.
+
+`translog`::
+(Object)
+Statistics about translog recovery.
+
+`start`::
+(Object)
+Statistics about time to open and start the index.
+
+
+[[index-recovery-api-example]]
+==== {api-examples-title}
+
+
+[[index-recovery-api-multi-ex]]
+===== Get recovery information for several data streams and indices
+
+[source,console]
 --------------------------------------------------
 GET index1,index2/_recovery?human
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT index1\nPUT index2\n/]
 
-To see cluster-wide recovery status simply leave out the index names.
+
+[[index-recovery-api-all-ex]]
+===== Get segment information for all data streams and indices in a cluster
 
 //////////////////////////
-
 Here we create a repository and snapshot index1 in
 order to restore it right after and prints out the
-indices recovery result.
+index recovery result.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # create the index
 PUT index1
@@ -33,6 +207,7 @@ PUT /_snapshot/my_repository
 
 # snapshot the index
 PUT /_snapshot/my_repository/snap_1?wait_for_completion=true
+{"indices": "index1"}
 
 # delete the index
 DELETE index1
@@ -41,9 +216,8 @@ DELETE index1
 POST /_snapshot/my_repository/snap_1/_restore?wait_for_completion=true
 
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "snapshot": {
@@ -59,19 +233,17 @@ POST /_snapshot/my_repository/snap_1/_restore?wait_for_completion=true
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
-
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_recovery?human
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-Response:
-[source,js]
+The API returns the following response:
+
+[source,console-result]
 --------------------------------------------------
 {
   "index1" : {
@@ -90,7 +262,8 @@ Response:
         "repository" : "my_repository",
         "snapshot" : "my_snapshot",
         "index" : "index1",
-        "version" : "{version}"
+        "version" : "{version}",
+        "restoreUUID": "PDh1ZAOaRbiGIVtCvZOMww"
       },
       "target" : {
         "id" : "ryqJ5lO5S4-lSFbGntkEkg",
@@ -147,23 +320,30 @@ The TESTRESPONSE above replace all the fields values by the expected ones in the
 because we don't really care about the field values but we want to check the fields names.
 ////
 
-The above response shows a single index recovering a single shard. In this case, the source of the recovery is a snapshot repository
-and the target of the recovery is the node with name "my_es_node".
+This response includes information
+about a single index recovering a single shard.
+The source of the recovery is a snapshot repository
+and the target of the recovery is the `my_es_node` node.
 
-Additionally, the output shows the number and percent of files recovered, as well as the number and percent of bytes recovered.
+The response also includes the number
+and percentage of files and bytes recovered.
 
-In some cases a higher level of detail may be preferable. Setting "detailed=true" will present a list of physical files in recovery.
 
-[source,js]
+[[index-recovery-api-detailed-ex]]
+===== Get detailed recovery information
+
+To get a list of physical files in recovery,
+set the `detailed` query parameter to `true`.
+
+[source,console]
 --------------------------------------------------
 GET _recovery?human&detailed=true
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT index1\n{"settings": {"index.number_of_shards": 1}}\n/]
 
-Response:
+The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "index1" : {
@@ -248,7 +428,7 @@ Response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"source" : \{[^}]*\}/"source" : $body.$_path/]
-// TESTRESPONSE[s/"details" : \[[^\]]*\]//]
+// TESTRESPONSE[s/"details" : \[[^\]]*\]/"details" : $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 ////
@@ -257,43 +437,22 @@ because we don't really care about the field values but we want to check the fie
 It also removes the "details" part which is important in this doc but really hard to test.
 ////
 
-This response shows a detailed listing (truncated for brevity) of the actual files recovered and their sizes.
+The response includes a listing
+of any physical files recovered
+and their sizes.
 
-Also shown are the timings in milliseconds of the various stages of recovery: index retrieval, translog replay, and index start time.
+The response also includes timings in milliseconds
+of the various stages of recovery:
 
-Note that the above listing indicates that the recovery is in stage "done". All recoveries, whether on-going or complete, are kept in
-cluster state and may be reported on at any time. Setting "active_only=true" will cause only on-going recoveries to be reported.
+* Index retrieval
+* Translog replay
+* Index start time
 
-Here is a complete list of options:
+This response indicates the recovery is `done`.
+All recoveries,
+whether ongoing or complete,
+are kept in the cluster state
+and may be reported on at any time.
 
-[horizontal]
-`detailed`::        Display a detailed view. This is primarily useful for viewing the recovery of physical index files. Default: false.
-`active_only`::     Display only those recoveries that are currently on-going. Default: false.
-
-Description of output fields:
-
-[horizontal]
-`id`::              Shard ID
-`type`::            Recovery type:
-                        * store
-                        * snapshot
-                        * replica
-                        * relocating
-`stage`::           Recovery stage:
-                        * init:     Recovery has not started
-                        * index:    Reading index meta-data and copying bytes from source to destination
-                        * start:    Starting the engine; opening the index for use
-                        * translog: Replaying transaction log
-                        * finalize: Cleanup
-                        * done:     Complete
-`primary`::         True if shard is primary, false otherwise
-`start_time`::      Timestamp of recovery start
-`stop_time`::       Timestamp of recovery finish
-`total_time_in_millis`::    Total time to recover shard in milliseconds
-`source`::          Recovery source:
-                        * repository description if recovery is from a snapshot
-                        * description of source node otherwise
-`target`::          Destination node
-`index`::           Statistics about physical index recovery
-`translog`::        Statistics about translog recovery
-`start`::           Statistics about time to open and start the index
+To only return information about ongoing recoveries,
+set the `active_only` query parameter to `true`.

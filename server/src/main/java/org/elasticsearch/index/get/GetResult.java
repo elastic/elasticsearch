@@ -1,86 +1,107 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-public class GetResult implements Streamable, Iterable<DocumentField>, ToXContentObject {
+public class GetResult implements Writeable, Iterable<DocumentField>, ToXContentObject {
+    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(GetResult.class);
 
     public static final String _INDEX = "_index";
-    public static final String _TYPE = "_type";
     public static final String _ID = "_id";
     private static final String _VERSION = "_version";
+    private static final String _SEQ_NO = "_seq_no";
+    private static final String _PRIMARY_TERM = "_primary_term";
     private static final String FOUND = "found";
     private static final String FIELDS = "fields";
 
     private String index;
-    private String type;
     private String id;
     private long version;
+    private long seqNo;
+    private long primaryTerm;
     private boolean exists;
-    private Map<String, DocumentField> fields;
+    private final Map<String, DocumentField> documentFields;
+    private final Map<String, DocumentField> metaFields;
     private Map<String, Object> sourceAsMap;
     private BytesReference source;
     private byte[] sourceAsBytes;
 
-    GetResult() {
+    public GetResult(StreamInput in) throws IOException {
+        index = in.readString();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readOptionalString();
+        }
+        id = in.readString();
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
+        version = in.readLong();
+        exists = in.readBoolean();
+        if (exists) {
+            source = in.readBytesReference();
+            if (source.length() == 0) {
+                source = null;
+            }
+            documentFields = readFields(in);
+            metaFields = readFields(in);
+        } else {
+            metaFields = Collections.emptyMap();
+            documentFields = Collections.emptyMap();
+        }
     }
 
-    public GetResult(String index, String type, String id, long version, boolean exists, BytesReference source,
-                     Map<String, DocumentField> fields) {
+    public GetResult(String index, String id, long seqNo, long primaryTerm, long version, boolean exists,
+                     BytesReference source, Map<String, DocumentField> documentFields, Map<String, DocumentField> metaFields) {
         this.index = index;
-        this.type = type;
         this.id = id;
+        this.seqNo = seqNo;
+        this.primaryTerm = primaryTerm;
+        assert (seqNo == UNASSIGNED_SEQ_NO && primaryTerm == UNASSIGNED_PRIMARY_TERM) || (seqNo >= 0 && primaryTerm >= 1) :
+            "seqNo: " + seqNo + " primaryTerm: " + primaryTerm;
+        assert exists || (seqNo == UNASSIGNED_SEQ_NO && primaryTerm == UNASSIGNED_PRIMARY_TERM) :
+            "doc not found but seqNo/primaryTerm are set";
         this.version = version;
         this.exists = exists;
         this.source = source;
-        this.fields = fields;
-        if (this.fields == null) {
-            this.fields = emptyMap();
-        }
+        this.documentFields = documentFields == null ? emptyMap() : documentFields;
+        this.metaFields = metaFields == null ? emptyMap() : metaFields;
     }
 
     /**
@@ -98,13 +119,6 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     }
 
     /**
-     * The type of the document.
-     */
-    public String getType() {
-        return type;
-    }
-
-    /**
      * The id of the document.
      */
     public String getId() {
@@ -116,6 +130,20 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
      */
     public long getVersion() {
         return version;
+    }
+
+    /**
+     * The sequence number assigned to the last operation that has changed this document, if found.
+     */
+    public long getSeqNo() {
+        return seqNo;
+    }
+
+    /**
+     * The primary term of the last primary that has changed this document, if found.
+     */
+    public long getPrimaryTerm() {
+        return primaryTerm;
     }
 
     /**
@@ -196,38 +224,40 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         return sourceAsMap();
     }
 
+
+    public Map<String, DocumentField> getMetadataFields() {
+        return metaFields;
+    }
+
+    public Map<String, DocumentField> getDocumentFields() {
+        return documentFields;
+    }
+
     public Map<String, DocumentField> getFields() {
+        Map<String, DocumentField> fields = new HashMap<>();
+        fields.putAll(metaFields);
+        fields.putAll(documentFields);
         return fields;
     }
 
     public DocumentField field(String name) {
-        return fields.get(name);
+        return getFields().get(name);
     }
 
     @Override
     public Iterator<DocumentField> iterator() {
-        if (fields == null) {
-            return Collections.emptyIterator();
-        }
-        return fields.values().iterator();
+        // need to join the fields and metadata fields
+        Map<String, DocumentField> allFields = this.getFields();
+        return allFields.values().iterator();
     }
 
     public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {
-        List<DocumentField> metaFields = new ArrayList<>();
-        List<DocumentField> otherFields = new ArrayList<>();
-        if (fields != null && !fields.isEmpty()) {
-            for (DocumentField field : fields.values()) {
-                if (field.getValues().isEmpty()) {
-                    continue;
-                }
-                if (field.isMetadataField()) {
-                    metaFields.add(field);
-                } else {
-                    otherFields.add(field);
-                }
-            }
+        if (seqNo != UNASSIGNED_SEQ_NO) { // seqNo may not be assigned if read from an old node
+            builder.field(_SEQ_NO, seqNo);
+            builder.field(_PRIMARY_TERM, primaryTerm);
         }
-        for (DocumentField field : metaFields) {
+
+        for (DocumentField field : metaFields.values()) {
             // TODO: can we avoid having an exception here?
             if (field.getName().equals(IgnoredFieldMapper.NAME)) {
                 builder.field(field.getName(), field.getValues());
@@ -242,9 +272,9 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
             XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
         }
 
-        if (!otherFields.isEmpty()) {
+        if (documentFields.isEmpty() == false) {
             builder.startObject(FIELDS);
-            for (DocumentField field : otherFields) {
+            for (DocumentField field : documentFields.values()) {
                 field.toXContent(builder, params);
             }
             builder.endObject();
@@ -256,7 +286,9 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX, index);
-        builder.field(_TYPE, type);
+        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+        }
         builder.field(_ID, id);
         if (isExists()) {
             if (version != -1) {
@@ -272,35 +304,43 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
 
     public static GetResult fromXContentEmbedded(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-        return fromXContentEmbedded(parser, null, null, null);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+        return fromXContentEmbedded(parser, null, null);
     }
 
-    public static GetResult fromXContentEmbedded(XContentParser parser, String index, String type, String id) throws IOException {
+    public static GetResult fromXContentEmbedded(XContentParser parser, String index, String id) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
 
         String currentFieldName = parser.currentName();
         long version = -1;
+        long seqNo = UNASSIGNED_SEQ_NO;
+        long primaryTerm = UNASSIGNED_PRIMARY_TERM;
         Boolean found = null;
         BytesReference source = null;
-        Map<String, DocumentField> fields = new HashMap<>();
+        Map<String, DocumentField> documentFields = new HashMap<>();
+        Map<String, DocumentField> metaFields = new HashMap<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (_INDEX.equals(currentFieldName)) {
                     index = parser.text();
-                } else if (_TYPE.equals(currentFieldName)) {
-                    type = parser.text();
+                } else if (parser.getRestApiVersion() == RestApiVersion.V_7 && MapperService.TYPE_FIELD_NAME.equals(currentFieldName)) {
+                    deprecationLogger.compatibleApiWarning("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
                 } else if (_ID.equals(currentFieldName)) {
                     id = parser.text();
                 }  else if (_VERSION.equals(currentFieldName)) {
                     version = parser.longValue();
+                }  else if (_SEQ_NO.equals(currentFieldName)) {
+                    seqNo = parser.longValue();
+                }  else if (_PRIMARY_TERM.equals(currentFieldName)) {
+                    primaryTerm = parser.longValue();
                 } else if (FOUND.equals(currentFieldName)) {
                     found = parser.booleanValue();
                 } else {
-                    fields.put(currentFieldName, new DocumentField(currentFieldName, Collections.singletonList(parser.objectText())));
+                    metaFields.put(currentFieldName, new DocumentField(currentFieldName,
+                            Collections.singletonList(parser.objectText())));
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (SourceFieldMapper.NAME.equals(currentFieldName)) {
@@ -313,76 +353,69 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                 } else if (FIELDS.equals(currentFieldName)) {
                     while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         DocumentField getField = DocumentField.fromXContent(parser);
-                        fields.put(getField.getName(), getField);
+                        documentFields.put(getField.getName(), getField);
                     }
                 } else {
                     parser.skipChildren(); // skip potential inner objects for forward compatibility
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (IgnoredFieldMapper.NAME.equals(currentFieldName)) {
-                    fields.put(currentFieldName, new DocumentField(currentFieldName, parser.list()));
+                    metaFields.put(currentFieldName, new DocumentField(currentFieldName, parser.list()));
                 } else {
                     parser.skipChildren(); // skip potential inner arrays for forward compatibility
                 }
             }
         }
-        return new GetResult(index, type, id, version, found, source, fields);
+        return new GetResult(index, id, seqNo, primaryTerm, version, found, source, documentFields, metaFields);
     }
 
     public static GetResult fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         return fromXContentEmbedded(parser);
     }
 
-    public static GetResult readGetResult(StreamInput in) throws IOException {
-        GetResult result = new GetResult();
-        result.readFrom(in);
-        return result;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        index = in.readString();
-        type = in.readOptionalString();
-        id = in.readString();
-        version = in.readLong();
-        exists = in.readBoolean();
-        if (exists) {
-            source = in.readBytesReference();
-            if (source.length() == 0) {
-                source = null;
-            }
-            int size = in.readVInt();
-            if (size == 0) {
-                fields = emptyMap();
-            } else {
-                fields = new HashMap<>(size);
-                for (int i = 0; i < size; i++) {
-                    DocumentField field = DocumentField.readDocumentField(in);
-                    fields.put(field.getName(), field);
-                }
+    private Map<String, DocumentField> readFields(StreamInput in) throws IOException {
+        Map<String, DocumentField> fields;
+        int size = in.readVInt();
+        if (size == 0) {
+            fields = emptyMap();
+        } else {
+            fields = new HashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                DocumentField field = new DocumentField(in);
+                fields.put(field.getName(), field);
             }
         }
+        return fields;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        out.writeOptionalString(type);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
+        out.writeZLong(seqNo);
+        out.writeVLong(primaryTerm);
         out.writeLong(version);
         out.writeBoolean(exists);
         if (exists) {
             out.writeBytesReference(source);
-            if (fields == null) {
-                out.writeVInt(0);
-            } else {
-                out.writeVInt(fields.size());
-                for (DocumentField field : fields.values()) {
-                    field.writeTo(out);
-                }
+            writeFields(out, documentFields);
+            writeFields(out, metaFields);
+        }
+    }
+
+    private void writeFields(StreamOutput out,  Map<String, DocumentField> fields) throws IOException {
+        if (fields == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(fields.size());
+            for (DocumentField field : fields.values()) {
+                field.writeTo(out);
             }
         }
     }
@@ -397,17 +430,19 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         }
         GetResult getResult = (GetResult) o;
         return version == getResult.version &&
+                seqNo == getResult.seqNo &&
+                primaryTerm == getResult.primaryTerm &&
                 exists == getResult.exists &&
                 Objects.equals(index, getResult.index) &&
-                Objects.equals(type, getResult.type) &&
                 Objects.equals(id, getResult.id) &&
-                Objects.equals(fields, getResult.fields) &&
+                Objects.equals(documentFields, getResult.documentFields) &&
+                Objects.equals(metaFields, getResult.metaFields) &&
                 Objects.equals(sourceAsMap(), getResult.sourceAsMap());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(version, exists, index, type, id, fields, sourceAsMap());
+        return Objects.hash(version, seqNo, primaryTerm, exists, index, id, documentFields, metaFields, sourceAsMap());
     }
 
     @Override

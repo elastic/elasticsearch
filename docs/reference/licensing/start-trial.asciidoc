@@ -1,50 +1,50 @@
 [role="xpack"]
 [testenv="basic"]
 [[start-trial]]
-=== Start Trial API
+=== Start trial API
+++++
+<titleabbrev>Start trial</titleabbrev>
+++++
 
-This API starts a 30-day trial license.
+Starts a 30-day trial.
 
-[float]
+[discrete]
 ==== Request
 
 `POST /_license/start_trial`
 
-[float]
+[discrete]
 ==== Description
 
-The `start trial` API enables you to upgrade from a basic license to a 30-day
-trial license, which gives access to the platinum features.
+The `start trial` API enables you to start a 30-day trial, which gives access to
+all subscription features.
 
-NOTE: You are allowed to initiate a trial license only if your cluster has not
-already activated a trial license for the current major product version. For
-example, if you have already activated a trial for v6.0, you cannot start a new
-trial until v7.0. You can, however, contact `info@elastic.co` to request an
-extended trial license.
+NOTE: You are allowed to initiate a trial only if your cluster has not already
+activated a trial for the current major product version. For example, if you
+have already activated a trial for v6.0, you cannot start a new trial until v7.0.
+You can, however, request an extended trial at {extendtrial}.
 
-To check the status of your trial license, use the following API:
-<<get-trial-status>>. 
+To check the status of your trial, use <<get-trial-status>>. 
 
-For more information about the different types of licenses, see
+For more information about features and subscriptions, see
 https://www.elastic.co/subscriptions.
 
 ==== Authorization
 
 You must have `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+<<security-privileges>>.
 
-[float]
+[discrete]
 ==== Examples
 
-The following example starts a 30-day trial license. The acknowledge
-parameter is required as you are initiating a license that will expire.
+The following example starts a 30-day trial. The acknowledge parameter is
+required as you are initiating a license that will expire.
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 POST /_license/start_trial?acknowledge=true
 ------------------------------------------------------------
-// CONSOLE
 // TEST[skip:license testing issues]
 
 Example response:

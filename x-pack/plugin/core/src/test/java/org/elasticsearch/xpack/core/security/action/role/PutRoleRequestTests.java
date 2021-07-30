@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
@@ -21,7 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,15 +31,49 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PutRoleRequestTests extends ESTestCase {
+
+    public void testValidationErrorWithUnknownClusterPrivilegeName() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        String unknownClusterPrivilegeName = "unknown_" + randomAlphaOfLengthBetween(3,9);
+        request.cluster("manage_security", unknownClusterPrivilegeName);
+
+        // Fail
+        assertValidationError("unknown cluster privilege [" + unknownClusterPrivilegeName.toLowerCase(Locale.ROOT) + "]", request);
+    }
+
+    public void testValidationSuccessWithCorrectClusterPrivilegeName() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        request.cluster("manage_security", "manage", "cluster:admin/xpack/security/*");
+        assertSuccessfulValidation(request);
+    }
+
+    public void testValidationErrorWithUnknownIndexPrivilegeName() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        String unknownIndexPrivilegeName = "unknown_" + randomAlphaOfLengthBetween(3,9);
+        request.addIndex(new String[]{randomAlphaOfLength(5)}, new String[]{"index", unknownIndexPrivilegeName}, null,
+            null, null, randomBoolean());
+
+        // Fail
+        assertValidationError("unknown index privilege [" + unknownIndexPrivilegeName.toLowerCase(Locale.ROOT) + "]", request);
+    }
+
+    public void testValidationSuccessWithCorrectIndexPrivilegeName() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        request.addIndex(new String[]{randomAlphaOfLength(5)}, new String[]{"index", "write", "indices:data/read"}, null,
+            null, null, randomBoolean());
+        assertSuccessfulValidation(request);
+    }
 
     public void testValidationOfApplicationPrivileges() {
         assertSuccessfulValidation(buildRequestWithApplicationPrivilege("app", new String[]{"read"}, new String[]{"*"}));
@@ -59,43 +94,18 @@ public class PutRoleRequestTests extends ESTestCase {
 
         final BytesStreamOutput out = new BytesStreamOutput();
         if (randomBoolean()) {
-            final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, Version.CURRENT);
+            final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
             logger.info("Serializing with version {}", version);
             out.setVersion(version);
         }
         original.writeTo(out);
 
-        final PutRoleRequest copy = new PutRoleRequest();
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
         in.setVersion(out.getVersion());
-        copy.readFrom(in);
+        final PutRoleRequest copy = new PutRoleRequest(in);
 
         assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
-    }
-
-    public void testSerializationV63AndBefore() throws IOException {
-        final PutRoleRequest original = buildRandomRequest();
-
-        final BytesStreamOutput out = new BytesStreamOutput();
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_3_2);
-        out.setVersion(version);
-        original.writeTo(out);
-
-        final PutRoleRequest copy = new PutRoleRequest();
-        final StreamInput in = out.bytes().streamInput();
-        in.setVersion(version);
-        copy.readFrom(in);
-
-        assertThat(copy.name(), equalTo(original.name()));
-        assertThat(copy.cluster(), equalTo(original.cluster()));
-        assertThat(copy.indices(), equalTo(original.indices()));
-        assertThat(copy.runAs(), equalTo(original.runAs()));
-        assertThat(copy.metadata(), equalTo(original.metadata()));
-        assertThat(copy.getRefreshPolicy(), equalTo(original.getRefreshPolicy()));
-
-        assertThat(copy.applicationPrivileges(), iterableWithSize(0));
-        assertThat(copy.conditionalClusterPrivileges(), arrayWithSize(0));
     }
 
     private void assertSuccessfulValidation(PutRoleRequest request) {
@@ -135,7 +145,8 @@ public class PutRoleRequestTests extends ESTestCase {
                 randomSubsetOf(randomIntBetween(1, 2), "read", "write", "index", "all").toArray(Strings.EMPTY_ARRAY),
                 generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), true),
                 generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), true),
-                null
+                null,
+                randomBoolean()
             );
         }
 
@@ -153,7 +164,7 @@ public class PutRoleRequestTests extends ESTestCase {
 
         if (randomBoolean()) {
             final String[] appNames = randomArray(1, 4, String[]::new, stringWithInitialLowercase);
-            request.conditionalCluster(new ConditionalClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet(appNames)));
+            request.conditionalCluster(new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet(appNames)));
         }
 
         request.runAs(generateRandomStringArray(4, 3, false, true));

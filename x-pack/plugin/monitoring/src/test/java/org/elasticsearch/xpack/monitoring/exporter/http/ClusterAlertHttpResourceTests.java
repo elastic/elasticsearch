@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.http.HttpEntity;
@@ -59,7 +61,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     }
 
     public void testDoCheckGetWatchExists() throws IOException {
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(true);
 
         final HttpEntity entity = entityForClusterAlert(true, minimumVersion);
 
@@ -67,7 +69,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     }
 
     public void testDoCheckGetWatchDoesNotExist() throws IOException {
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(true);
 
         if (randomBoolean()) {
             // it does not exist because it's literally not there
@@ -81,7 +83,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     }
 
     public void testDoCheckWithExceptionGetWatchError() throws IOException {
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(true);
 
         if (randomBoolean()) {
             // error because of a server error
@@ -99,7 +101,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
         final boolean clusterAlertsAllowed = randomBoolean();
 
         // should not matter
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(clusterAlertsAllowed);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(clusterAlertsAllowed);
 
         assertCheckAsDeleteExists(noWatchResource, "/_watcher/watch", watchId);
     }
@@ -109,29 +111,29 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
         final boolean clusterAlertsAllowed = randomBoolean();
 
         // should not matter
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(clusterAlertsAllowed);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(clusterAlertsAllowed);
 
         assertCheckAsDeleteWithException(noWatchResource, "/_watcher/watch", watchId);
     }
 
     public void testDoCheckAsDeleteWatchExists() throws IOException {
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(false);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(false);
 
         assertCheckAsDeleteExists(resource, "/_watcher/watch", watchId);
     }
 
     public void testDoCheckWithExceptionAsDeleteWatchError() throws IOException {
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(false);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(false);
 
         assertCheckAsDeleteWithException(resource, "/_watcher/watch", watchId);
     }
 
     public void testDoPublishTrue() throws IOException {
-        assertPublishSucceeds(resource, "/_watcher/watch", watchId, StringEntity.class);
+        assertPublishSucceeds(resource, "/_watcher/watch", watchId, Collections.emptyMap(), StringEntity.class);
     }
 
     public void testDoPublishFalseWithException() throws IOException {
-        assertPublishWithException(resource, "/_watcher/watch", watchId, StringEntity.class);
+        assertPublishWithException(resource, "/_watcher/watch", watchId, Collections.emptyMap(), StringEntity.class);
     }
 
     public void testShouldReplaceClusterAlertRethrowsIOException() throws IOException {
@@ -181,7 +183,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     }
 
     public void testParameters() {
-        final Map<String, String> parameters = new HashMap<>(resource.getParameters());
+        final Map<String, String> parameters = new HashMap<>(resource.getDefaultParameters());
 
         assertThat(parameters.remove("filter_path"), is("metadata.xpack.version_created"));
         assertThat(parameters.isEmpty(), is(true));

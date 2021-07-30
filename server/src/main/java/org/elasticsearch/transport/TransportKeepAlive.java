@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -27,10 +16,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -49,6 +37,19 @@ final class TransportKeepAlive implements Closeable {
 
     static final int PING_DATA_SIZE = -1;
 
+    private static final BytesReference PING_MESSAGE;
+
+    static {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeByte((byte) 'E');
+            out.writeByte((byte) 'S');
+            out.writeInt(PING_DATA_SIZE);
+            PING_MESSAGE = out.copyBytes();
+        } catch (IOException e) {
+            throw new AssertionError(e.getMessage(), e); // won't happen
+        }
+    }
+
     private final Logger logger = LogManager.getLogger(TransportKeepAlive.class);
     private final CounterMetric successfulPings = new CounterMetric();
     private final CounterMetric failedPings = new CounterMetric();
@@ -56,20 +57,10 @@ final class TransportKeepAlive implements Closeable {
     private final Lifecycle lifecycle = new Lifecycle();
     private final ThreadPool threadPool;
     private final AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender;
-    private final BytesReference pingMessage;
 
     TransportKeepAlive(ThreadPool threadPool, AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender) {
         this.threadPool = threadPool;
         this.pingSender = pingSender;
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeByte((byte) 'E');
-            out.writeByte((byte) 'S');
-            out.writeInt(PING_DATA_SIZE);
-            pingMessage = out.bytes();
-        } catch (IOException e) {
-            throw new AssertionError(e.getMessage(), e); // won't happen
-        }
 
         this.lifecycle.moveToStarted();
     }
@@ -85,10 +76,7 @@ final class TransportKeepAlive implements Closeable {
 
         for (TcpChannel channel : nodeChannels) {
             scheduledPing.addChannel(channel);
-
-            channel.addCloseListener(ActionListener.wrap(() -> {
-                scheduledPing.removeChannel(channel);
-            }));
+            channel.addCloseListener(ActionListener.wrap(() -> scheduledPing.removeChannel(channel)));
         }
     }
 
@@ -116,7 +104,7 @@ final class TransportKeepAlive implements Closeable {
     }
 
     private void sendPing(TcpChannel channel) {
-        pingSender.apply(channel, pingMessage, new ActionListener<Void>() {
+        pingSender.apply(channel, PING_MESSAGE, new ActionListener<Void>() {
 
             @Override
             public void onResponse(Void v) {
@@ -137,8 +125,10 @@ final class TransportKeepAlive implements Closeable {
 
     @Override
     public void close() {
-        lifecycle.moveToStopped();
-        lifecycle.moveToClosed();
+        synchronized (lifecycle) {
+            lifecycle.moveToStopped();
+            lifecycle.moveToClosed();
+        }
     }
 
     private class ScheduledPing extends AbstractLifecycleRunnable {
@@ -158,7 +148,7 @@ final class TransportKeepAlive implements Closeable {
 
         void ensureStarted() {
             if (isStarted.get() == false && isStarted.compareAndSet(false, true)) {
-                threadPool.schedule(pingInterval, ThreadPool.Names.GENERIC, this);
+                threadPool.schedule(this, pingInterval, ThreadPool.Names.GENERIC);
             }
         }
 
@@ -185,15 +175,7 @@ final class TransportKeepAlive implements Closeable {
 
         @Override
         protected void onAfterInLifecycle() {
-            try {
-                threadPool.schedule(pingInterval, ThreadPool.Names.GENERIC, this);
-            } catch (EsRejectedExecutionException ex) {
-                if (ex.isExecutorShutdown()) {
-                    logger.debug("couldn't schedule new ping execution, executor is shutting down", ex);
-                } else {
-                    throw ex;
-                }
-            }
+            threadPool.scheduleUnlessShuttingDown(pingInterval, ThreadPool.Names.GENERIC, this);
         }
 
         @Override

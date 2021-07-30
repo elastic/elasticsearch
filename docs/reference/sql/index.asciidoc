@@ -1,21 +1,23 @@
 [role="xpack"]
 [testenv="basic"]
 [[xpack-sql]]
-= SQL access
+= SQL
 
-:sql-tests: {xes-repo-dir}/../../plugin/sql/qa
-:sql-specs: {sql-tests}/src/main/resources
-:jdbc-tests: {sql-tests}/src/main/java/org/elasticsearch/xpack/sql/qa/jdbc
-:security-tests: {sql-tests}/security/src/test/java/org/elasticsearch/xpack/sql/qa/security
+:sql-tests: {xes-repo-dir}/../../plugin/sql/qa/
+:sql-specs: {sql-tests}server/src/main/resources/
+:jdbc-tests: {sql-tests}jdbc/src/main/java/org/elasticsearch/xpack/sql/qa/jdbc
+:security-tests: {sql-tests}server/security/src/test/java/org/elasticsearch/xpack/sql/qa/security
 :es-sql: Elasticsearch SQL
 
 [partintro]
 --
 
-beta[]
-
-X-Pack includes a SQL feature to execute SQL against Elasticsearch
+X-Pack includes a SQL feature to execute SQL queries against {es}
 indices and return results in tabular format.
+
+The following chapters aim to cover everything from usage, to syntax and drivers.
+Experienced users or those in a hurry might want to jump directly to
+the list of SQL <<sql-commands, commands>> and <<sql-functions, functions>>.
 
 <<sql-overview, Overview>>::
     Overview of {es-sql} and its features.
@@ -24,27 +26,26 @@ indices and return results in tabular format.
 <<sql-concepts, Concepts and Terminology>>::
     Language conventions across SQL and {es}.
 <<sql-security,Security>>::
-    Securing {es-sql} and {es}.
+    Secure {es-sql} and {es}.
 <<sql-rest,REST API>>::
-    Accepts SQL in a JSON document, executes it, and returns the
-    results.
+    Execute SQL in JSON format over REST.
 <<sql-translate,Translate API>>::
-    Accepts SQL in a JSON document and translates it into a native
-    Elasticsearch query and returns that.
+    Translate SQL in JSON format to {es} native query.
 <<sql-cli,CLI>>::
-    Command-line application that connects to {es} to execute
-    SQL and print tabular results.
+    Command-line application for executing SQL against {es}.
 <<sql-jdbc,JDBC>>::
-    A JDBC driver for {es}.
-{sql-odbc}[ODBC]::
-    An ODBC driver for {es}.
+    JDBC driver for {es}.
+<<sql-odbc,ODBC>>::
+    ODBC driver for {es}.
 <<sql-client-apps,Client Applications>>::
-    Documentation for configuring various SQL/BI tools with {es-sql}.
+    Setup various SQL/BI tools with {es-sql}.
 <<sql-spec,SQL Language>>::
     Overview of the {es-sql} language, such as supported data types, commands and
     syntax.
 <<sql-functions,Functions and Operators>>::
     List of functions and operators supported.
+<<sql-limitations,Limitations>>::
+    {es-sql} current limitations.
 --
 
 include::overview.asciidoc[]
@@ -55,5 +56,6 @@ include::endpoints/index.asciidoc[]
 include::language/index.asciidoc[]
 include::functions/index.asciidoc[]
 include::appendix/index.asciidoc[]
+include::limitations.asciidoc[]
 
 :jdbc-tests!:

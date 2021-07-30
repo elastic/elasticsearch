@@ -1,5 +1,66 @@
 [[indices-split-index]]
-== Split Index
+=== Split index API
+++++
+<titleabbrev>Split index</titleabbrev>
+++++
+
+Splits an existing index into a new index with more primary shards.
+
+[source,console]
+----
+POST /my-index-000001/_split/split-my-index-000001
+{
+  "settings": {
+    "index.number_of_shards": 2
+  }
+}
+----
+// TEST[s/^/PUT my-index-000001\n{"settings":{"blocks.write":true}}\n/]
+
+
+[[split-index-api-request]]
+==== {api-request-title}
+
+`POST /<index>/_split/<target-index>`
+
+`PUT /<index>/_split/<target-index>`
+
+
+[[split-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the index.
+
+* Before you can split an index:
+
+** The index must be read-only.
+** The <<cluster-health, cluster health>> status must be green.
+
+You can do make an index read-only
+with the following request:
+
+[source,console]
+--------------------------------------------------
+PUT /my_source_index/_settings
+{
+  "settings": {
+    "index.blocks.write": true <1>
+  }
+}
+--------------------------------------------------
+// TEST[s/^/PUT my_source_index\n/]
+
+<1> Prevents write operations to this index while still allowing metadata
+    changes like deleting the index.
+
+The current write index on a data stream cannot be split. In order to split
+the current write index, the data stream must first be
+<<data-streams-rollover,rolled over>> so that a new write index is created
+and then the previous write index can be split.
+
+[[split-index-api-desc]]
+==== {api-description-title}
 
 The split index API allows you to split an existing index into a new index,
 where each original primary shard is split into two or more primary shards in
@@ -11,46 +72,72 @@ original shard can be split into) is determined by the
 specifies the hashing space that is used internally to distribute documents
 across shards with consistent hashing. For instance, a 5 shard index with
 `number_of_routing_shards` set to `30` (`5 x 2 x 3`) could be split by a
-factor of `2` or `3`.  In other words, it could be split as follows:
+factor of `2` or `3`. In other words, it could be split as follows:
 
 * `5` -> `10` -> `30`  (split by 2, then by 3)
 * `5` -> `15` -> `30` (split by 3, then by 2)
 * `5` -> `30` (split by 6)
 
-While you can set the `index.number_of_routing_shards` setting explicitly at
-index creation time, the default value depends upon the number of primary
-shards in the original index.  The default is designed to allow you to split
-by factors of 2 up to a maximum of 1024 shards.  However, the original number
-of primary shards must taken into account.  For instance, an index created
+`index.number_of_routing_shards` is a <<index-modules-settings,static index
+setting>>. You can only set `index.number_of_routing_shards` at index creation
+time or on a <<indices-open-close,closed index>>.
+
+.*Index creation example*
+[%collapsible]
+====
+The following <<indices-create-index,create index API>> creates the
+`my-index-000001` index with an `index.number_of_routing_shards` setting of `30`.
+
+[source,console]
+----
+PUT /my-index-000001
+{
+  "settings": {
+    "index": {
+      "number_of_routing_shards": 30
+    }
+  }
+}
+----
+// TEST[continued]
+====
+
+The `index.number_of_routing_shards` setting's default value depends 
+on the number of primary shards in the original index.
+The default is designed to allow you to split
+by factors of 2 up to a maximum of 1024 shards. However, the original number
+of primary shards must taken into account. For instance, an index created
 with 5 primary shards could be split into 10, 20, 40, 80, 160, 320, or a
-maximum of 740 shards (with a single split action or multiple split actions).
+maximum of 640 shards (with a single split action or multiple split actions).
 
 If the original index contains one primary shard (or a multi-shard index has
 been <<indices-shrink-index,shrunk>> down to a single primary shard), then the
-index may by split into an arbitrary number of shards greater than 1.  The
+index may by split into an arbitrary number of shards greater than 1. The
 properties of the default number of routing shards will then apply to the
 newly split index.
 
-[float]
-=== How does splitting work?
 
-Splitting works as follows:
+[[how-split-works]]
+===== How splitting works
 
-* First, it creates a new target index with the same definition as the source
+A split operation:
+
+. Creates a new target index with the same definition as the source
   index, but with a larger number of primary shards.
 
-* Then it hard-links segments from the source index into the target index. (If
+. Hard-links segments from the source index into the target index. (If
   the file system doesn't support hard-linking, then all segments are copied
   into the new index, which is a much more time consuming process.)
 
-* Once the low level files are created all documents will be `hashed` again to delete
+. Hashes all documents again, after low level files are created, to delete
   documents that belong to a different shard.
 
-* Finally, it recovers the target index as though it were a closed index which
+. Recovers the target index as though it were a closed index which
   had just been re-opened.
 
-[float]
-=== Why doesn't Elasticsearch support incremental resharding?
+
+[[incremental-resharding]]
+===== Why doesn't Elasticsearch support incremental resharding?
 
 Going from `N` shards to `N+1` shards, aka. incremental resharding, is indeed a
 feature that is supported by many key-value stores. Adding a new shard and
@@ -79,58 +166,22 @@ covers both the old and the new index for read operations. Assuming that the
 old and new indices have respectively +M+ and +N+ shards, this has no overhead
 compared to searching an index that would have +M+N+ shards.
 
-[float]
-=== Preparing an index for splitting
 
-Create a new index:
-
-[source,js]
---------------------------------------------------
-PUT my_source_index
-{
-  "settings": {
-    "index.number_of_shards" : 1
-  }
-}
--------------------------------------------------
-// CONSOLE
-
-In order to split an index, the index must be marked as read-only,
-and have <<cluster-health,health>> `green`.
-
-This can be achieved with the following request:
-
-[source,js]
---------------------------------------------------
-PUT /my_source_index/_settings
-{
-  "settings": {
-    "index.blocks.write": true <1>
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-<1> Prevents write operations to this index while still allowing metadata
-    changes like deleting the index.
-
-[float]
-=== Splitting an index
+[[split-index]]
+===== Split an index
 
 To split `my_source_index` into a new index called `my_target_index`, issue
 the following request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST my_source_index/_split/my_target_index
+POST /my_source_index/_split/my_target_index
 {
   "settings": {
     "index.number_of_shards": 2
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The above request returns immediately once the target index has been added to
@@ -141,11 +192,11 @@ the cluster state -- it doesn't wait for the split operation to start.
 
 Indices can only be split if they satisfy the following requirements:
 
-* the target index must not exist
+* The target index must not exist
 
 * The source index must have fewer primary shards than the target index.
 
-* The number of primary shards in the target index must be a factor of the
+* The number of primary shards in the target index must be a multiple of the
   number of primary shards in the source index.
 
 * The node handling the split process must have sufficient free disk space to
@@ -156,9 +207,9 @@ Indices can only be split if they satisfy the following requirements:
 The `_split` API is similar to the <<indices-create-index, `create index` API>>
 and accepts `settings` and `aliases` parameters for the target index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST my_source_index/_split/my_target_index
+POST /my_source_index/_split/my_target_index
 {
   "settings": {
     "index.number_of_shards": 5 <1>
@@ -168,17 +219,17 @@ POST my_source_index/_split/my_target_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT my_source_index\n{"settings": {"index.blocks.write": true, "index.number_of_shards": "1"}}\n/]
 
-<1> The number of shards in the target index. This must be a factor of the
+<1> The number of shards in the target index. This must be a multiple of the
     number of shards in the source index.
 
 
 NOTE: Mappings may not be specified in the `_split` request.
 
-[float]
-=== Monitoring the split process
+
+[[monitor-split]]
+===== Monitor the split process
 
 The split process can be monitored with the <<cat-recovery,`_cat recovery`
 API>>, or the <<cluster-health, `cluster health` API>> can be used to wait
@@ -193,12 +244,42 @@ can be allocated on that node.
 
 Once the primary shard is allocated, it moves to state `initializing`, and the
 split process begins. When the split operation completes, the shard will
-become `active`. At that  point, Elasticsearch will try to allocate any
+become `active`. At that point, Elasticsearch will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
-[float]
-=== Wait For Active Shards
+
+[[split-wait-active-shards]]
+===== Wait for active shards
 
 Because the split operation creates a new index to split the shards to,
 the <<create-index-wait-for-active-shards,wait for active shards>> setting
 on index creation applies to the split index action as well.
+
+
+[[split-index-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Required, string)
+Name of the source index to split.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index]
+
+
+[[split-index-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[role="child_attributes"]
+[[split-index-api-request-body]]
+==== {api-request-body-title}
+
+`aliases`::
+(Optional, object of objects) Aliases for the resulting index.
++
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-settings]

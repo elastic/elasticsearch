@@ -1,28 +1,138 @@
 [[analysis-fingerprint-tokenfilter]]
-=== Fingerprint Token Filter
+=== Fingerprint token filter
+++++
+<titleabbrev>Fingerprint</titleabbrev>
+++++
 
-The `fingerprint` token filter emits a single token which is useful for fingerprinting
-a body of text, and/or providing a token that can be clustered on.  It does this by
-sorting the tokens, deduplicating and then concatenating them back into a single token.
+Sorts and removes duplicate tokens from a token stream, then concatenates the
+stream into a single output token. 
 
-For example, the tokens `["the", "quick", "quick", "brown", "fox", "was", "very", "brown"]` will be
-transformed into a single token: `"brown fox quick the very was"`.  Notice how the tokens were sorted
-alphabetically, and there is only one `"quick"`.
+For example, this filter changes the `[ the, fox, was, very, very, quick ]`
+token stream as follows:
 
-The following are settings that can be set for a `fingerprint` token
-filter type:
+. Sorts the tokens alphabetically to `[ fox, quick, the, very, very, was ]`
 
-[cols="<,<",options="header",]
-|======================================================
-|Setting |Description
-|`separator` |Defaults to a space.
-|`max_output_size` |Defaults to `255`.
-|======================================================
+. Removes a duplicate instance of the `very` token.
+
+. Concatenates the token stream to a output single token: `[fox quick the very was ]`
+
+Output tokens produced by this filter are useful for
+fingerprinting and clustering a body of text as described in the
+https://github.com/OpenRefine/OpenRefine/wiki/Clustering-In-Depth#fingerprint[OpenRefine
+project].
+
+This filter uses Lucene's
+{lucene-analysis-docs}/miscellaneous/FingerprintFilter.html[FingerprintFilter].
+
+[[analysis-fingerprint-tokenfilter-analyze-ex]]
+==== Example
+
+The following <<indices-analyze,analyze API>> request uses the `fingerprint`
+filter to create a single output token for the text `zebra jumps over resting
+resting dog`:
+
+[source,console]
+--------------------------------------------------
+GET _analyze
+{
+  "tokenizer" : "whitespace",
+  "filter" : ["fingerprint"],
+  "text" : "zebra jumps over resting resting dog"
+}
+--------------------------------------------------
+
+The filter produces the following token:
+
+[source,text]
+--------------------------------------------------
+[ dog jumps over resting zebra ]
+--------------------------------------------------
+
+/////////////////////
+[source,console-result]
+--------------------------------------------------
+{
+  "tokens" : [
+    {
+      "token" : "dog jumps over resting zebra",
+      "start_offset" : 0,
+      "end_offset" : 36,
+      "type" : "fingerprint",
+      "position" : 0
+    }
+  ]
+}
+--------------------------------------------------
+/////////////////////
+
+[[analysis-fingerprint-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+
+The following <<indices-create-index,create index API>> request uses the
+`fingerprint` filter to configure a new <<analysis-custom-analyzer,custom
+analyzer>>.
+
+[source,console]
+--------------------------------------------------
+PUT fingerprint_example
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "whitespace_fingerprint": {
+          "tokenizer": "whitespace",
+          "filter": [ "fingerprint" ]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[[analysis-fingerprint-tokenfilter-configure-parms]]
+==== Configurable parameters
 
 [[analysis-fingerprint-tokenfilter-max-size]]
-==== Maximum token size
+`max_output_size`::
+(Optional, integer)
+Maximum character length, including whitespace, of the output token. Defaults to
+`255`. Concatenated tokens longer than this will result in no token output.
 
-Because a field may have many unique tokens, it is important to set a cutoff so that fields do not grow
-too large.  The `max_output_size` setting controls this behavior.  If the concatenated fingerprint
-grows larger than `max_output_size`, the token filter will exit and will not emit a token (e.g. the
-field will be empty).
+`separator`::
+(Optional, string)
+Character to use to concatenate the token stream input. Defaults to a space.
+
+[[analysis-fingerprint-tokenfilter-customize]]
+==== Customize
+
+To customize the `fingerprint` filter, duplicate it to create the basis
+for a new custom token filter. You can modify the filter using its configurable
+parameters.
+
+For example, the following request creates a custom `fingerprint` filter with
+that use `+` to concatenate token streams. The filter also limits
+output tokens to `100` characters or fewer.
+
+[source,console]
+--------------------------------------------------
+PUT custom_fingerprint_example
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "whitespace_": {
+          "tokenizer": "whitespace",
+          "filter": [ "fingerprint_plus_concat" ]
+        }
+      },
+      "filter": {
+        "fingerprint_plus_concat": {
+          "type": "fingerprint",
+          "max_output_size": 100,
+          "separator": "+"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

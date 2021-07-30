@@ -1,5 +1,75 @@
 [[indices-shrink-index]]
-== Shrink Index
+=== Shrink index API
+++++
+<titleabbrev>Shrink index</titleabbrev>
+++++
+
+Shrinks an existing index into a new index with fewer primary shards.
+
+
+[source,console]
+----
+POST /my-index-000001/_shrink/shrunk-my-index-000001
+----
+// TEST[s/^/PUT my-index-000001\n{"settings":{"index.number_of_shards":2,"blocks.write":true}}\n/]
+
+
+[[shrink-index-api-request]]
+==== {api-request-title}
+
+`POST /<index>/_shrink/<target-index>`
+
+`PUT /<index>/_shrink/<target-index>`
+
+
+[[shrink-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the index.
+
+* Before you can shrink an index:
+
+** The index must be read-only.
+** All primary shards for the index must reside on the same node.
+** The index must have a `green` <<cluster-health,health status>>.
+
+To make shard allocation easier, we recommend you also remove the index's
+replica shards. You can later re-add replica shards as part of the shrink
+operation.
+
+You can use the following <<indices-update-settings,update index settings API>>
+request to remove an index's replica shards, relocates the index's remaining
+shards to the same node, and make the index read-only.
+
+[source,console]
+--------------------------------------------------
+PUT /my_source_index/_settings
+{
+  "settings": {
+    "index.number_of_replicas": 0,                                <1>
+    "index.routing.allocation.require._name": "shrink_node_name", <2>
+    "index.blocks.write": true                                    <3>
+  }
+}
+--------------------------------------------------
+// TEST[s/^/PUT my_source_index\n{"settings":{"index.number_of_shards":2}}\n/]
+
+<1> Removes replica shards for the index.
+<2> Relocates the index's shards to the `shrink_node_name` node.
+    See <<shard-allocation-filtering>>.
+<3> Prevents write operations to this index. Metadata changes, such as deleting
+    the index, are still allowed.
+
+
+It can take a while to relocate the source index. Progress can be tracked
+with the <<cat-recovery,`_cat recovery` API>>, or the <<cluster-health,
+`cluster health` API>> can be used to wait until all shards have relocated
+with the `wait_for_no_relocating_shards` parameter.
+
+
+[[shrink-index-api-desc]]
+==== {api-description-title}
 
 The shrink index API allows you to shrink an existing index into a new index
 with fewer primary shards. The requested number of primary shards in the target index
@@ -10,59 +80,39 @@ of shards in the index is a prime number it can only be shrunk into a single
 primary shard. Before shrinking, a (primary or replica) copy of every shard
 in the index must be present on the same node.
 
-Shrinking works as follows:
+The current write index on a data stream cannot be shrunk. In order to shrink
+the current write index, the data stream must first be
+<<data-streams-rollover,rolled over>> so that a new write index is created
+and then the previous write index can be shrunk.
 
-* First, it creates a new target index with the same definition as the source
+[[how-shrink-works]]
+===== How shrinking works
+
+A shrink operation:
+
+. Creates a new target index with the same definition as the source
   index, but with a smaller number of primary shards.
 
-* Then it hard-links segments from the source index into the target index. (If
+. Hard-links segments from the source index into the target index. (If
   the file system doesn't support hard-linking, then all segments are copied
-  into the new index, which is a much more time consuming process.)
+  into the new index, which is a much more time consuming process. Also if using
+  multiple data paths, shards on different data paths require a full copy of
+  segment files if they are not on the same disk since hardlinks don’t work across
+  disks)
 
-* Finally, it recovers the target index as though it were a closed index which
+. Recovers the target index as though it were a closed index which
   had just been re-opened.
 
-[float]
-=== Preparing an index for shrinking
 
-In order to shrink an index, the index must be marked as read-only, and a
-(primary or replica) copy of every shard in the index must be relocated to the
-same node and have <<cluster-health,health>> `green`.
-
-These two conditions can be achieved with the following request:
-
-[source,js]
---------------------------------------------------
-PUT /my_source_index/_settings
-{
-  "settings": {
-    "index.routing.allocation.require._name": "shrink_node_name", <1>
-    "index.blocks.write": true <2>
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT my_source_index\n{"settings":{"index.number_of_shards":2}}\n/]
-<1> Forces the relocation of a copy of each shard to the node with name
-    `shrink_node_name`.  See <<shard-allocation-filtering>> for more options.
-
-<2> Prevents write operations to this index while still allowing metadata
-    changes like deleting the index.
-
-It can take a while to relocate the source index.  Progress can be tracked
-with the <<cat-recovery,`_cat recovery` API>>, or the <<cluster-health,
-`cluster health` API>> can be used to wait until all shards have relocated
-with the `wait_for_no_relocating_shards` parameter.
-
-[float]
-=== Shrinking an index
+[[shrink-index]]
+===== Shrink an index
 
 To shrink `my_source_index` into a new index called `my_target_index`, issue
 the following request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST my_source_index/_shrink/my_target_index
+POST /my_source_index/_shrink/my_target_index
 {
   "settings": {
     "index.routing.allocation.require._name": null, <1>
@@ -70,7 +120,6 @@ POST my_source_index/_shrink/my_target_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> Clear the allocation requirement copied from the source index.
@@ -84,9 +133,9 @@ the cluster state -- it doesn't wait for the shrink operation to start.
 
 Indices can only be shrunk if they satisfy the following requirements:
 
-* the target index must not exist
+* The target index must not exist.
 
-* The index must have more primary shards than the target index.
+* The source index must have more primary shards than the target index.
 
 * The number of primary shards in the target index must be a factor of the
   number of primary shards in the source index. The source index must have
@@ -104,9 +153,9 @@ Indices can only be shrunk if they satisfy the following requirements:
 The `_shrink` API is similar to the <<indices-create-index, `create index` API>>
 and accepts `settings` and `aliases` parameters for the target index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST my_source_index/_shrink/my_target_index
+POST /my_source_index/_shrink/my_target_index
 {
   "settings": {
     "index.number_of_replicas": 1,
@@ -118,7 +167,6 @@ POST my_source_index/_shrink/my_target_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT my_source_index\n{"settings": {"index.number_of_shards":5,"index.blocks.write": true}}\n/]
 
 <1> The number of shards in the target index. This must be a factor of the
@@ -130,8 +178,9 @@ POST my_source_index/_shrink/my_target_index
 
 NOTE: Mappings may not be specified in the `_shrink` request.
 
-[float]
-=== Monitoring the shrink process
+
+[[monitor-shrink]]
+===== Monitor the shrink process
 
 The shrink process can be monitored with the <<cat-recovery,`_cat recovery`
 API>>, or the <<cluster-health, `cluster health` API>> can be used to wait
@@ -146,12 +195,53 @@ can't be allocated on the shrink node, its primary shard will remain
 
 Once the primary shard is allocated, it moves to state `initializing`, and the
 shrink process begins. When the shrink operation completes, the shard will
-become `active`. At that  point, Elasticsearch will try to allocate any
+become `active`. At that point, Elasticsearch will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
-[float]
-=== Wait For Active Shards
+
+[[shrink-wait-active-shards]]
+===== Wait for active shards
 
 Because the shrink operation creates a new index to shrink the shards to,
 the <<create-index-wait-for-active-shards,wait for active shards>> setting
 on index creation applies to the shrink index action as well.
+
+
+[[shrink-index-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Required, string)
+Name of the source index to shrink.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index]
+
+[[shrink-index-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[role="child_attributes"]
+[[shrink-index-api-request-body]]
+==== {api-request-body-title}
+
+`aliases`::
+(Optional, object of objects) Aliases for the resulting index.
++
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-settings]
+
+`max_primary_shard_size`::
+(Optional, <<byte-units, byte units>>)
+The max primary shard size for the target index. Used to find the optimum number of shards for the target index.
+When this parameter is set, each shard's storage in the target index will not be greater than the parameter.
+The shards count of the target index will still be a factor of the source index's shards count, but if the parameter
+is less than the single shard size in the source index, the shards count for the target index will be equal to the source index's shards count.
+For example, when this parameter is set to 50gb, if the source index has 60 primary shards with totaling 100gb, then the
+target index will have 2 primary shards, with each shard size of 50gb; if the source index has 60 primary shards
+with totaling 1000gb, then the target index will have 20 primary shards; if the source index has 60 primary shards
+with totaling 4000gb, then the target index will still have 60 primary shards. This parameter conflicts
+with `number_of_shards` in the `settings`, only one of them may be set.

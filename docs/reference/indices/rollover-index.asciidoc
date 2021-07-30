@@ -1,337 +1,420 @@
 [[indices-rollover-index]]
-== Rollover Index
+=== Rollover API
+++++
+<titleabbrev>Rollover</titleabbrev>
+++++
 
-The rollover index API rolls an alias over to a new index when the existing
-index is considered to be too large or too old.
+Creates a new index for a <<data-streams,data stream>> or <<alias,index alias>>.
 
-The API accepts a single alias name and a list of `conditions`. The alias must point to a write index for
-a Rollover request to be valid. There are two ways this can be achieved, and depending on the configuration, the
-alias metadata will be updated differently. The two scenarios are as follows:
+[source,console]
+----
+POST my-data-stream/_rollover
+----
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]
 
- - The alias only points to a single index with `is_write_index` not configured (defaults to `null`).
+[[rollover-index-api-request]]
+==== {api-request-title}
 
-In this scenario, the original index will have their rollover alias will be added to the newly created index, and removed
-from the original (rolled-over) index.
+`POST /<rollover-target>/_rollover/`
 
- - The alias points to one or more indices with `is_write_index` set to `true` on the index to be rolled over (the write index).
+`POST /<rollover-target>/_rollover/<target-index>`
 
-In this scenario, the write index will have its rollover alias' `is_write_index` set to `false`, while the newly created index
-will now have the rollover alias pointing to it as the write index with `is_write_index` as `true`.
+[[rollover-index-api-prereqs]]
+==== {api-prereq-title}
 
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the rollover target.
 
-[source,js]
---------------------------------------------------
-PUT /logs-000001 <1>
-{
-  "aliases": {
-    "logs_write": {}
-  }
-}
+[[rollover-index-api-desc]]
+==== {api-description-title}
 
-# Add > 1000 documents to logs-000001
+TIP: We recommend using {ilm-init}'s <<ilm-rollover,`rollover`>> action to
+automate rollovers. See <<ilm-index-lifecycle>>.
 
-POST /logs_write/_rollover <2>
+The rollover API creates a new index for a data stream or index alias.
+The API's behavior depends on the rollover target.
+
+**Roll over a data stream**
+
+If you roll over a data stream, the API creates a new write index for the
+stream. The stream's previous write index becomes a regular backing index. A
+rollover also increments the data stream's generation. See
+<<data-streams-rollover>>.
+
+**Roll over an index alias with a write index**
+
+[TIP]
+====
+include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=time-series-alias-tip]
+See <<convert-index-alias-to-data-stream>>.
+====
+
+If an index alias points to multiple indices, one of the indices must be a
+<<write-index,write index>>. The rollover API creates a new write index
+for the alias with `is_write_index` set to `true`. The API also sets
+`is_write_index` to `false` for the previous write index.
+
+**Roll over an index alias with one index**
+
+If you roll over an index alias that points to only one index, the API creates a
+new index for the alias and removes the original index from the alias.
+
+[[increment-index-names-for-alias]]
+===== Increment index names for an alias
+
+When you roll over an index alias, you can specify a name for the new index. If
+you don't specify a name and the current index ends with `-` and a number, such
+as `my-index-000001` or `my-index-3`, the new index name increments that number.
+For example, if you roll over an alias with a current index of
+`my-index-000001`, the rollover creates a new index named `my-index-000002`.
+This number is always 6 characters and zero-padded, regardless of the previous
+index's name.
+
+[[_using_date_math_with_the_rollover_api]]
+.Use date math with index alias rollovers
+****
+If you use an index alias for time series data, you can use
+<<date-math-index-names,date math>> in the index name to track the rollover
+date. For example, you can create an alias that points to an index named
+`<my-index-{now/d}-000001>`. If you create the index on May 6, 2099, the index's
+name is `my-index-2099.05.06-000001`. If you roll over the alias on May 7, 2099,
+the new index's name is `my-index-2099.05.07-000002`. For an example, see 
+<<roll-over-index-alias-with-write-index>>.
+****
+
+[[rollover-wait-active-shards]]
+===== Wait for active shards
+
+A rollover creates a new index and is subject to the
+<<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting.
+
+[[rollover-index-api-path-params]]
+==== {api-path-parms-title}
+
+`<rollover-target>`::
+(Required, string)
+Name of the data stream or index alias to roll over.
+
+`<target-index>`::
+(Optional, string)
+Name of the index to create. Supports <<date-math-index-names,date math>>. Data
+streams do not support this parameter.
++
+If the name of the alias's current write index does not end with `-` and a
+number, such as `my-index-000001` or `my-index-3`, this parameter is required.
++
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
+
+[[rollover-index-api-query-params]]
+==== {api-query-parms-title}
+
+`dry_run`::
+(Optional, Boolean)
+If `true`, checks whether the current index matches one or more specified
+`conditions` but does not perform a rollover. Defaults to `false`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[role="child_attributes"]
+[[rollover-index-api-request-body]]
+==== {api-request-body-title}
+
+`aliases`::
+(Optional, object of objects) Aliases for the target index. Data streams do not
+support this parameter.
++
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
+
+[[rollover-conditions]]
+`conditions`::
+(Optional, object)
+Conditions for the rollover. If specified, {es} only performs the rollover if
+the current index meets one or more of these conditions. If this parameter is
+not specified, {es} performs the rollover unconditionally.
++
+IMPORTANT: To trigger a rollover, the current index must meet these conditions
+at the time of the request. {es} does not monitor the index after the API
+response. To automate rollover, use {ilm-init}'s <<ilm-rollover,`rollover`>>
+instead.
++
+.Properties of `conditions`
+[%collapsible%open]
+====
+include::{es-repo-dir}/ilm/actions/ilm-rollover.asciidoc[tag=rollover-conditions]
+====
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
++
+Data streams do not support this parameter.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
++
+Data streams do not support this parameter.
+
+[role="child_attributes"]
+[[rollover-index-api-response-body]]
+==== {api-request-body-title}
+
+`acknowledged`::
+(Boolean)
+If `true`, the request received a response from the master node within the
+`timeout` period.
+
+`shards_acknowledged`::
+(Boolean)
+If `true`, the request received a response from
+<<index-wait-for-active-shards,active shards>> within the `master_timeout`
+period.
+
+`old_index`::
+(string)
+Previous index for the data stream or index alias. For data streams and index
+aliases with a write index, this is the previous write index.
+
+`new_index`::
+(string)
+Index created by the rollover. For data streams and index aliases with a write
+index, this is the current write index.
+
+`rolled_over`::
+(Boolean)
+If `true`, the data stream or index alias rolled over.
+
+`dry_run`::
+(Boolean)
+If `true`, {es} did not perform the rollover.
+
+`condition`::
+(object)
+Result of each condition specified in the request's `conditions`. If no
+conditions were specified, this is an empty object.
++
+.Properties of `condition`
+[%collapsible%open]
+====
+`<condition>`::
+(Boolean) The key is each condition. The value is its result. If `true`, the
+index met the condition at rollover.
+====
+
+[[rollover-index-api-example]]
+==== {api-examples-title}
+
+[[roll-over-data-stream]]
+===== Roll over a data stream
+
+The following request rolls over a data stream unconditionally.
+
+[source,console]
+----
+POST my-data-stream/_rollover
+----
+// TEST[setup:my_data_stream]
+
+:target: data stream
+:index: write index
+
+// tag::rollover-conditions-ex[]
+The following request only rolls over the {target} if the current {index}
+meets one or more of the following conditions:
+
+* The index was created 7 or more days ago.
+* The index contains 1,000 or more documents.
+* The index's largest primary shard is 50GB or larger.
+// end::rollover-conditions-ex[]
+
+[source,console]
+----
+POST my-data-stream/_rollover
 {
   "conditions": {
-    "max_age":   "7d",
-    "max_docs":  1000,
-    "max_size":  "5gb"
+    "max_age": "7d",
+    "max_docs": 1000,
+    "max_primary_shard_size": "50gb"
   }
 }
---------------------------------------------------
-// CONSOLE
-// TEST[setup:huge_twitter]
-// TEST[s/# Add > 1000 documents to logs-000001/POST _reindex?refresh\n{"source":{"index":"twitter"},"dest":{"index":"logs-000001"}}/]
-<1> Creates an index called `logs-0000001` with the alias `logs_write`.
-<2> If the index pointed to by `logs_write` was created 7 or more days ago, or
-    contains 1,000 or more documents, or has an index size at least around 5GB, then the `logs-000002` index is created
-    and the `logs_write` alias is updated to point to `logs-000002`.
+----
+// TEST[continued]
+// TEST[setup:my_index_huge]
+// TEST[s/^/POST _reindex?refresh\n{ "source": { "index": "my-index-000001" }, "dest": { "index": "my-data-stream", "op_type": "create" } }\n/]
 
-The above request might return the following response:
+The API returns:
 
-[source,js]
---------------------------------------------------
+[source,console-result]
+----
 {
   "acknowledged": true,
   "shards_acknowledged": true,
-  "old_index": "logs-000001",
-  "new_index": "logs-000002",
-  "rolled_over": true, <1>
-  "dry_run": false, <2>
-  "conditions": { <3>
+  "old_index": ".ds-my-data-stream-2099.05.06-000001",
+  "new_index": ".ds-my-data-stream-2099.05.07-000002",
+  "rolled_over": true,
+  "dry_run": false,
+  "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
-    "[max_size: 5gb]": false,
+    "[max_primary_shard_size: 50gb]": false
   }
 }
---------------------------------------------------
-// TESTRESPONSE
-<1> Whether the index was rolled over.
-<2> Whether the rollover was dry run.
-<3> The result of each condition.
+----
+// TESTRESPONSE[s/.ds-my-data-stream-2099.05.06-000001/$body.old_index/]
+// TESTRESPONSE[s/.ds-my-data-stream-2099.05.07-000002/$body.new_index/]
 
-[float]
-=== Naming the new index
+////
+[source,console]
+----
+DELETE _data_stream/*
+DELETE _index_template/*
+----
+// TEST[continued]
+////
 
-If the name of the existing index ends with `-` and a number -- e.g.
-`logs-000001` -- then the name of the new index will follow the same pattern,
-incrementing the number (`logs-000002`). The number is zero-padded with a length
-of 6, regardless of the old index name.
+[[roll-over-index-alias-with-write-index]]
+===== Roll over an index alias with a write index
 
-If the old name doesn't match this pattern then you must specify the name for
-the new index as follows:
+The following request creates `<my-index-{now/d}-000001>` and sets it as the
+write index for `my-alias`.
 
-[source,js]
---------------------------------------------------
-POST /my_alias/_rollover/my_new_index_name
-{
-  "conditions": {
-    "max_age":   "7d",
-    "max_docs":  1000,
-    "max_size": "5gb"
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT my_old_index_name\nPUT my_old_index_name\/_alias\/my_alias\n/]
-
-[float]
-=== Using date math with the rollover API
-
-It can be useful to use <<date-math-index-names,date math>> to name the
-rollover index according to the date that the index rolled over, e.g.
-`logstash-2016.02.03`.  The rollover API supports date math, but requires the
-index name to end with a dash followed by a number, e.g.
-`logstash-2016.02.03-1` which is incremented every time the index is rolled
-over. For instance:
-
-[source,js]
---------------------------------------------------
-# PUT /<logs-{now/d}-1> with URI encoding:
-PUT /%3Clogs-%7Bnow%2Fd%7D-1%3E <1>
+[source,console]
+----
+# PUT <my-index-{now/d}-000001>
+PUT %3Cmy-index-%7Bnow%2Fd%7D-000001%3E
 {
   "aliases": {
-    "logs_write": {}
-  }
-}
-
-PUT logs_write/_doc/1
-{
-  "message": "a dummy log"
-}
-
-POST logs_write/_refresh
-
-# Wait for a day to pass
-
-POST /logs_write/_rollover <2>
-{
-  "conditions": {
-    "max_docs":   "1"
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[s/now/2016.10.31||/]
-<1> Creates an index named with today's date (e.g.) `logs-2016.10.31-1`
-<2> Rolls over to a new index with today's date, e.g. `logs-2016.10.31-000002` if run immediately, or `logs-2016.11.01-000002` if run after 24 hours
-
-//////////////////////////
-
-[source,js]
---------------------------------------------------
-GET _alias
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-[source,js]
---------------------------------------------------
-{
-  "logs-2016.10.31-000002": {
-    "aliases": {
-      "logs_write": {}
+    "my-alias": {
+      "is_write_index": true
     }
-  },
-  "logs-2016.10.31-1": {
-    "aliases": {}
   }
 }
---------------------------------------------------
-// TESTRESPONSE
+----
+// TEST[s/%3Cmy-index-%7Bnow%2Fd%7D-000001%3E/my-index-2099.05.06-000001/]
 
-//////////////////////////
+:target: alias
 
-These indices can then be referenced as described in the
-<<date-math-index-names,date math documentation>>.  For example, to search
-over indices created in the last three days, you could do the following:
+include::rollover-index.asciidoc[tag=rollover-conditions-ex]
 
-[source,js]
---------------------------------------------------
-# GET /<logs-{now/d}-*>,<logs-{now/d-1d}-*>,<logs-{now/d-2d}-*>/_search
-GET /%3Clogs-%7Bnow%2Fd%7D-*%3E%2C%3Clogs-%7Bnow%2Fd-1d%7D-*%3E%2C%3Clogs-%7Bnow%2Fd-2d%7D-*%3E/_search
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-// TEST[s/now/2016.10.31||/]
-
-[float]
-=== Defining the new index
-
-The settings, mappings, and aliases for the new index are taken from any
-matching <<indices-templates,index templates>>. Additionally, you can specify
-`settings`, `mappings`, and `aliases` in the body of the request, just like the
-<<indices-create-index,create index>> API. Values specified in the request
-override any values set in matching index templates. For example, the following
-`rollover` request overrides the `index.number_of_shards` setting:
-
-[source,js]
---------------------------------------------------
-PUT /logs-000001
+[source,console]
+----
+POST my-alias/_rollover
 {
-  "aliases": {
-    "logs_write": {}
-  }
-}
-
-POST /logs_write/_rollover
-{
-  "conditions" : {
+  "conditions": {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_size": "5gb"
-  },
+    "max_primary_shard_size": "50gb"
+  }
+}
+----
+// TEST[continued]
+// TEST[setup:my_index_huge]
+// TEST[s/^/POST _reindex?refresh\n{ "source": { "index": "my-index-000001" }, "dest": { "index": "my-alias" } }\n/]
+
+The API returns:
+
+[source,console-result]
+----
+{
+  "acknowledged": true,
+  "shards_acknowledged": true,
+  "old_index": "my-index-2099.05.06-000001",
+  "new_index": "my-index-2099.05.07-000002",
+  "rolled_over": true,
+  "dry_run": false,
+  "conditions": {
+    "[max_age: 7d]": false,
+    "[max_docs: 1000]": true,
+    "[max_primary_shard_size: 50gb]": false
+  }
+}
+----
+// TESTRESPONSE[s/my-index-2099.05.07-000002/my-index-2099.05.06-000002/]
+
+If the alias's index names use date math and you roll over indices at a regular
+interval, you can use date math to narrow your searches. For example, the
+following search targets indices created in the last three days.
+
+[source,console]
+----
+# GET /<my-index-{now/d}-*>,<my-index-{now/d-1d}-*>,<my-index-{now/d-2d}-*>/_search
+GET /%3Cmy-index-%7Bnow%2Fd%7D-*%3E%2C%3Cmy-index-%7Bnow%2Fd-1d%7D-*%3E%2C%3Cmy-index-%7Bnow%2Fd-2d%7D-*%3E/_search
+----
+
+[[roll-over-index-alias-with-one-index]]
+===== Roll over an index alias with one index
+
+The following request creates `<my-index-{now/d}-000001>` and its alias, `my-write-alias`.
+
+[source,console]
+----
+# PUT <my-index-{now/d}-000001>
+PUT %3Cmy-index-%7Bnow%2Fd%7D-000001%3E
+{
+  "aliases": {
+    "my-write-alias": { }
+  }
+}
+----
+// TEST[s/%3Cmy-index-%7Bnow%2Fd%7D-000001%3E/my-index-2099.05.06-000001/]
+
+:index: index
+
+include::rollover-index.asciidoc[tag=rollover-conditions-ex]
+
+:target!:
+:index!:
+
+[source,console]
+----
+POST my-write-alias/_rollover
+{
+  "conditions": {
+    "max_age": "7d",
+    "max_docs": 1000,
+    "max_primary_shard_size": "50gb"
+  }
+}
+----
+// TEST[continued]
+// TEST[setup:my_index_huge]
+// TEST[s/^/POST _reindex?refresh\n{ "source": { "index": "my-index-000001" }, "dest": { "index": "my-write-alias" } }\n/]
+
+The API returns:
+
+[source,console-result]
+----
+{
+  "acknowledged": true,
+  "shards_acknowledged": true,
+  "old_index": "my-index-2099.05.06-000001",
+  "new_index": "my-index-2099.05.07-000002",
+  "rolled_over": true,
+  "dry_run": false,
+  "conditions": {
+    "[max_age: 7d]": false,
+    "[max_docs: 1000]": true,
+    "[max_primary_shard_size: 50gb]": false
+  }
+}
+----
+// TESTRESPONSE[s/my-index-2099.05.07-000002/my-index-2099.05.06-000002/]
+
+[[specify-settings-during-rollover]]
+===== Specify settings during a rollover
+
+Typically, you use an <<index-templates,index template>> to automatically
+configure indices created during a rollover. If you roll over an index alias,
+you use the rollover API to add additional index settings or overwrite settings
+in the template. Data streams do not support the `settings` parameter.
+
+[source,console]
+----
+POST my-alias/_rollover
+{
   "settings": {
     "index.number_of_shards": 2
   }
 }
---------------------------------------------------
-// CONSOLE
-
-[float]
-=== Dry run
-
-The rollover API supports `dry_run` mode, where request conditions can be
-checked without performing the actual rollover:
-
-[source,js]
---------------------------------------------------
-PUT /logs-000001
-{
-  "aliases": {
-    "logs_write": {}
-  }
-}
-
-POST /logs_write/_rollover?dry_run
-{
-  "conditions" : {
-    "max_age": "7d",
-    "max_docs": 1000,
-    "max_size": "5gb"
-  }
-}
---------------------------------------------------
-// CONSOLE
-
-[float]
-=== Wait For Active Shards
-
-Because the rollover operation creates a new index to rollover to, the
-<<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting on
-index creation applies to the rollover action as well.
-
-[[indices-rollover-is-write-index]]
-[float]
-=== Write Index Alias Behavior
-
-The rollover alias when rolling over a write index that has `is_write_index` explicitly set to `true` is not
-swapped during rollover actions. Since having an alias point to multiple indices is ambiguous in distinguishing
-which is the correct write index to roll over, it is not valid to rollover an alias that points to multiple indices.
-For this reason, the default behavior is to swap which index is being pointed to by the write-oriented alias. This
-was `logs_write` in some of the above examples. Since setting `is_write_index` enables an alias to point to multiple indices
-while also being explicit as to which is the write index that rollover should target, removing the alias from the rolled over
-index is not necessary. This simplifies things by allowing for one alias to behave both as the write and read aliases for
-indices that are being managed with Rollover.
-
-Look at the behavior of the aliases in the following example where `is_write_index` is set on the rolled over index.
-
-[source,js]
---------------------------------------------------
-PUT my_logs_index-000001
-{
-  "aliases": {
-    "logs": { "is_write_index": true } <1>
-  }
-}
-
-PUT logs/_doc/1
-{
-  "message": "a dummy log"
-}
-
-POST logs/_refresh
-
-POST /logs/_rollover
-{
-  "conditions": {
-    "max_docs":   "1"
-  }
-}
-
-PUT logs/_doc/2 <2>
-{
-  "message": "a newer log"
-}
---------------------------------------------------
-// CONSOLE
-<1> configures `my_logs_index` as the write index for the `logs` alias
-<2> newly indexed documents against the `logs` alias will write to the new index
-
-[source,js]
---------------------------------------------------
-{
-  "_index" : "my_logs_index-000002",
-  "_type" : "_doc",
-  "_id" : "2",
-  "_version" : 1,
-  "result" : "created",
-  "_shards" : {
-    "total" : 2,
-    "successful" : 1,
-    "failed" : 0
-  },
-  "_seq_no" : 0,
-  "_primary_term" : 1
-}
---------------------------------------------------
-// TESTRESPONSE
-
-//////////////////////////
-[source,js]
---------------------------------------------------
-GET _alias
---------------------------------------------------
-// CONSOLE
+----
 // TEST[continued]
-//////////////////////////
-
-After the rollover, the alias metadata for the two indices will have the `is_write_index` setting
-reflect each index's role, with the newly created index as the write index.
-
-[source,js]
---------------------------------------------------
-{
-  "my_logs_index-000002": {
-    "aliases": {
-      "logs": { "is_write_index": true }
-    }
-  },
-  "my_logs_index-000001": {
-    "aliases": {
-      "logs": { "is_write_index" : false }
-    }
-  }
-}
---------------------------------------------------
-// TESTRESPONSE
+// TEST[s/my-alias/my-write-alias/]

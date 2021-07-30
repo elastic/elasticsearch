@@ -1,23 +1,15 @@
 #!/bin/bash
 
-# Licensed to Elasticsearch under one or more contributor
-# license agreements. See the NOTICE file distributed with
-# this work for additional information regarding copyright
-# ownership. Elasticsearch licenses this file to you under
-# the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
 
 set -e
+
+krb5kdc
+kadmind
 
 if [[ $# -lt 1 ]]; then
   echo 'Usage: addprinc.sh principalName [password]'
@@ -30,7 +22,7 @@ PRINC="$1"
 PASSWD="$2"
 USER=$(echo $PRINC | tr "/" "_")
 
-VDIR=/vagrant
+VDIR=/fixture
 RESOURCES=$VDIR/src/main/resources
 PROV_DIR=$RESOURCES/provision
 ENVPROP_FILE=$RESOURCES/env.properties
@@ -64,3 +56,9 @@ else
     sudo kadmin -p $ADMIN_PRIN -kt $ADMIN_KTAB -q "addprinc -pw $PASSWD $PRINC"
   fi
 fi
+
+echo "Copying conf to local"
+# make the configuration available externally
+cp -v $LOCALSTATEDIR/krb5.conf $BUILD_DIR/krb5.conf.template
+# We are running as root in the container, allow non root users running the container to be able to clean these up
+chmod -R 777 $BUILD_DIR

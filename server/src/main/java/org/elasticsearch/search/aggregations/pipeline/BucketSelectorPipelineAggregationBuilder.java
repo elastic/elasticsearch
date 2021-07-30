@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -32,7 +21,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.TreeMap;
 
@@ -43,7 +31,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
     public static final String NAME = "bucket_selector";
 
     private final Map<String, String> bucketsPathsMap;
-    private Script script;
+    private final Script script;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
 
     public BucketSelectorPipelineAggregationBuilder(String name, Map<String, String> bucketsPathsMap, Script script) {
@@ -61,22 +49,14 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
      */
     public BucketSelectorPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
-        int mapSize = in.readVInt();
-        bucketsPathsMap = new HashMap<>(mapSize);
-        for (int i = 0; i < mapSize; i++) {
-            bucketsPathsMap.put(in.readString(), in.readString());
-        }
+        bucketsPathsMap = in.readMap(StreamInput::readString, StreamInput::readString);
         script = new Script(in);
         gapPolicy = GapPolicy.readFrom(in);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(bucketsPathsMap.size());
-        for (Entry<String, String> e : bucketsPathsMap.entrySet()) {
-            out.writeString(e.getKey());
-            out.writeString(e.getValue());
-        }
+        out.writeMap(bucketsPathsMap, StreamOutput::writeString, StreamOutput::writeString);
         script.writeTo(out);
         gapPolicy.writeTo(out);
     }
@@ -108,8 +88,8 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-        return new BucketSelectorPipelineAggregator(name, bucketsPathsMap, script, gapPolicy, metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new BucketSelectorPipelineAggregator(name, bucketsPathsMap, script, gapPolicy, metadata);
     }
 
     @Override
@@ -194,20 +174,30 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
     }
 
     @Override
+    protected void validate(ValidationContext context) {
+        context.validateHasParent(NAME, name);
+    }
+
+    @Override
     protected boolean overrideBucketsPath() {
         return true;
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(bucketsPathsMap, script, gapPolicy);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), bucketsPathsMap, script, gapPolicy);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         BucketSelectorPipelineAggregationBuilder other = (BucketSelectorPipelineAggregationBuilder) obj;
-        return Objects.equals(bucketsPathsMap, other.bucketsPathsMap) && Objects.equals(script, other.script)
-                && Objects.equals(gapPolicy, other.gapPolicy);
+        return Objects.equals(bucketsPathsMap, other.bucketsPathsMap)
+            && Objects.equals(script, other.script)
+            && Objects.equals(gapPolicy, other.gapPolicy);
     }
 
     @Override

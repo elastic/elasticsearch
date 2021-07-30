@@ -1,32 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
@@ -83,6 +73,16 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         }
 
         final boolean explain = allocation.debugDecision();
+
+        if (unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT &&
+            allocation.snapshotShardSizeInfo().getShardSize(unassignedShard) == null) {
+            List<NodeAllocationResult> nodeDecisions = null;
+            if (explain) {
+                nodeDecisions = buildDecisionsForAllNodes(unassignedShard, allocation);
+            }
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, nodeDecisions);
+        }
+
         final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
         if (shardState.hasData() == false) {
             allocation.setHasPendingAsyncFetch();
@@ -95,8 +95,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
         // don't create a new IndexSetting object for every shard as this could cause a lot of garbage
         // on cluster restart if we allocate a boat load of shards
-        final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(unassignedShard.index());
-        final Set<String> inSyncAllocationIds = indexMetaData.inSyncAllocationIds(unassignedShard.id());
+        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(unassignedShard.index());
+        final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(unassignedShard.id());
         final boolean snapshotRestore = unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
 
         assert inSyncAllocationIds.isEmpty() == false;
@@ -136,7 +136,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                          unassignedShard.index(), unassignedShard.id(), unassignedShard, decidedNode.nodeShardState.getNode());
             node = decidedNode.nodeShardState.getNode();
             allocationId = decidedNode.nodeShardState.allocationId();
-        } else if (nodesToAllocate.throttleNodeShards.isEmpty() && !nodesToAllocate.noNodeShards.isEmpty()) {
+        } else if (nodesToAllocate.throttleNodeShards.isEmpty() && nodesToAllocate.noNodeShards.isEmpty() == false) {
             // The deciders returned a NO decision for all nodes with shard copies, so we check if primary shard
             // can be force-allocated to one of the nodes.
             nodesToAllocate = buildNodesToAllocate(allocation, nodeShardsResult.orderedAllocationCandidates, unassignedShard, true);
@@ -297,10 +297,10 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     /**
      * Split the list of node shard states into groups yes/no/throttle based on allocation deciders
      */
-    private NodesToAllocate buildNodesToAllocate(RoutingAllocation allocation,
-                                                 List<NodeGatewayStartedShards> nodeShardStates,
-                                                 ShardRouting shardRouting,
-                                                 boolean forceAllocate) {
+    private static NodesToAllocate buildNodesToAllocate(RoutingAllocation allocation,
+                                                        List<NodeGatewayStartedShards> nodeShardStates,
+                                                        ShardRouting shardRouting,
+                                                        boolean forceAllocate) {
         List<DecidedNode> yesNodeShards = new ArrayList<>();
         List<DecidedNode> throttledNodeShards = new ArrayList<>();
         List<DecidedNode> noNodeShards = new ArrayList<>();

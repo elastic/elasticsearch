@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
@@ -16,13 +17,15 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.Assertions;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
@@ -34,7 +37,6 @@ import java.util.OptionalLong;
  */
 public final class FollowingEngine extends InternalEngine {
 
-    private final CounterMetric numOfOptimizedIndexing = new CounterMetric();
 
     /**
      * Construct a new following engine with the specified engine configuration.
@@ -56,46 +58,28 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     private void preFlight(final Operation operation) {
-        /*
-         * We assert here so that this goes uncaught in unit tests and fails nodes in standalone tests (we want a harsh failure so that we
-         * do not have a situation where a shard fails and is recovered elsewhere and a test subsequently passes). We throw an exception so
-         * that we also prevent issues in production code.
-         */
-        assert operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
+        assert FollowingEngineAssertions.preFlight(operation);
         if (operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            throw new IllegalStateException("a following engine does not accept operations without an assigned sequence number");
+            throw new ElasticsearchStatusException("a following engine does not accept operations without an assigned sequence number",
+                RestStatus.FORBIDDEN);
         }
-        assert (operation.origin() == Operation.Origin.PRIMARY) == (operation.versionType() == VersionType.EXTERNAL) :
-            "invalid version_type in a following engine; version_type=" + operation.versionType() + "origin=" + operation.origin();
     }
 
     @Override
     protected InternalEngine.IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
         preFlight(index);
-        // NOTES: refer Engine#getMaxSeqNoOfUpdatesOrDeletes for the explanation of the optimization using sequence numbers.
-        final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
-        assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
-        if (hasBeenProcessedBefore(index)) {
-            if (index.origin() == Operation.Origin.PRIMARY) {
-                /*
-                 * The existing operation in this engine was probably assigned the term of the previous primary shard which is different
-                 * from the term of the current operation. If the current operation arrives on replicas before the previous operation,
-                 * then the Lucene content between the primary and replicas are not identical (primary terms are different). We can safely
-                 * skip the existing operations below the global checkpoint, however must replicate the ones above the global checkpoint
-                 * but with the previous primary term (not the current term of the operation) in order to guarantee the consistency
-                 * between the primary and replicas (see TransportBulkShardOperationsAction#shardOperationOnPrimary).
-                 */
-                final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
-                    shardId, index.seqNo(), lookupPrimaryTerm(index.seqNo()));
-                return IndexingStrategy.skipDueToVersionConflict(error, false, index.version(), index.primaryTerm());
-            } else {
-                return IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
-            }
-        } else if (maxSeqNoOfUpdatesOrDeletes <= getLocalCheckpoint()) {
-            assert maxSeqNoOfUpdatesOrDeletes < index.seqNo() : "seq_no[" + index.seqNo() + "] <= msu[" + maxSeqNoOfUpdatesOrDeletes + "]";
-            numOfOptimizedIndexing.inc();
-            return InternalEngine.IndexingStrategy.optimizedAppendOnly(index.seqNo(), index.version());
-
+        if (index.origin() == Operation.Origin.PRIMARY && hasBeenProcessedBefore(index)) {
+            /*
+             * The existing operation in this engine was probably assigned the term of the previous primary shard which is different
+             * from the term of the current operation. If the current operation arrives on replicas before the previous operation,
+             * then the Lucene content between the primary and replicas are not identical (primary terms are different). We can safely
+             * skip the existing operations below the global checkpoint, however must replicate the ones above the global checkpoint
+             * but with the previous primary term (not the current term of the operation) in order to guarantee the consistency
+             * between the primary and replicas (see TransportBulkShardOperationsAction#shardOperationOnPrimary).
+             */
+            final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
+                shardId, index.seqNo(), lookupPrimaryTerm(index.seqNo()));
+            return IndexingStrategy.skipDueToVersionConflict(error, false, index.version());
         } else {
             return planIndexingAsNonPrimary(index);
         }
@@ -108,7 +92,7 @@ public final class FollowingEngine extends InternalEngine {
             // See the comment in #indexingStrategyForOperation for the explanation why we can safely skip this operation.
             final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
                 shardId, delete.seqNo(), lookupPrimaryTerm(delete.seqNo()));
-            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), delete.primaryTerm(), false);
+            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), false);
         } else {
             return planDeletionAsNonPrimary(delete);
         }
@@ -126,6 +110,25 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     @Override
+    protected long generateSeqNoForOperationOnPrimary(final Operation operation) {
+        assert operation.origin() == Operation.Origin.PRIMARY;
+        assert operation.seqNo() >= 0 : "ops should have an assigned seq no. but was: " + operation.seqNo();
+        markSeqNoAsSeen(operation.seqNo()); // even though we're not generating a sequence number, we mark it as seen
+        return operation.seqNo();
+    }
+
+    @Override
+    protected void advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(long seqNo) {
+        if (Assertions.ENABLED) {
+            final long localCheckpoint = getProcessedLocalCheckpoint();
+            final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
+            assert localCheckpoint < maxSeqNoOfUpdates || maxSeqNoOfUpdates >= seqNo :
+                "maxSeqNoOfUpdates is not advanced local_checkpoint=" + localCheckpoint + " msu=" + maxSeqNoOfUpdates + " seq_no=" + seqNo;
+        }
+        super.advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(seqNo); // extra safe in production code
+    }
+
+    @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
         // a noop implementation, because follow shard does not own the history but the leader shard does.
         return 0;
@@ -133,8 +136,7 @@ public final class FollowingEngine extends InternalEngine {
 
     @Override
     protected boolean assertPrimaryIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
-        // sequence number should be set when operation origin is primary
-        assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "primary operations on a following index must have an assigned sequence number";
+        assert FollowingEngineAssertions.assertPrimaryIncomingSequenceNumber(origin, seqNo);
         return true;
     }
 
@@ -151,32 +153,33 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     private OptionalLong lookupPrimaryTerm(final long seqNo) throws IOException {
+        // Don't need to look up term for operations before the global checkpoint for they were processed on every copies already.
+        if (seqNo <= engineConfig.getGlobalCheckpointSupplier().getAsLong()) {
+            return OptionalLong.empty();
+        }
         refreshIfNeeded("lookup_primary_term", seqNo);
         try (Searcher engineSearcher = acquireSearcher("lookup_primary_term", SearcherScope.INTERNAL)) {
-            // We have to acquire a searcher before execute this check to ensure that the requesting seq_no is always found in the else
-            // branch. If the operation is at most the global checkpoint, we should not look up its term as we may have merged away the
-            // operation. Moreover, we won't need to replicate this operation to replicas since it was processed on every copies already.
-            if (seqNo <= engineConfig.getGlobalCheckpointSupplier().getAsLong()) {
-                return OptionalLong.empty();
-            } else {
-                final DirectoryReader reader = Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader());
-                final IndexSearcher searcher = new IndexSearcher(reader);
-                searcher.setQueryCache(null);
-                final Query query = new BooleanQuery.Builder()
-                    .add(LongPoint.newExactQuery(SeqNoFieldMapper.NAME, seqNo), BooleanClause.Occur.FILTER)
-                    // excludes the non-root nested documents which don't have primary_term.
-                    .add(new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
-                    .build();
-                final TopDocs topDocs = searcher.search(query, 1);
-                if (topDocs.scoreDocs.length == 1) {
-                    final int docId = topDocs.scoreDocs[0].doc;
-                    final LeafReaderContext leaf = reader.leaves().get(ReaderUtil.subIndex(docId, reader.leaves()));
-                    final NumericDocValues primaryTermDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-                    if (primaryTermDV != null && primaryTermDV.advanceExact(docId - leaf.docBase)) {
-                        assert primaryTermDV.longValue() > 0 : "invalid term [" + primaryTermDV.longValue() + "]";
-                        return OptionalLong.of(primaryTermDV.longValue());
-                    }
+            final DirectoryReader reader = Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader());
+            final IndexSearcher searcher = new IndexSearcher(reader);
+            searcher.setQueryCache(null);
+            final Query query = new BooleanQuery.Builder()
+                .add(LongPoint.newExactQuery(SeqNoFieldMapper.NAME, seqNo), BooleanClause.Occur.FILTER)
+                // excludes the non-root nested documents which don't have primary_term.
+                .add(new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
+                .build();
+            final TopDocs topDocs = searcher.search(query, 1);
+            if (topDocs.scoreDocs.length == 1) {
+                final int docId = topDocs.scoreDocs[0].doc;
+                final LeafReaderContext leaf = reader.leaves().get(ReaderUtil.subIndex(docId, reader.leaves()));
+                final NumericDocValues primaryTermDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                if (primaryTermDV != null && primaryTermDV.advanceExact(docId - leaf.docBase)) {
+                    assert primaryTermDV.longValue() > 0 : "invalid term [" + primaryTermDV.longValue() + "]";
+                    return OptionalLong.of(primaryTermDV.longValue());
                 }
+            }
+            if (seqNo <= engineConfig.getGlobalCheckpointSupplier().getAsLong()) {
+                return OptionalLong.empty(); // we have merged away the looking up operation.
+            } else {
                 assert false : "seq_no[" + seqNo + "] does not have primary_term, total_hits=[" + topDocs.totalHits + "]";
                 throw new IllegalStateException("seq_no[" + seqNo + "] does not have primary_term (total_hits=" + topDocs.totalHits + ")");
             }
@@ -190,11 +193,11 @@ public final class FollowingEngine extends InternalEngine {
         }
     }
 
-    /**
-     * Returns the number of indexing operations that have been optimized (bypass version lookup) using sequence numbers in this engine.
-     * This metric is not persisted, and started from 0 when the engine is opened.
-     */
-    public long getNumberOfOptimizedIndexing() {
-        return numOfOptimizedIndexing.count();
+    @Override
+    public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
+        // the value of the global checkpoint is not verified when the following engine is closed,
+        // allowing it to be closed even in the case where all operations have not been fetched and
+        // processed from the leader and the operations history has gaps. This way the following
+        // engine can be closed and reopened in order to bootstrap the follower index again.
     }
 }

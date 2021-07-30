@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.replication;
@@ -23,11 +12,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -50,15 +39,15 @@ public class ReplicationResponse extends ActionResponse {
 
     private ShardInfo shardInfo;
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shardInfo = ReplicationResponse.ShardInfo.readShardInfo(in);
+    public ReplicationResponse() {}
+
+    public ReplicationResponse(StreamInput in) throws IOException {
+        super(in);
+        shardInfo = new ReplicationResponse.ShardInfo(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         shardInfo.writeTo(out);
     }
 
@@ -70,7 +59,7 @@ public class ReplicationResponse extends ActionResponse {
         this.shardInfo = shardInfo;
     }
 
-    public static class ShardInfo implements Streamable, ToXContentObject {
+    public static class ShardInfo implements Writeable, ToXContentObject {
 
         private static final String TOTAL = "total";
         private static final String SUCCESSFUL = "successful";
@@ -81,7 +70,18 @@ public class ReplicationResponse extends ActionResponse {
         private int successful;
         private Failure[] failures = EMPTY;
 
-        public ShardInfo() {
+        public ShardInfo() {}
+
+        public ShardInfo(StreamInput in) throws IOException {
+            total = in.readVInt();
+            successful = in.readVInt();
+            int size = in.readVInt();
+            if (size > 0) {
+                failures = new Failure[size];
+                for (int i = 0; i < size; i++) {
+                    failures[i] = new Failure(in);
+                }
+            }
         }
 
         public ShardInfo(int total, int successful, Failure... failures) {
@@ -132,19 +132,6 @@ public class ReplicationResponse extends ActionResponse {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            total = in.readVInt();
-            successful = in.readVInt();
-            int size = in.readVInt();
-            failures = new Failure[size];
-            for (int i = 0; i < size; i++) {
-                Failure failure = new Failure();
-                failure.readFrom(in);
-                failures[i] = failure;
-            }
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(total);
             out.writeVInt(successful);
@@ -173,7 +160,7 @@ public class ReplicationResponse extends ActionResponse {
 
         public static ShardInfo fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token = parser.currentToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
             int total = 0, successful = 0;
             List<Failure> failuresList = null;
@@ -218,12 +205,6 @@ public class ReplicationResponse extends ActionResponse {
                 '}';
         }
 
-        static ShardInfo readShardInfo(StreamInput in) throws IOException {
-            ShardInfo shardInfo = new ShardInfo();
-            shardInfo.readFrom(in);
-            return shardInfo;
-        }
-
         public static class Failure extends ShardOperationFailedException implements ToXContentObject {
 
             private static final String _INDEX = "_index";
@@ -233,18 +214,25 @@ public class ReplicationResponse extends ActionResponse {
             private static final String STATUS = "status";
             private static final String PRIMARY = "primary";
 
-            private ShardId shardId;
-            private String nodeId;
-            private boolean primary;
+            private final ShardId shardId;
+            private final String nodeId;
+            private final boolean primary;
+
+            public Failure(StreamInput in) throws IOException {
+                shardId = new ShardId(in);
+                super.shardId = shardId.getId();
+                index = shardId.getIndexName();
+                nodeId = in.readOptionalString();
+                cause = in.readException();
+                status = RestStatus.readFrom(in);
+                primary = in.readBoolean();
+            }
 
             public Failure(ShardId  shardId, @Nullable String nodeId, Exception cause, RestStatus status, boolean primary) {
-                super(shardId.getIndexName(), shardId.getId(), ExceptionsHelper.detailedMessage(cause), status, cause);
+                super(shardId.getIndexName(), shardId.getId(), ExceptionsHelper.stackTrace(cause), status, cause);
                 this.shardId = shardId;
                 this.nodeId = nodeId;
                 this.primary = primary;
-            }
-
-            Failure() {
             }
 
             public ShardId fullShardId() {
@@ -265,17 +253,6 @@ public class ReplicationResponse extends ActionResponse {
              */
             public boolean primary() {
                 return primary;
-            }
-
-            @Override
-            public void readFrom(StreamInput in) throws IOException {
-                shardId = ShardId.readShardId(in);
-                super.shardId = shardId.getId();
-                index = shardId.getIndexName();
-                nodeId = in.readOptionalString();
-                cause = in.readException();
-                status = RestStatus.readFrom(in);
-                primary = in.readBoolean();
             }
 
             @Override
@@ -305,7 +282,7 @@ public class ReplicationResponse extends ActionResponse {
 
             public static Failure fromXContent(XContentParser parser) throws IOException {
                 XContentParser.Token token = parser.currentToken();
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
                 String shardIndex = null, nodeId = null;
                 int shardId = -1;
@@ -339,7 +316,7 @@ public class ReplicationResponse extends ActionResponse {
                         parser.skipChildren(); // skip potential inner arrays for forward compatibility
                     }
                 }
-                return new Failure(new ShardId(shardIndex, IndexMetaData.INDEX_UUID_NA_VALUE, shardId), nodeId, reason, status, primary);
+                return new Failure(new ShardId(shardIndex, IndexMetadata.INDEX_UUID_NA_VALUE, shardId), nodeId, reason, status, primary);
             }
         }
     }

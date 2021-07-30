@@ -1,23 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
@@ -33,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class SearchOperationListenerTests extends ESTestCase {
 
@@ -90,32 +82,32 @@ public class SearchOperationListenerTests extends ESTestCase {
             }
 
             @Override
-            public void onNewContext(SearchContext context) {
-                assertNotNull(context);
+            public void onNewReaderContext(ReaderContext readerContext) {
+                assertNotNull(readerContext);
                 newContext.incrementAndGet();
             }
 
             @Override
-            public void onFreeContext(SearchContext context) {
-                assertNotNull(context);
+            public void onFreeReaderContext(ReaderContext readerContext) {
+                assertNotNull(readerContext);
                 freeContext.incrementAndGet();
             }
 
             @Override
-            public void onNewScrollContext(SearchContext context) {
-                assertNotNull(context);
+            public void onNewScrollContext(ReaderContext readerContext) {
+                assertNotNull(readerContext);
                 newScrollContext.incrementAndGet();
             }
 
             @Override
-            public void onFreeScrollContext(SearchContext context) {
-                assertNotNull(context);
+            public void onFreeScrollContext(ReaderContext readerContext) {
+                assertNotNull(readerContext);
                 freeScrollContext.incrementAndGet();
             }
 
             @Override
-            public void validateSearchContext(SearchContext context, TransportRequest request) {
-                assertNotNull(context);
+            public void validateReaderContext(ReaderContext readerContext, TransportRequest request) {
+                assertNotNull(readerContext);
                 validateSearchContext.incrementAndGet();
             }
         };
@@ -137,7 +129,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         Collections.shuffle(indexingOperationListeners, random());
         SearchOperationListener.CompositeListener compositeListener =
             new SearchOperationListener.CompositeListener(indexingOperationListeners, logger);
-        SearchContext ctx = new TestSearchContext(null);
+        SearchContext ctx = new TestSearchContext((SearchExecutionContext) null);
         compositeListener.onQueryPhase(ctx, timeInNanos.get());
         assertEquals(0, preFetch.get());
         assertEquals(0, preQuery.get());
@@ -216,7 +208,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, freeScrollContext.get());
         assertEquals(0, validateSearchContext.get());
 
-        compositeListener.onNewContext(ctx);
+        compositeListener.onNewReaderContext(mock(ReaderContext.class));
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
         assertEquals(2, failedFetch.get());
@@ -229,7 +221,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, freeScrollContext.get());
         assertEquals(0, validateSearchContext.get());
 
-        compositeListener.onNewScrollContext(ctx);
+        compositeListener.onNewScrollContext(mock(ReaderContext.class));
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
         assertEquals(2, failedFetch.get());
@@ -242,7 +234,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, freeScrollContext.get());
         assertEquals(0, validateSearchContext.get());
 
-        compositeListener.onFreeContext(ctx);
+        compositeListener.onFreeReaderContext(mock(ReaderContext.class));
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
         assertEquals(2, failedFetch.get());
@@ -255,7 +247,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, freeScrollContext.get());
         assertEquals(0, validateSearchContext.get());
 
-        compositeListener.onFreeScrollContext(ctx);
+        compositeListener.onFreeScrollContext(mock(ReaderContext.class));
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
         assertEquals(2, failedFetch.get());
@@ -269,10 +261,10 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, validateSearchContext.get());
 
         if (throwingListeners == 0) {
-            compositeListener.validateSearchContext(ctx, Empty.INSTANCE);
+            compositeListener.validateReaderContext(mock(ReaderContext.class), Empty.INSTANCE);
         } else {
-            RuntimeException expected =
-                expectThrows(RuntimeException.class, () -> compositeListener.validateSearchContext(ctx, Empty.INSTANCE));
+            RuntimeException expected = expectThrows(RuntimeException.class,
+                () -> compositeListener.validateReaderContext(mock(ReaderContext.class), Empty.INSTANCE));
             assertNull(expected.getMessage());
             assertEquals(throwingListeners - 1, expected.getSuppressed().length);
             if (throwingListeners > 1) {

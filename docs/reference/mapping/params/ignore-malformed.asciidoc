@@ -1,87 +1,90 @@
 [[ignore-malformed]]
 === `ignore_malformed`
 
-Sometimes you don't have much control over the data that you receive.  One
+Sometimes you don't have much control over the data that you receive. One
 user may send a `login` field that is a <<date,`date`>>, and another sends a
 `login` field that is an email address.
 
-Trying to index the wrong datatype into a field throws an exception by
-default, and rejects the whole document.  The `ignore_malformed` parameter, if
-set to `true`, allows the exception to be ignored.  The malformed field is not
+Trying to index the wrong data type into a field throws an exception by
+default, and rejects the whole document. The `ignore_malformed` parameter, if
+set to `true`, allows the exception to be ignored. The malformed field is not
 indexed, but other fields in the document are processed normally.
 
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "number_one": {
-          "type": "integer",
-          "ignore_malformed": true
-        },
-        "number_two": {
-          "type": "integer"
-        }
+    "properties": {
+      "number_one": {
+        "type": "integer",
+        "ignore_malformed": true
+      },
+      "number_two": {
+        "type": "integer"
       }
     }
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "text":       "Some text value",
   "number_one": "foo" <1>
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "text":       "Some text value",
   "number_two": "foo" <2>
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[catch:bad_request]
+
 <1> This document will have the `text` field indexed, but not the `number_one` field.
 <2> This document will be rejected because `number_two` does not allow malformed values.
 
-TIP: The `ignore_malformed` setting is allowed to have different settings for
-fields of the same name in the same index.  Its value can be updated on
-existing fields using the <<indices-put-mapping,PUT mapping API>>.
+The `ignore_malformed` setting is currently supported by the following <<mapping-types,mapping types>>:
 
+<<number>>::         `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
+<<date>>::           `date`
+<<date_nanos>>::     `date_nanos`
+<<geo-point>>::     `geo_point` for lat/lon points
+<<geo-shape>>::     `geo_shape` for complex shapes like polygons
+<<ip>>::            `ip` for IPv4 and IPv6 addresses
+
+TIP: The `ignore_malformed` setting value can be updated on
+existing fields using the <<indices-put-mapping,update mapping API>>.
 
 [[ignore-malformed-setting]]
 ==== Index-level default
 
 The `index.mapping.ignore_malformed` setting can be set on the index level to
-allow to ignore malformed content globally across all mapping types.
+ignore malformed content globally across all allowed mapping types.
+Mapping types that don't support the setting will ignore it if set on the index level.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "index.mapping.ignore_malformed": true <1>
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "number_one": { <1>
-          "type": "byte"
-        },
-        "number_two": {
-          "type": "integer",
-          "ignore_malformed": false <2>
-        }
+    "properties": {
+      "number_one": { <1>
+        "type": "byte"
+      },
+      "number_two": {
+        "type": "integer",
+        "ignore_malformed": false <2>
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The `number_one` field inherits the index-level setting.
 <2> The `number_two` field overrides the index-level setting to turn off `ignore_malformed`.
@@ -92,6 +95,20 @@ Malformed fields are silently ignored at indexing time when `ignore_malformed`
 is turned on. Whenever possible it is recommended to keep the number of
 documents that have a malformed field contained, or queries on this field will
 become meaningless. Elasticsearch makes it easy to check how many documents
-have malformed fields by using `exist` or `term` queries on the special
+have malformed fields by using `exists`,`term` or `terms` queries on the special
 <<mapping-ignored-field,`_ignored`>> field.
 
+[[json-object-limits]]
+==== Limits for JSON Objects
+You can't use `ignore_malformed` with the following data types:
+
+* <<nested, Nested data type>>
+* <<object, Object data type>>
+* <<range, Range data types>>
+
+You also can't use `ignore_malformed` to ignore JSON objects submitted to fields
+of the wrong data type. A JSON object is any data surrounded by curly brackets
+`"{}"` and includes data mapped to the nested, object, and range data types.
+
+If you submit a JSON object to an unsupported field, {es} will return an error
+and reject the entire document regardless of the `ignore_malformed` setting.

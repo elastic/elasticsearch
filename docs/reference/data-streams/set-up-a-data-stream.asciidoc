@@ -1,0 +1,370 @@
+[role="xpack"]
+[[set-up-a-data-stream]]
+== Set up a data stream
+
+To set up a data stream, follow these steps:
+
+* <<create-index-lifecycle-policy>>
+* <<create-component-templates>>
+* <<create-index-template>>
+* <<create-data-stream>>
+* <<secure-data-stream>>
+
+You can also <<convert-index-alias-to-data-stream,convert an index alias to
+a data stream>>.
+
+IMPORTANT: If you use {fleet} or {agent}, skip this tutorial. {fleet} and
+{agent} set up data streams for you. See {fleet}'s
+{fleet-guide}/data-streams.html[data streams] documentation.
+
+[discrete]
+[[create-index-lifecycle-policy]]
+=== Step 1. Create an index lifecycle policy
+
+While optional, we recommend using {ilm-init} to automate the management of your
+data stream's backing indices. {ilm-init} requires an index lifecycle policy.
+
+To create an index lifecycle policy in {kib}, open the main menu and go to
+*Stack Management > Index Lifecycle Policies*. Click *Create policy*.
+
+You can also use the <<ilm-put-lifecycle,create lifecycle policy API>>.
+
+// tag::ilm-policy-api-ex[]
+[source,console]
+----
+PUT _ilm/policy/my-lifecycle-policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_primary_shard_size": "50gb"
+          }
+        }
+      },
+      "warm": {
+        "min_age": "30d",
+        "actions": {
+          "shrink": {
+            "number_of_shards": 1
+          },
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "cold": {
+        "min_age": "60d",
+        "actions": {
+          "searchable_snapshot": {
+            "snapshot_repository": "found-snapshots"
+          }
+        }
+      },
+      "frozen": {
+        "min_age": "90d",
+        "actions": {
+          "searchable_snapshot": {
+            "snapshot_repository": "found-snapshots"
+          }
+        }
+      },
+      "delete": {
+        "min_age": "735d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+----
+// end::ilm-policy-api-ex[]
+
+[discrete]
+[[create-component-templates]]
+=== Step 2. Create component templates
+
+// tag::ds-create-component-templates[]
+A data stream requires a matching index template. In most cases, you compose
+this index template using one or more component templates. You typically use
+separate component templates for mappings and index settings. This lets you
+reuse the component templates in multiple index templates.
+
+When creating your component templates, include:
+
+* A <<date,`date`>> or <<date_nanos,`date_nanos`>> mapping for the `@timestamp`
+field. If you don't specify a mapping, {es} maps `@timestamp` as a `date` field
+with default options.
+
+* Your lifecycle policy in the `index.lifecycle.name` index setting.
+
+[TIP]
+====
+Use the {ecs-ref}[Elastic Common Schema (ECS)] when mapping your fields. ECS
+fields integrate with several {stack} features by default.
+
+If you're unsure how to map your fields, use <<runtime-search-request,runtime
+fields>> to extract fields from <<mapping-unstructured-content,unstructured
+content>> at search time. For example, you can index a log message to a
+`wildcard` field and later extract IP addresses and other data from this field
+during a search.
+====
+
+To create a component template in {kib}, open the main menu and go to *Stack
+Management > Index Management*. In the *Index Templates* view, click *Create
+component template*.
+
+You can also use the <<indices-component-template,create component template
+API>>.
+
+[source,console]
+----
+# Creates a component template for mappings
+PUT _component_template/my-mappings
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date",
+          "format": "date_optional_time||epoch_millis"
+        },
+        "message": {
+          "type": "wildcard"
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "Mappings for @timestamp and message fields",
+    "my-custom-meta-field": "More arbitrary metadata"
+  }
+}
+
+# Creates a component template for index settings
+PUT _component_template/my-settings
+{
+  "template": {
+    "settings": {
+      "index.lifecycle.name": "my-lifecycle-policy"
+    }
+  },
+  "_meta": {
+    "description": "Settings for ILM",
+    "my-custom-meta-field": "More arbitrary metadata"
+  }
+}
+----
+// TEST[continued]
+// end::ds-create-component-templates[]
+
+[discrete]
+[[create-index-template]]
+=== Step 3. Create an index template
+
+// tag::ds-create-index-template[]
+Use your component templates to create an index template. Specify:
+
+* One or more index patterns that match the data stream's name. We recommend
+using our {fleet-guide}/data-streams.html#data-streams-naming-scheme[data stream
+naming scheme].
+
+* That the template is data stream enabled.
+
+* Any component templates that contain your mappings and index settings.
+
+* A priority higher than `200` to avoid collisions with built-in templates.
+See <<avoid-index-pattern-collisions>>.
+
+To create an index template in {kib}, open the main menu and go to *Stack
+Management > Index Management*. In the *Index Templates* view, click *Create
+template*.
+
+You can also use the <<indices-put-template,create index template API>>.
+Include the `data_stream` object to enable data streams.
+
+[source,console]
+----
+PUT _index_template/my-index-template
+{
+  "index_patterns": ["my-data-stream*"],
+  "data_stream": { },
+  "composed_of": [ "my-mappings", "my-settings" ],
+  "priority": 500,
+  "_meta": {
+    "description": "Template for my time series data",
+    "my-custom-meta-field": "More arbitrary metadata"
+  }
+}
+----
+// TEST[continued]
+// end::ds-create-index-template[]
+
+[discrete]
+[[create-data-stream]]
+=== Step 4. Create the data stream
+
+// tag::ds-create-data-stream[]
+<<add-documents-to-a-data-stream,Indexing requests>> add documents to a data
+stream. These requests must use an `op_type` of `create`. Documents must include
+a `@timestamp` field.
+
+To automatically create your data stream, submit an indexing request that
+targets the stream's name. This name must match one of your index template's
+index patterns.
+
+[source,console]
+----
+PUT my-data-stream/_bulk
+{ "create":{ } }
+{ "@timestamp": "2099-05-06T16:21:15.000Z", "message": "192.0.2.42 - - [06/May/2099:16:21:15 +0000] \"GET /images/bg.jpg HTTP/1.0\" 200 24736" }
+{ "create":{ } }
+{ "@timestamp": "2099-05-06T16:25:42.000Z", "message": "192.0.2.255 - - [06/May/2099:16:25:42 +0000] \"GET /favicon.ico HTTP/1.0\" 200 3638" }
+
+POST my-data-stream/_doc
+{
+  "@timestamp": "2099-05-06T16:21:15.000Z",
+  "message": "192.0.2.42 - - [06/May/2099:16:21:15 +0000] \"GET /images/bg.jpg HTTP/1.0\" 200 24736"
+}
+----
+// TEST[continued]
+// end::ds-create-data-stream[]
+
+You can also manually create the stream using the
+<<indices-create-data-stream,create data stream API>>. The stream's name must
+still match one of your template's index patterns.
+
+[source,console]
+----
+PUT _data_stream/my-data-stream
+----
+// TEST[continued]
+// TEST[s/my-data-stream/my-data-stream-alt/]
+
+[discrete]
+[[secure-data-stream]]
+=== Step 5. Secure the data stream
+
+include::{xes-repo-dir}/security/authorization/alias-privileges.asciidoc[tag=data-stream-security]
+
+For an example, see <<data-stream-privileges>>.
+
+[discrete]
+[[convert-index-alias-to-data-stream]]
+=== Convert an index alias to a data stream
+
+// tag::time-series-alias-tip[]
+Prior to {es} 7.9, you'd typically use an
+<<manage-time-series-data-without-data-streams,index alias with a write index>>
+to manage time series data. Data streams replace this functionality, require
+less maintenance, and automatically integrate with <<data-tiers,data tiers>>.
+// end::time-series-alias-tip[]
+
+To convert an index alias with a write index to a data stream with the same
+name, use the <<indices-migrate-to-data-stream,migrate to data stream API>>.
+During conversion, the alias’s indices become hidden backing indices for the
+stream. The alias’s write index becomes the stream’s write index. The stream
+still requires a matching index template with data stream enabled.
+
+////
+[source,console]
+----
+POST idx1/_doc/
+{
+    "message" : "testing",
+    "@timestamp" : "2099-01-01"
+}
+
+POST idx2/_doc/
+{
+    "message" : "testing2",
+    "@timestamp" : "2099-01-01"
+}
+
+POST _aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "idx1",
+        "alias": "my-time-series-data",
+        "is_write_index": true
+      }
+    },
+    {
+      "add": {
+        "index": "idx2",
+        "alias": "my-time-series-data"
+      }
+    }
+  ]
+}
+
+PUT _index_template/template
+{
+  "index_patterns": ["my-time-series-data"],
+  "data_stream": { }
+}
+----
+// TEST[continued]
+////
+
+[source,console]
+----
+POST _data_stream/_migrate/my-time-series-data
+----
+// TEST[continued]
+
+[discrete]
+[[get-info-about-data-stream]]
+=== Get information about a data stream
+
+To get information about a data stream in {kib}, open the main menu and go to
+*Stack Management > Index Management*. In the *Data Streams* view, click the
+data stream's name.
+
+You can also use the <<indices-get-data-stream,get data stream API>>.
+
+////
+[source,console]
+----
+POST my-data-stream/_rollover/
+----
+// TEST[continued]
+////
+
+[source,console]
+----
+GET _data_stream/my-data-stream
+----
+// TEST[continued]
+
+[discrete]
+[[delete-data-stream]]
+=== Delete a data stream
+
+To delete a data stream and its backing indices in {kib}, open the main menu and
+go to *Stack Management > Index Management*. In the *Data Streams* view, click
+the trash icon. The icon only displays if you have the `delete_index`
+<<security-privileges, security privilege>> for the data stream.
+
+You can also use the <<indices-delete-data-stream,delete data stream API>>.
+
+[source,console]
+----
+DELETE _data_stream/my-data-stream
+----
+// TEST[continued]
+
+////
+[source,console]
+----
+DELETE _data_stream/*
+DELETE _index_template/*
+DELETE _component_template/my-*
+DELETE _ilm/policy/my-lifecycle-policy
+----
+// TEST[continued]
+////

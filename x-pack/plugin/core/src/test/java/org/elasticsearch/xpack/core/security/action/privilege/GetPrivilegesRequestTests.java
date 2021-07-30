@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action.privilege;
@@ -29,8 +30,7 @@ public class GetPrivilegesRequestTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
 
-        final GetPrivilegesRequest copy = new GetPrivilegesRequest();
-        copy.readFrom(out.bytes().streamInput());
+        final GetPrivilegesRequest copy = new GetPrivilegesRequest(out.bytes().streamInput());
 
         assertThat(original.application(), Matchers.equalTo(copy.application()));
         assertThat(original.privileges(), Matchers.equalTo(copy.privileges()));
@@ -45,7 +45,8 @@ public class GetPrivilegesRequestTests extends ESTestCase {
         assertThat(request("my_app", "read", "write").validate(), nullValue());
         final ActionRequestValidationException exception = request("my_app", ((String[]) null)).validate();
         assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), containsInAnyOrder("privileges cannot be null"));
+        assertThat(exception.validationErrors(),
+            containsInAnyOrder("privileges cannot be null"));
     }
 
     private GetPrivilegesRequest request(String application, String... privileges) {

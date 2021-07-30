@@ -1,15 +1,15 @@
 {
   "index_patterns": [ ".monitoring-logstash-${monitoring.template.version}-*" ],
-  "version": 7000099,
+  "version": 7140099,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 0,
     "index.auto_expand_replicas": "0-1",
-    "index.format": 6,
+    "index.format": 7,
     "index.codec": "best_compression"
   },
   "mappings": {
-    "doc": {
+    "_doc": {
       "dynamic": false,
       "properties": {
         "cluster_uuid": {

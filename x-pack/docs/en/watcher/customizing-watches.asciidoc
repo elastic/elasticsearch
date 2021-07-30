@@ -1,29 +1,31 @@
+[role="xpack"]
 [[customizing-watches]]
-== Customizing Watches
+== Customizing watches
 
-Now that you've seen how to set up simple watches to <<watch-log-data, watch your log data>>
-and <<watch-cluster-status, monitor your cluster health>>, let's take a closer
-look at how you can customize a watch by modifying its <<changing-inputs, inputs>>,
-<<changing-conditions, conditions>>, <<using-transforms, transforms>>, and
-<<customizing-actions, actions>>.
+Now that you've seen how to set up simple watches to
+<<watch-log-data,watch your log data>> and
+<<watch-cluster-status,monitor your cluster health>>, let's take a closer
+look at how you can customize a watch by modifying its <<changing-inputs,inputs>>,
+<<changing-conditions,conditions>>, <<using-transforms,transforms>>, and
+<<customizing-actions,actions>>.
 
 [[changing-inputs]]
-=== Changing Inputs
+=== Changing inputs
 
 The Watch Input is called when the watch triggered to load an initial payload.
 This payload is stored in the _Watch Execution Context_ and from then on is
 available for other watch elements to access (e.g. watch conditions can
 be evaluated based on the data in this payload).
 
-{watcher} supports four types of inputs <<loading-static-data, simple>>,
-<<loading-search-results, search>>, <<loading-http-data, http>>, and
-<<input-chain, chain>>.
+{watcher} supports four types of inputs <<loading-static-data,simple>>,
+<<loading-search-results,search>>, <<loading-http-data,http>>, and
+<<input-chain,chain>>.
 
 [[loading-static-data]]
-==== Loading a Static Payload with the Simple Input
+==== Loading a static payload with the simple input
 
 To load static data into the watch payload for testing purposes, you can use the
-<<input-simple, simple>> input. For example, the following input stores three
+<<input-simple,simple>> input. For example, the following input stores three
 fields in the payload:
 
 [source,js]
@@ -41,15 +43,15 @@ fields in the payload:
 See <<input-simple>> for more details.
 
 [[loading-search-results]]
-==== Loading a Payload from Elasticsearch with the Search Input
+==== Loading a payload from Elasticsearch with the search input
 
 You can use the `search` input to load Elasticsearch search results as the watch
 initial payload.
 
-A <<input-search, search>> input contains a `request` object that specifies the
-indices you want to search, the {ref}/search-request-search-type.html[search type],
+A <<input-search,search>> input contains a `request` object that specifies the
+indices you want to search, the <<search-type,search type>>,
 and the search request body. The `body` field of a search input is the same as
-the body of an Elasticsearch `_search` request, making the full Elaticsearch
+the body of an Elasticsearch `_search` request, making the full Elasticsearch
 Query DSL available for you to use.
 
 For example, the following `search` input loads the latest VIX quote:
@@ -81,7 +83,7 @@ For example, the following `search` input loads the latest VIX quote:
 See <<input-search>> for more details.
 
 [[loading-http-data]]
-==== Loading a Payload from a remote HTTP Service with HTTP Input
+==== Loading a payload from a remote HTTP service with HTTP input
 
 Use the `http` input to issue an HTTP request and load the returned response as
 the watch initial payload. This input expects the response body content type
@@ -111,28 +113,28 @@ Amsterdam using http://openweathermap.org/appid[OpenWeatherMap] online service:
 See <<input-http>> for more details.
 
 [[chaining-inputs]]
-==== Chaining Inputs
+==== Chaining inputs
 
-You can create an <<input-chain, input chain>> to load data from multiple sources
-into a watch payload. The inputs in a chain are processed in order, so the the
+You can create an <<input-chain,input chain>> to load data from multiple sources
+into a watch payload. The inputs in a chain are processed in order, so the
 data loaded by one input can be used by subsequent inputs.
 
 See <<input-chain>> for more details.
 
 [[changing-conditions]]
-=== Changing Conditions
+=== Changing conditions
 
 The Watch Condition is evaluated as part of the watch execution. The condition
 determines whether the actions associated with the watch should execute or not.
 
-{watcher} supports four types of conditions <<condition-always, always>>,
-<<condition-never, never>>, <<condition-compare, compare>>,  and
-<<condition-script, script>>.
+{watcher} supports four types of conditions <<condition-always,always>>,
+<<condition-never,never>>, <<condition-compare,compare>>, and
+<<condition-script,script>>.
 
 The first two are pretty self-explanatory--they are shortcuts for setting a
 watch's condition to `true` or `false`.
 
-==== Simple Value Comparison with the Compare Condition
+==== Simple value comparison with the compare condition
 
 The `compare` condition enables you to perform simple comparisons against values
 in the Watch payload. While you can also do this with a `script` condition, with
@@ -145,13 +147,13 @@ returned any hits:
 [source,js]
 --------------------------------------------------
 "condition" : {
-    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }}
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
   },
 --------------------------------------------------
 // NOTCONSOLE
 See <<condition-compare>> for more details.
 
-==== Powerful Comparison Logic with the Script Condition
+==== Powerful comparison logic with the script condition
 
 For more complex conditional logic you can use the `script` condition. The
 `script` condition accepts a script that when executed returns `true` (indicating
@@ -160,7 +162,7 @@ language defaults to the default script language in Elasticsearch, but you can
 also use any other supported language in the system.
 
 NOTE: Starting with 5.0, Elasticsearch is shipped with the new
-      {ref}/modules-scripting-painless.html[Painless] scripting language.
+      <<modules-scripting-painless,Painless>> scripting language.
       Painless was created and designed specifically for use in Elasticsearch.
       Beyond providing an extensive feature set, its biggest trait is that it's
       properly sandboxed and safe to use anywhere in the system (including in
@@ -182,13 +184,13 @@ VIX quote loaded by the `http` input is either greater than 5% or lower than -5%
 See <<condition-script>> for more details.
 
 [[using-transforms]]
-=== Using Transforms
+=== Using transforms
 
 Transforms are constructs in a watch that can change the current payload
 associated with the watch execution context.
 
-{watcher} supports three types of transforms <<transform-search, search>>,
-<<transform-script, script>> and <<transform-chain, chain>>. A `search` transform
+{watcher} supports three types of transforms <<transform-search,search>>,
+<<transform-script,script>> and <<transform-chain,chain>>. A `search` transform
 replaces the existing payload with the response of a new search request. You can
 use `script` transforms to modify the existing payload. A `chain` transform
 enables you to perform a series of `search` and `script` transforms.
@@ -196,19 +198,19 @@ enables you to perform a series of `search` and `script` transforms.
 See <<transform>> for more details.
 
 [[customizing-actions]]
-=== Customizing Actions
+=== Customizing actions
 
 Actions are associated with a watch and are executed as part of the watch execution
 only when the watch condition is met.
 
-{watcher} supports the following action types: <<actions-email, email>>,
-<<actions-slack, slack>>, <<actions-hipchat, hipchat>>, <<actions-pagerduty, pagerduty>>,
-<<actions-index, index>>, <<actions-logging, logging>>, and <<actions-webhook, webhook>>.
+{watcher} supports the following action types: <<actions-email,email>>,
+<<actions-slack,slack>>, <<actions-pagerduty,pagerduty>>,
+<<actions-index,index>>, <<actions-logging,logging>>, and <<actions-webhook,webhook>>.
 
-To use the `email` action, you need to <<configuring-email, configure an email account>>
+To use the `email` action, you need to <<configuring-email,configure an email account>>
 in `elasticsearch.yml` that {watcher} can use to send email. Your custom email
 messages can be plain text or styled using HTML. You can include information from
-the watch execution payload using <<templates, templates>>, as well as attach the
+the watch execution payload using <<templates,templates>>, as well as attach the
 entire watch payload to the message.
 
 For example, the following email action uses a template in the email body and
@@ -221,7 +223,7 @@ attaches the payload data to the message:
     "email" : { <2>
       "to" : "email@example.org",
       "subject" : "Watcher Notification",
-      "body" : "{{ctx.payload.hits.total.value}} error logs found",
+      "body" : "{{ctx.payload.hits.total}} error logs found",
       "attachments" : {
         "data_attachment" : {
           "data" : {
@@ -250,7 +252,7 @@ creates a new issue in GitHub
       "url" : "https://api.github.com/repos/<owner>/<repo>/issues", <1>
       "body" : "{
         \"title\": \"Found errors in 'contact.html'\",
-        \"body\": \"Found {{ctx.payload.hits.total.value}} errors in this page in the last 5 minutes\",
+        \"body\": \"Found {{ctx.payload.hits.total}} errors in this page in the last 5 minutes\",
         \"assignee\": \"web-admin\",
         \"labels\": [ \"bug\", \"sev2\" ]
       }",

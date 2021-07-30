@@ -1,31 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -34,37 +26,43 @@ import static org.elasticsearch.action.search.SearchRequest.DEFAULT_INDICES_OPTI
 /**
  * Encapsulates a request to _count API against one, several or all indices.
  */
-public final class CountRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public final class CountRequest implements Validatable, ToXContentObject {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
     private String routing;
     private String preference;
-    private SearchSourceBuilder searchSourceBuilder;
+    private QueryBuilder query;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+    private int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
+    private Float minScore;
 
-    public CountRequest() {
-        this.searchSourceBuilder = new SearchSourceBuilder();
-    }
+    public CountRequest() {}
 
     /**
      * Constructs a new count request against the indices. No indices provided here means that count will execute on all indices.
      */
     public CountRequest(String... indices) {
-        this(indices, new SearchSourceBuilder());
+        indices(indices);
     }
 
     /**
      * Constructs a new search request against the provided indices with the given search source.
+     *
+     * @deprecated The count api only supports a query. Use {@link #CountRequest(String[], QueryBuilder)} instead.
      */
+    @Deprecated
     public CountRequest(String[] indices, SearchSourceBuilder searchSourceBuilder) {
         indices(indices);
-        this.searchSourceBuilder = searchSourceBuilder;
+        this.query = Objects.requireNonNull(searchSourceBuilder, "source must not be null").query();
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
+    /**
+     * Constructs a new search request against the provided indices with the given query.
+     */
+    public CountRequest(String[] indices, QueryBuilder query) {
+        indices(indices);
+        this.query = Objects.requireNonNull(query, "query must not be null");;
     }
 
     /**
@@ -81,9 +79,20 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
 
     /**
      * The source of the count request.
+     *
+     * @deprecated The count api only supports a query. Use {@link #query(QueryBuilder)} instead.
      */
+    @Deprecated
     public CountRequest source(SearchSourceBuilder searchSourceBuilder) {
-        this.searchSourceBuilder = Objects.requireNonNull(searchSourceBuilder, "source must not be null");
+        this.query = Objects.requireNonNull(searchSourceBuilder, "source must not be null").query();
+        return this;
+    }
+
+    /**
+     * Sets the query to execute for this count request.
+     */
+    public CountRequest query(QueryBuilder query) {
+        this.query = Objects.requireNonNull(query, "query must not be null");
         return this;
     }
 
@@ -156,20 +165,23 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
     }
 
     public Float minScore() {
-        return this.searchSourceBuilder.minScore();
+        return minScore;
     }
 
     public CountRequest minScore(Float minScore) {
-        this.searchSourceBuilder.minScore(minScore);
+        this.minScore = minScore;
         return this;
     }
 
     public int terminateAfter() {
-        return this.searchSourceBuilder.terminateAfter();
+        return this.terminateAfter;
     }
 
     public CountRequest terminateAfter(int terminateAfter) {
-        this.searchSourceBuilder.terminateAfter(terminateAfter);
+        if (terminateAfter < 0) {
+            throw new IllegalArgumentException("terminateAfter must be > 0");
+        }
+        this.terminateAfter = terminateAfter;
         return this;
     }
 
@@ -182,8 +194,31 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
         return Arrays.copyOf(this.types, this.types.length);
     }
 
+    /**
+     * @return the source builder
+     * @deprecated The count api only supports a query. Use {@link #query()} instead.
+     */
+    @Deprecated
     public SearchSourceBuilder source() {
-        return this.searchSourceBuilder;
+        return new SearchSourceBuilder().query(query);
+    }
+
+    /**
+     * @return The provided query to execute with the count request or
+     * <code>null</code> if no query was provided.
+     */
+    public QueryBuilder query() {
+        return query;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (query != null) {
+            builder.field("query", query);
+        }
+        builder.endObject();
+        return builder;
     }
 
     @Override
@@ -199,12 +234,15 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
             Arrays.equals(indices, that.indices) &&
             Arrays.equals(types, that.types) &&
             Objects.equals(routing, that.routing) &&
-            Objects.equals(preference, that.preference);
+            Objects.equals(preference, that.preference) &&
+            Objects.equals(terminateAfter, that.terminateAfter) &&
+            Objects.equals(minScore, that.minScore) &&
+            Objects.equals(query, that.query);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, routing, preference);
+        int result = Objects.hash(indicesOptions, routing, preference, terminateAfter, minScore, query);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(types);
         return result;

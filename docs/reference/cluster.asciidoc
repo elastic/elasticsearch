@@ -1,10 +1,8 @@
 [[cluster]]
-= Cluster APIs
+== Cluster APIs
 
-[partintro]
---
 ["float",id="cluster-nodes"]
-== Node specification
+=== Node specification
 
 Some cluster-level APIs may operate on a subset of the nodes which can be
 specified with _node filters_. For example, the <<tasks,Task Management>>,
@@ -22,12 +20,14 @@ one of the following:
 * an IP address or hostname, to add all matching nodes to the subset.
 * a pattern, using `*` wildcards, which adds all nodes to the subset
   whose name, address or hostname matches the pattern.
-* `master:true`, `data:true`, `ingest:true` or `coordinating_only:true`, which
-  respectively add to the subset all master-eligible nodes, all data nodes,
-  all ingest nodes, and all coordinating-only nodes.
-* `master:false`, `data:false`, `ingest:false` or `coordinating_only:false`,
-  which respectively remove from the subset all master-eligible nodes, all data
-  nodes, all ingest nodes, and all coordinating-only nodes.
+* `master:true`, `data:true`, `ingest:true`, `voting_only:true`, `ml:true`, or
+  `coordinating_only:true`, which respectively add to the subset all
+  master-eligible nodes, all data nodes, all ingest nodes, all voting-only
+  nodes, all machine learning nodes, and all coordinating-only nodes.
+* `master:false`, `data:false`, `ingest:false`, `voting_only:true`, `ml:false`,
+  or `coordinating_only:false`, which respectively remove from the subset all
+  master-eligible nodes, all data nodes, all ingest nodes, all voting-only
+  nodes, all machine learning nodes, and all coordinating-only nodes.
 * a pair of patterns, using `*` wildcards, of the form `attrname:attrvalue`,
   which adds to the subset all nodes with a custom node attribute whose name
   and value match the respective patterns. Custom node attributes are
@@ -49,7 +49,7 @@ own, `master:false` selects no nodes.
 Here are some examples of the use of node filters with the
 <<cluster-nodes-info,Nodes Info>> APIs.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # If no filters are given, the default is to select all nodes
 GET /_nodes
@@ -69,38 +69,41 @@ GET /_nodes/10.0.0.*
 GET /_nodes/_all,master:false
 GET /_nodes/data:true,ingest:true
 GET /_nodes/coordinating_only:true
+GET /_nodes/master:true,voting_only:false
 # Select nodes by custom attribute (e.g. with something like `node.attr.rack: 2` in the configuration file)
 GET /_nodes/rack:2
 GET /_nodes/ra*:2
 GET /_nodes/ra*:2*
 --------------------------------------------------
-// CONSOLE
---
+
+include::cluster/allocation-explain.asciidoc[]
+
+include::cluster/get-settings.asciidoc[]
 
 include::cluster/health.asciidoc[]
+
+include::cluster/reroute.asciidoc[]
 
 include::cluster/state.asciidoc[]
 
 include::cluster/stats.asciidoc[]
 
-include::cluster/pending.asciidoc[]
-
-include::cluster/reroute.asciidoc[]
-
 include::cluster/update-settings.asciidoc[]
 
-include::cluster/get-settings.asciidoc[]
+include::cluster/nodes-usage.asciidoc[]
 
-include::cluster/nodes-stats.asciidoc[]
+include::cluster/nodes-hot-threads.asciidoc[]
 
 include::cluster/nodes-info.asciidoc[]
 
-include::cluster/nodes-usage.asciidoc[]
+include::cluster/nodes-reload-secure-settings.asciidoc[]
+
+include::cluster/nodes-stats.asciidoc[]
+
+include::cluster/pending.asciidoc[]
 
 include::cluster/remote-info.asciidoc[]
 
 include::cluster/tasks.asciidoc[]
 
-include::cluster/nodes-hot-threads.asciidoc[]
-
-include::cluster/allocation-explain.asciidoc[]
+include::cluster/voting-exclusions.asciidoc[]

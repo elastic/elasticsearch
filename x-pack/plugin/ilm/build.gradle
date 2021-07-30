@@ -1,34 +1,24 @@
-evaluationDependsOn(xpackModule('core'))
-
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-    name 'x-pack-ilm'
-    description 'Elasticsearch Expanded Pack Plugin - Index Lifecycle Management'
-    classname 'org.elasticsearch.xpack.indexlifecycle.IndexLifecycle'
-    extendedPlugins = ['x-pack-core']
-    hasNativeController false
-    requiresKeystore true
+  name 'x-pack-ilm'
+  description 'Elasticsearch Expanded Pack Plugin - Index Lifecycle Management'
+  classname 'org.elasticsearch.xpack.ilm.IndexLifecycle'
+  extendedPlugins = ['x-pack-core']
+  hasNativeController false
+  requiresKeystore true
 }
 archivesBaseName = 'x-pack-ilm'
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    compileOnly project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('data-streams'))
 }
 
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-    project.subprojects
-            .find { it.path == project.path + ":qa" }
-            .subprojects
-            .findAll { it.path.startsWith(project.path + ":qa") }
-            .each { check.dependsOn it.check }
-}
+addQaCheckDependencies()
 
-integTest.enabled = false
-
-run {
-    plugin xpackModule('core')
+tasks.named("test").configure {
+  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
 }

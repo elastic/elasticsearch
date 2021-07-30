@@ -3,8 +3,6 @@
 [[sql-functions-system]]
 === System Functions
 
-beta[]
-
 These functions return metadata type of information about the system being queried.
 
 [[sql-functions-system-database]]
@@ -16,19 +14,17 @@ These functions return metadata type of information about the system being queri
 DATABASE()
 --------------------------------------------------
 
-*Input*:
+*Input*: _none_
 
 *Output*: string
 
-.Description:
-
-Returns the name of the database being queried. In the case of Elasticsearch SQL, this
+*Description*: Returns the name of the database being queried. In the case of Elasticsearch SQL, this
 is the name of the Elasticsearch cluster. This function should always return a non-null
 value.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[database]
+include-tagged::{sql-specs}/docs/docs.csv-spec[database]
 --------------------------------------------------
 
 [[sql-functions-system-user]]
@@ -39,16 +35,14 @@ include-tagged::{sql-specs}/docs.csv-spec[database]
 --------------------------------------------------
 USER()
 --------------------------------------------------
-*Input*:
+*Input*: _none_
 
 *Output*: string
 
-.Description:
+*Description*: Returns the username of the authenticated user executing the query. This function can
+return `null` in case <<configuring-stack-security,security>> is disabled.
 
-Returns the username of the authenticated user executing the query. This function can
-return `null` in case Security is disabled.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[user]
+include-tagged::{sql-specs}/docs/docs.csv-spec[user]
 --------------------------------------------------

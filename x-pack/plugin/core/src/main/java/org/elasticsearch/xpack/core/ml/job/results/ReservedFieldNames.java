@@ -1,10 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -12,6 +15,8 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -36,7 +41,7 @@ public final class ReservedFieldNames {
      * 2.x requires mappings for given fields be consistent across all types
      * in a given index.)
      */
-    private static final String[] RESERVED_FIELD_NAME_ARRAY = {
+    private static final String[] RESERVED_RESULT_FIELD_NAME_ARRAY = {
             ElasticsearchMappings.ALL_FIELD_VALUES,
 
             Job.ID.getPreferredName(),
@@ -53,6 +58,7 @@ public final class ReservedFieldNames {
             AnomalyCause.FUNCTION_DESCRIPTION.getPreferredName(),
             AnomalyCause.TYPICAL.getPreferredName(),
             AnomalyCause.ACTUAL.getPreferredName(),
+            AnomalyCause.GEO_RESULTS.getPreferredName(),
             AnomalyCause.INFLUENCERS.getPreferredName(),
             AnomalyCause.FIELD_NAME.getPreferredName(),
 
@@ -67,6 +73,7 @@ public final class ReservedFieldNames {
             AnomalyRecord.FUNCTION_DESCRIPTION.getPreferredName(),
             AnomalyRecord.TYPICAL.getPreferredName(),
             AnomalyRecord.ACTUAL.getPreferredName(),
+            AnomalyRecord.GEO_RESULTS.getPreferredName(),
             AnomalyRecord.INFLUENCERS.getPreferredName(),
             AnomalyRecord.FIELD_NAME.getPreferredName(),
             AnomalyRecord.OVER_FIELD_NAME.getPreferredName(),
@@ -75,6 +82,9 @@ public final class ReservedFieldNames {
             AnomalyRecord.RECORD_SCORE.getPreferredName(),
             AnomalyRecord.INITIAL_RECORD_SCORE.getPreferredName(),
             AnomalyRecord.BUCKET_SPAN.getPreferredName(),
+
+            GeoResults.TYPICAL_POINT.getPreferredName(),
+            GeoResults.ACTUAL_POINT.getPreferredName(),
 
             Bucket.ANOMALY_SCORE.getPreferredName(),
             Bucket.BUCKET_INFLUENCERS.getPreferredName(),
@@ -92,6 +102,8 @@ public final class ReservedFieldNames {
             CategoryDefinition.REGEX.getPreferredName(),
             CategoryDefinition.MAX_MATCHING_LENGTH.getPreferredName(),
             CategoryDefinition.EXAMPLES.getPreferredName(),
+            CategoryDefinition.NUM_MATCHES.getPreferredName(),
+            CategoryDefinition.PREFERRED_TO_CATEGORIES.getPreferredName(),
 
             DataCounts.PROCESSED_RECORD_COUNT.getPreferredName(),
             DataCounts.PROCESSED_FIELD_COUNT.getPreferredName(),
@@ -109,6 +121,7 @@ public final class ReservedFieldNames {
             DataCounts.LAST_DATA_TIME.getPreferredName(),
             DataCounts.LATEST_EMPTY_BUCKET_TIME.getPreferredName(),
             DataCounts.LATEST_SPARSE_BUCKET_TIME.getPreferredName(),
+            DataCounts.LOG_TIME.getPreferredName(),
 
             Detector.DETECTOR_INDEX.getPreferredName(),
 
@@ -144,11 +157,13 @@ public final class ReservedFieldNames {
             ForecastRequestStats.MEMORY_USAGE.getPreferredName(),
 
             ModelSizeStats.MODEL_BYTES_FIELD.getPreferredName(),
+            ModelSizeStats.PEAK_MODEL_BYTES_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_BY_FIELD_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_OVER_FIELD_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_PARTITION_FIELD_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.BUCKET_ALLOCATION_FAILURES_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.MEMORY_STATUS_FIELD.getPreferredName(),
+            ModelSizeStats.ASSIGNMENT_MEMORY_BASIS_FIELD.getPreferredName(),
             ModelSizeStats.LOG_TIME_FIELD.getPreferredName(),
 
             ModelSnapshot.DESCRIPTION.getPreferredName(),
@@ -157,32 +172,52 @@ public final class ReservedFieldNames {
             ModelSnapshot.LATEST_RECORD_TIME.getPreferredName(),
             ModelSnapshot.LATEST_RESULT_TIME.getPreferredName(),
             ModelSnapshot.RETAIN.getPreferredName(),
+            ModelSnapshot.MIN_VERSION.getPreferredName(),
 
             Result.RESULT_TYPE.getPreferredName(),
             Result.TIMESTAMP.getPreferredName(),
-            Result.IS_INTERIM.getPreferredName()
+            Result.IS_INTERIM.getPreferredName(),
+
+            TimingStats.BUCKET_COUNT.getPreferredName(),
+            TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+            TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+            TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+            TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+            TimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(),
+
+            DatafeedTimingStats.SEARCH_COUNT.getPreferredName(),
+            DatafeedTimingStats.BUCKET_COUNT.getPreferredName(),
+            DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(),
+            DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(),
+
+            ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(),
+            ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(),
+            ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(),
+
+            GetResult._ID,
+            GetResult._INDEX
     };
 
     /**
-     * Test if fieldName is one of the reserved names or if it contains dots then
-     * that the segment before the first dot is not a reserved name. A fieldName
-     * containing dots represents nested fields in which case we only care about
-     * the top level.
+     * Test if fieldName is one of the reserved result fieldnames or if it contains
+     * dots then that the segment before the first dot is not a reserved results
+     * fieldname. A fieldName containing dots represents nested fields in which
+     * case we only care about the top level.
      *
      * @param fieldName Document field name. This may contain dots '.'
-     * @return True if fieldName is not a reserved name or the top level segment
+     * @return True if fieldName is not a reserved results fieldname or the top level segment
      * is not a reserved name.
      */
     public static boolean isValidFieldName(String fieldName) {
         String[] segments = DOT_PATTERN.split(fieldName);
-        return !RESERVED_FIELD_NAMES.contains(segments[0]);
+        return RESERVED_RESULT_FIELD_NAMES.contains(segments[0]) == false;
     }
 
     /**
      * A set of all reserved field names in our results.  Fields from the raw
      * data with these names are not added to any result.
      */
-    public static final Set<String> RESERVED_FIELD_NAMES = new HashSet<>(Arrays.asList(RESERVED_FIELD_NAME_ARRAY));
+    public static final Set<String> RESERVED_RESULT_FIELD_NAMES = new HashSet<>(Arrays.asList(RESERVED_RESULT_FIELD_NAME_ARRAY));
 
     private ReservedFieldNames() {
     }

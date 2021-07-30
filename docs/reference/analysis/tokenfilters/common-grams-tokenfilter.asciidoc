@@ -1,73 +1,228 @@
 [[analysis-common-grams-tokenfilter]]
-=== Common Grams Token Filter
+=== Common grams token filter
+++++
+<titleabbrev>Common grams</titleabbrev>
+++++
 
-Token filter that generates bigrams for frequently occurring terms.
-Single terms are still indexed. It can be used as an alternative to the
-<<analysis-stop-tokenfilter,Stop
-Token Filter>> when we don't want to completely ignore common terms.
+Generates {wikipedia}/Bigram[bigrams] for a specified set of
+common words.
 
-For example, the text "the quick brown is a fox" will be tokenized as
-"the", "the_quick", "quick", "brown", "brown_is", "is_a", "a_fox",
-"fox". Assuming "the", "is" and "a" are common words.
+For example, you can specify `is` and `the` as common words. This filter then
+converts the tokens `[the, quick, fox, is, brown]` to `[the, the_quick, quick,
+fox, fox_is, is, is_brown, brown]`.
 
-When `query_mode` is enabled, the token filter removes common words and
-single terms followed by a common word. This parameter should be enabled
-in the search analyzer.
+You can use the `common_grams` filter in place of the
+<<analysis-stop-tokenfilter,stop token filter>> when you don't want to
+completely ignore common words.
 
-For example, the query "the quick brown is a fox" will be tokenized as
-"the_quick", "quick", "brown_is", "is_a", "a_fox", "fox".
+This filter uses Lucene's
+{lucene-analysis-docs}/commongrams/CommonGramsFilter.html[CommonGramsFilter].
 
-The following are settings that can be set:
+[[analysis-common-grams-analyze-ex]]
+==== Example
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`common_words` |A list of common words to use.
+The following <<indices-analyze,analyze API>> request creates bigrams for `is`
+and `the`:
 
-|`common_words_path` |A path (either relative to `config` location, or
-absolute) to a list of common words. Each word should be in its own
-"line" (separated by a line break). The file must be UTF-8 encoded.
+[source,console]
+--------------------------------------------------
+GET /_analyze
+{
+  "tokenizer" : "whitespace",
+  "filter" : [
+    {
+      "type": "common_grams",
+      "common_words": ["is", "the"]
+    }
+  ],
+  "text" : "the quick fox is brown"
+}
+--------------------------------------------------
 
-|`ignore_case` |If true, common words matching will be case insensitive
-(defaults to `false`).
+The filter produces the following tokens:
 
-|`query_mode` |Generates bigrams then removes common words and single
-terms followed by a common word (defaults to `false`).
-|=======================================================================
+[source,text]
+--------------------------------------------------
+[ the, the_quick, quick, fox, fox_is, is, is_brown, brown ]
+--------------------------------------------------
 
-Note, `common_words` or `common_words_path` field is required.
+/////////////////////
+[source,console-result]
+--------------------------------------------------
+{
+  "tokens" : [
+    {
+      "token" : "the",
+      "start_offset" : 0,
+      "end_offset" : 3,
+      "type" : "word",
+      "position" : 0
+    },
+    {
+      "token" : "the_quick",
+      "start_offset" : 0,
+      "end_offset" : 9,
+      "type" : "gram",
+      "position" : 0,
+      "positionLength" : 2
+    },
+    {
+      "token" : "quick",
+      "start_offset" : 4,
+      "end_offset" : 9,
+      "type" : "word",
+      "position" : 1
+    },
+    {
+      "token" : "fox",
+      "start_offset" : 10,
+      "end_offset" : 13,
+      "type" : "word",
+      "position" : 2
+    },
+    {
+      "token" : "fox_is",
+      "start_offset" : 10,
+      "end_offset" : 16,
+      "type" : "gram",
+      "position" : 2,
+      "positionLength" : 2
+    },
+    {
+      "token" : "is",
+      "start_offset" : 14,
+      "end_offset" : 16,
+      "type" : "word",
+      "position" : 3
+    },
+    {
+      "token" : "is_brown",
+      "start_offset" : 14,
+      "end_offset" : 22,
+      "type" : "gram",
+      "position" : 3,
+      "positionLength" : 2
+    },
+    {
+      "token" : "brown",
+      "start_offset" : 17,
+      "end_offset" : 22,
+      "type" : "word",
+      "position" : 4
+    }
+  ]
+}
+--------------------------------------------------
+/////////////////////
 
-Here is an example:
+[[analysis-common-grams-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
 
-[source,js]
+The following <<indices-create-index,create index API>> request uses the
+`common_grams` filter to configure a new 
+<<analysis-custom-analyzer,custom analyzer>>:
+
+[source,console]
 --------------------------------------------------
 PUT /common_grams_example
 {
-    "settings": {
-        "analysis": {
-            "my_analyzer": {
-                "index_grams": {
-                    "tokenizer": "whitespace",
-                    "filter": ["common_grams"]
-                },
-                "search_grams": {
-                    "tokenizer": "whitespace",
-                    "filter": ["common_grams_query"]
-                }
-            },
-            "filter": {
-                "common_grams": {
-                    "type": "common_grams",
-                    "common_words": ["a", "an", "the"]
-                },
-                "common_grams_query": {
-                    "type": "common_grams",
-                    "query_mode": true,
-                    "common_words": ["a", "an", "the"]
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "index_grams": {
+          "tokenizer": "whitespace",
+          "filter": [ "common_grams" ]
         }
+      },
+      "filter": {
+        "common_grams": {
+          "type": "common_grams",
+          "common_words": [ "a", "is", "the" ]
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
+
+[[analysis-common-grams-tokenfilter-configure-parms]]
+==== Configurable parameters
+
+`common_words`::
++
+--
+(Required+++*+++, array of strings)
+A list of tokens. The filter generates bigrams for these tokens.
+
+Either this or the `common_words_path` parameter is required.
+--
+
+`common_words_path`::
++
+--
+(Required+++*+++, string)
+Path to a file containing a list of tokens. The filter generates bigrams for
+these tokens.
+
+This path must be absolute or relative to the `config` location. The file must
+be UTF-8 encoded. Each token in the file must be separated by a line break.
+
+Either this or the `common_words` parameter is required.
+--
+
+`ignore_case`::
+(Optional, Boolean)
+If `true`, matches for common words matching are case-insensitive.
+Defaults to `false`.
+
+`query_mode`::
++
+--
+(Optional, Boolean)
+If `true`, the filter excludes the following tokens from the output:
+
+* Unigrams for common words
+* Unigrams for terms followed by common words
+
+Defaults to `false`. We recommend enabling this parameter for
+<<search-analyzer,search analyzers>>.
+
+For example, you can enable this parameter and specify `is` and `the` as
+common words. This filter converts the tokens `[the, quick, fox, is, brown]` to
+`[the_quick, quick, fox_is, is_brown,]`.
+--
+
+[[analysis-common-grams-tokenfilter-customize]]
+==== Customize
+
+To customize the `common_grams` filter, duplicate it to create the basis
+for a new custom token filter. You can modify the filter using its configurable
+parameters.
+
+For example, the following request creates a custom `common_grams` filter with
+`ignore_case` and `query_mode` set to `true`:
+
+[source,console]
+--------------------------------------------------
+PUT /common_grams_example
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "index_grams": {
+          "tokenizer": "whitespace",
+          "filter": [ "common_grams_query" ]
+        }
+      },
+      "filter": {
+        "common_grams_query": {
+          "type": "common_grams",
+          "common_words": [ "a", "is", "the" ],
+          "ignore_case": true,
+          "query_mode": true
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

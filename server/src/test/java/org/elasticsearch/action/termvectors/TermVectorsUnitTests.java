@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.termvectors;
@@ -36,7 +25,9 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -44,11 +35,9 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TypeParsers;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.document.RestTermVectorsAction;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.hamcrest.Matchers;
@@ -65,7 +54,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TermVectorsUnitTests extends ESTestCase {
     public void testStreamResponse() throws Exception {
-        TermVectorsResponse outResponse = new TermVectorsResponse("a", "b", "c");
+        TermVectorsResponse outResponse = new TermVectorsResponse("a", "c");
         outResponse.setExists(true);
         writeStandardTermVector(outResponse);
 
@@ -77,13 +66,12 @@ public class TermVectorsUnitTests extends ESTestCase {
         // read
         ByteArrayInputStream esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput esBuffer = new InputStreamStreamInput(esInBuffer);
-        TermVectorsResponse inResponse = new TermVectorsResponse("a", "b", "c");
-        inResponse.readFrom(esBuffer);
+        TermVectorsResponse inResponse = new TermVectorsResponse(esBuffer);
 
         // see if correct
         checkIfStandardTermVector(inResponse);
 
-        outResponse = new TermVectorsResponse("a", "b", "c");
+        outResponse = new TermVectorsResponse("a", "c");
         writeEmptyTermVector(outResponse);
         // write
         outBuffer = new ByteArrayOutputStream();
@@ -93,8 +81,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         // read
         esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         esBuffer = new InputStreamStreamInput(esInBuffer);
-        inResponse = new TermVectorsResponse("a", "b", "c");
-        inResponse.readFrom(esBuffer);
+        inResponse = new TermVectorsResponse(esBuffer);
         assertTrue(inResponse.isExists());
 
     }
@@ -177,9 +164,9 @@ public class TermVectorsUnitTests extends ESTestCase {
         BytesReference inputBytes = new BytesArray(
                 " {\"fields\" : [\"a\",  \"b\",\"c\"], \"offsets\":false, \"positions\":false, \"payloads\":true}");
 
-        TermVectorsRequest tvr = new TermVectorsRequest(null, null, null);
+        TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
-        TermVectorsRequest.parseRequest(tvr, parser);
+        TermVectorsRequest.parseRequest(tvr, parser, RestApiVersion.current());
 
         Set<String> fields = tvr.selectedFields();
         assertThat(fields.contains("a"), equalTo(true));
@@ -198,9 +185,9 @@ public class TermVectorsUnitTests extends ESTestCase {
         RestTermVectorsAction.addFieldStringsFromParameter(tvr, additionalFields);
 
         inputBytes = new BytesArray(" {\"offsets\":false, \"positions\":false, \"payloads\":true}");
-        tvr = new TermVectorsRequest(null, null, null);
+        tvr = new TermVectorsRequest(null, null);
         parser = createParser(JsonXContent.jsonXContent, inputBytes);
-        TermVectorsRequest.parseRequest(tvr, parser);
+        TermVectorsRequest.parseRequest(tvr, parser, RestApiVersion.current());
         additionalFields = "";
         RestTermVectorsAction.addFieldStringsFromParameter(tvr, additionalFields);
         assertThat(tvr.selectedFields(), equalTo(null));
@@ -213,11 +200,11 @@ public class TermVectorsUnitTests extends ESTestCase {
     public void testRequestParsingThrowsException() throws Exception {
         BytesReference inputBytes = new BytesArray(
                 " {\"fields\" : \"a,  b,c   \", \"offsets\":false, \"positions\":false, \"payloads\":true, \"meaningless_term\":2}");
-        TermVectorsRequest tvr = new TermVectorsRequest(null, null, null);
+        TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         boolean threwException = false;
         try {
             XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
-            TermVectorsRequest.parseRequest(tvr, parser);
+            TermVectorsRequest.parseRequest(tvr, parser, RestApiVersion.current());
         } catch (Exception e) {
             threwException = true;
         }
@@ -227,7 +214,7 @@ public class TermVectorsUnitTests extends ESTestCase {
 
     public void testStreamRequest() throws IOException {
         for (int i = 0; i < 10; i++) {
-            TermVectorsRequest request = new TermVectorsRequest("index", "type", "id");
+            TermVectorsRequest request = new TermVectorsRequest("index", "id");
             request.offsets(random().nextBoolean());
             request.fieldStatistics(random().nextBoolean());
             request.payloads(random().nextBoolean());
@@ -245,8 +232,7 @@ public class TermVectorsUnitTests extends ESTestCase {
             // read
             ByteArrayInputStream esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
             InputStreamStreamInput esBuffer = new InputStreamStreamInput(esInBuffer);
-            TermVectorsRequest req2 = new TermVectorsRequest(null, null, null);
-            req2.readFrom(esBuffer);
+            TermVectorsRequest req2 = new TermVectorsRequest(esBuffer);
 
             assertThat(request.offsets(), equalTo(req2.offsets()));
             assertThat(request.fieldStatistics(), equalTo(req2.fieldStatistics()));
@@ -260,33 +246,50 @@ public class TermVectorsUnitTests extends ESTestCase {
         }
     }
 
-    public void testFieldTypeToTermVectorString() throws Exception {
-        FieldType ft = new FieldType();
-        ft.setStoreTermVectorOffsets(false);
-        ft.setStoreTermVectorPayloads(true);
-        ft.setStoreTermVectors(true);
-        ft.setStoreTermVectorPositions(true);
-        String ftOpts = FieldMapper.termVectorOptionsToString(ft);
-        assertThat("with_positions_payloads", equalTo(ftOpts));
-        TextFieldMapper.Builder builder = new TextFieldMapper.Builder(null);
-        boolean exceptionThrown = false;
-        try {
-            TypeParsers.parseTermVector("", ftOpts, builder);
-        } catch (MapperParsingException e) {
-            exceptionThrown = true;
-        }
-        assertThat("TypeParsers.parseTermVector should accept string with_positions_payloads but does not.",
-            exceptionThrown, equalTo(false));
-    }
+    public void testStreamRequestLegacyVersion() throws IOException {
+        for (int i = 0; i < 10; i++) {
+            TermVectorsRequest request = new TermVectorsRequest("index", "id");
+            request.offsets(random().nextBoolean());
+            request.fieldStatistics(random().nextBoolean());
+            request.payloads(random().nextBoolean());
+            request.positions(random().nextBoolean());
+            request.termStatistics(random().nextBoolean());
+            String pref = random().nextBoolean() ? "somePreference" : null;
+            request.preference(pref);
+            request.doc(new BytesArray("{}"), randomBoolean(), XContentType.JSON);
 
-    public void testTermVectorStringGenerationWithoutPositions() throws Exception {
-        FieldType ft = new FieldType();
-        ft.setStoreTermVectorOffsets(true);
-        ft.setStoreTermVectorPayloads(true);
-        ft.setStoreTermVectors(true);
-        ft.setStoreTermVectorPositions(false);
-        String ftOpts = FieldMapper.termVectorOptionsToString(ft);
-        assertThat(ftOpts, equalTo("with_offsets"));
+            // write using older version which contains types
+            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+            out.setVersion(Version.V_7_2_0);
+            request.writeTo(out);
+
+            // First check the type on the stream was written as "_doc" by manually parsing the stream until the type
+            ByteArrayInputStream esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+            InputStreamStreamInput esBuffer = new InputStreamStreamInput(esInBuffer);
+            TaskId.readFromStream(esBuffer);
+            if (esBuffer.readBoolean()) {
+                new ShardId(esBuffer);
+            }
+            esBuffer.readOptionalString();
+            assertThat(esBuffer.readString(), equalTo("_doc"));
+
+            // now read the stream as normal to check it is parsed correct if received from an older node
+            esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+            esBuffer = new InputStreamStreamInput(esInBuffer);
+            esBuffer.setVersion(Version.V_7_2_0);
+            TermVectorsRequest req2 = new TermVectorsRequest(esBuffer);
+
+            assertThat(request.offsets(), equalTo(req2.offsets()));
+            assertThat(request.fieldStatistics(), equalTo(req2.fieldStatistics()));
+            assertThat(request.payloads(), equalTo(req2.payloads()));
+            assertThat(request.positions(), equalTo(req2.positions()));
+            assertThat(request.termStatistics(), equalTo(req2.termStatistics()));
+            assertThat(request.preference(), equalTo(pref));
+            assertThat(request.routing(), equalTo(null));
+            assertEquals(new BytesArray("{}"), request.doc());
+            assertEquals(XContentType.JSON, request.xContentType());
+        }
     }
 
     public void testMultiParser() throws Exception {
@@ -302,7 +305,6 @@ public class TermVectorsUnitTests extends ESTestCase {
         request.add(new TermVectorsRequest(), data);
 
         checkParsedParameters(request);
-        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     void checkParsedParameters(MultiTermVectorsRequest request) {
@@ -315,7 +317,6 @@ public class TermVectorsUnitTests extends ESTestCase {
         fields.add("c");
         for (TermVectorsRequest singleRequest : request.requests) {
             assertThat(singleRequest.index(), equalTo("testidx"));
-            assertThat(singleRequest.type(), equalTo("test"));
             assertThat(singleRequest.payloads(), equalTo(false));
             assertThat(singleRequest.positions(), equalTo(false));
             assertThat(singleRequest.offsets(), equalTo(false));
@@ -334,14 +335,12 @@ public class TermVectorsUnitTests extends ESTestCase {
         request.add(new TermVectorsRequest(), data);
 
         checkParsedFilterParameters(request);
-        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     void checkParsedFilterParameters(MultiTermVectorsRequest multiRequest) {
         Set<String> ids = new HashSet<>(Arrays.asList("1", "2"));
         for (TermVectorsRequest request : multiRequest.requests) {
             assertThat(request.index(), equalTo("testidx"));
-            assertThat(request.type(), equalTo("test"));
             assertTrue(ids.remove(request.id()));
             assertNotNull(request.filterSettings());
             assertThat(request.filterSettings().maxNumTerms, equalTo(20));

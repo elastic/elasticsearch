@@ -21,10 +21,10 @@ In its most basic form, we can add a query to the request:
 include-tagged::{doc-tests-file}[{api}-request-basic]
 --------------------------------------------------
 
-<1> Creates the `SeachRequest`. Without arguments this runs against all indices.
+<1> Creates the `SearchRequest`. Without arguments this runs against all indices.
 <2> Most search parameters are added to the `SearchSourceBuilder`. It offers setters for everything that goes into the search request body.
 <3> Add a `match_all` query to the `SearchSourceBuilder`.
-<4> Add the `SearchSourceBuilder` to the `SeachRequest`.
+<4> Add the `SearchSourceBuilder` to the `SearchRequest`.
 
 [id="{upid}-{api}-request-optional"]
 ===== Optional arguments
@@ -430,8 +430,8 @@ include-tagged::{doc-tests-file}[{api}-request-profiling-queries-results]
 <3> Retrieve the time in millis spent executing the Lucene query
 <4> Retrieve the profile results for the sub-queries (if any)
 
-The Rest API documentation contains more information about {ref}/_profiling_queries.html[Profiling Queries] with
-a description of the {ref}/_profiling_queries.html#_literal_query_literal_section[query profiling information]
+The Rest API documentation contains more information about {ref}/search-profile.html#profiling-queries[Profiling Queries] with
+a description of the query profiling information.
 
 The `QueryProfileShardResult` also gives access to the profiling information for the Lucene collectors:
 
@@ -445,7 +445,7 @@ include-tagged::{doc-tests-file}[{api}-request-profiling-queries-collectors]
 <4> Retrieve the profile results for the sub-collectors (if any)
 
 The Rest API documentation contains more information about profiling information
-{ref}/_profiling_queries.html#_literal_collectors_literal_section[for Lucene collectors].
+for Lucene collectors. See {ref}/search-profile.html#profiling-queries[Profiling queries].
 
 In a very similar manner to the query tree execution, the `QueryProfileShardResult` objects gives access
 to the detailed aggregations tree execution:
@@ -460,4 +460,5 @@ include-tagged::{doc-tests-file}[{api}-request-profiling-aggs]
 <4> Retrieve the time in millis spent executing the Lucene collector
 <5> Retrieve the profile results for the sub-aggregations (if any)
 
-The Rest API documentation contains more information about {ref}/_profiling_aggregations.html[Profiling Aggregations]
+The Rest API documentation contains more information about
+{ref}/search-profile.html#profiling-aggregations[Profiling aggregations].

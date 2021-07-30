@@ -1,45 +1,68 @@
 [[search-aggregations-pipeline-avg-bucket-aggregation]]
-=== Avg Bucket Aggregation
+=== Average bucket aggregation
+++++
+<titleabbrev>Average bucket</titleabbrev>
+++++
 
-A sibling pipeline aggregation which calculates the (mean) average value of a specified metric in a sibling aggregation.
-The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.
+A sibling pipeline aggregation which calculates the mean value of a specified
+metric in a sibling aggregation. The specified metric must be numeric and the
+sibling aggregation must be a multi-bucket aggregation.
 
+[[avg-bucket-agg-syntax]]
 ==== Syntax
 
-An `avg_bucket` aggregation looks like this in isolation:
-
-[source,js]
---------------------------------------------------
-{
-    "avg_bucket": {
-        "buckets_path": "the_sum"
-    }
-}
---------------------------------------------------
+[source,js,indent=0]
+----
+include::avg-bucket-aggregation.asciidoc[tag=avg-bucket-agg-syntax]
+----
 // NOTCONSOLE
 
-.`avg_bucket` Parameters
-|===
-|Parameter Name |Description |Required |Default Value
-|`buckets_path` |The path to the buckets we wish to find the average for (see <<buckets-path-syntax>> for more
- details) |Required |
- |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
- details) |Optional |`skip`
- |`format` |format to apply to the output value of this aggregation |Optional | `null`
-|===
+[[avg-bucket-params]]
+==== Parameters
 
-The following snippet calculates the average of the total monthly `sales`:
+`buckets_path`::
+(Required, string)
+Path to the buckets to average. For syntax, see <<buckets-path-syntax>>.
 
-[source,js]
---------------------------------------------------
-POST /_search
+`gap_policy`::
+(Optional, string)
+Policy to apply when gaps are found in the data. For valid values, see
+<<gap-policy>>. Defaults to `skip`.
+
+`format`::
+(Optional, string)
+{javadoc}/java.base/java/text/DecimalFormat.html[DecimalFormat pattern] for the
+output value. If specified, the formatted value is returned in the aggregation's
+`value_as_string` property.
+
+[[avg-bucket-agg-response]]
+==== Response body
+
+`value`::
+(float)
+Mean average value for the metric specified in `buckets_path`.
+
+`value_as_string`::
+(string)
+Formatted output value for the aggregation. This property is only provided if
+a `format` is specified in the request.
+
+[[avg-bucket-agg-ex]]
+==== Example
+
+The following `avg_monthly_sales` aggregation uses `avg_bucket` to calculate
+average sales per month:
+
+[source,console,subs="specialchars+"]
+----
+POST _search
 {
   "size": 0,
   "aggs": {
     "sales_per_month": {
       "date_histogram": {
         "field": "date",
-        "interval": "month"
+        "calendar_interval": "month"
       },
       "aggs": {
         "sales": {
@@ -50,63 +73,67 @@ POST /_search
       }
     },
     "avg_monthly_sales": {
+// tag::avg-bucket-agg-syntax[]               <1>
       "avg_bucket": {
-        "buckets_path": "sales_per_month>sales" <1>
+        "buckets_path": "sales_per_month>sales",
+        "gap_policy": "skip",
+        "format": "#,##0.00;(#,##0.00)"
       }
+// end::avg-bucket-agg-syntax[]               <2>
     }
   }
 }
-
---------------------------------------------------
-// CONSOLE
+----
 // TEST[setup:sales]
-<1> `buckets_path` instructs this avg_bucket aggregation that we want the (mean) average value of the `sales` aggregation in the
-`sales_per_month` date histogram.
 
-And the following may be the response:
+<1> Start of the `avg_bucket` configuration. Comment is not part of the example.
+<2> End of the `avg_bucket` configuration. Comment is not part of the example.
 
-[source,js]
---------------------------------------------------
+The request returns the following response:
+
+[source,console-result]
+----
 {
-   "took": 11,
-   "timed_out": false,
-   "_shards": ...,
-   "hits": ...,
-   "aggregations": {
-      "sales_per_month": {
-         "buckets": [
-            {
-               "key_as_string": "2015/01/01 00:00:00",
-               "key": 1420070400000,
-               "doc_count": 3,
-               "sales": {
-                  "value": 550.0
-               }
-            },
-            {
-               "key_as_string": "2015/02/01 00:00:00",
-               "key": 1422748800000,
-               "doc_count": 2,
-               "sales": {
-                  "value": 60.0
-               }
-            },
-            {
-               "key_as_string": "2015/03/01 00:00:00",
-               "key": 1425168000000,
-               "doc_count": 2,
-               "sales": {
-                  "value": 375.0
-               }
-            }
-         ]
-      },
-      "avg_monthly_sales": {
-          "value": 328.33333333333333
-      }
-   }
+  "took": 11,
+  "timed_out": false,
+  "_shards": ...,
+  "hits": ...,
+  "aggregations": {
+    "sales_per_month": {
+      "buckets": [
+        {
+          "key_as_string": "2015/01/01 00:00:00",
+          "key": 1420070400000,
+          "doc_count": 3,
+          "sales": {
+            "value": 550.0
+          }
+        },
+        {
+          "key_as_string": "2015/02/01 00:00:00",
+          "key": 1422748800000,
+          "doc_count": 2,
+          "sales": {
+            "value": 60.0
+          }
+        },
+        {
+          "key_as_string": "2015/03/01 00:00:00",
+          "key": 1425168000000,
+          "doc_count": 2,
+          "sales": {
+            "value": 375.0
+          }
+        }
+      ]
+    },
+    "avg_monthly_sales": {
+      "value": 328.33333333333333,
+      "value_as_string": "328.33"
+    }
+  }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/"took": 11/"took": $body.took/]
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]

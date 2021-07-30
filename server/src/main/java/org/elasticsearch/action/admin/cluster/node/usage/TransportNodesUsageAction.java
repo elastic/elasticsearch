@@ -1,50 +1,47 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.support.AggregationUsageService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class TransportNodesUsageAction
         extends TransportNodesAction<NodesUsageRequest, NodesUsageResponse, TransportNodesUsageAction.NodeUsageRequest, NodeUsage> {
 
-    private UsageService usageService;
+    private final UsageService restUsageService;
+    private final AggregationUsageService aggregationUsageService;
+    private final long sinceTime;
 
     @Inject
     public TransportNodesUsageAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                     ActionFilters actionFilters, UsageService usageService) {
+                                     ActionFilters actionFilters, UsageService restUsageService,
+                                     AggregationUsageService aggregationUsageService) {
         super(NodesUsageAction.NAME, threadPool, clusterService, transportService, actionFilters,
             NodesUsageRequest::new, NodeUsageRequest::new, ThreadPool.Names.MANAGEMENT, NodeUsage.class);
-        this.usageService = usageService;
+        this.restUsageService = restUsageService;
+        this.aggregationUsageService = aggregationUsageService;
+        this.sinceTime = System.currentTimeMillis();
     }
 
     @Override
@@ -53,38 +50,34 @@ public class TransportNodesUsageAction
     }
 
     @Override
-    protected NodeUsageRequest newNodeRequest(String nodeId, NodesUsageRequest request) {
-        return new NodeUsageRequest(nodeId, request);
+    protected NodeUsageRequest newNodeRequest(NodesUsageRequest request) {
+        return new NodeUsageRequest(request);
     }
 
     @Override
-    protected NodeUsage newNodeResponse() {
-        return new NodeUsage();
+    protected NodeUsage newNodeResponse(StreamInput in) throws IOException {
+        return new NodeUsage(in);
     }
 
     @Override
-    protected NodeUsage nodeOperation(NodeUsageRequest nodeUsageRequest) {
+    protected NodeUsage nodeOperation(NodeUsageRequest nodeUsageRequest, Task task) {
         NodesUsageRequest request = nodeUsageRequest.request;
-        return usageService.getUsageStats(clusterService.localNode(), request.restActions());
+        Map<String, Long> restUsage = request.restActions() ? restUsageService.getRestUsageStats() : null;
+        Map<String, Object> aggsUsage = request.aggregations() ? aggregationUsageService.getUsageStats() : null;
+        return new NodeUsage(clusterService.localNode(), System.currentTimeMillis(), sinceTime, restUsage, aggsUsage);
     }
 
-    public static class NodeUsageRequest extends BaseNodeRequest {
+    public static class NodeUsageRequest extends TransportRequest {
 
         NodesUsageRequest request;
 
-        public NodeUsageRequest() {
+        public NodeUsageRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new NodesUsageRequest(in);
         }
 
-        NodeUsageRequest(String nodeId, NodesUsageRequest request) {
-            super(nodeId);
+        NodeUsageRequest(NodesUsageRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new NodesUsageRequest();
-            request.readFrom(in);
         }
 
         @Override

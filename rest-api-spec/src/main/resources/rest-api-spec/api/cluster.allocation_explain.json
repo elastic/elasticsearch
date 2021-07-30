@@ -1,24 +1,38 @@
 {
-  "cluster.allocation_explain": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-allocation-explain.html",
-    "methods": ["GET", "POST"],
-    "url": {
-      "path": "/_cluster/allocation/explain",
-      "paths": ["/_cluster/allocation/explain"],
-      "parts": {},
-      "params": {
-        "include_yes_decisions": {
-          "type": "boolean",
-          "description": "Return 'YES' decisions in explanation (default: false)"
-        },
-        "include_disk_info": {
-          "type": "boolean",
-          "description": "Return information about disk usage and shard sizes (default: false)"
+  "cluster.allocation_explain":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-allocation-explain.html",
+      "description":"Provides explanations for shard allocations in the cluster."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_cluster/allocation/explain",
+          "methods":[
+            "GET",
+            "POST"
+          ]
         }
+      ]
+    },
+    "params":{
+      "include_yes_decisions":{
+        "type":"boolean",
+        "description":"Return 'YES' decisions in explanation (default: false)"
+      },
+      "include_disk_info":{
+        "type":"boolean",
+        "description":"Return information about disk usage and shard sizes (default: false)"
       }
     },
-    "body": {
-      "description": "The index, shard, and primary flag to explain. Empty means 'explain the first unassigned shard'"
+    "body":{
+      "description":"The index, shard, and primary flag to explain. Empty means 'explain the first unassigned shard'"
     }
   }
 }

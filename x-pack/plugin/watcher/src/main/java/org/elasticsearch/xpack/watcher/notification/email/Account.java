@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
 import javax.activation.CommandMap;
@@ -22,18 +24,23 @@ import javax.mail.Session;
 import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
+import javax.net.SocketFactory;
+import javax.net.ssl.SSLSocketFactory;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.watcher.WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX;
 
 public class Account {
 
     static final String SMTP_PROTOCOL = "smtp";
-    private static final String SMTP_PASSWORD = "password";
-    private static final Setting<SecureString> SECURE_PASSWORD_SETTING = SecureSetting.secureString("secure_" + SMTP_PASSWORD, null);
+    public static final Setting<SecureString> SECURE_PASSWORD_SETTING = SecureSetting.secureString("secure_password", null);
 
     static {
         SecurityManager sm = System.getSecurityManager();
@@ -185,7 +192,7 @@ public class Account {
         final Smtp smtp;
         final EmailDefaults defaults;
 
-        Config(String name, Settings settings) {
+        Config(String name, Settings settings, @Nullable SSLSocketFactory sslSocketFactory, Logger logger) {
             this.name = name;
             profile = Profile.resolve(settings.get("profile"), Profile.STANDARD);
             defaults = new EmailDefaults(name, settings.getAsSettings("email_defaults"));
@@ -193,6 +200,18 @@ public class Account {
             if (smtp.host == null) {
                 String msg = "missing required email account setting for account [" + name + "]. 'smtp.host' must be configured";
                 throw new SettingsException(msg);
+            }
+            if (sslSocketFactory != null) {
+                String sslKeys = smtp.properties.keySet().stream()
+                    .map(String::valueOf)
+                    .filter(key -> key.startsWith("mail.smtp.ssl."))
+                    .collect(Collectors.joining(","));
+                if (sslKeys.isEmpty() == false) {
+                    logger.warn("The SMTP SSL settings [{}] that are configured for Account [{}]" +
+                            " will be ignored due to the notification SSL settings in [{}]",
+                        sslKeys, name, EMAIL_NOTIFICATION_SSL_PREFIX);
+                }
+                smtp.setSocketFactory(sslSocketFactory);
             }
         }
 
@@ -213,7 +232,7 @@ public class Account {
 
                 port = settings.getAsInt("port", settings.getAsInt("localport", settings.getAsInt("local_port", 25)));
                 user = settings.get("user", settings.get("from", null));
-                password = getSecureSetting(SMTP_PASSWORD, settings, SECURE_PASSWORD_SETTING);
+                password = getSecureSetting(settings, SECURE_PASSWORD_SETTING);
                 //password = passStr != null ? passStr.toCharArray() : null;
                 properties = loadSmtpProperties(settings);
             }
@@ -221,21 +240,16 @@ public class Account {
             /**
              * Finds a setting, and then a secure setting if the setting is null, or returns null if one does not exist. This differs
              * from other getSetting calls in that it allows for null whereas the other methods throw an exception.
-             *
+             * <p>
              * Note: if your setting was not previously secure, than the string reference that is in the setting object is still
              * insecure. This is only constructing a new SecureString with the char[] of the insecure setting.
              */
-            private static SecureString getSecureSetting(String settingName, Settings settings, Setting<SecureString> secureSetting) {
-                String value = settings.get(settingName);
-                if (value == null) {
-                    SecureString secureString = secureSetting.get(settings);
-                    if (secureString != null && secureString.length() > 0) {
-                        return secureString;
-                    } else  {
-                        return null;
-                    }
+            private static SecureString getSecureSetting(Settings settings, Setting<SecureString> secureSetting) {
+                SecureString secureString = secureSetting.get(settings);
+                if (secureString != null && secureString.length() > 0) {
+                    return secureString;
                 } else {
-                    return new SecureString(value.toCharArray());
+                    return null;
                 }
             }
 
@@ -279,6 +293,10 @@ public class Account {
                 if (value != null) {
                     settings.put(newKey, TimeValue.parseTimeValue(value, currentKey).millis());
                 }
+            }
+
+            public void setSocketFactory(SocketFactory socketFactory) {
+                this.properties.put("mail.smtp.ssl.socketFactory", socketFactory);
             }
         }
 
@@ -341,20 +359,20 @@ public class Account {
 
             @Override
             public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-
+                if (this == o) {
+                    return true;
+                }
+                if (o == null || getClass() != o.getClass()) {
+                    return false;
+                }
                 EmailDefaults that = (EmailDefaults) o;
-
-                if (bcc != null ? !bcc.equals(that.bcc) : that.bcc != null) return false;
-                if (cc != null ? !cc.equals(that.cc) : that.cc != null) return false;
-                if (from != null ? !from.equals(that.from) : that.from != null) return false;
-                if (priority != that.priority) return false;
-                if (replyTo != null ? !replyTo.equals(that.replyTo) : that.replyTo != null) return false;
-                if (subject != null ? !subject.equals(that.subject) : that.subject != null) return false;
-                if (to != null ? !to.equals(that.to) : that.to != null) return false;
-
-                return true;
+                return Objects.equals(bcc, that.bcc)
+                    && Objects.equals(cc, that.cc)
+                    && Objects.equals(from, that.from)
+                    && priority == that.priority
+                    && Objects.equals(replyTo, that.replyTo)
+                    && Objects.equals(subject, that.subject)
+                    && Objects.equals(to, that.to);
             }
 
             @Override

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.single.instance;
@@ -36,8 +25,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -51,6 +46,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -58,7 +54,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -75,13 +70,22 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
     private TestTransportInstanceSingleOperationAction action;
 
     public static class Request extends InstanceShardOperationRequest<Request> {
-        public Request() {
+        public Request() {}
+
+        public Request(StreamInput in) throws IOException {
+            super(null, in);
         }
     }
 
     public static class Response extends ActionResponse {
-        public Response() {
+        public Response() {}
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
     class TestTransportInstanceSingleOperationAction extends TransportInstanceSingleOperationAction<Request, Response> {
@@ -89,7 +93,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
 
         TestTransportInstanceSingleOperationAction(String actionName, TransportService transportService,
                                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   Supplier<Request> request) {
+                                                   Writeable.Reader<Request> request) {
             super(actionName, THREAD_POOL, TransportInstanceSingleOperationActionTests.this.clusterService, transportService,
                 actionFilters, indexNameExpressionResolver, request);
         }
@@ -99,7 +103,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         }
 
         @Override
-        protected String executor() {
+        protected String executor(ShardId shardId) {
             return ThreadPool.Names.SAME;
         }
 
@@ -109,7 +113,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         }
 
         @Override
-        protected Response newResponse() {
+        protected Response newResponse(StreamInput in) throws IOException {
             return new Response();
         }
 
@@ -123,7 +127,11 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         }
     }
 
-    class MyResolver extends IndexNameExpressionResolver {
+    static class MyResolver extends IndexNameExpressionResolver {
+        MyResolver() {
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+        }
+
         @Override
         public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();

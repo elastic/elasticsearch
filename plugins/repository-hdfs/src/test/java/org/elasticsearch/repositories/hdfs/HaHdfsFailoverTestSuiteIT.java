@@ -1,33 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.hdfs;
-
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.ha.BadFencingConfigurationException;
@@ -42,9 +21,19 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Assert;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Integration test that runs against an HA-Enabled HDFS instance
@@ -57,13 +46,24 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
         String esKerberosPrincipal = System.getProperty("test.krb5.principal.es");
         String hdfsKerberosPrincipal = System.getProperty("test.krb5.principal.hdfs");
         String kerberosKeytabLocation = System.getProperty("test.krb5.keytab.hdfs");
+        String ports = System.getProperty("test.hdfs-fixture.ports");
+        String nn1Port = "10001";
+        String nn2Port = "10002";
+        if (ports.length() > 0) {
+             final Path path = PathUtils.get(ports);
+             final List<String> lines = AccessController.doPrivileged((PrivilegedExceptionAction<List<String>>) () -> {
+                return Files.readAllLines(path);
+             });
+             nn1Port = lines.get(0);
+             nn2Port = lines.get(1);
+        }
         boolean securityEnabled = hdfsKerberosPrincipal != null;
 
         Configuration hdfsConfiguration = new Configuration();
         hdfsConfiguration.set("dfs.nameservices", "ha-hdfs");
         hdfsConfiguration.set("dfs.ha.namenodes.ha-hdfs", "nn1,nn2");
-        hdfsConfiguration.set("dfs.namenode.rpc-address.ha-hdfs.nn1", "localhost:10001");
-        hdfsConfiguration.set("dfs.namenode.rpc-address.ha-hdfs.nn2", "localhost:10002");
+        hdfsConfiguration.set("dfs.namenode.rpc-address.ha-hdfs.nn1", "localhost:" + nn1Port);
+        hdfsConfiguration.set("dfs.namenode.rpc-address.ha-hdfs.nn2", "localhost:" + nn2Port);
         hdfsConfiguration.set(
             "dfs.client.failover.proxy.provider.ha-hdfs",
             "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider"
@@ -110,8 +110,8 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
                         securityCredentials(securityEnabled, esKerberosPrincipal) +
                         "\"conf.dfs.nameservices\": \"ha-hdfs\"," +
                         "\"conf.dfs.ha.namenodes.ha-hdfs\": \"nn1,nn2\"," +
-                        "\"conf.dfs.namenode.rpc-address.ha-hdfs.nn1\": \"localhost:10001\"," +
-                        "\"conf.dfs.namenode.rpc-address.ha-hdfs.nn2\": \"localhost:10002\"," +
+                        "\"conf.dfs.namenode.rpc-address.ha-hdfs.nn1\": \"localhost:"+nn1Port+"\"," +
+                        "\"conf.dfs.namenode.rpc-address.ha-hdfs.nn2\": \"localhost:"+nn2Port+"\"," +
                         "\"conf.dfs.client.failover.proxy.provider.ha-hdfs\": " +
                             "\"org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider\"" +
                     "}" +

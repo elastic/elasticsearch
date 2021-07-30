@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.categorization;
 
@@ -11,9 +12,11 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class GrokPatternCreatorTests extends ESTestCase {
@@ -71,7 +74,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, false, mustMatchStrings);
+        GrokPatternCreator.appendBestGrokMatchForStrings("foo", fieldNameCountStore, overallGrokPatternBuilder, false,
+            false, mustMatchStrings);
 
         assertEquals(".+?%{TIMESTAMP_ISO8601:timestamp}.+?%{LOGLEVEL:loglevel}.+?", overallGrokPatternBuilder.toString());
     }
@@ -87,7 +91,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, false, mustMatchStrings);
+        GrokPatternCreator.appendBestGrokMatchForStrings("foo", fieldNameCountStore, overallGrokPatternBuilder, false,
+            false, mustMatchStrings);
 
         assertEquals(".*?%{TOMCAT_DATESTAMP:timestamp}.+?%{LOGLEVEL:loglevel}.+?", overallGrokPatternBuilder.toString());
     }
@@ -105,7 +110,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, false, mustMatchStrings);
+        GrokPatternCreator.appendBestGrokMatchForStrings("foo", fieldNameCountStore, overallGrokPatternBuilder, false,
+            false, mustMatchStrings);
 
         assertEquals(".+?", overallGrokPatternBuilder.toString());
     }
@@ -120,7 +126,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, false, mustMatchStrings);
+        GrokPatternCreator.appendBestGrokMatchForStrings("foo", fieldNameCountStore, overallGrokPatternBuilder, false,
+            false, mustMatchStrings);
 
         assertEquals(".+?%{NUMBER:field}.+?", overallGrokPatternBuilder.toString());
     }
@@ -134,7 +141,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, false, mustMatchStrings);
+        GrokPatternCreator.appendBestGrokMatchForStrings("foo", fieldNameCountStore, overallGrokPatternBuilder, false,
+            false, mustMatchStrings);
 
         // It seems sensible that we don't detect these suffices as either base 10 or base 16 numbers
         assertEquals(".+?", overallGrokPatternBuilder.toString());
@@ -150,7 +158,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, false, mustMatchStrings);
+        GrokPatternCreator.appendBestGrokMatchForStrings("foo", fieldNameCountStore, overallGrokPatternBuilder, false,
+            false, mustMatchStrings);
 
         assertEquals(".*?%{BASE16NUM:field}.*?", overallGrokPatternBuilder.toString());
     }
@@ -163,7 +172,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, false, mustMatchStrings);
+        GrokPatternCreator.appendBestGrokMatchForStrings("foo", fieldNameCountStore, overallGrokPatternBuilder, false,
+            false, mustMatchStrings);
 
         // We don't want the .1. in the middle to get detected as a hex number
         assertEquals(".+?", overallGrokPatternBuilder.toString());
@@ -178,7 +188,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, false, mustMatchStrings);
+        GrokPatternCreator.appendBestGrokMatchForStrings("foo", fieldNameCountStore, overallGrokPatternBuilder, false,
+            false, mustMatchStrings);
 
         assertEquals(".*?%{EMAILADDRESS:email}.*?", overallGrokPatternBuilder.toString());
     }
@@ -192,7 +203,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, false, mustMatchStrings);
+        GrokPatternCreator.appendBestGrokMatchForStrings("foo", fieldNameCountStore, overallGrokPatternBuilder, false,
+            false, mustMatchStrings);
 
         assertEquals(".*?%{URI:uri}.*?", overallGrokPatternBuilder.toString());
     }
@@ -206,7 +218,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, false, mustMatchStrings);
+        GrokPatternCreator.appendBestGrokMatchForStrings("foo", fieldNameCountStore, overallGrokPatternBuilder, false,
+            false, mustMatchStrings);
 
         assertEquals(".+?%{PATH:path}.*?", overallGrokPatternBuilder.toString());
     }
@@ -262,5 +275,113 @@ public class GrokPatternCreatorTests extends ESTestCase {
         assertEquals(".*?%{NUMBER:field}.+?%{TIMESTAMP_ISO8601:timestamp}.+?%{TIMESTAMP_ISO8601:timestamp2}.+?%{NUMBER:field2}.+?" +
                 "%{IP:ipaddress}.+?Authpriv.+?Info.+?sshd.+?subsystem.+?request.+?for.+?sftp.*",
                 GrokPatternCreator.findBestGrokMatchFromExamples("foo", regex, examples));
+    }
+
+    public void testFindBestGrokMatchFromExamplesGivenAdversarialInputRecurseDepth() {
+        String regex = ".*?combo.+?rpc\\.statd.+?gethostbyname.+?error.+?for.+?X.+?X.+?Z.+?Z.+?hn.+?hn.*";
+        // Two timestamps: one local, one UTC
+        Collection<String> examples = Arrays.asList(
+            "combo rpc.statd[1605]: gethostbyname error for ^X^X^Z^Z%8x%8x%8x%8x%8x%8x%8x%8x%8x%62716x%hn%51859x%hn" +
+                "\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\22...",
+            "combo rpc.statd[1608]: gethostbyname error for ^X^X^Z^Z%8x%8x%8x%8x%8x%8x%8x%8x%8x%62716x%hn%51859x%hn" +
+                "\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\22...",
+            "combo rpc.statd[1635]: gethostbyname error for ^X^X^Z^Z%8x%8x%8x%8x%8x%8x%8x%8x%8x%62716x%hn%51859x%hn" +
+                "\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220\\220" +
+                "\\220\\220\\220\\220\\220\\220\\220\\220\\220\\22...");
+        assertEquals(
+            ".*?combo.+?rpc\\.statd.+?%{NUMBER:field}.+?gethostbyname.+?error.+?for.+?X.+?X.+?Z.+?Z.+?hn.+?hn.+?%{NUMBER:field2}" +
+                ".+?%{NUMBER:field3}.+?%{NUMBER:field4}.+?%{NUMBER:field5}.+?%{NUMBER:field6}.+?%{NUMBER:field7}.+?%{NUMBER:field8}" +
+                ".+?%{NUMBER:field9}.+?%{NUMBER:field10}.+?%{NUMBER:field11}.*",
+            GrokPatternCreator.findBestGrokMatchFromExamples("foo", regex, examples));
+    }
+
+    public void testFindBestGrokMatchFromExamplesGivenMatchAllRegex() {
+        String regex = ".*";
+        // Two timestamps: one local, one UTC
+        Collection<String> examples = Arrays.asList(
+            "Killing job [count_tweets]",
+            "Killing job [tweets_by_location]",
+            "[count_tweets] Killing job",
+            "[tweets_by_location] Killing job");
+        assertThat(GrokPatternCreator.findBestGrokMatchFromExamples("foo", regex, examples), equalTo(regex));
+    }
+
+    public void testFindBestGrokMatchFromExamplesGivenTruncated() {
+        String regex = ".*?BST.+?dave.+?bank3.+?CONTEXT.+?SQL.+?statement.+?SELECT.+?time_series_ids_tmp\\.evidence_id" +
+            ".+?time_series_ids_tmp\\.time_series_id.+?is_delta.+?GREATEST.+?usual_interval.+?FROM.+?time_series_ids_tmp.+?" +
+            "WHERE.+?found_peak_value.+?FALSE.+?ORDER.+?BY.+?time_series_ids_tmp\\.magnitude.+?DESC.+?" +
+            "time_series_ids_tmp\\.scaling_factor.+?DESC.+?time_series_ids_tmp\\.significance.+?DESC.+?" +
+            "time_series_ids_tmp\\.evidence_id.+?DESC.+?LIMIT.+?PL.+?pgSQL.+?function.+?probable_cause_list_common.+?" +
+            "integer.+?integer.+?integer.+?line.+?at.+?SQL.+?statement.+?SQL.+?statement.+?SELECT.+?" +
+            "probable_cause_list_common.+?evidenceIdIn.+?linkGroupId.+?timeSpanSeconds.+?PL.+?pgSQL.+?function.+?" +
+            "probable_cause_list.+?integer.+?integer.+?line.+?at.+?PERFORM.*";
+        Collection<String> examples = Collections.singletonList("2013-05-16 12:13:45 BST:192.168.61.59(51438):dave:@bank3:[19084]: " +
+            "CONTEXT:  SQL statement \"SELECT\n" +
+            "                    time_series_ids_tmp.evidence_id,\n" +
+            "                    time_series_ids_tmp.time_series_id,\n" +
+            "                    is_delta,\n" +
+            "                    GREATEST(usual_interval, 1)\n" +
+            "                FROM\n" +
+            "                    time_series_ids_tmp\n" +
+            "                WHERE\n" +
+            "                    found_peak_value = FALSE\n" +
+            "                ORDER BY\n" +
+            "                    \n" +
+            "                    \n" +
+            "                    \n" +
+            "                    time_series_ids_tmp.magnitude DESC,\n" +
+            "                    time_series_ids_tmp.scaling_factor DESC,\n" +
+            "                    time_series_ids_tmp.significance DESC,\n" +
+            "                    time_series_ids_tmp.evidence_id DESC\n" +
+            "                LIMIT\n" +
+            "                    1\"\n" +
+            "        PL/pgSQL function probable_cause_list_common(integer,integer,integer) line 255 at SQL statement\n" +
+            "        SQL statement \"SELECT probable_cause_list_common(evidenceIdIn, linkGroupId, timeSpanSeconds)\"\n" +
+            "        PL/pgSQL function probable_cause_list...");
+        // Our algorithm for converting examples to Grok patterns that pick out useful fields doesn't work in
+        // this case because the regex doesn't match the example (because the example has been truncated and
+        // the regex contains pieces that would match parts of the original message beyond the truncation point)
+        assertThat(GrokPatternCreator.findBestGrokMatchFromExamples("foo", regex, examples), equalTo(regex));
     }
 }

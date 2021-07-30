@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -39,7 +28,7 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
 
         final int numDocs = 10;
         for (int i = 0; i < numDocs; i++) { // TODO randomize the size and the params in here?
-            builders.add(client().prepareIndex("idx", "type", String.valueOf(i)).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("idx").setId(String.valueOf(i)).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i+1)
                     .startArray("values").value(i+2).value(i+3).endArray()
@@ -55,10 +44,10 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
         // two docs {value: 0} and {value : 2}, then building a histogram agg with interval 1 and with empty
         // buckets computed.. the empty bucket is the one associated with key "1". then each test will have
         // to check that this bucket exists with the appropriate sub aggregations.
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
+        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer").execute().actionGet();
         builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", String.valueOf(i)).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("empty_bucket_idx").setId(String.valueOf(i)).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i*2)
                     .endObject()));
@@ -67,33 +56,33 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    public abstract void testEmptyAggregation() throws Exception;
+    public void testEmptyAggregation() throws Exception {}
 
-    public abstract void testUnmapped() throws Exception;
+    public void testUnmapped() throws Exception {}
 
-    public abstract void testSingleValuedField() throws Exception;
+    public void testSingleValuedField() throws Exception {}
 
-    public abstract void testSingleValuedFieldGetProperty() throws Exception;
+    public void testSingleValuedFieldGetProperty() throws Exception {}
 
-    public abstract void testSingleValuedFieldPartiallyUnmapped() throws Exception;
+    public void testSingleValuedFieldPartiallyUnmapped() throws Exception {}
 
-    public abstract void testSingleValuedFieldWithValueScript() throws Exception;
+    public void testSingleValuedFieldWithValueScript() throws Exception {}
 
-    public abstract void testSingleValuedFieldWithValueScriptWithParams() throws Exception;
+    public void testSingleValuedFieldWithValueScriptWithParams() throws Exception {}
 
-    public abstract void testMultiValuedField() throws Exception;
+    public void testMultiValuedField() throws Exception {}
 
-    public abstract void testMultiValuedFieldWithValueScript() throws Exception;
+    public void testMultiValuedFieldWithValueScript() throws Exception {}
 
-    public abstract void testMultiValuedFieldWithValueScriptWithParams() throws Exception;
+    public void testMultiValuedFieldWithValueScriptWithParams() throws Exception {}
 
-    public abstract void testScriptSingleValued() throws Exception;
+    public void testScriptSingleValued() throws Exception {}
 
-    public abstract void testScriptSingleValuedWithParams() throws Exception;
+    public void testScriptSingleValuedWithParams() throws Exception {}
 
-    public abstract void testScriptMultiValued() throws Exception;
+    public void testScriptMultiValued() throws Exception {}
 
-    public abstract void testScriptMultiValuedWithParams() throws Exception;
+    public void testScriptMultiValuedWithParams() throws Exception {}
 
-    public abstract void testOrderByEmptyAggregation() throws Exception;
+    public void testOrderByEmptyAggregation() throws Exception {}
 }

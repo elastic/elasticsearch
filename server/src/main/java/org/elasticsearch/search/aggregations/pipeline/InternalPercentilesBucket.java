@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -24,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 
 import java.io.IOException;
@@ -35,16 +24,18 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class InternalPercentilesBucket extends InternalNumericMetricsAggregation.MultiValue implements PercentilesBucket {
     private double[] percentiles;
     private double[] percents;
+    private boolean keyed = true;
+
     private final transient Map<Double, Double> percentileLookups = new HashMap<>();
 
-    InternalPercentilesBucket(String name, double[] percents, double[] percentiles,
-                                     DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-                                     Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    InternalPercentilesBucket(String name, double[] percents, double[] percentiles, boolean keyed,
+                                     DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, metadata);
         if ((percentiles.length == percents.length) == false) {
             throw new IllegalArgumentException("The number of provided percents and percentiles didn't match. percents: "
                     + Arrays.toString(percents) + ", percentiles: " + Arrays.toString(percentiles));
@@ -52,6 +43,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         this.format = formatter;
         this.percentiles = percentiles;
         this.percents = percents;
+        this.keyed = keyed;
         computeLookup();
     }
 
@@ -69,6 +61,8 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         format = in.readNamedWriteable(DocValueFormat.class);
         percentiles = in.readDoubleArray();
         percents = in.readDoubleArray();
+        keyed = in.readBoolean();
+
         computeLookup();
     }
 
@@ -77,6 +71,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         out.writeNamedWriteable(format);
         out.writeDoubleArray(percentiles);
         out.writeDoubleArray(percents);
+        out.writeBoolean(keyed);
     }
 
     @Override
@@ -114,35 +109,60 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public InternalMax doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public Iterable<String> valueNames() {
+        return Arrays.stream(percents).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
+    }
+
+    @Override
+    public InternalMax reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("values");
-        for (double percent : percents) {
-            double value = percentile(percent);
-            boolean hasValue = !(Double.isInfinite(value) || Double.isNaN(value));
-            String key = String.valueOf(percent);
-            builder.field(key, hasValue ? value : null);
-            if (hasValue && format != DocValueFormat.RAW) {
-                builder.field(key + "_as_string", percentileAsString(percent));
+        if (keyed) {
+            builder.startObject("values");
+            for (double percent : percents) {
+                double value = percentile(percent);
+                boolean hasValue = (Double.isInfinite(value) || Double.isNaN(value)) == false;
+                String key = String.valueOf(percent);
+                builder.field(key, hasValue ? value : null);
+                if (hasValue && format != DocValueFormat.RAW) {
+                    builder.field(key + "_as_string", percentileAsString(percent));
+                }
             }
+            builder.endObject();
+        } else {
+            builder.startArray("values");
+            for (double percent : percents) {
+                double value = percentile(percent);
+                boolean hasValue = (Double.isInfinite(value) || Double.isNaN(value)) == false;
+                builder.startObject();
+                builder.field("key", percent);
+                builder.field("value", hasValue ? value : null);
+                if (hasValue && format != DocValueFormat.RAW) {
+                    builder.field(String.valueOf(percent) + "_as_string", percentileAsString(percent));
+                }
+                builder.endObject();
+            }
+            builder.endArray();
         }
-        builder.endObject();
         return builder;
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalPercentilesBucket that = (InternalPercentilesBucket) obj;
         return Arrays.equals(percents, that.percents) && Arrays.equals(percentiles, that.percentiles);
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(Arrays.hashCode(percents), Arrays.hashCode(percentiles));
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), Arrays.hashCode(percents), Arrays.hashCode(percentiles));
     }
 
     public static class Iter implements Iterator<Percentile> {

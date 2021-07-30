@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl.cert;
 
@@ -10,11 +11,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.security.cert.X509Certificate;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Objects;
 
 /**
@@ -27,7 +29,7 @@ public class CertificateInfo implements ToXContentObject, Writeable {
     private final String subjectDn;
     private final String serialNumber;
     private final boolean hasPrivateKey;
-    private final DateTime expiry;
+    private final ZonedDateTime expiry;
 
     public CertificateInfo(String path, String format, String alias, boolean hasPrivateKey, X509Certificate certificate) {
         Objects.requireNonNull(certificate, "Certificate cannot be null");
@@ -37,7 +39,7 @@ public class CertificateInfo implements ToXContentObject, Writeable {
         this.subjectDn = Objects.requireNonNull(certificate.getSubjectDN().getName());
         this.serialNumber = certificate.getSerialNumber().toString(16);
         this.hasPrivateKey = hasPrivateKey;
-        this.expiry = new DateTime(certificate.getNotAfter(), DateTimeZone.UTC);
+        this.expiry = certificate.getNotAfter().toInstant().atZone(ZoneOffset.UTC);
     }
 
     public CertificateInfo(StreamInput in) throws IOException {
@@ -47,7 +49,7 @@ public class CertificateInfo implements ToXContentObject, Writeable {
         this.subjectDn = in.readString();
         this.serialNumber = in.readString();
         this.hasPrivateKey = in.readBoolean();
-        this.expiry = new DateTime(in.readLong(), DateTimeZone.UTC);
+        this.expiry = Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC);
     }
 
     @Override
@@ -58,7 +60,7 @@ public class CertificateInfo implements ToXContentObject, Writeable {
         out.writeString(subjectDn);
         out.writeString(serialNumber);
         out.writeBoolean(hasPrivateKey);
-        out.writeLong(expiry.getMillis());
+        out.writeLong(expiry.toInstant().toEpochMilli());
     }
 
     public String path() {
@@ -81,7 +83,7 @@ public class CertificateInfo implements ToXContentObject, Writeable {
         return serialNumber;
     }
 
-    public DateTime expiry() {
+    public ZonedDateTime expiry() {
         return expiry;
     }
 

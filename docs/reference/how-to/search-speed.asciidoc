@@ -1,7 +1,7 @@
 [[tune-for-search-speed]]
 == Tune for search speed
 
-[float]
+[discrete]
 === Give memory to the filesystem cache
 
 Elasticsearch heavily relies on the filesystem cache in order to make search
@@ -9,7 +9,7 @@ fast. In general, you should make sure that at least half the available memory
 goes to the filesystem cache so that Elasticsearch can keep hot regions of the
 index in physical memory.
 
-[float]
+[discrete]
 === Use faster hardware
 
 If your search is I/O bound, you should investigate giving more memory to the
@@ -25,17 +25,18 @@ throttled.
 
 If your search is CPU-bound, you should investigate buying faster CPUs.
 
-[float]
+[discrete]
 === Document modeling
 
 Documents should be modeled so that search-time operations are as cheap as possible.
 
 In particular, joins should be avoided. <<nested,`nested`>> can make queries
-several times slower and <<mapping-parent-field,parent-child>> relations can make
+several times slower and <<parent-join,parent-child>> relations can make
 queries hundreds of times slower. So if the same questions can be answered without
 joins by denormalizing documents, significant speedups can be expected.
 
-[float]
+[discrete]
+[[search-as-few-fields-as-possible]]
 === Search as few fields as possible
 
 The more fields a <<query-dsl-query-string-query,`query_string`>> or
@@ -48,32 +49,29 @@ of an index containing movies that optimizes queries that search over both the
 name and the plot of the movie by indexing both values into the `name_and_plot`
 field.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT movies
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "name_and_plot": {
-          "type": "text"
-        },
-        "name": {
-          "type": "text",
-          "copy_to": "name_and_plot"
-        },
-        "plot": {
-          "type": "text",
-          "copy_to": "name_and_plot"
-        }
+    "properties": {
+      "name_and_plot": {
+        "type": "text"
+      },
+      "name": {
+        "type": "text",
+        "copy_to": "name_and_plot"
+      },
+      "plot": {
+        "type": "text",
+        "copy_to": "name_and_plot"
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 
-[float]
+[discrete]
 === Pre-index data
 
 You should leverage patterns in your queries to optimize the way data is indexed.
@@ -85,7 +83,7 @@ aggregations.
 
 For instance, if documents look like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index/_doc/1
 {
@@ -93,11 +91,10 @@ PUT index/_doc/1
   "price": 13
 }
 --------------------------------------------------
-// CONSOLE
 
 and search requests look like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -115,22 +112,19 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Then documents could be enriched by a `price_range` field at index time, which
 should be mapped as a <<keyword,`keyword`>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "price_range": {
-          "type": "keyword"
-        }
+    "properties": {
+      "price_range": {
+        "type": "keyword"
       }
     }
   }
@@ -143,12 +137,11 @@ PUT index/_doc/1
   "price_range": "10-100"
 }
 --------------------------------------------------
-// CONSOLE
 
 And then search requests could aggregate this new field rather than running a
 `range` aggregation on the `price` field.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -161,27 +154,23 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[float]
+[discrete]
+[[map-ids-as-keyword]]
 === Consider mapping identifiers as `keyword`
 
-The fact that some data is numeric does not mean it should always be mapped as a
-<<number,numeric field>>. The way that Elasticsearch indexes numbers optimizes
-for `range` queries while `keyword` fields are better at `term` queries. Typically, 
-fields storing identifiers such as an `ISBN` or any number identifying a record 
-from another database are rarely used in `range` queries or aggregations. This is
-why they might benefit from being mapped as <<keyword,`keyword`>> rather than as 
-`integer` or `long`.
+include::../mapping/types/numeric.asciidoc[tag=map-ids-as-keyword]
 
-[float]
+[discrete]
 === Avoid scripts
 
-In general, scripts should be avoided. If they are absolutely needed, you
-should prefer the `painless` and `expressions` engines.
+If possible, avoid using <<modules-scripting,script>>-based sorting, scripts in
+aggregations, and the <<query-dsl-script-score-query,`script_score`>> query. See
+<<scripts-and-search-speed>>.
 
-[float]
+
+[discrete]
 === Search rounded dates
 
 Queries on date fields that use `now` are typically not cacheable since the
@@ -191,7 +180,7 @@ benefit of making better use of the query cache.
 
 For instance the below query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index/_doc/1
 {
@@ -214,11 +203,10 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 could be replaced with the following query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -236,7 +224,6 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 In that case we rounded to the minute, so if the current time is `16:31:29`,
@@ -252,7 +239,7 @@ NOTE: It might be tempting to split ranges into a large cacheable part and
 smaller not cacheable parts in order to be able to leverage the query cache,
 as shown below:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -292,82 +279,85 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 However such practice might make the query run slower in some cases since the
 overhead introduced by the `bool` query may defeat the savings from better
 leveraging the query cache.
 
-[float]
+[discrete]
 === Force-merge read-only indices
 
-Indices that are read-only would benefit from being
-<<indices-forcemerge,merged down to a single segment>>. This is typically the
-case with time-based indices: only the index for the current time frame is
-getting new documents while older indices are read-only.
+Indices that are read-only may benefit from being <<indices-forcemerge,merged
+down to a single segment>>. This is typically the case with time-based indices:
+only the index for the current time frame is getting new documents while older
+indices are read-only. Shards that have been force-merged into a single segment
+can use simpler and more efficient data structures to perform searches.
 
-IMPORTANT: Don't force-merge indices that are still being written to -- leave
-merging to the background merge process.
+IMPORTANT: Do not force-merge indices to which you are still writing, or to
+which you will write again in the future. Instead, rely on the automatic
+background merge process to perform merges as needed to keep the index running
+smoothly. If you continue to write to a force-merged index then its performance
+may become much worse.
 
-[float]
+[discrete]
 === Warm up global ordinals
 
-Global ordinals are a data-structure that is used in order to run
-<<search-aggregations-bucket-terms-aggregation,`terms`>> aggregations on
-<<keyword,`keyword`>> fields. They are loaded lazily in memory because
-Elasticsearch does not know which fields will be used in `terms` aggregations
-and which fields won't. You can tell Elasticsearch to load global ordinals
-eagerly at refresh-time by configuring mappings as described below:
+<<eager-global-ordinals,Global ordinals>> are a data structure that is used to
+optimize the performance of aggregations. They are calculated lazily and stored in
+the JVM heap as part of the <<modules-fielddata, field data cache>>. For fields
+that are heavily used for bucketing aggregations, you can tell {es} to construct
+and cache the global ordinals before requests are received. This should be done
+carefully because it will increase heap usage and can make <<indices-refresh, refreshes>>
+take longer. The option can be updated dynamically on an existing mapping by
+setting the <<eager-global-ordinals, eager global ordinals>> mapping parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "keyword",
-          "eager_global_ordinals": true
-        }
+    "properties": {
+      "foo": {
+        "type": "keyword",
+        "eager_global_ordinals": true
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 
-[float]
+[discrete]
 === Warm up the filesystem cache
 
 If the machine running Elasticsearch is restarted, the filesystem cache will be
 empty, so it will take some time before the operating system loads hot regions
 of the index into memory so that search operations are fast. You can explicitly
 tell the operating system which files should be loaded into memory eagerly
-depending on the file extension using the <<file-system,`index.store.preload`>>
-setting.
+depending on the file extension using the
+<<preload-data-to-file-system-cache,`index.store.preload`>> setting.
 
 WARNING: Loading data into the filesystem cache eagerly on too many indices or
 too many files will make search _slower_ if the filesystem cache is not large
 enough to hold all the data. Use with caution.
 
-[float]
+[discrete]
 === Use index sorting to speed up conjunctions
 
 <<index-modules-index-sorting,Index sorting>> can be useful in order to make
 conjunctions faster at the cost of slightly slower indexing. Read more about it
 in the <<index-modules-index-sorting-conjunctions,index sorting documentation>>.
 
-[float]
+[discrete]
+[[preference-cache-optimization]]
 === Use `preference` to optimize cache utilization
 
 There are multiple caches that can help with search performance, such as the
-https://en.wikipedia.org/wiki/Page_cache[filesystem cache], the
+{wikipedia}/Page_cache[filesystem cache], the
 <<shard-request-cache,request cache>> or the <<query-cache,query cache>>. Yet
 all these caches are maintained at the node level, meaning that if you run the
-same request twice in a row, have 1 <<glossary-replica-shard,replica>> or more
-and use https://en.wikipedia.org/wiki/Round-robin_DNS[round-robin], the default
+same request twice in a row, have 1 replica or more
+and use {wikipedia}/Round-robin_DNS[round-robin], the default
 routing algorithm, then those two requests will go to different shard copies,
 preventing node-level caches from helping.
 
@@ -376,7 +366,7 @@ one after another, for instance in order to analyze a narrower subset of the
 index, using a preference value that identifies the current user or session
 could help optimize usage of the caches.
 
-[float]
+[discrete]
 === Replicas might help with throughput, but not always
 
 In addition to improving resiliency, replicas can help improve throughput. For
@@ -400,3 +390,147 @@ So what is the right number of replicas? If you have a cluster that has
 be able to cope with `max_failures` node failures at once at most, then the
 right number of replicas for you is
 `max(max_failures, ceil(num_nodes / num_primaries) - 1)`.
+
+=== Tune your queries with the Profile API
+
+You can also analyse how expensive each component of your queries and
+aggregations are using the {ref}/search-profile.html[Profile API]. This might
+allow you to tune your queries to be less expensive, resulting in a positive
+performance result and reduced load. Also note that Profile API payloads can be
+easily visualised for better readability in the
+{kibana-ref}/xpack-profiler.html[Search Profiler], which is a Kibana dev tools
+UI available in all X-Pack licenses, including the free X-Pack Basic license.
+
+Some caveats to the Profile API are that:
+
+ - the Profile API as a debugging tool adds significant overhead to search execution and can also have a very verbose output
+ - given the added overhead, the resulting took times are not reliable indicators of actual took time, but can be used comparatively between clauses for relative timing differences
+ - the Profile API is best for exploring possible reasons behind the most costly clauses of a query but isn't intended for accurately measuring absolute timings of each clause
+
+[[faster-phrase-queries]]
+=== Faster phrase queries with `index_phrases`
+
+The <<text,`text`>> field has an <<index-phrases,`index_phrases`>> option that
+indexes 2-shingles and is automatically leveraged by query parsers to run phrase
+queries that don't have a slop. If your use-case involves running lots of phrase
+queries, this can speed up queries significantly.
+
+[[faster-prefix-queries]]
+=== Faster prefix queries with `index_prefixes`
+
+The <<text,`text`>> field has an <<index-prefixes,`index_prefixes`>> option that
+indexes prefixes of all terms and is automatically leveraged by query parsers to
+run prefix queries. If your use-case involves running lots of prefix queries,
+this can speed up queries significantly.
+
+[[faster-filtering-with-constant-keyword]]
+=== Use `constant_keyword` to speed up filtering
+
+There is a general rule that the cost of a filter is mostly a function of the
+number of matched documents. Imagine that you have an index containing cycles.
+There are a large number of bicycles and many searches perform a filter on
+`cycle_type: bicycle`. This very common filter is unfortunately also very costly
+since it matches most documents. There is a simple way to avoid running this
+filter: move bicycles to their own index and filter bicycles by searching this
+index instead of adding a filter to the query.
+
+Unfortunately this can make client-side logic tricky, which is where
+`constant_keyword` helps. By mapping `cycle_type` as a `constant_keyword` with
+value `bicycle` on the index that contains bicycles, clients can keep running
+the exact same queries as they used to run on the monolithic index and
+Elasticsearch will do the right thing on the bicycles index by ignoring filters
+on `cycle_type` if the value is `bicycle` and returning no hits otherwise.
+
+Here is what mappings could look like:
+
+[source,console]
+--------------------------------------------------
+PUT bicycles
+{
+  "mappings": {
+    "properties": {
+      "cycle_type": {
+        "type": "constant_keyword",
+        "value": "bicycle"
+      },
+      "name": {
+        "type": "text"
+      }
+    }
+  }
+}
+
+PUT other_cycles
+{
+  "mappings": {
+    "properties": {
+      "cycle_type": {
+        "type": "keyword"
+      },
+      "name": {
+        "type": "text"
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+We are splitting our index in two: one that will contain only bicycles, and
+another one that contains other cycles: unicycles, tricycles, etc. Then at
+search time, we need to search both indices, but we don't need to modify
+queries.
+
+
+[source,console]
+--------------------------------------------------
+GET bicycles,other_cycles/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match": {
+          "description": "dutch"
+        }
+      },
+      "filter": {
+        "term": {
+          "cycle_type": "bicycle"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+On the `bicycles` index, Elasticsearch will simply ignore the `cycle_type`
+filter and rewrite the search request to the one below:
+
+[source,console]
+--------------------------------------------------
+GET bicycles,other_cycles/_search
+{
+  "query": {
+    "match": {
+      "description": "dutch"
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+On the `other_cycles` index, Elasticsearch will quickly figure out that
+`bicycle` doesn't exist in the terms dictionary of the `cycle_type` field and
+return a search response with no hits.
+
+This is a powerful way of making queries cheaper by putting common values in a
+dedicated index. This idea can also be combined across multiple fields: for
+instance if you track the color of each cycle and your `bicycles` index ends up
+having a majority of black bikes, you could split it into a `bicycles-black`
+and a `bicycles-other-colors` indices.
+
+The `constant_keyword` is not strictly required for this optimization: it is
+also possible to update the client-side logic in order to route queries to the
+relevant indices based on filters. However `constant_keyword` makes it
+transparently and allows to decouple search requests from the index topology in
+exchange of very little overhead.

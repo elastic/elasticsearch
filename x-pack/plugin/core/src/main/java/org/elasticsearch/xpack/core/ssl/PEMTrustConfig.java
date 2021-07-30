@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -14,7 +15,10 @@ import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.io.IOException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -29,10 +33,13 @@ import java.util.Objects;
  */
 class PEMTrustConfig extends TrustConfig {
 
+    private static final String CA_FILE = "certificate_authorities";
+
     private final List<String> caPaths;
 
     /**
      * Create a new trust configuration that is built from the certificate files
+     *
      * @param caPaths the paths to the certificate files to trust
      */
     PEMTrustConfig(List<String> caPaths) {
@@ -44,8 +51,17 @@ class PEMTrustConfig extends TrustConfig {
         try {
             Certificate[] certificates = CertParsingUtils.readCertificates(caPaths, environment);
             return CertParsingUtils.trustManager(certificates);
+        } catch (NoSuchFileException noSuchFileException) {
+            final Path missingPath = CertParsingUtils.resolvePath(noSuchFileException.getFile(), environment);
+            throw missingTrustConfigFile(noSuchFileException, CA_FILE, missingPath);
+        } catch (AccessDeniedException accessDeniedException) {
+            final Path missingPath = CertParsingUtils.resolvePath(accessDeniedException.getFile(), environment);
+            throw unreadableTrustConfigFile(accessDeniedException, CA_FILE, missingPath);
+        } catch (AccessControlException accessControlException) {
+            final List<Path> paths = CertParsingUtils.resolvePaths(caPaths, environment);
+            throw blockedTrustConfigFile(accessControlException, environment, CA_FILE, paths);
         } catch (Exception e) {
-            throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
+            throw new ElasticsearchException("failed to initialize SSL TrustManager", e);
         }
     }
 

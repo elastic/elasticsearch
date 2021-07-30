@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -30,13 +19,13 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.List;
 import java.util.Map;
@@ -44,15 +33,22 @@ import java.util.Map;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestSegmentsAction extends AbstractCatAction {
-    public RestSegmentsAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_cat/segments", this);
-        controller.registerHandler(GET, "/_cat/segments/{index}", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_cat/segments"),
+            new Route(GET, "/_cat/segments/{index}"));
     }
 
     @Override
     public String getName() {
         return "cat_segments_action";
+    }
+
+    @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return true;
     }
 
     @Override
@@ -64,14 +60,19 @@ public class RestSegmentsAction extends AbstractCatAction {
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
 
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        final RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+
+        return channel -> cancelClient.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 final IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest();
                 indicesSegmentsRequest.indices(indices);
-                client.admin().indices().segments(indicesSegmentsRequest, new RestResponseListener<IndicesSegmentResponse>(channel) {
+                cancelClient.admin().indices().segments(indicesSegmentsRequest, new RestResponseListener<IndicesSegmentResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(final IndicesSegmentResponse indicesSegmentResponse) throws Exception {
+                        if (request.getHttpChannel().isOpen() == false) {
+                            throw new TaskCancelledException("response channel [" + request.getHttpChannel() + "] closed");
+                        }
                         final Map<String, IndexSegments> indicesSegments = indicesSegmentResponse.getIndices();
                         Table tab = buildTable(request, clusterStateResponse, indicesSegments);
                         return RestTable.buildResponse(tab, channel);
@@ -137,7 +138,7 @@ public class RestSegmentsAction extends AbstractCatAction {
                         table.addCell(segment.getNumDocs());
                         table.addCell(segment.getDeletedDocs());
                         table.addCell(segment.getSize());
-                        table.addCell(segment.getMemoryInBytes());
+                        table.addCell(0L);
                         table.addCell(segment.isCommitted());
                         table.addCell(segment.isSearch());
                         table.addCell(segment.getVersion());

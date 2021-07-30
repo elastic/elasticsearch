@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.unit;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -36,31 +25,53 @@ import java.util.Objects;
 
 public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXContentFragment {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ByteSizeValue.class));
+    /**
+     * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
+     * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
+     * {@link ByteSizeValue} object constructed in, for example, settings in {@link org.elasticsearch.common.network.NetworkService}.
+     */
+    static class DeprecationLoggerHolder {
+        static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ByteSizeValue.class);
+    }
 
     public static final ByteSizeValue ZERO = new ByteSizeValue(0, ByteSizeUnit.BYTES);
+
+    public static ByteSizeValue ofBytes(long size) {
+        return new ByteSizeValue(size);
+    }
+
+    public static ByteSizeValue ofKb(long size) {
+        return new ByteSizeValue(size, ByteSizeUnit.KB);
+    }
+
+    public static ByteSizeValue ofMb(long size) {
+        return new ByteSizeValue(size, ByteSizeUnit.MB);
+    }
+
+    public static ByteSizeValue ofGb(long size) {
+        return new ByteSizeValue(size, ByteSizeUnit.GB);
+    }
+
+    public static ByteSizeValue ofTb(long size) {
+        return new ByteSizeValue(size, ByteSizeUnit.TB);
+    }
+
+    public static ByteSizeValue ofPb(long size) {
+        return new ByteSizeValue(size, ByteSizeUnit.PB);
+    }
 
     private final long size;
     private final ByteSizeUnit unit;
 
     public ByteSizeValue(StreamInput in) throws IOException {
-        if (in.getVersion().before(Version.V_6_2_0)) {
-            size = in.readVLong();
-            unit = ByteSizeUnit.BYTES;
-        } else {
-            size = in.readZLong();
-            unit = ByteSizeUnit.readFrom(in);
-        }
+        size = in.readZLong();
+        unit = ByteSizeUnit.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_6_2_0)) {
-            out.writeVLong(getBytes());
-        } else {
-            out.writeZLong(size);
-            unit.writeTo(out);
-        }
+        out.writeZLong(size);
+        unit.writeTo(out);
     }
 
     public ByteSizeValue(long bytes) {
@@ -213,7 +224,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         } else if (lowerSValue.endsWith("pb")) {
             return parse(sValue, lowerSValue, "pb", ByteSizeUnit.PB, settingName);
         } else if (lowerSValue.endsWith("b")) {
-            return new ByteSizeValue(Long.parseLong(lowerSValue.substring(0, lowerSValue.length() - 1).trim()), ByteSizeUnit.BYTES);
+            return parseBytes(lowerSValue, settingName, sValue);
         } else if (lowerSValue.equals("-1")) {
             // Allow this special value to be unit-less:
             return new ByteSizeValue(-1, ByteSizeUnit.BYTES);
@@ -228,6 +239,18 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         }
     }
 
+    private static ByteSizeValue parseBytes(String lowerSValue, String settingName, String initialInput) {
+        String s = lowerSValue.substring(0, lowerSValue.length() - 1).trim();
+        try {
+            return new ByteSizeValue(Long.parseLong(s), ByteSizeUnit.BYTES);
+        } catch (NumberFormatException e) {
+            throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
+        } catch (IllegalArgumentException e) {
+            throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}] as a size in bytes", e, settingName,
+                initialInput);
+        }
+    }
+
     private static ByteSizeValue parse(final String initialInput, final String normalized, final String suffix, ByteSizeUnit unit,
             final String settingName) {
         final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
@@ -237,12 +260,13 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
             } catch (final NumberFormatException e) {
                 try {
                     final double doubleValue = Double.parseDouble(s);
-                    deprecationLogger.deprecated(
-                            "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
-                            initialInput, settingName);
+                    DeprecationLoggerHolder.deprecationLogger
+                        .deprecate(DeprecationCategory.PARSING, "fractional_byte_values",
+                         "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
+                         initialInput, settingName);
                     return new ByteSizeValue((long) (doubleValue * unit.toBytes(1)));
                 } catch (final NumberFormatException ignored) {
-                    throw new ElasticsearchParseException("failed to parse [{}]", e, initialInput);
+                    throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
                 }
             }
         } catch (IllegalArgumentException e) {

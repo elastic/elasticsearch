@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.transform.chain;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
@@ -123,7 +124,7 @@ public class ChainTransform implements Transform {
 
         @Override
         protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
-            if (!results.isEmpty()) {
+            if (results.isEmpty() == false) {
                 builder.startObject(type);
                 builder.startArray(Field.RESULTS.getPreferredName());
                 for (Transform.Result result : results) {
@@ -149,8 +150,8 @@ public class ChainTransform implements Transform {
             return this;
         }
 
-        public Builder add(Transform.Builder... transforms) {
-            for (Transform.Builder transform: transforms) {
+        public Builder add(Transform.Builder<?>... transforms) {
+            for (Transform.Builder<?> transform: transforms) {
                 this.transforms.add(transform.build());
             }
             return this;

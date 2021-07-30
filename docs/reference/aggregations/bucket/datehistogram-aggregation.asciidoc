@@ -1,173 +1,278 @@
 [[search-aggregations-bucket-datehistogram-aggregation]]
-=== Date Histogram Aggregation
+=== Date histogram aggregation
+++++
+<titleabbrev>Date histogram</titleabbrev>
+++++
 
 This multi-bucket aggregation is similar to the normal
 <<search-aggregations-bucket-histogram-aggregation,histogram>>, but it can
-only be used with date values. Because dates are represented internally in 
+only be used with date or date range values. Because dates are represented internally in
 Elasticsearch as long values, it is possible, but not as accurate, to use the
 normal `histogram` on dates as well. The main difference in the two APIs is
 that here the interval can be specified using date/time expressions. Time-based
 data requires special support because time-based intervals are not always a
 fixed length.
 
-==== Setting intervals
+Like the histogram, values are rounded *down* into the closest bucket. For
+example, if the interval is a calendar day, `2020-01-03T07:00:01Z` is rounded to
+`2020-01-03T00:00:00Z`. Values are rounded as follows:
 
-There seems to be no limit to the creativity we humans apply to setting our
-clocks and calendars. We've invented leap years and leap seconds, standard and
-daylight savings times, and timezone offsets of 30 or 45 minutes rather than a 
-full hour. While these creations help keep us in sync with the cosmos and our
-environment, they can make specifying time intervals accurately a real challenge.
-The only universal truth our researchers have yet to disprove is that a
-millisecond is always the same duration, and a second is always 1000 milliseconds.
-Beyond that, things get complicated.
+[source,java]
+----
+bucket_key = Math.floor(value / interval) * interval
+----
 
-Generally speaking, when you specify a single time unit, such as 1 hour or 1 day, you
-are working with a _calendar interval_, but multiples, such as 6 hours or 3 days, are
-_fixed-length intervals_.
+[[calendar_and_fixed_intervals]]
+==== Calendar and fixed intervals
 
-For example, a specification of 1 day (1d) from now is a calendar interval that
-means "at
-this exact time tomorrow" no matter the length of the day. A change to or from 
-daylight savings time that results in a 23 or 25 hour day is compensated for and the
-specification of "this exact time tomorrow" is maintained. But if you specify 2 or
-more days, each day must be of the same fixed duration (24 hours). In this case, if
-the specified interval includes the change to or from daylight savings time, the
-interval will end an hour sooner or later than you expect.
+When configuring a date histogram aggregation, the interval can be specified
+in two manners: calendar-aware time intervals, and fixed time intervals.
 
-There are similar differences to consider when you specify single versus multiple
-minutes or hours. Multiple time periods longer than a day are not supported.
+Calendar-aware intervals understand that daylight savings changes the length
+of specific days, months have different amounts of days, and leap seconds can
+be tacked onto a particular year.
 
-Here are the valid time specifications and their meanings:
+Fixed intervals are, by contrast, always multiples of SI units and do not change
+based on calendaring context.
 
-milliseconds (ms) ::
-Fixed length interval; supports multiples.
+[[calendar_intervals]]
+==== Calendar intervals
 
-seconds (s) ::
-1000 milliseconds; fixed length interval (except for the last second of a
-minute that contains a leap-second, which is 2000ms long); supports multiples.
+Calendar-aware intervals are configured with the `calendar_interval` parameter.
+You can specify calendar intervals using the unit name, such as `month`, or as a
+single unit quantity, such as `1M`. For example, `day` and `1d` are equivalent.
+Multiple quantities, such as `2d`, are not supported.
 
-minutes (m) ::
+The accepted calendar intervals are:
+
+`minute`, `1m` ::
+
+All minutes begin at 00 seconds.
+One minute is the interval between 00 seconds of the first minute and 00
+seconds of the following minute in the specified time zone, compensating for any
+intervening leap seconds, so that the number of minutes and seconds past the
+hour is the same at the start and end.
+
+`hour`, `1h` ::
+
+All hours begin at 00 minutes and 00 seconds.
+One hour (1h) is the interval between 00:00 minutes of the first hour and 00:00
+minutes of the following hour in the specified time zone, compensating for any
+intervening leap seconds, so that the number of minutes and seconds past the hour
+is the same at the start and end.
+
+`day`, `1d` ::
+
+All days begin at the earliest possible time, which is usually 00:00:00
+(midnight).
+One day (1d) is the interval between the start of the day and the start of
+the following day in the specified time zone, compensating for any intervening
+time changes.
+
+`week`, `1w` ::
+
+One week is the interval between the start day_of_week:hour:minute:second
+and the same day of the week and time of the following week in the specified
+time zone.
+
+`month`, `1M` ::
+
+One month is the interval between the start day of the month and time of
+day and the same day of the month and time of the following month in the specified
+time zone, so that the day of the month and time of day are the same at the start
+and end.
+
+`quarter`, `1q` ::
+
+One quarter is the interval between the start day of the month and
+time of day and the same day of the month and time of day three months later,
+so that the day of the month and time of day are the same at the start and end. +
+
+`year`, `1y` ::
+
+One year is the interval between the start day of the month and time of
+day and the same day of the month and time of day the following year in the
+specified time zone, so that the date and time are the same at the start and end. +
+
+[[calendar_interval_examples]]
+===== Calendar interval examples
+As an example, here is an aggregation requesting bucket intervals of a month in calendar time:
+
+[source,console,id=datehistogram-aggregation-calendar-interval-example]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:sales]
+
+If you attempt to use multiples of calendar units, the aggregation will fail because only
+singular calendar units are supported:
+
+[source,console,id=datehistogram-aggregation-calendar-interval-multiples-example]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "2d"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:sales]
+// TEST[catch:bad_request]
+
+[source,js]
+--------------------------------------------------
+{
+  "error" : {
+    "root_cause" : [...],
+    "type" : "x_content_parse_exception",
+    "reason" : "[1:82] [date_histogram] failed to parse field [calendar_interval]",
+    "caused_by" : {
+      "type" : "illegal_argument_exception",
+      "reason" : "The supplied interval [2d] could not be parsed as a calendar interval.",
+      "stack_trace" : "java.lang.IllegalArgumentException: The supplied interval [2d] could not be parsed as a calendar interval."
+    }
+  }
+}
+
+--------------------------------------------------
+// NOTCONSOLE
+
+[[fixed_intervals]]
+==== Fixed intervals
+
+Fixed intervals are configured with the `fixed_interval` parameter.
+
+In contrast to calendar-aware intervals, fixed intervals are a fixed number of SI
+units and never deviate, regardless of where they fall on the calendar. One second
+is always composed of `1000ms`. This allows fixed intervals to be specified in
+any multiple of the supported units.
+
+However, it means fixed intervals cannot express other units such as months,
+since the duration of a month is not a fixed quantity. Attempting to specify
+a calendar interval like month or quarter will throw an exception.
+
+The accepted units for fixed intervals are:
+
+milliseconds (`ms`) ::
+A single millisecond. This is a very, very small interval.
+
+seconds (`s`) ::
+Defined as 1000 milliseconds each.
+
+minutes (`m`) ::
+Defined as 60 seconds each (60,000 milliseconds).
 All minutes begin at 00 seconds.
 
-* One minute (1m) is the interval between 00 seconds of the first minute and 00
-seconds of the following minute in the specified timezone, compensating for any
-intervening leap seconds, so that the number of minutes and seconds past the 
-hour is the same at the start and end. 
-* Multiple minutes (__n__m) are intervals of exactly 60x1000=60,000 milliseconds
-each.
-
-hours (h) ::
+hours (`h`) ::
+Defined as 60 minutes each (3,600,000 milliseconds).
 All hours begin at 00 minutes and 00 seconds.
 
-* One hour (1h) is the interval between 00:00 minutes of the first hour and 00:00
-minutes of the following hour in the specified timezone, compensating for any
-intervening leap seconds, so that the number of minutes and seconds past the hour
-is the same at the start and end. 
-* Multiple hours (__n__h) are intervals of exactly 60x60x1000=3,600,000 milliseconds
-each.
-
-days (d) ::
+days (`d`) ::
+Defined as 24 hours (86,400,000 milliseconds).
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
 
-* One day (1d) is the interval between the start of the day and the start of
-of the following day in the specified timezone, compensating for any intervening
-time changes.
-* Multiple days (__n__d) are intervals of exactly 24x60x60x1000=86,400,000
-milliseconds each.
+[[fixed_interval_examples]]
+===== Fixed interval examples
 
-weeks (w) ::
+If we try to recreate the "month" `calendar_interval` from earlier, we can approximate that with
+30 fixed days:
 
-* One week (1w) is the interval between the start day_of_week:hour:minute:second
-and the same day of the week and time of the following week in the specified 
-timezone.
-* Multiple weeks (__n__w) are not supported.
+[source,console,id=datehistogram-aggregation-fixed-interval-example]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "fixed_interval": "30d"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:sales]
 
-months (M) ::
+But if we try to use a calendar unit that is not supported, such as weeks, we'll get an exception:
 
-* One month (1M) is the interval between the start day of the month and time of
-day and the same day of the month and time of the following month in the specified
-timezone, so that the day of the month and time of day are the same at the start
-and end.
-* Multiple months (__n__M) are not supported.
+[source,console,id=datehistogram-aggregation-fixed-interval-unsupported-example]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "fixed_interval": "2w"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:sales]
+// TEST[catch:bad_request]
 
-quarters (q) ::
+[source,js]
+--------------------------------------------------
+{
+  "error" : {
+    "root_cause" : [...],
+    "type" : "x_content_parse_exception",
+    "reason" : "[1:82] [date_histogram] failed to parse field [fixed_interval]",
+    "caused_by" : {
+      "type" : "illegal_argument_exception",
+      "reason" : "failed to parse setting [date_histogram.fixedInterval] with value [2w] as a time value: unit is missing or unrecognized",
+      "stack_trace" : "java.lang.IllegalArgumentException: failed to parse setting [date_histogram.fixedInterval] with value [2w] as a time value: unit is missing or unrecognized"
+    }
+  }
+}
 
-* One quarter (1q) is the interval between the start day of the month and
-time of day and the same day of the month and time of day three months later,
-so that the day of the month and time of day are the same at the start and end. +
-* Multiple quarters (__n__q) are not supported.
+--------------------------------------------------
+// NOTCONSOLE
 
-years (y) ::
+[[datehistogram-aggregation-notes]]
+==== Date histogram usage notes
 
-* One year (1y) is the interval between the start day of the month and time of 
-day and the same day of the month and time of day the following year in the 
-specified timezone, so that the date and time are the same at the start and end. +
-* Multiple years (__n__y) are not supported.
-
-NOTE:
 In all cases, when the specified end time does not exist, the actual end time is
 the closest available time after the specified end.
 
 Widely distributed applications must also consider vagaries such as countries that
-start and stop daylight savings time at 12:01 A.M., so end up with one minute of 
+start and stop daylight savings time at 12:01 A.M., so end up with one minute of
 Sunday followed by an additional 59 minutes of Saturday once a year, and countries
 that decide to move across the international date line. Situations like
-that can make irregular timezone offsets seem easy. 
+that can make irregular time zone offsets seem easy.
 
 As always, rigorous testing, especially around time-change events, will ensure
 that your time interval specification is
 what you intend it to be.
 
-WARNING:
-To avoid unexpected results, all connected servers and clients must sync to a
-reliable network time service.
+WARNING: To avoid unexpected results, all connected servers and clients must
+sync to a reliable network time service.
 
-==== Examples
+NOTE: Fractional time values are not supported, but you can address this by
+shifting to another time unit (e.g., `1.5h` could instead be specified as `90m`).
 
-Requesting bucket intervals of a month.
-
-[source,js]
---------------------------------------------------
-POST /sales/_search?size=0
-{
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "interval" : "month"
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:sales]
-
-You can also specify time values using abbreviations supported by
+NOTE: You can also specify time values using abbreviations supported by
 <<time-units,time units>> parsing.
-Note that fractional time values are not supported, but you can address this by
-shifting to another
-time unit (e.g., `1.5h` could instead be specified as `90m`). 
 
-[source,js]
---------------------------------------------------
-POST /sales/_search?size=0
-{
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "interval" : "90m"
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:sales]
-
-===== Keys
+[[datehistogram-aggregation-keys]]
+==== Keys
 
 Internally, a date is represented as a 64 bit number representing a timestamp
 in milliseconds-since-the-epoch (01/01/1970 midnight UTC). These timestamps are
@@ -178,100 +283,114 @@ date string using the `format` parameter specification:
 TIP: If you don't specify `format`, the first date
 <<mapping-date-format,format>> specified in the field mapping is used.
 
-[source,js]
+[source,console,id=datehistogram-aggregation-format-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "interval" : "1M",
-                "format" : "yyyy-MM-dd" <1>
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M",
+        "format": "yyyy-MM-dd" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> Supports expressive date <<date-format-pattern,format pattern>>
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "sales_over_time": {
-            "buckets": [
-                {
-                    "key_as_string": "2015-01-01",
-                    "key": 1420070400000,
-                    "doc_count": 3
-                },
-                {
-                    "key_as_string": "2015-02-01",
-                    "key": 1422748800000,
-                    "doc_count": 2
-                },
-                {
-                    "key_as_string": "2015-03-01",
-                    "key": 1425168000000,
-                    "doc_count": 2
-                }
-            ]
+  ...
+  "aggregations": {
+    "sales_over_time": {
+      "buckets": [
+        {
+          "key_as_string": "2015-01-01",
+          "key": 1420070400000,
+          "doc_count": 3
+        },
+        {
+          "key_as_string": "2015-02-01",
+          "key": 1422748800000,
+          "doc_count": 2
+        },
+        {
+          "key_as_string": "2015-03-01",
+          "key": 1425168000000,
+          "doc_count": 2
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-===== Timezone
+[[datehistogram-aggregation-time-zone]]
+==== Time zone
 
-Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
+{es} stores date-times in Coordinated Universal Time (UTC). By default, all bucketing and
 rounding is also done in UTC. Use the `time_zone` parameter to indicate
-that bucketing should use a different timezone.
+that bucketing should use a different time zone.
 
-You can specify timezones as either an ISO 8601 UTC offset (e.g. `+01:00` or
-`-08:00`)  or as a timezone ID as specified in the IANA timezone database,
-such as`America/Los_Angeles`.
+For example, if the interval is a calendar day and the time zone is
+`America/New_York` then `2020-01-03T01:00:01Z` is :
+# Converted to `2020-01-02T18:00:01`
+# Rounded down to `2020-01-02T00:00:00`
+# Then converted back to UTC to produce `2020-01-02T05:00:00:00Z`
+# Finally, when the bucket is turned into a string key it is printed in
+  `America/New_York` so it'll display as `"2020-01-02T00:00:00"`.
+
+It looks like:
+
+[source,java]
+----
+bucket_key = localToUtc(Math.floor(utcToLocal(value) / interval) * interval))
+----
+
+You can specify time zones as an ISO 8601 UTC offset (e.g. `+01:00` or
+`-08:00`) or as an IANA time zone ID,
+such as `America/Los_Angeles`.
 
 Consider the following example:
 
-[source,js]
+[source,console,id=datehistogram-aggregation-timezone-example]
 ---------------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "date": "2015-10-01T00:30:00Z"
 }
 
-PUT my_index/_doc/2?refresh
+PUT my-index-000001/_doc/2?refresh
 {
   "date": "2015-10-01T01:30:00Z"
 }
 
-GET my_index/_search?size=0
+GET my-index-000001/_search?size=0
 {
   "aggs": {
     "by_day": {
       "date_histogram": {
         "field":     "date",
-        "interval":  "day"
+        "calendar_interval":  "day"
       }
     }
   }
 }
 ---------------------------------
-// CONSOLE
 
-If you don't specify a timezone, UTC is used. This would result in both of these
+If you don't specify a time zone, UTC is used. This would result in both of these
 documents being placed into the same day bucket, which starts at midnight UTC
 on 1 October 2015:
 
-[source,js]
+[source,console-result]
 ---------------------------------
 {
   ...
@@ -290,31 +409,30 @@ on 1 October 2015:
 ---------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-If you specify a `time_zone` of `-01:00`, midnight in that timezone is one hour
+If you specify a `time_zone` of `-01:00`, midnight in that time zone is one hour
 before midnight UTC:
 
-[source,js]
+[source,console]
 ---------------------------------
-GET my_index/_search?size=0
+GET my-index-000001/_search?size=0
 {
   "aggs": {
     "by_day": {
       "date_histogram": {
         "field":     "date",
-        "interval":  "day",
+        "calendar_interval":  "day",
         "time_zone": "-01:00"
       }
     }
   }
 }
 ---------------------------------
-// CONSOLE
 // TEST[continued]
 
 Now the first document falls into the bucket for 30 September 2015, while the
 second document falls into the bucket for 1 October 2015:
 
-[source,js]
+[source,console-result]
 ---------------------------------
 {
   ...
@@ -339,60 +457,64 @@ second document falls into the bucket for 1 October 2015:
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 <1> The `key_as_string` value represents midnight on each day
-    in the specified timezone.
+    in the specified time zone.
 
-WARNING: When using time zones that follow DST (daylight savings time) changes,
-buckets close to the moment when those changes happen can have slightly different
-sizes than you would expect from the used `interval`.
+WARNING: Many time zones shift their clocks for daylight savings time. Buckets
+close to the moment when those changes happen can have slightly different sizes
+than you would expect from the `calendar_interval` or `fixed_interval`.
 For example, consider a DST start in the `CET` time zone: on 27 March 2016 at 2am,
-clocks were turned forward 1 hour to 3am local time. If you use `day` as `interval`,
-the bucket covering that day will only hold data for 23 hours instead of the usual
-24 hours for other buckets. The same is true for shorter intervals, like 12h,
-where you'll have only a 11h bucket on the morning of 27 March when the DST shift
-happens.
+clocks were turned forward 1 hour to 3am local time. If you use `day` as the
+`calendar_interval`, the bucket covering that day will only hold data for 23
+hours instead of the usual 24 hours for other buckets. The same is true for
+shorter intervals, like a `fixed_interval` of `12h`, where you'll have only a 11h
+bucket on the morning of 27 March when the DST shift happens.
 
-===== Offset
+[[search-aggregations-bucket-datehistogram-offset]]
+==== Offset
 
+// tag::offset-explanation[]
 Use the `offset` parameter to change the start value of each bucket by the
 specified positive (`+`) or negative offset (`-`) duration, such as `1h` for
 an hour, or `1d` for a day. See <<time-units>> for more possible time
 duration options.
 
 For example, when using an interval of `day`, each bucket runs from midnight
-to midnight.  Setting the `offset` parameter to `+6h` changes each bucket
+to midnight. Setting the `offset` parameter to `+6h` changes each bucket
 to run from 6am to 6am:
+// end::offset-explanation[]
 
-[source,js]
+[source,console,id=datehistogram-aggregation-offset-example]
 -----------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "date": "2015-10-01T05:30:00Z"
 }
 
-PUT my_index/_doc/2?refresh
+PUT my-index-000001/_doc/2?refresh
 {
   "date": "2015-10-01T06:30:00Z"
 }
 
-GET my_index/_search?size=0
+GET my-index-000001/_search?size=0
 {
   "aggs": {
     "by_day": {
       "date_histogram": {
         "field":     "date",
-        "interval":  "day",
+        "calendar_interval":  "day",
         "offset":    "+6h"
       }
     }
   }
 }
 -----------------------------
-// CONSOLE
 
+// tag::offset-result-intro[]
 Instead of a single bucket starting at midnight, the above request groups the
 documents into buckets starting at 6am:
+// end::offset-result-intro[]
 
-[source,js]
+[source,console-result]
 -----------------------------
 {
   ...
@@ -416,105 +538,177 @@ documents into buckets starting at 6am:
 -----------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
+// tag::offset-note[]
 NOTE: The start `offset` of each bucket is calculated after `time_zone`
 adjustments have been made.
+// end::offset-note[]
 
-===== Keyed Response
+[[date-histogram-keyed-response]]
+==== Keyed Response
 
 Setting the `keyed` flag to `true` associates a unique string key with each
 bucket and returns the ranges as a hash rather than an array:
 
-[source,js]
+[source,console,id=datehistogram-aggregation-keyed-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "interval" : "1M",
-                "format" : "yyyy-MM-dd",
-                "keyed": true
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M",
+        "format": "yyyy-MM-dd",
+        "keyed": true
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "sales_over_time": {
-            "buckets": {
-                "2015-01-01": {
-                    "key_as_string": "2015-01-01",
-                    "key": 1420070400000,
-                    "doc_count": 3
-                },
-                "2015-02-01": {
-                    "key_as_string": "2015-02-01",
-                    "key": 1422748800000,
-                    "doc_count": 2
-                },
-                "2015-03-01": {
-                    "key_as_string": "2015-03-01",
-                    "key": 1425168000000,
-                    "doc_count": 2
-                }
-            }
+  ...
+  "aggregations": {
+    "sales_over_time": {
+      "buckets": {
+        "2015-01-01": {
+          "key_as_string": "2015-01-01",
+          "key": 1420070400000,
+          "doc_count": 3
+        },
+        "2015-02-01": {
+          "key_as_string": "2015-02-01",
+          "key": 1422748800000,
+          "doc_count": 2
+        },
+        "2015-03-01": {
+          "key_as_string": "2015-03-01",
+          "key": 1425168000000,
+          "doc_count": 2
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-===== Scripts
+[[date-histogram-scripts]]
+==== Scripts
 
-As with the normal <<search-aggregations-bucket-histogram-aggregation,histogram>>,
-both document-level scripts and
-value-level scripts are supported. You can control the order of the returned
+If the data in your documents doesn't exactly match what you'd like to aggregate,
+use a <<runtime,runtime field>> . For example, if the revenue
+for promoted sales should be recognized a day after the sale date:
+
+[source,console,id=datehistogram-aggregation-runtime-field]
+----
+POST /sales/_search?size=0
+{
+  "runtime_mappings": {
+    "date.promoted_is_tomorrow": {
+      "type": "date",
+      "script": """
+        long date = doc['date'].value.toInstant().toEpochMilli();
+        if (doc['promoted'].value) {
+          date += 86400;
+        }
+        emit(date);
+      """
+    }
+  },
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date.promoted_is_tomorrow",
+        "calendar_interval": "1M"
+      }
+    }
+  }
+}
+----
+// TEST[setup:sales]
+
+////
+
+[source,console-result]
+----
+{
+  ...
+  "aggregations": {
+    "sales_over_time": {
+      "buckets": [
+        {
+          "key_as_string": "2015-01-01T00:00:00.000Z",
+          "key": 1420070400000,
+          "doc_count": 3
+        },
+        {
+          "key_as_string": "2015-02-01T00:00:00.000Z",
+          "key": 1422748800000,
+          "doc_count": 2
+        },
+        {
+          "key_as_string": "2015-03-01T00:00:00.000Z",
+          "key": 1425168000000,
+          "doc_count": 2
+        }
+      ]
+    }
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+////
+
+[[date-histogram-params]]
+==== Parameters
+
+You can control the order of the returned
 buckets using the `order`
 settings and filter the returned buckets based on a `min_doc_count` setting
 (by default all buckets between the first
 bucket that matches documents and the last one are returned). This histogram
 also supports the `extended_bounds`
 setting, which enables extending the bounds of the histogram beyond the data
-itself. For more information, see
-<<search-aggregations-bucket-histogram-aggregation-extended-bounds,`Extended Bounds`>>.
+itself, and `hard_bounds` that limits the histogram to specified bounds.
+For more information, see
+<<search-aggregations-bucket-histogram-aggregation-extended-bounds,`Extended Bounds`>> and
+<<search-aggregations-bucket-histogram-aggregation-hard-bounds,`Hard Bounds`>>.
 
+[[date-histogram-missing-value]]
 ===== Missing value
 
 The `missing` parameter defines how to treat documents that are missing a value.
 By default, they are ignored, but it is also possible to treat them as if they
 have a value.
 
-[source,js]
+[source,console,id=datehistogram-aggregation-missing-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sale_date" : {
-             "date_histogram" : {
-                 "field" : "date",
-                 "interval": "year",
-                 "missing": "2000/01/01" <1>
-             }
-         }
+  "aggs": {
+    "sale_date": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "year",
+        "missing": "2000/01/01" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> Documents without a value in the `publish_date` field will fall into the
 same bucket as documents that have the value `2000-01-01`.
 
+[[date-histogram-order]]
 ===== Order
 
 By default the returned buckets are sorted by their `key` ascending, but you can
@@ -522,57 +716,55 @@ control the order using
 the `order` setting. This setting supports the same `order` functionality as
 <<search-aggregations-bucket-terms-aggregation-order,`Terms Aggregation`>>.
 
-deprecated[6.0.0, Use `_key` instead of `_time` to order buckets by their dates/keys]
-
+[[date-histogram-aggregate-scripts]]
 ===== Using a script to aggregate by day of the week
 
-When you need to aggregate the results by day of the week, use a script that 
-returns the day of the week:
+When you need to aggregate the results by day of the week, run a `terms`
+aggregation on a <<runtime,runtime field>> that returns the day of the week:
 
-
-[source,js]
---------------------------------------------------
+[source,console,id=datehistogram-aggregation-day-of-week-runtime-field]
+----
 POST /sales/_search?size=0
 {
-    "aggs": {
-        "dayOfWeek": {
-            "terms": {
-                "script": {
-                    "lang": "painless",
-                    "source": "doc['date'].value.dayOfWeekEnum.value"
-                }
-            }
-        }
+  "runtime_mappings": {
+    "date.day_of_week": {
+      "type": "keyword",
+      "script": "emit(doc['date'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
     }
+  },
+  "aggs": {
+    "day_of_week": {
+      "terms": { "field": "date.day_of_week" }
+    }
+  }
 }
---------------------------------------------------
-// CONSOLE
+----
 // TEST[setup:sales]
 
 Response:
 
-[source,js]
---------------------------------------------------
+[source,console-result]
+----
 {
   ...
   "aggregations": {
-    "dayOfWeek": {
+    "day_of_week": {
       "doc_count_error_upper_bound": 0,
       "sum_other_doc_count": 0,
       "buckets": [
         {
-          "key": "7",
+          "key": "Sunday",
           "doc_count": 4
         },
         {
-          "key": "4",
+          "key": "Thursday",
           "doc_count": 3
         }
       ]
     }
   }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 The response will contain all the buckets having the relative day of

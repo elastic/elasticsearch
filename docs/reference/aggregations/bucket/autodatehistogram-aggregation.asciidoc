@@ -1,7 +1,10 @@
 [[search-aggregations-bucket-autodatehistogram-aggregation]]
-=== Auto-interval Date Histogram Aggregation
+=== Auto-interval date histogram aggregation
+++++
+<titleabbrev>Auto-interval date histogram</titleabbrev>
+++++
 
-A multi-bucket aggregation similar to the <<search-aggregations-bucket-datehistogram-aggregation>> except 
+A multi-bucket aggregation similar to the <<search-aggregations-bucket-datehistogram-aggregation>> except
 instead of providing an interval to use as the width of each bucket, a target number of buckets is provided
 indicating the number of buckets needed and the interval of the buckets is automatically chosen to best achieve
 that target. The number of buckets returned will always be less than or equal to this target number.
@@ -10,21 +13,20 @@ The buckets field is optional, and will default to 10 buckets if not specified.
 
 Requesting a target of 10 buckets.
 
-[source,js]
+[source,console,id=autodatehistogram-aggregation-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "auto_date_histogram" : {
-                "field" : "date",
-                "buckets" : 10
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "auto_date_histogram": {
+        "field": "date",
+        "buckets": 10
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 ==== Keys
@@ -37,62 +39,61 @@ date string using the format specified with the `format` parameter:
 TIP: If no `format` is specified, then it will use the first date
 <<mapping-date-format,format>> specified in the field mapping.
 
-[source,js]
+[source,console,id=autodatehistogram-aggregation-format-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "auto_date_histogram" : {
-                "field" : "date",
-                "buckets" : 5,
-                "format" : "yyyy-MM-dd" <1>
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "auto_date_histogram": {
+        "field": "date",
+        "buckets": 5,
+        "format": "yyyy-MM-dd" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> Supports expressive date <<date-format-pattern,format pattern>>
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "sales_over_time": {
-            "buckets": [
-                {
-                    "key_as_string": "2015-01-01",
-                    "key": 1420070400000,
-                    "doc_count": 3
-                },
-                {
-                    "key_as_string": "2015-02-01",
-                    "key": 1422748800000,
-                    "doc_count": 2
-                },
-                {
-                    "key_as_string": "2015-03-01",
-                    "key": 1425168000000,
-                    "doc_count": 2
-                }
-            ],
-            "interval": "1M"
+  ...
+  "aggregations": {
+    "sales_over_time": {
+      "buckets": [
+        {
+          "key_as_string": "2015-01-01",
+          "key": 1420070400000,
+          "doc_count": 3
+        },
+        {
+          "key_as_string": "2015-02-01",
+          "key": 1422748800000,
+          "doc_count": 2
+        },
+        {
+          "key_as_string": "2015-03-01",
+          "key": 1425168000000,
+          "doc_count": 2
         }
+      ],
+      "interval": "1M"
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-=== Intervals
+==== Intervals
 
-The interval of the returned buckets is selected based on the data collected by the 
-aggregation so that the number of buckets returned is less than or equal to the number 
+The interval of the returned buckets is selected based on the data collected by the
+aggregation so that the number of buckets returned is less than or equal to the number
 requested. The possible intervals returned are:
 
 [horizontal]
@@ -103,13 +104,13 @@ days::         In multiples of 1, and 7
 months::       In multiples of 1, and 3
 years::        In multiples of 1, 5, 10, 20, 50 and 100
 
-In the worst case, where the number of daily buckets are too many for the requested 
-number of buckets, the number of buckets returned will be 1/7th of the number of 
+In the worst case, where the number of daily buckets are too many for the requested
+number of buckets, the number of buckets returned will be 1/7th of the number of
 buckets requested.
 
 ==== Time Zone
 
-Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
+Date-times are stored in Elasticsearch in UTC. By default, all bucketing and
 rounding is also done in UTC. The `time_zone` parameter can be used to indicate
 that bucketing should use a different time zone.
 
@@ -119,24 +120,24 @@ Time zones may either be specified as an ISO 8601 UTC offset (e.g. `+01:00` or
 
 Consider the following example:
 
-[source,js]
+[source,console,id=autodatehistogram-aggregation-timezone-example]
 ---------------------------------
-PUT my_index/log/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "date": "2015-10-01T00:30:00Z"
 }
 
-PUT my_index/log/2?refresh
+PUT my-index-000001/_doc/2?refresh
 {
   "date": "2015-10-01T01:30:00Z"
 }
 
-PUT my_index/log/3?refresh
+PUT my-index-000001/_doc/3?refresh
 {
   "date": "2015-10-01T02:30:00Z"
 }
 
-GET my_index/_search?size=0
+GET my-index-000001/_search?size=0
 {
   "aggs": {
     "by_day": {
@@ -148,12 +149,11 @@ GET my_index/_search?size=0
   }
 }
 ---------------------------------
-// CONSOLE
 
-UTC is used if no time zone is specified, three 1-hour buckets are returned 
+UTC is used if no time zone is specified, three 1-hour buckets are returned
 starting at midnight UTC on 1 October 2015:
 
-[source,js]
+[source,console-result]
 ---------------------------------
 {
   ...
@@ -186,9 +186,9 @@ starting at midnight UTC on 1 October 2015:
 If a `time_zone` of `-01:00` is specified, then midnight starts at one hour before
 midnight UTC:
 
-[source,js]
+[source,console]
 ---------------------------------
-GET my_index/_search?size=0
+GET my-index-000001/_search?size=0
 {
   "aggs": {
     "by_day": {
@@ -201,15 +201,14 @@ GET my_index/_search?size=0
   }
 }
 ---------------------------------
-// CONSOLE
 // TEST[continued]
 
 
-Now three 1-hour buckets are still returned but the first bucket starts at 
-11:00pm on 30 September 2015 since that is the local time for the bucket in 
+Now three 1-hour buckets are still returned but the first bucket starts at
+11:00pm on 30 September 2015 since that is the local time for the bucket in
 the specified time zone.
 
-[source,js]
+[source,console-result]
 ---------------------------------
 {
   ...
@@ -246,17 +245,43 @@ WARNING: When using time zones that follow DST (daylight savings time) changes,
 buckets close to the moment when those changes happen can have slightly different
 sizes than neighbouring buckets.
 For example, consider a DST start in the `CET` time zone: on 27 March 2016 at 2am,
-clocks were turned forward 1 hour to 3am local time. If the result of the aggregation 
-was daily buckets, the bucket covering that day will only hold data for 23 hours 
-instead of the usual 24 hours for other buckets. The same is true for shorter intervals 
-like e.g. 12h. Here, we will have only a 11h bucket on the morning of 27 March when the 
+clocks were turned forward 1 hour to 3am local time. If the result of the aggregation
+was daily buckets, the bucket covering that day will only hold data for 23 hours
+instead of the usual 24 hours for other buckets. The same is true for shorter intervals
+like e.g. 12h. Here, we will have only a 11h bucket on the morning of 27 March when the
 DST shift happens.
 
-==== Scripts
+==== Minimum Interval parameter
 
-Like with the normal <<search-aggregations-bucket-datehistogram-aggregation, `date_histogram`>>, both document level 
-scripts and value level scripts are supported. This aggregation does not however, support the `min_doc_count`, 
-`extended_bounds` and `order` parameters.  
+The `minimum_interval` allows the caller to specify the minimum rounding interval that should be used.
+This can make the collection process more efficient, as the aggregation will not attempt to round at
+any interval lower than `minimum_interval`.
+
+The accepted units for `minimum_interval` are:
+
+* year
+* month
+* day
+* hour
+* minute
+* second
+
+[source,console,id=autodatehistogram-aggregation-minimum-interval-example]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+  "aggs": {
+    "sale_date": {
+      "auto_date_histogram": {
+        "field": "date",
+        "buckets": 10,
+        "minimum_interval": "minute"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:sales]
 
 ==== Missing value
 
@@ -264,22 +289,21 @@ The `missing` parameter defines how documents that are missing a value should be
 By default they will be ignored but it is also possible to treat them as if they
 had a value.
 
-[source,js]
+[source,console,id=autodatehistogram-aggregation-missing-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sale_date" : {
-             "auto_date_histogram" : {
-                 "field" : "date",
-                 "buckets": 10,
-                 "missing": "2000/01/01" <1>
-             }
-         }
+  "aggs": {
+    "sale_date": {
+      "auto_date_histogram": {
+        "field": "date",
+        "buckets": 10,
+        "missing": "2000/01/01" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> Documents without a value in the `publish_date` field will fall into the same bucket as documents that have the value `2000-01-01`.

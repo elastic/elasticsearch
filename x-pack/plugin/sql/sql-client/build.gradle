@@ -1,4 +1,3 @@
-
 /*
  * The minimal dependencies REST-based SQL client that is used by CLI and JDBC
  */
@@ -8,45 +7,26 @@ apply plugin: 'elasticsearch.build'
 description = 'Code shared between jdbc and cli'
 
 dependencies {
-    compile xpackProject('plugin:sql:sql-proto')
-    compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-    testCompile "org.elasticsearch.test:framework:${version}"
+  api xpackProject('plugin:sql:sql-proto')
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testImplementation project(":test:framework")
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-dependencyLicenses {
-    mapping from: /jackson-.*/, to: 'jackson'
-    mapping from: /sql-proto.*/, to: 'elasticsearch'
-    mapping from: /elasticsearch-cli.*/, to: 'elasticsearch'
-    mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
-    mapping from: /lucene-.*/, to: 'lucene'
-    ignoreSha 'sql-action'
-    ignoreSha 'elasticsearch'
-    ignoreSha 'elasticsearch-core'
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
 }
 
-forbiddenApisMain {
-    // does not depend on core, so only jdk and http signatures should be checked
-    replaceSignatureFiles 'jdk-signatures'
+tasks.named('forbiddenApisMain').configure {
+  // does not depend on core, so only jdk and http signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
 }
 
-forbiddenApisTest {
-    bundledSignatures -= 'jdk-non-portable'
-    bundledSignatures += 'jdk-internal'
+tasks.named('forbiddenApisTest').configure {
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
 }
 
-forbiddenPatterns {
-    exclude '**/*.keystore'
-}
-
-// Allow for com.sun.net.httpserver.* usage for testing
-eclipse {
-    classpath.file {
-        whenMerged { cp ->
-        def con = entries.find { e ->
-            e.kind == "con" && e.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER")
-        }
-        con.accessRules.add(new org.gradle.plugins.ide.eclipse.model.AccessRule(
-            "accessible", "com/sun/net/httpserver/*"))
-        }
-    }
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.keystore'
 }

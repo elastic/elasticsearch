@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
@@ -91,23 +92,24 @@ public class BytesReferenceMonitoringDocTests extends BaseMonitoringDocTestCase<
                 node, KIBANA, "_type", "_id", xContentType, BytesReference.bytes(builder));
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        assertEquals("{"
-                     + "\"cluster_uuid\":\"_cluster\","
-                     + "\"timestamp\":\"2017-08-09T08:18:59.402Z\","
-                     + "\"interval_ms\":1506593717631,"
-                     + "\"type\":\"_type\","
-                     + "\"source_node\":{"
-                       + "\"uuid\":\"_uuid\","
-                       + "\"host\":\"_host\","
-                       + "\"transport_address\":\"_addr\","
-                       + "\"ip\":\"_ip\","
-                       + "\"name\":\"_name\","
-                       + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
-                     + "},"
-                     + "\"_type\":{"
-                        + "\"field\":\"value\""
-                     + "}"
-                    + "}", xContent.utf8ToString());
+        final String expected = "{"
+            + "  \"cluster_uuid\": \"_cluster\","
+            + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","
+            + "  \"interval_ms\": 1506593717631,"
+            + "  \"type\": \"_type\","
+            + "  \"source_node\": {"
+            + "    \"uuid\": \"_uuid\","
+            + "    \"host\": \"_host\","
+            + "    \"transport_address\": \"_addr\","
+            + "    \"ip\": \"_ip\","
+            + "    \"name\": \"_name\","
+            + "    \"timestamp\": \"2017-08-31T08:46:30.855Z\""
+            + "  },"
+            + "  \"_type\": {"
+            + "    \"field\": \"value\""
+            + "  }"
+            + "}";
+        assertEquals(XContentHelper.stripWhitespace(expected), xContent.utf8ToString());
     }
 
     public void testEqualsAndHashcode() {

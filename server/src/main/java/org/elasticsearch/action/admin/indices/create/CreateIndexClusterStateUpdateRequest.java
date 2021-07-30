@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -24,14 +13,12 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -39,19 +26,19 @@ import java.util.Set;
  */
 public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequest<CreateIndexClusterStateUpdateRequest> {
 
-    private final TransportMessage originalMessage;
     private final String cause;
     private final String index;
+    private String dataStreamName;
     private final String providedName;
+    private long nameResolvedAt;
     private Index recoverFrom;
     private ResizeType resizeType;
     private boolean copySettings;
-
-    private IndexMetaData.State state = IndexMetaData.State.OPEN;
+    private SystemDataStreamDescriptor systemDataStreamDescriptor;
 
     private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
-    private final Map<String, String> mappings = new HashMap<>();
+    private String mappings = "{}";
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -59,8 +46,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
-    public CreateIndexClusterStateUpdateRequest(TransportMessage originalMessage, String cause, String index, String providedName) {
-        this.originalMessage = originalMessage;
+    public CreateIndexClusterStateUpdateRequest(String cause, String index, String providedName) {
         this.cause = cause;
         this.index = index;
         this.providedName = providedName;
@@ -71,23 +57,13 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
-    public CreateIndexClusterStateUpdateRequest mappings(Map<String, String> mappings) {
-        this.mappings.putAll(mappings);
+    public CreateIndexClusterStateUpdateRequest mappings(String mappings) {
+        this.mappings = mappings;
         return this;
     }
 
     public CreateIndexClusterStateUpdateRequest aliases(Set<Alias> aliases) {
         this.aliases.addAll(aliases);
-        return this;
-    }
-
-    public CreateIndexClusterStateUpdateRequest blocks(Set<ClusterBlock> blocks) {
-        this.blocks.addAll(blocks);
-        return this;
-    }
-
-    public CreateIndexClusterStateUpdateRequest state(IndexMetaData.State state) {
-        this.state = state;
         return this;
     }
 
@@ -111,8 +87,17 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
-    public TransportMessage originalMessage() {
-        return originalMessage;
+    /**
+     * At what point in time the provided name was resolved into the index name
+     */
+    public CreateIndexClusterStateUpdateRequest nameResolvedInstant(long nameResolvedAt) {
+        this.nameResolvedAt = nameResolvedAt;
+        return this;
+    }
+
+    public CreateIndexClusterStateUpdateRequest systemDataStreamDescriptor(SystemDataStreamDescriptor systemDataStreamDescriptor) {
+        this.systemDataStreamDescriptor = systemDataStreamDescriptor;
+        return this;
     }
 
     public String cause() {
@@ -123,15 +108,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return index;
     }
 
-    public IndexMetaData.State state() {
-        return state;
-    }
-
     public Settings settings() {
         return settings;
     }
 
-    public Map<String, String> mappings() {
+    public String mappings() {
         return mappings;
     }
 
@@ -147,13 +128,22 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return recoverFrom;
     }
 
+    public SystemDataStreamDescriptor systemDataStreamDescriptor() {
+        return systemDataStreamDescriptor;
+    }
+
     /**
      * The name that was provided by the user. This might contain a date math expression.
-     * @see IndexMetaData#SETTING_INDEX_PROVIDED_NAME
+     * @see IndexMetadata#SETTING_INDEX_PROVIDED_NAME
      */
     public String getProvidedName() {
         return providedName;
     }
+
+    /**
+     * The instant at which the name provided by the user was resolved
+     */
+    public long getNameResolvedAt() { return nameResolvedAt;}
 
     public ActiveShardCount waitForActiveShards() {
         return waitForActiveShards;
@@ -170,4 +160,34 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return copySettings;
     }
 
+    /**
+     * Returns the name of the data stream this new index will be part of.
+     * If this new index will not be part of a data stream then this returns <code>null</code>.
+     */
+    public String dataStreamName() {
+        return dataStreamName;
+    }
+
+    public CreateIndexClusterStateUpdateRequest dataStreamName(String dataStreamName) {
+        this.dataStreamName = dataStreamName;
+        return this;
+    }
+
+    @Override
+    public String toString() {
+        return "CreateIndexClusterStateUpdateRequest{" +
+            "cause='" + cause + '\'' +
+            ", index='" + index + '\'' +
+            ", dataStreamName='" + dataStreamName + '\'' +
+            ", providedName='" + providedName + '\'' +
+            ", recoverFrom=" + recoverFrom +
+            ", resizeType=" + resizeType +
+            ", copySettings=" + copySettings +
+            ", settings=" + settings +
+            ", aliases=" + aliases +
+            ", blocks=" + blocks +
+            ", waitForActiveShards=" + waitForActiveShards +
+            ", systemDataStreamDescriptor=" + systemDataStreamDescriptor +
+            '}';
+    }
 }

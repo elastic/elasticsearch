@@ -1,0 +1,41 @@
+[discrete]
+[[breaking_80_aggregations_changes]]
+==== Aggregations changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+[[percentile-duplication]]
+.The `percentiles` aggregation's `percents` parameter no longer supports duplicate values.
+[%collapsible]
+====
+*Details* +
+If you specify the `percents` parameter with the
+{ref}/search-aggregations-metrics-percentile-aggregation.html[`percentiles` aggregation],
+its values must be unique. Otherwise, an exception occurs.
+
+*Impact* +
+Use unique values in the `percents` parameter of the `percentiles` aggregation.
+Requests containing duplicate values in the `percents` parameter will return
+an error.
+====
+[[date-histogram-interval]]
+.The `date_histogram` aggregation's `interval` parameter is no longer valid.
+[%collapsible]
+====
+*Details* +
+It is now an error to specify the `interval` parameter to the
+{ref}/search-aggregations-bucket-datehistogram-aggregation.html[`date_histogram`
+aggregation] or the
+{ref}/search-aggregations-bucket-composite-aggregation.html#_date_histogram[`composite
+date_histogram` source.  Instead, please use either `calendar_interval` or
+`fixed_interval` as appropriate.
+
+*Impact* +
+Uses of the `interval` parameter in either the `date_histogram` aggregation or
+the `date_histogram` composite source will now generate an error.  Instead
+please use the more specific `fixed_interval` or `calendar_interval`
+parameters.
+====
+// end::notable-breaking-changes[]

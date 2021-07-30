@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -22,23 +11,19 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
@@ -47,27 +32,64 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 
+
 public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
+    private static final String FROM_DATE = "2016-10-31";
+    private static final String TO_DATE = "2016-11-01 20:00:00";
+    private static final String FROM_IP = "::ffff:c0a8:107";
+    private static final String TO_IP = "2001:db8::";
+    private static final int FROM = 5;
+    private static final String FROM_STR = FROM + "";
+    private static final int TO = 10;
+    private static final String TO_STR = TO + "";
+    private static final String DATE_FORMAT = "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis";
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+    protected Set<String> types() {
+        return Set.of("date_range", "ip_range", "float_range", "double_range", "integer_range", "long_range");
     }
 
-    private static String FROM_DATE = "2016-10-31";
-    private static String TO_DATE = "2016-11-01 20:00:00";
-    private static String FROM_IP = "::ffff:c0a8:107";
-    private static String TO_IP = "2001:db8::";
-    private static int FROM = 5;
-    private static String FROM_STR = FROM + "";
-    private static int TO = 10;
-    private static String TO_STR = TO + "";
-    private static String DATE_FORMAT = "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis";
+    @Override
+    protected Set<String> wholeTypes() {
+        return Set.of("integer_range", "long_range");
+    }
 
     @Override
-    protected void setTypeList() {
-        TYPES = new HashSet<>(Arrays.asList("date_range", "ip_range", "float_range", "double_range", "integer_range", "long_range"));
-        WHOLE_TYPES = new HashSet<>(Arrays.asList("integer_range", "long_range"));
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "long_range");
+    }
+
+    @Override
+    protected Object getSampleValueForDocument() {
+        return Map.of(getFromField(), getFrom("long_range"), getToField(), getTo("long_range"));
+    }
+
+    @Override
+    protected Object getSampleValueForQuery() {
+        return 6;
+    }
+
+    @Override
+    protected boolean supportsSearchLookup() {
+        return false;
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerUpdateCheck(b -> b.field("coerce", false),
+            m -> assertFalse(((RangeFieldMapper)m).coerce()));
     }
 
     private Object getFrom(String type) {
@@ -109,27 +131,25 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         return Double.POSITIVE_INFINITY;
     }
 
+    private XContentBuilder rangeFieldMapping(String type, CheckedConsumer<XContentBuilder, IOException> extra) throws IOException {
+        return fieldMapping(b -> {
+            b.field("type", type);
+            if (type.contentEquals("date_range")) {
+                b.field("format", DATE_FORMAT);
+            }
+            extra.accept(b);
+        });
+    }
+
     @Override
     public void doTestDefaults(String type) throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", type);
-        if (type.equals("date_range")) {
-            mapping = mapping.field("format", DATE_FORMAT);
-        }
-        mapping = mapping.endObject().endObject().endObject().endObject();
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
+        XContentBuilder mapping = rangeFieldMapping(type, b -> {});
+        DocumentMapper mapper = createDocumentMapper(mapping);
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .field(getFromField(), getFrom(type))
-            .field(getToField(), getTo(type))
-            .endObject()
-            .endObject()),
-            XContentType.JSON));
-
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field").field(getFromField(), getFrom(type)).field(getToField(), getTo(type)).endObject())
+        );
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField dvField = fields[0];
@@ -142,49 +162,20 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected void doTestNotIndexed(String type) throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", type).field("index", false);
-        if (type.equals("date_range")) {
-            mapping = mapping.field("format", DATE_FORMAT);
-        }
-        mapping = mapping.endObject().endObject().endObject().endObject();
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
-        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .field(getFromField(), getFrom(type))
-            .field(getToField(), getTo(type))
-            .endObject()
-            .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(rangeFieldMapping(type, b -> b.field("index", false)));
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field").field(getFromField(), getFrom(type)).field(getToField(), getTo(type)).endObject())
+        );
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
     }
 
     @Override
     protected void doTestNoDocValues(String type) throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", type).field("doc_values", false);
-        if (type.equals("date_range")) {
-            mapping = mapping.field("format", DATE_FORMAT);
-        }
-        mapping = mapping.endObject().endObject().endObject().endObject();
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
-        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .field(getFromField(), getFrom(type))
-            .field(getToField(), getTo(type))
-            .endObject()
-            .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(rangeFieldMapping(type, b -> b.field("doc_values", false)));
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field").field(getFromField(), getFrom(type)).field(getToField(), getTo(type)).endObject())
+        );
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         IndexableField pointField = fields[0];
@@ -193,24 +184,10 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected void doTestStore(String type) throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", type).field("store", true);
-        if (type.equals("date_range")) {
-            mapping = mapping.field("format", DATE_FORMAT);
-        }
-        mapping = mapping.endObject().endObject().endObject().endObject();
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
-        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .field(getFromField(), getFrom(type))
-            .field(getToField(), getTo(type))
-            .endObject()
-            .endObject()),
-            XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(rangeFieldMapping(type, b -> b.field("store", true)));
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field").field(getFromField(), getFrom(type)).field(getToField(), getTo(type)).endObject())
+        );
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(3, fields.length);
         IndexableField dvField = fields[0];
@@ -231,24 +208,10 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     public void doTestCoerce(String type) throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", type);
-        if (type.equals("date_range")) {
-            mapping = mapping.field("format", DATE_FORMAT);
-        }
-        mapping = mapping.endObject().endObject().endObject().endObject();
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
-
-        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .field(getFromField(), getFrom(type))
-            .field(getToField(), getTo(type))
-            .endObject()
-            .endObject()),
-            XContentType.JSON));
+        DocumentMapper mapper = createDocumentMapper(rangeFieldMapping(type, b -> {}));
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field").field(getFromField(), getFrom(type)).field(getToField(), getTo(type)).endObject())
+        );
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -259,19 +222,12 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         // date_range ignores the coerce parameter and epoch_millis date format truncates floats (see issue: #14641)
         if (type.equals("date_range") == false) {
+            DocumentMapper mapper2 = createDocumentMapper(rangeFieldMapping(type, b -> b.field("coerce", false)));
 
-            mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties").startObject("field")
-                    .field("type", type).field("coerce", false).endObject().endObject().endObject().endObject();
-            DocumentMapper mapper2 = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
-
-            assertEquals(Strings.toString(mapping), mapper2.mappingSource().toString());
-
-            ThrowingRunnable runnable = () -> mapper2
-                    .parse(SourceToParse.source(
-                            "test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder().startObject().startObject("field")
-                                    .field(getFromField(), "5.2").field(getToField(), "10").endObject().endObject()),
-                            XContentType.JSON));
-            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> mapper2.parse(source(b -> b.startObject("field").field(getFromField(), "5.2").field(getToField(), "10").endObject()))
+            );
             assertThat(e.getCause().getMessage(), anyOf(containsString("passed as String"), containsString("failed to parse date"),
                     containsString("is not an IP string literal")));
         }
@@ -279,31 +235,20 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected void doTestDecimalCoerce(String type) throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", type);
+        DocumentMapper mapper = createDocumentMapper(rangeFieldMapping(type, b -> {}));
 
-        mapping = mapping.endObject().endObject().endObject().endObject();
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
+        ParsedDocument doc1 = mapper.parse(
+            source(
+                b -> b.startObject("field")
+                    .field(GT_FIELD.getPreferredName(), "2.34")
+                    .field(LT_FIELD.getPreferredName(), "5.67")
+                    .endObject()
+            )
+        );
 
-        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
-
-        ParsedDocument doc1 = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .field(GT_FIELD.getPreferredName(), "2.34")
-            .field(LT_FIELD.getPreferredName(), "5.67")
-            .endObject()
-            .endObject()),
-            XContentType.JSON));
-
-        ParsedDocument doc2 = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .field(GT_FIELD.getPreferredName(), "2")
-            .field(LT_FIELD.getPreferredName(), "5")
-            .endObject()
-            .endObject()),
-            XContentType.JSON));
+        ParsedDocument doc2 = mapper.parse(
+            source(b -> b.startObject("field").field(GT_FIELD.getPreferredName(), "2").field(LT_FIELD.getPreferredName(), "5").endObject())
+        );
 
         IndexableField[] fields1 = doc1.rootDoc().getFields("field");
         IndexableField[] fields2 = doc2.rootDoc().getFields("field");
@@ -313,25 +258,12 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected void doTestNullValue(String type) throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", type).field("store", true);
-        if (type.equals("date_range")) {
-            mapping = mapping.field("format", DATE_FORMAT);
-        }
-        mapping = mapping.endObject().endObject().endObject().endObject();
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
-        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
+        DocumentMapper mapper = createDocumentMapper(rangeFieldMapping(type, b -> b.field("store", true)));
 
         // test null value for min and max
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .nullField(getFromField())
-            .nullField(getToField())
-            .endObject()
-            .endObject()),
-            XContentType.JSON));
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field").nullField(getFromField()).nullField(getToField()).endObject())
+        );
         assertEquals(3, doc.rootDoc().getFields("field").length);
         IndexableField[] fields = doc.rootDoc().getFields("field");
         IndexableField storedField = fields[2];
@@ -339,15 +271,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertThat(storedField.stringValue(), containsString(expected));
 
         // test null max value
-        doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .field(getFromField(), getFrom(type))
-            .nullField(getToField())
-            .endObject()
-            .endObject()),
-            XContentType.JSON));
-
+        doc = mapper.parse(source(b -> b.startObject("field").field(getFromField(), getFrom(type)).nullField(getToField()).endObject()));
         fields = doc.rootDoc().getFields("field");
         assertEquals(3, fields.length);
         IndexableField dvField = fields[0];
@@ -367,39 +291,21 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertThat(storedField.stringValue(), containsString(strVal));
 
         // test null range
-        doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .nullField("field")
-                        .endObject()),
-            XContentType.JSON));
+        doc = mapper.parse(source(b -> b.nullField("field")));
         assertNull(doc.rootDoc().get("field"));
     }
 
     public void testNoBounds() throws Exception {
-        for (String type : TYPES) {
+        for (String type : types()) {
             doTestNoBounds(type);
         }
     }
 
     public void doTestNoBounds(String type) throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", type).field("store", true);
-        if (type.equals("date_range")) {
-            mapping = mapping.field("format", DATE_FORMAT);
-        }
-        mapping = mapping.endObject().endObject().endObject().endObject();
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
-        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
+        DocumentMapper mapper = createDocumentMapper(rangeFieldMapping(type, b -> b.field("store", true)));
 
         // test no bounds specified
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .endObject()
-            .endObject()),
-            XContentType.JSON));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").endObject()));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(3, fields.length);
@@ -415,25 +321,20 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     public void testIllegalArguments() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", RangeFieldMapper.RangeType.INTEGER.name)
-            .field("format", DATE_FORMAT).endObject().endObject().endObject().endObject();
-
-        ThrowingRunnable runnable = () -> parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, runnable);
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", RangeType.INTEGER.name).field("format", DATE_FORMAT)))
+        );
         assertThat(e.getMessage(), containsString("should not define a dateTimeFormatter"));
     }
 
     public void testSerializeDefaults() throws Exception {
-        for (String type : TYPES) {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", type).endObject().endObject()
-                .endObject().endObject());
-
-            DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping));
-            RangeFieldMapper mapper = (RangeFieldMapper) docMapper.root().getMapper("field");
+        for (String type : types()) {
+            DocumentMapper docMapper = createDocumentMapper(fieldMapping(b -> b.field("type", type)));
+            RangeFieldMapper mapper = (RangeFieldMapper) docMapper.mapping().getRoot().getMapper("field");
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            mapper.doXContentBody(builder, true, ToXContent.EMPTY_PARAMS);
+            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
+            mapper.doXContentBody(builder, params);
             String got = Strings.toString(builder.endObject());
 
             // if type is date_range we check that the mapper contains the default format and locale
@@ -444,21 +345,19 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     public void testIllegalFormatField() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("field")
-                            .field("type", "date_range")
-                            .array("format", "test_format")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject());
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> parser.parse("type", new CompressedXContent(mapping)));
-        assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(fieldMapping(b -> b.field("type", "date_range").array("format", "test_format")))
+        );
+        assertThat(e.getMessage(), containsString("Invalid format: [[test_format]]: Unknown pattern letter: t"));
     }
 
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        // Doc value fetching crashes.
+        // https://github.com/elastic/elasticsearch/issues/70269
+        // TODO when we fix doc values fetcher we should add tests for date and ip ranges.
+        assumeFalse("DocValuesFetcher doesn't work", true);
+        return null;
+    }
 }

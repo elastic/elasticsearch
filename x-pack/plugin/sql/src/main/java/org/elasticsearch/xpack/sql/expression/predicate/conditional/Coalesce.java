@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 
@@ -16,8 +17,8 @@ import static org.elasticsearch.xpack.sql.expression.predicate.conditional.Condi
 
 public class Coalesce extends ArbitraryConditionalFunction {
 
-    public Coalesce(Location location, List<Expression> fields) {
-        super(location, fields, COALESCE);
+    public Coalesce(Source source, List<Expression> fields) {
+        super(source, fields, COALESCE);
     }
 
     @Override
@@ -27,7 +28,7 @@ public class Coalesce extends ArbitraryConditionalFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Coalesce(location(), newChildren);
+        return new Coalesce(source(), newChildren);
     }
 
     @Override

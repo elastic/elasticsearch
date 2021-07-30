@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.bytes;
@@ -34,7 +23,14 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.IntBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
@@ -528,7 +524,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     public void testSliceEquals() {
         int length = randomIntBetween(100, PAGE_SIZE * randomIntBetween(2, 5));
         ByteArray ba1 = bigarrays.newByteArray(length, false);
-        BytesReference pbr = new PagedBytesReference(bigarrays, ba1, length);
+        BytesReference pbr = BytesReference.fromByteArray(ba1, length);
 
         // test equality of slices
         int sliceFrom = randomIntBetween(0, pbr.length());
@@ -584,7 +580,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             for (int j = crazyStream.size(); j < crazyLength; j++) {
                 crazyStream.writeByte((byte) random().nextInt(1 << 8));
             }
-            PagedBytesReference crazyReference = crazyStream.bytes();
+            BytesReference crazyReference = crazyStream.bytes();
 
             assertFalse(crazyReference.compareTo(bytesReference) == 0);
             assertEquals(0, crazyReference.slice(offset, length).compareTo(
@@ -647,5 +643,35 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             array1[offset1 + randomInt(len - 1)] += 13;
             assertNotEquals(b1, b2);
         }
+    }
+
+    public void testGetInt() throws IOException {
+        final int count = randomIntBetween(1, 10);
+        final BytesReference bytesReference = newBytesReference(count * Integer.BYTES);
+        final BytesRef bytesRef = bytesReference.toBytesRef();
+        final IntBuffer intBuffer =
+            ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length).order(ByteOrder.BIG_ENDIAN).asIntBuffer();
+        for (int i = 0; i < count; ++i) {
+            assertEquals(intBuffer.get(i), bytesReference.getInt(i * Integer.BYTES));
+        }
+    }
+
+    public void testIndexOf() throws IOException {
+        final int size = randomIntBetween(0, 100);
+        final BytesReference bytesReference = newBytesReference(size);
+        final Map<Byte, List<Integer>> map = new HashMap<>();
+        for (int i = 0; i < size; ++i) {
+            final byte value = bytesReference.get(i);
+            map.computeIfAbsent(value, v -> new ArrayList<>()).add(i);
+        }
+        map.forEach((value, positions) -> {
+            for (int i = 0; i < positions.size(); i++) {
+                final int pos = positions.get(i);
+                final int from = i == 0 ? randomIntBetween(0, pos) : positions.get(i - 1) + 1;
+                assertEquals(bytesReference.indexOf(value, from), pos);
+            }
+        });
+        final byte missing = randomValueOtherThanMany(map::containsKey, ESTestCase::randomByte);
+        assertEquals(-1, bytesReference.indexOf(missing, randomIntBetween(0, Math.max(0, size - 1))));
     }
 }

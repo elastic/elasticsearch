@@ -1,41 +1,38 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories;
 
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -46,9 +43,7 @@ import java.util.function.Function;
  * <p>
  * To perform a snapshot:
  * <ul>
- * <li>Master calls {@link #initializeSnapshot(SnapshotId, List, org.elasticsearch.cluster.metadata.MetaData)}
- * with list of indices that will be included into the snapshot</li>
- * <li>Data nodes call {@link Repository#snapshotShard(IndexShard, Store, SnapshotId, IndexId, IndexCommit, IndexShardSnapshotStatus)}
+ * <li>Data nodes call {@link Repository#snapshotShard}
  * for each shard</li>
  * <li>When all shard calls return master calls {@link #finalizeSnapshot} with possible list of failures</li>
  * </ul>
@@ -64,25 +59,47 @@ public interface Repository extends LifecycleComponent {
          * Constructs a repository.
          * @param metadata    metadata for the repository including name and settings
          */
-        Repository create(RepositoryMetaData metadata) throws Exception;
+        Repository create(RepositoryMetadata metadata) throws Exception;
 
-        default Repository create(RepositoryMetaData metaData, Function<String, Repository.Factory> typeLookup) throws Exception {
-            return create(metaData);
+        default Repository create(RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup) throws Exception {
+            return create(metadata);
         }
     }
 
     /**
      * Returns metadata about this repository.
      */
-    RepositoryMetaData getMetadata();
+    RepositoryMetadata getMetadata();
 
     /**
-     * Reads snapshot description from repository.
+     * Reads snapshot descriptions from the repository.
      *
-     * @param snapshotId  snapshot id
-     * @return information about snapshot
+     * @param context get-snapshot-info-context
      */
-    SnapshotInfo getSnapshotInfo(SnapshotId snapshotId);
+    void getSnapshotInfo(GetSnapshotInfoContext context);
+
+    /**
+     * Reads a single snapshot description from the repository
+     *
+     * @param snapshotId snapshot id to read description for
+     * @param listener   listener to resolve with snapshot description (is resolved on the {@link ThreadPool.Names#SNAPSHOT_META} pool)
+     */
+    default void getSnapshotInfo(SnapshotId snapshotId, ActionListener<SnapshotInfo> listener) {
+        getSnapshotInfo(new GetSnapshotInfoContext(List.of(snapshotId), true, () -> false, (context, snapshotInfo) -> {
+            assert Repository.assertSnapshotMetaThread();
+            listener.onResponse(snapshotInfo);
+        }, new ActionListener<>() {
+            @Override
+            public void onResponse(Void o) {
+                // ignored
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        }));
+    }
 
     /**
      * Returns global metadata associated with the snapshot.
@@ -90,58 +107,65 @@ public interface Repository extends LifecycleComponent {
      * @param snapshotId the snapshot id to load the global metadata from
      * @return the global metadata about the snapshot
      */
-    MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId);
+    Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId);
 
     /**
      * Returns the index metadata associated with the snapshot.
      *
+     * @param repositoryData current {@link RepositoryData}
      * @param snapshotId the snapshot id to load the index metadata from
      * @param index      the {@link IndexId} to load the metadata from
      * @return the index metadata about the given index for the given snapshot
      */
-    IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException;
+    IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException;
 
     /**
      * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots
      * and the indices across all snapshots found in the repository.  Throws a {@link RepositoryException}
      * if there was an error in reading the data.
+     * @param listener listener that may be resolved on different kinds of threads including transport and cluster state applier threads
+     *                 and therefore must fork to a new thread for executing any long running actions
      */
-    RepositoryData getRepositoryData();
-
-    /**
-     * Starts snapshotting process
-     *
-     * @param snapshotId snapshot id
-     * @param indices    list of indices to be snapshotted
-     * @param metaData   cluster metadata
-     */
-    void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData);
+    void getRepositoryData(ActionListener<RepositoryData> listener);
 
     /**
      * Finalizes snapshotting process
      * <p>
      * This method is called on master after all shards are snapshotted.
      *
-     * @param snapshotId    snapshot id
-     * @param indices       list of indices in the snapshot
-     * @param startTime     start time of the snapshot
-     * @param failure       global failure reason or null
-     * @param totalShards   total number of shards
-     * @param shardFailures list of shard failures
-     * @param repositoryStateId the unique id identifying the state of the repository when the snapshot began
-     * @param includeGlobalState include cluster global state
-     * @return snapshot description
+     * @param shardGenerations      updated shard generations
+     * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot began
+     * @param clusterMetadata       cluster metadata
+     * @param snapshotInfo     SnapshotInfo instance to write for this snapshot
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param stateTransformer      a function that filters the last cluster state update that the snapshot finalization will execute and
+     *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
+     * @param listener              listener to be invoked with the new {@link RepositoryData} after completing the snapshot
      */
-    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
-                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState);
+    void finalizeSnapshot(
+        ShardGenerations shardGenerations,
+        long repositoryStateId,
+        Metadata clusterMetadata,
+        SnapshotInfo snapshotInfo,
+        Version repositoryMetaVersion,
+        Function<ClusterState, ClusterState> stateTransformer,
+        ActionListener<RepositoryData> listener
+    );
 
     /**
-     * Deletes snapshot
+     * Deletes snapshots
      *
-     * @param snapshotId snapshot id
-     * @param repositoryStateId the unique id identifying the state of the repository when the snapshot deletion began
+     * @param snapshotIds           snapshot ids
+     * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot deletion began
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param listener              completion listener
      */
-    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId);
+    void deleteSnapshots(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        ActionListener<RepositoryData> listener
+    );
 
     /**
      * Returns snapshot throttle time in nanoseconds
@@ -153,6 +177,12 @@ public interface Repository extends LifecycleComponent {
      */
     long getRestoreThrottleTimeInNanos();
 
+    /**
+     * Returns stats on the repository usage
+     */
+    default RepositoryStats stats() {
+        return RepositoryStats.EMPTY_STATS;
+    }
 
     /**
      * Verifies repository on the master node and returns the verification token.
@@ -187,47 +217,114 @@ public interface Repository extends LifecycleComponent {
     boolean isReadOnly();
 
     /**
-     * Creates a snapshot of the shard based on the index commit point.
+     * Creates a snapshot of the shard referenced by the given {@link SnapshotShardContext}.
      * <p>
-     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#acquireLastIndexCommit} method.
-     * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
-     * <p>
-     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
-     * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
-     * @param shard               shard to be snapshotted
-     * @param store               store to be snapshotted
-     * @param snapshotId          snapshot id
-     * @param indexId             id for the index being snapshotted
-     * @param snapshotIndexCommit commit point
-     * @param snapshotStatus      snapshot status
+     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object returned by
+     * {@link SnapshotShardContext#status()} and check its {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process
+     * should be aborted.
+     *
+     * @param snapshotShardContext snapshot shard context that must be completed via {@link SnapshotShardContext#onResponse} or
+     *                             {@link SnapshotShardContext#onFailure}
      */
-    void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       IndexShardSnapshotStatus snapshotStatus);
+    void snapshotShard(SnapshotShardContext snapshotShardContext);
 
     /**
      * Restores snapshot of the shard.
      * <p>
      * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
-     *
-     * @param shard           the shard to restore the index into
+     * @param store           the store to restore the index into
      * @param snapshotId      snapshot id
-     * @param version         version of elasticsearch that created this snapshot
      * @param indexId         id of the index in the repository from which the restore is occurring
      * @param snapshotShardId shard id (in the snapshot)
      * @param recoveryState   recovery state
+     * @param listener        listener to invoke once done
      */
-    void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState);
+    void restoreShard(
+        Store store,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId snapshotShardId,
+        RecoveryState recoveryState,
+        ActionListener<Void> listener
+    );
 
     /**
      * Retrieve shard snapshot status for the stored snapshot
      *
      * @param snapshotId snapshot id
-     * @param version    version of elasticsearch that created this snapshot
      * @param indexId    the snapshotted index id for the shard to get status for
      * @param shardId    shard id
      * @return snapshot status
      */
-    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId);
+    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
 
+    /**
+     * Check if this instances {@link Settings} can be changed to the provided updated settings without recreating the repository.
+     *
+     * @param updatedSettings new repository settings
+     * @param ignoredSettings setting names to ignore even if changed
+     * @return true if the repository can be updated in place
+     */
+    default boolean canUpdateInPlace(Settings updatedSettings, Set<String> ignoredSettings) {
+        return getMetadata().settings().equals(updatedSettings);
+    }
 
+    /**
+     * Update the repository with the incoming cluster state. This method is invoked from {@link RepositoriesService#applyClusterState} and
+     * thus the same semantics as with {@link org.elasticsearch.cluster.ClusterStateApplier#applyClusterState} apply for the
+     * {@link ClusterState} that is passed here.
+     *
+     * @param state new cluster state
+     */
+    void updateState(ClusterState state);
+
+    /**
+     * Execute a cluster state update with a consistent view of the current {@link RepositoryData}. The {@link ClusterState} passed to the
+     * task generated through {@code createUpdateTask} is guaranteed to point at the same state for this repository as the did the state
+     * at the time the {@code RepositoryData} was loaded.
+     * This allows for operations on the repository that need a consistent view of both the cluster state and the repository contents at
+     * one point in time like for example, checking if a snapshot is in the repository before adding the delete operation for it to the
+     * cluster state.
+     *
+     * @param createUpdateTask function to supply cluster state update task
+     * @param source           the source of the cluster state update task
+     * @param onFailure        error handler invoked on failure to get a consistent view of the current {@link RepositoryData}
+     */
+    void executeConsistentStateUpdate(
+        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
+        String source,
+        Consumer<Exception> onFailure
+    );
+
+    /**
+     * Clones a shard snapshot.
+     *
+     * @param source          source snapshot
+     * @param target          target snapshot
+     * @param shardId         shard id
+     * @param shardGeneration shard generation in repo
+     * @param listener        listener to complete with new shard generation once clone has completed
+     */
+    void cloneShardSnapshot(
+        SnapshotId source,
+        SnapshotId target,
+        RepositoryShardId shardId,
+        @Nullable String shardGeneration,
+        ActionListener<ShardSnapshotResult> listener
+    );
+
+    /**
+     * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * during snapshot initialization.
+     */
+    default Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
+        return userMetadata;
+    }
+
+    static boolean assertSnapshotMetaThread() {
+        final String threadName = Thread.currentThread().getName();
+        assert threadName.contains('[' + ThreadPool.Names.SNAPSHOT_META + ']') || threadName.startsWith("TEST-")
+            : "Expected current thread [" + Thread.currentThread() + "] to be a snapshot meta thread.";
+        return true;
+    }
 }

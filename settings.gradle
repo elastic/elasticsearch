@@ -1,14 +1,19 @@
-import org.elasticsearch.gradle.Version
+plugins {
+  id "com.gradle.enterprise" version "3.6.2"
+}
 
-String dirName = rootProject.projectDir.name
-rootProject.name = dirName
+includeBuild "build-conventions"
+includeBuild "build-tools"
+includeBuild "build-tools-internal"
+
+rootProject.name = "elasticsearch"
 
 List projects = [
-  'build-tools',
   'rest-api-spec',
   'docs',
   'client:rest',
   'client:rest-high-level',
+  'client:rest-high-level:qa:ssl-enabled',
   'client:sniffer',
   'client:transport',
   'client:test',
@@ -16,15 +21,28 @@ List projects = [
   'client:benchmark',
   'benchmarks',
   'distribution:archives:integ-test-zip',
-  'distribution:archives:oss-zip',
-  'distribution:archives:zip',
-  'distribution:archives:oss-tar',
-  'distribution:archives:tar',
+  'distribution:archives:windows-zip',
+  'distribution:archives:no-jdk-windows-zip',
+  'distribution:archives:darwin-tar',
+  'distribution:archives:darwin-aarch64-tar',
+  'distribution:archives:no-jdk-darwin-tar',
+  'distribution:archives:no-jdk-darwin-aarch64-tar',
+  'distribution:archives:linux-aarch64-tar',
+  'distribution:archives:linux-tar',
+  'distribution:archives:no-jdk-linux-tar',
   'distribution:docker',
-  'distribution:packages:oss-deb',
+  'distribution:docker:docker-aarch64-export',
+  'distribution:docker:docker-export',
+  'distribution:docker:ironbank-docker-aarch64-export',
+  'distribution:docker:ironbank-docker-export',
+  'distribution:docker:ubi-docker-aarch64-export',
+  'distribution:docker:ubi-docker-export',
+  'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
-  'distribution:packages:oss-rpm',
+  'distribution:packages:no-jdk-deb',
+  'distribution:packages:aarch64-rpm',
   'distribution:packages:rpm',
+  'distribution:packages:no-jdk-rpm',
   'distribution:bwc:bugfix',
   'distribution:bwc:maintenance',
   'distribution:bwc:minor',
@@ -32,21 +50,30 @@ List projects = [
   'distribution:tools:java-version-checker',
   'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
+  'distribution:tools:keystore-cli',
+  'distribution:tools:geoip-cli',
   'server',
   'server:cli',
   'test:framework',
+  'test:fixtures:azure-fixture',
+  'test:fixtures:gcs-fixture',
   'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
+  'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
+  'test:fixtures:s3-fixture',
+  'test:fixtures:geoip-fixture',
+  'test:fixtures:url-fixture',
+  'test:fixtures:nginx-fixture',
   'test:logger-usage'
 ]
 
 /**
-  * Iterates over sub directories, looking for build.gradle, and adds a project if found
-  * for that dir with the given path prefix. Note that this requires each level
-  * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
-  * all files/directories in the source tree to find all projects.
-  */
+ * Iterates over sub directories, looking for build.gradle, and adds a project if found
+ * for that dir with the given path prefix. Note that this requires each level
+ * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
+ * all files/directories in the source tree to find all projects.
+ */
 void addSubProjects(String path, File dir) {
   if (dir.isDirectory() == false) return;
   if (dir.name == 'buildSrc') return;
@@ -56,12 +83,12 @@ void addSubProjects(String path, File dir) {
   final String projectName = "${path}:${dir.name}"
   include projectName
   if (path.isEmpty() || path.startsWith(':example-plugins')) {
-      project(projectName).projectDir = dir
-    }
-    for (File subdir : dir.listFiles()) {
-      addSubProjects(projectName, subdir)
-    }
+    project(projectName).projectDir = dir
   }
+  for (File subdir : dir.listFiles()) {
+    addSubProjects(projectName, subdir)
+  }
+}
 
 
 // include example plugins first, so adding plugin dirs below won't muck with :example-plugins
@@ -77,67 +104,23 @@ addSubProjects('', new File(rootProject.projectDir, 'libs'))
 addSubProjects('', new File(rootProject.projectDir, 'modules'))
 addSubProjects('', new File(rootProject.projectDir, 'plugins'))
 addSubProjects('', new File(rootProject.projectDir, 'qa'))
+addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
-
-List startTasks = gradle.startParameter.taskNames
-boolean isEclipse =
-    System.getProperty("eclipse.launcher") != null ||    // Detects gradle launched from the Eclipse IDE
-    System.getProperty("eclipse.application") != null || // Detects gradle launched from the Eclipse compiler server
-    startTasks.contains("eclipse") ||                    // Detects gradle launched from the command line to do Eclipse stuff
-    startTasks.contains("cleanEclipse");
-if (isEclipse) {
-  // eclipse cannot handle an intermediate dependency between main and test, so we must create separate projects
-  // for server-src and server-tests
-  projects << 'server-tests'
-  projects << 'libs:core-tests'
-  projects << 'libs:dissect-tests'
-  projects << 'libs:nio-tests'
-  projects << 'libs:x-content-tests'
-  projects << 'libs:secure-sm-tests'
-  projects << 'libs:grok-tests'
-}
 
 include projects.toArray(new String[0])
 
-project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
+project(":libs").children.each { libsProject ->
+  libsProject.name = "elasticsearch-${libsProject.name}"
+}
 
-if (isEclipse) {
-  project(":server").projectDir = new File(rootProject.projectDir, 'server/src/main')
-  project(":server").buildFileName = 'eclipse-build.gradle'
-  project(":server-tests").projectDir = new File(rootProject.projectDir, 'server/src/test')
-  project(":server-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:core").projectDir = new File(rootProject.projectDir, 'libs/core/src/main')
-  project(":libs:core").buildFileName = 'eclipse-build.gradle'
-  project(":libs:core-tests").projectDir = new File(rootProject.projectDir, 'libs/core/src/test')
-  project(":libs:core-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:dissect").projectDir = new File(rootProject.projectDir, 'libs/dissect/src/main')
-  project(":libs:dissect").buildFileName = 'eclipse-build.gradle'
-  project(":libs:dissect-tests").projectDir = new File(rootProject.projectDir, 'libs/dissect/src/test')
-  project(":libs:dissect-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:nio").projectDir = new File(rootProject.projectDir, 'libs/nio/src/main')
-  project(":libs:nio").buildFileName = 'eclipse-build.gradle'
-  project(":libs:nio-tests").projectDir = new File(rootProject.projectDir, 'libs/nio/src/test')
-  project(":libs:nio-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:x-content").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/main')
-  project(":libs:x-content").buildFileName = 'eclipse-build.gradle'
-  project(":libs:x-content-tests").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/test')
-  project(":libs:x-content-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:secure-sm").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/main')
-  project(":libs:secure-sm").buildFileName = 'eclipse-build.gradle'
-  project(":libs:secure-sm-tests").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/test')
-  project(":libs:secure-sm-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:grok").projectDir = new File(rootProject.projectDir, 'libs/grok/src/main')
-  project(":libs:grok").buildFileName = 'eclipse-build.gradle'
-  project(":libs:grok-tests").projectDir = new File(rootProject.projectDir, 'libs/grok/src/test')
-  project(":libs:grok-tests").buildFileName = 'eclipse-build.gradle'
+project(":test:external-modules").children.each { testProject ->
+  testProject.name = "test-${testProject.name}"
 }
 
 // look for extra plugins for elasticsearch
-File extraProjects = new File(rootProject.projectDir.parentFile, "${dirName}-extra")
+File extraProjects = new File(rootProject.projectDir.parentFile, "${rootProject.projectDir.name}-extra")
 if (extraProjects.exists()) {
   for (File extraProjectDir : extraProjects.listFiles()) {
     addSubProjects('', extraProjectDir)
   }
 }
-
-project(":libs:cli").name = 'elasticsearch-cli'

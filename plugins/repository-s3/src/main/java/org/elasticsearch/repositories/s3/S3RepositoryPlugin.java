@@ -1,31 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.util.json.Jackson;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -75,15 +67,21 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     // proxy method for testing
-    protected S3Repository createRepository(final RepositoryMetaData metadata,
-                                            final Settings settings,
-                                            final NamedXContentRegistry registry) {
-        return new S3Repository(metadata, settings, registry, service);
+    protected S3Repository createRepository(
+        final RepositoryMetadata metadata,
+        final NamedXContentRegistry registry,
+        final ClusterService clusterService,
+        final BigArrays bigArrays,
+        final RecoverySettings recoverySettings) {
+        return new S3Repository(metadata, registry, service, clusterService, bigArrays, recoverySettings);
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry) {
-        return Collections.singletonMap(S3Repository.TYPE, (metadata) -> createRepository(metadata, env.settings(), registry));
+    public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry,
+                                                           final ClusterService clusterService, final BigArrays bigArrays,
+                                                           final RecoverySettings recoverySettings) {
+        return Collections.singletonMap(S3Repository.TYPE, metadata -> createRepository(metadata, registry, clusterService, bigArrays,
+            recoverySettings));
     }
 
     @Override
@@ -102,8 +100,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.READ_TIMEOUT_SETTING,
             S3ClientSettings.MAX_RETRIES_SETTING,
             S3ClientSettings.USE_THROTTLE_RETRIES_SETTING,
-            S3Repository.ACCESS_KEY_SETTING,
-            S3Repository.SECRET_KEY_SETTING);
+            S3ClientSettings.USE_PATH_STYLE_ACCESS,
+            S3ClientSettings.SIGNER_OVERRIDE,
+            S3ClientSettings.REGION);
     }
 
     @Override

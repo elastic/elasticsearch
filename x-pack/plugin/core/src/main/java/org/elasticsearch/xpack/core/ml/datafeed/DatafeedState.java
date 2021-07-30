@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -23,7 +24,7 @@ public enum DatafeedState implements PersistentTaskState {
 
     STARTED, STOPPED, STARTING, STOPPING;
 
-    public static final String NAME = StartDatafeedAction.TASK_NAME;
+    public static final String NAME = MlTasks.DATAFEED_TASK_NAME;
 
     private static final ConstructingObjectParser<DatafeedState, Void> PARSER =
             new ConstructingObjectParser<>(NAME, args -> fromString((String) args[0]));

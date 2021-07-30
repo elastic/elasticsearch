@@ -1,50 +1,64 @@
 [role="xpack"]
 [[security-api-get-user]]
 === Get users API
+++++
+<titleabbrev>Get users</titleabbrev>
+++++
 
-Retrieves information about users in the native realm. 
+Retrieves information about users in the native realm and built-in users. 
 
 
-==== Request
+[[security-api-get-user-request]]
+==== {api-request-title}
 
 `GET /_security/user` +
 
 `GET /_security/user/<username>` 
 
-==== Description
+[[security-api-get-user-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_security` cluster privilege.
+
+
+[[security-api-get-user-desc]]
+==== {api-description-title}
 
 For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+<<realms>> and <<native-realm>>. 
 
-==== Path Parameters
+[[security-api-get-user-path-params]]
+==== {api-path-parms-title}
 
 `username`::
-  (string) An identifier for the user. You can specify multiple usernames as a comma-separated list. If you omit this parameter, the API retrieves 
-  information about all users.
+  (Optional, string) An identifier for the user. You can specify multiple
+  usernames as a comma-separated list. If you omit this parameter, the API
+  retrieves information about all users.
 
-//==== Request Body
+[[security-api-get-user-response-body]]
+==== {api-response-body-title}
 
-==== Authorization
+A successful call returns an array of users with the JSON representation of the
+users. Note that user passwords are not included.
 
-To use this API, you must have at least the `manage_security` cluster privilege.
+[[security-api-get-user-response-codes]]
+==== {api-response-codes-title}
 
+If the user is not defined in the `native` realm, the request 404s.
 
-==== Examples
+[[security-api-get-user-example]]
+==== {api-examples-title}
 
 To retrieve a native user, submit a GET request to the `/_security/user/<username>`
 endpoint:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/user/jacknich
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:jacknich_user]
 
-A successful call returns an array of users with the JSON representation of the
-user. Note that user passwords are not included.
-
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {  
   "jacknich": {
@@ -59,16 +73,11 @@ user. Note that user passwords are not included.
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE
-
-If the user is not defined in the `native` realm, the request 404s.
 
 Omit the username to retrieve all users:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/user
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]

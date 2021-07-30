@@ -1,7 +1,11 @@
+[role="xpack"]
 [[schedule-yearly]]
-==== Yearly Schedule
+==== {watcher} yearly schedule
+++++
+<titleabbrev>Yearly schedule</titleabbrev>
+++++
 
-A <<trigger-schedule, `schedule`>> that triggers at a specific day and time
+A <<trigger-schedule,`schedule`>> that triggers at a specific day and time
 every year. To use the `yearly` schedule, you specify the month, day, and time
 (or months, days, and times) when you want the scheduler to start the watch
 execution with the `in`, `on`, and `at` attributes.
@@ -20,7 +24,7 @@ You specify the day of month as a numeric value between `1` and `31` (inclusive)
 The Times are specified in the form `HH:mm` on a 24-hour clock. You can also use
 the reserved values `midnight` and `noon` for `00:00` and `12:00`.
 
-===== Configuring a Yearly Schedule
+===== Configuring a yearly schedule
 
 To configure a once a year schedule, you specify the month with the `in` attribute,
 the day with the  `on` attribute, and the time with the `at` attribute. For
@@ -42,7 +46,7 @@ example, the following `yearly` schedule triggers once a year at noon on January
 NOTE: You can also specify the month, day, and time with the `month`, `day`, and
       `time` attributes, they are interchangeable with `in`, `on`, and `at`.
 
-===== Configuring a Multiple Times Yearly Schedule
+===== Configuring a multiple times yearly schedule
 
 To configure a `yearly` schedule that triggers multiple times a year, you can
 specify an array of month, day, and time values. For example, the following

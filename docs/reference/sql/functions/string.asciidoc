@@ -3,8 +3,6 @@
 [[sql-functions-string]]
 === String Functions
 
-beta[]
-
 Functions for performing string manipulation.
 
 [[sql-functions-string-ascii]]
@@ -13,22 +11,20 @@ Functions for performing string manipulation.
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ASCII(string_exp<1>)
+ASCII(string_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
-.Description:
+*Description*: Returns the ASCII code value of the leftmost character of `string_exp` as an integer.
 
-Returns the ASCII code value of the leftmost character of `string_exp` as an integer.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringAscii]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringAscii]
 --------------------------------------------------
 
 [[sql-functions-string-bit-length]]
@@ -37,21 +33,19 @@ include-tagged::{sql-specs}/docs.csv-spec[stringAscii]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-BIT_LENGTH(string_exp<1>)
+BIT_LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
-.Description:
+*Description*: Returns the length in bits of the `string_exp` input expression.
 
-Returns the length in bits of the `string_exp` input expression.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringBitLength]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringBitLength]
 --------------------------------------------------
 
 [[sql-functions-string-char]]
@@ -60,21 +54,20 @@ include-tagged::{sql-specs}/docs.csv-spec[stringBitLength]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-CHAR(code<1>)
+CHAR(code) <1>
 --------------------------------------------------
 *Input*:
 
-<1> integer expression
+<1> integer expression between `0` and `255`. If `null`, negative, or greater
+than `255`, the function returns `null`.
 
 *Output*: string
 
-.Description:
+*Description*: Returns the character that has the ASCII code value specified by the numeric input.
 
-Returns the character that has the ASCII code value specified by the numeric input. The value should be between 0 and 255; otherwise, the return value is data source–dependent.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringChar]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringChar]
 --------------------------------------------------
 
 [[sql-functions-string-char-length]]
@@ -83,21 +76,19 @@ include-tagged::{sql-specs}/docs.csv-spec[stringChar]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-CHAR_LENGTH(string_exp<1>)
+CHAR_LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
-.Description:
+*Description*: Returns the length in characters of the input, if the string expression is of a character data type; otherwise, returns the length in bytes of the string expression (the smallest integer not less than the number of bits divided by 8).
 
-Returns the length in characters of the input, if the string expression is of a character data type; otherwise, returns the length in bytes of the string expression (the smallest integer not less than the number of bits divided by 8).
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringCharLength]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringCharLength]
 --------------------------------------------------
 
 [[sql-functions-string-concat]]
@@ -106,22 +97,22 @@ include-tagged::{sql-specs}/docs.csv-spec[stringCharLength]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-CONCAT(string_exp1<1>,string_exp2<2>)
+CONCAT(
+    string_exp1, <1>
+    string_exp2) <2>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> string expression
+<1> string expression. Treats `null` as an empty string.
+<2> string expression. Treats `null` as an empty string.
 
 *Output*: string
 
-.Description:
+*Description*: Returns a character string that is the result of concatenating `string_exp1` to `string_exp2`.
 
-Returns a character string that is the result of concatenating `string_exp1` to `string_exp2`. If one of the string is `NULL`, the other string will be returned.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringConcat]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringConcat]
 --------------------------------------------------
 
 [[sql-functions-string-insert]]
@@ -130,24 +121,26 @@ include-tagged::{sql-specs}/docs.csv-spec[stringConcat]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-INSERT(source<1>, start<2>, length<3>, replacement<4>)
+INSERT(
+    source,      <1>
+    start,       <2>
+    length,      <3>
+    replacement) <4>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> integer expression
-<3> integer expression
-<4> string expression
+<1> string expression. If `null`, the function returns `null`.
+<2> integer expression. If `null`, the function returns `null`.
+<3> integer expression. If `null`, the function returns `null`.
+<4> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
+*Description*: Returns a string where `length` characters have been deleted from `source`, beginning at `start`, and where `replacement` has been inserted into `source`, beginning at `start`.
 
-Returns a string where `length` characters have been deleted from `source`, beginning at `start`, and where `replacement` has been inserted into `source`, beginning at `start`.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringInsert]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringInsert]
 --------------------------------------------------
 
 [[sql-functions-string-lcase]]
@@ -156,21 +149,19 @@ include-tagged::{sql-specs}/docs.csv-spec[stringInsert]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-LCASE(string_exp<1>)
+LCASE(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
+*Description*: Returns a string equal to that in `string_exp`, with all uppercase characters converted to lowercase.
 
-Returns a string equal to that in `string_exp`, with all uppercase characters converted to lowercase.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringLCase]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringLCase]
 --------------------------------------------------
 
 [[sql-functions-string-left]]
@@ -179,22 +170,23 @@ include-tagged::{sql-specs}/docs.csv-spec[stringLCase]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-LEFT(string_exp<1>, count<2>)
+LEFT(
+    string_exp, <1>
+    count)      <2>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> integer expression
+<1> string expression. If `null`, the function returns `null`.
+<2> integer expression. If `null`, the function returns `null`. If `0` or
+negative, the function returns an empty string.
 
 *Output*: string
 
-.Description:
+*Description*: Returns the leftmost count characters of `string_exp`.
 
-Returns the leftmost count characters of `string_exp`.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringLeft]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringLeft]
 --------------------------------------------------
 
 [[sql-functions-string-length]]
@@ -203,21 +195,19 @@ include-tagged::{sql-specs}/docs.csv-spec[stringLeft]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-LENGTH(string_exp<1>)
+LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
-.Description:
+*Description*: Returns the number of characters in `string_exp`, excluding trailing blanks.
 
-Returns the number of characters in `string_exp`, excluding trailing blanks.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringLength]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringLength]
 --------------------------------------------------
 
 [[sql-functions-string-locate]]
@@ -226,28 +216,34 @@ include-tagged::{sql-specs}/docs.csv-spec[stringLength]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-LOCATE(pattern<1>, source<2>[, start]<3>)
+LOCATE(
+    pattern, <1>
+    source   <2>
+    [, start]<3>
+)
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> string expression
-<3> integer expression; optional
+<1> string expression.  If `null`, the function returns `null`.
+<2> string expression.  If `null`, the function returns `null`.
+<3> integer expression; optional. If `null`, `0`, `1`, negative, or not
+specified, the search starts at the first character position.
 
 *Output*: integer
 
-.Description:
+*Description*: Returns the starting position of the first occurrence of
+`pattern` within `source`. The optional `start` specifies the character position
+to start the search with. If the `pattern` is not found within `source`, the
+function returns `0`.
 
-Returns the starting position of the first occurrence of `pattern` within `source`. The search for the first occurrence of `pattern` begins with the first character position in `source` unless the optional argument, `start`, is specified. If `start` is specified, the search begins with the character position indicated by the value of `start`. The first character position in `source` is indicated by the value 1. If `pattern` is not found within `source`, the value 0 is returned.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringLocateWoStart]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringLocateWoStart]
 --------------------------------------------------
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringLocateWithStart]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringLocateWithStart]
 --------------------------------------------------
 
 [[sql-functions-string-ltrim]]
@@ -256,21 +252,19 @@ include-tagged::{sql-specs}/docs.csv-spec[stringLocateWithStart]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-LTRIM(string_exp<1>)
+LTRIM(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
+*Description*: Returns the characters of `string_exp`, with leading blanks removed.
 
-Returns the characters of `string_exp`, with leading blanks removed.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringLTrim]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringLTrim]
 --------------------------------------------------
 
 [[sql-functions-string-octet-length]]
@@ -279,21 +273,19 @@ include-tagged::{sql-specs}/docs.csv-spec[stringLTrim]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-OCTET_LENGTH(string_exp<1>)
+OCTET_LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
-.Description:
+*Description*: Returns the length in bytes of the `string_exp` input expression.
 
-Returns the length in bytes of the `string_exp` input expression.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringOctetLength]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringOctetLength]
 --------------------------------------------------
 
 [[sql-functions-string-position]]
@@ -302,22 +294,22 @@ include-tagged::{sql-specs}/docs.csv-spec[stringOctetLength]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-POSITION(string_exp1<1>, string_exp2<2>)
+POSITION(
+    string_exp1, <1>
+    string_exp2) <2>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> string expression
+<1> string expression. If `null`, the function returns `null`.
+<2> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
-.Description:
+*Description*: Returns the position of the `string_exp1` in `string_exp2`. The result is an exact numeric.
 
-Returns the position of the `string_exp1` in `string_exp2`. The result is an exact numeric.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringPosition]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringPosition]
 --------------------------------------------------
 
 [[sql-functions-string-repeat]]
@@ -326,22 +318,22 @@ include-tagged::{sql-specs}/docs.csv-spec[stringPosition]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-REPEAT(string_exp<1>, count<2>)
+REPEAT(
+    string_exp, <1>
+    count)      <2>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> integer expression
+<1> string expression. If `null`, the function returns `null`.
+<2> integer expression. If `0`, negative, or `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
+*Description*: Returns a character string composed of `string_exp` repeated `count` times.
 
-Returns a character string composed of `string_exp` repeated `count` times.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringRepeat]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringRepeat]
 --------------------------------------------------
 
 [[sql-functions-string-replace]]
@@ -350,23 +342,24 @@ include-tagged::{sql-specs}/docs.csv-spec[stringRepeat]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-REPLACE(source<1>, pattern<2>, replacement<3>)
+REPLACE(
+    source,      <1>
+    pattern,     <2>
+    replacement) <3>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> string expression
-<3> string expression
+<1> string expression. If `null`, the function returns `null`.
+<2> string expression. If `null`, the function returns `null`.
+<3> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
+*Description*: Search `source` for occurrences of `pattern`, and replace with `replacement`.
 
-Search `source` for occurrences of `pattern`, and replace with `replacement`.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringReplace]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringReplace]
 --------------------------------------------------
 
 [[sql-functions-string-right]]
@@ -375,22 +368,23 @@ include-tagged::{sql-specs}/docs.csv-spec[stringReplace]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-RIGHT(string_exp<1>, count<2>)
+RIGHT(
+    string_exp, <1>
+    count)      <2>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> integer expression
+<1> string expression. If `null`, the function returns `null`.
+<2> integer expression. If `null`, the function returns `null`. If `0` or
+negative, the function returns an empty string.
 
 *Output*: string
 
-.Description:
+*Description*: Returns the rightmost count characters of `string_exp`.
 
-Returns the rightmost count characters of `string_exp`.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringRight]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringRight]
 --------------------------------------------------
 
 [[sql-functions-string-rtrim]]
@@ -399,21 +393,19 @@ include-tagged::{sql-specs}/docs.csv-spec[stringRight]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-RTRIM(string_exp<1>)
+RTRIM(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
+*Description*: Returns the characters of `string_exp` with trailing blanks removed.
 
-Returns the characters of `string_exp` with trailing blanks removed.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringRTrim]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringRTrim]
 --------------------------------------------------
 
 [[sql-functions-string-space]]
@@ -422,21 +414,49 @@ include-tagged::{sql-specs}/docs.csv-spec[stringRTrim]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-SPACE(count<1>)
+SPACE(count) <1>
 --------------------------------------------------
 *Input*:
 
-<1> integer expression
+<1> integer expression. If `null` or negative, the function returns `null`.
 
 *Output*: string
 
-.Description:
+*Description*: Returns a character string consisting of `count` spaces.
 
-Returns a character string consisting of `count` spaces.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringSpace]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringSpace]
+--------------------------------------------------
+
+[[sql-functions-string-startswith]]
+==== `STARTS_WITH`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+STARTS_WITH(
+    source,   <1>
+    pattern)  <2>
+--------------------------------------------------
+*Input*:
+
+<1> string expression. If `null`, the function returns `null`.
+<2> string expression. If `null`, the function returns `null`.
+
+*Output*: boolean value
+
+*Description*: Returns `true` if the source expression starts with the specified
+pattern, `false` otherwise. The matching is case sensitive.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringStartsWithTrue]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringStartsWithFalse]
 --------------------------------------------------
 
 [[sql-functions-string-substring]]
@@ -445,23 +465,44 @@ include-tagged::{sql-specs}/docs.csv-spec[stringSpace]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-SUBSTRING(source<1>, start<2>, length<3>)
+SUBSTRING(
+    source, <1>
+    start,  <2>
+    length) <3>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> integer expression
-<3> integer expression
+<1> string expression. If `null`, the function returns `null`.
+<2> integer expression. If `null`, the function returns `null`.
+<3> integer expression. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
+*Description*: Returns a character string that is derived from `source`, beginning at the character position specified by `start` for `length` characters.
 
-Returns a character string that is derived from `source`, beginning at the character position specified by `start` for `length` characters.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringSubString]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringSubString]
+--------------------------------------------------
+[[sql-functions-string-trim]]
+==== `TRIM`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+TRIM(string_exp) <1>
+--------------------------------------------------
+*Input*:
+
+<1> string expression. If `null`, the function returns `null`.
+
+*Output*: string
+
+*Description*: Returns the characters of `string_exp`, with leading and trailing blanks removed.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringTrim]
 --------------------------------------------------
 
 [[sql-functions-string-ucase]]
@@ -470,19 +511,17 @@ include-tagged::{sql-specs}/docs.csv-spec[stringSubString]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-UCASE(string_exp<1>)
+UCASE(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
+*Description*: Returns a string equal to that of the input, with all lowercase characters converted to uppercase.
 
-Returns a string equal to that of the input, with all lowercase characters converted to uppercase.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringUCase]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringUCase]
 --------------------------------------------------

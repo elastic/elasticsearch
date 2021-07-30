@@ -1,28 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.recovery;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveriesCollection;
@@ -41,7 +31,7 @@ import static org.hamcrest.Matchers.lessThan;
 public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
     static final PeerRecoveryTargetService.RecoveryListener listener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
-        public void onRecoveryDone(RecoveryState state) {
+        public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
 
         }
 
@@ -53,7 +43,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
 
     public void testLastAccessTimeUpdate() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
-            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool, v -> {});
+            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             try (RecoveriesCollection.RecoveryRef status = collection.getRecovery(recoveryId)) {
                 final long lastSeenTime = status.target().lastAccessTime();
@@ -70,13 +60,13 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
 
     public void testRecoveryTimeout() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
-            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool, v -> {});
+            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             final AtomicBoolean failed = new AtomicBoolean();
             final CountDownLatch latch = new CountDownLatch(1);
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica(),
                 new PeerRecoveryTargetService.RecoveryListener() {
                     @Override
-                    public void onRecoveryDone(RecoveryState state) {
+                    public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
                         latch.countDown();
                     }
 
@@ -98,7 +88,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
 
     public void testRecoveryCancellation() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
-            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool, v -> {});
+            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             final long recoveryId2 = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             try (RecoveriesCollection.RecoveryRef recoveryRef = collection.getRecovery(recoveryId)) {
@@ -117,7 +107,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             shards.startAll();
             int numDocs = randomIntBetween(1, 15);
             shards.indexDocs(numDocs);
-            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool, v -> {});
+            final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             IndexShard shard = shards.addReplica();
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shard);
             RecoveryTarget recoveryTarget = collection.getRecoveryTarget(recoveryId);

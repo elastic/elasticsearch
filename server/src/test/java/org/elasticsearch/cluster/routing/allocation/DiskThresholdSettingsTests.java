@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -26,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -43,7 +33,8 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(15.0D, diskThresholdSettings.getFreeDiskThresholdLow(), 0.0D);
         assertEquals(60L, diskThresholdSettings.getRerouteInterval().seconds());
         assertTrue(diskThresholdSettings.isEnabled());
-        assertTrue(diskThresholdSettings.includeRelocations());
+        assertEquals(zeroBytes, diskThresholdSettings.getFreeBytesThresholdFloodStage());
+        assertEquals(5.0D, diskThresholdSettings.getFreeDiskThresholdFloodStage(), 0.0D);
     }
 
     public void testUpdate() {
@@ -52,7 +43,6 @@ public class DiskThresholdSettingsTests extends ESTestCase {
 
         Settings newSettings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), false)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "500mb")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1000mb")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "250mb")
@@ -68,7 +58,6 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(0.0D, diskThresholdSettings.getFreeDiskThresholdFloodStage(), 0.0D);
         assertEquals(30L, diskThresholdSettings.getRerouteInterval().seconds());
         assertFalse(diskThresholdSettings.isEnabled());
-        assertFalse(diskThresholdSettings.includeRelocations());
     }
 
     public void testInvalidConstruction() {
@@ -201,6 +190,81 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
         assertThat(cause, hasToString(containsString("low disk watermark [85%] more than high disk watermark [75%]")));
+    }
+
+    public void testSequenceOfUpdates() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        new DiskThresholdSettings(Settings.EMPTY, clusterSettings); // this has the effect of registering the settings updater
+
+        final Settings.Builder target = Settings.builder();
+
+        {
+            final Settings settings = Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "99%")
+                .build();
+            final Settings.Builder updates = Settings.builder();
+            assertTrue(clusterSettings.updateSettings(settings, target, updates, "transient"));
+            assertNull(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()));
+            assertNull(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()));
+            assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()),
+                equalTo("99%"));
+        }
+
+        {
+            final Settings settings = Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "97%")
+                .build();
+            final Settings.Builder updates = Settings.builder();
+            assertTrue(clusterSettings.updateSettings(settings, target, updates, "transient"));
+            assertNull(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()));
+            assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()),
+                equalTo("97%"));
+            assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()),
+                equalTo("99%"));
+        }
+
+        {
+            final Settings settings = Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "95%")
+                .build();
+            final Settings.Builder updates = Settings.builder();
+            assertTrue(clusterSettings.updateSettings(settings, target, updates, "transient"));
+            assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()),
+                equalTo("95%"));
+            assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()),
+                equalTo("97%"));
+            assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()),
+                equalTo("99%"));
+        }
+    }
+
+    public void testThresholdDescriptions() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.EMPTY, clusterSettings);
+        assertThat(diskThresholdSettings.describeLowThreshold(), equalTo("85%"));
+        assertThat(diskThresholdSettings.describeHighThreshold(), equalTo("90%"));
+        assertThat(diskThresholdSettings.describeFloodStageThreshold(), equalTo("95%"));
+
+        diskThresholdSettings = new DiskThresholdSettings(Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "91.2%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "91.3%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "91.4%")
+            .build(), clusterSettings);
+
+        assertThat(diskThresholdSettings.describeLowThreshold(), equalTo("91.2%"));
+        assertThat(diskThresholdSettings.describeHighThreshold(), equalTo("91.3%"));
+        assertThat(diskThresholdSettings.describeFloodStageThreshold(), equalTo("91.4%"));
+
+        diskThresholdSettings = new DiskThresholdSettings(Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1GB")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "10MB")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1B")
+            .build(), clusterSettings);
+
+        assertThat(diskThresholdSettings.describeLowThreshold(), equalTo("1gb"));
+        assertThat(diskThresholdSettings.describeHighThreshold(), equalTo("10mb"));
+        assertThat(diskThresholdSettings.describeFloodStageThreshold(), equalTo("1b"));
     }
 
 }

@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -48,7 +38,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * too but this is the only place that tests running against multiple nodes so it is the only integration tests that checks for
  * serialization.
  */
-@TestLogging("org.elasticsearch.index.reindex:TRACE,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.search.SearchService:TRACE")
 public class RethrottleTests extends ReindexTestCase {
 
     public void testReindex() throws Exception {
@@ -86,7 +75,7 @@ public class RethrottleTests extends ReindexTestCase {
 
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < numSlices * 10; i++) {
-            docs.add(client().prepareIndex("test", "test", Integer.toString(i)).setSource("foo", "bar"));
+            docs.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", "bar"));
         }
         indexRandom(true, docs);
 
@@ -191,13 +180,15 @@ public class RethrottleTests extends ReindexTestCase {
                 assertThat(rethrottleResponse.getTasks(), hasSize(1));
                 response.set(rethrottleResponse);
             } catch (ElasticsearchException e) {
-                if (e.getCause() instanceof IllegalArgumentException) {
-                    // We want to retry in this case so we throw an assertion error
-                    logger.info("caught unprepared task, retrying until prepared");
-                    throw new AssertionError("Rethrottle request for task [" + taskToRethrottle.getId() + "] failed", e);
-                } else {
+                Throwable unwrapped = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+                if (unwrapped == null) {
                     throw e;
                 }
+                // We want to retry in this case so we throw an assertion error
+                assertThat(unwrapped.getMessage(), equalTo("task [" + taskToRethrottle.getId()
+                    + "] has not yet been initialized to the point where it knows how to rethrottle itself"));
+                logger.info("caught unprepared task, retrying until prepared");
+                throw new AssertionError("Rethrottle request for task [" + taskToRethrottle.getId() + "] failed", e);
             }
         });
 

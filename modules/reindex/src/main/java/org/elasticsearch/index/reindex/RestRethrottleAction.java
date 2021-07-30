@@ -1,33 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.TaskId;
 
-import java.io.IOException;
+import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -36,12 +23,16 @@ import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.li
 public class RestRethrottleAction extends BaseRestHandler {
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestRethrottleAction(Settings settings, RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
-        super(settings);
+    public RestRethrottleAction(Supplier<DiscoveryNodes> nodesInCluster) {
         this.nodesInCluster = nodesInCluster;
-        controller.registerHandler(POST, "/_update_by_query/{taskId}/_rethrottle", this);
-        controller.registerHandler(POST, "/_delete_by_query/{taskId}/_rethrottle", this);
-        controller.registerHandler(POST, "/_reindex/{taskId}/_rethrottle", this);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/_update_by_query/{taskId}/_rethrottle"),
+            new Route(POST, "/_delete_by_query/{taskId}/_rethrottle"),
+            new Route(POST, "/_reindex/{taskId}/_rethrottle"));
     }
 
     @Override
@@ -50,7 +41,7 @@ public class RestRethrottleAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
         RethrottleRequest internalRequest = new RethrottleRequest();
         internalRequest.setTaskId(new TaskId(request.param("taskId")));
         Float requestsPerSecond = AbstractBaseReindexRestHandler.parseRequestsPerSecond(request);

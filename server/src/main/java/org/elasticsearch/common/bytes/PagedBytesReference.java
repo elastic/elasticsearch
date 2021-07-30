@@ -1,51 +1,35 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A page based bytes reference, internally holding the bytes in a paged
  * data structure.
  */
-public class PagedBytesReference extends BytesReference {
+public class PagedBytesReference extends AbstractBytesReference {
 
     private static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
 
-    private final BigArrays bigarrays;
-    protected final ByteArray byteArray;
+    private final ByteArray byteArray;
     private final int offset;
     private final int length;
 
-    public PagedBytesReference(BigArrays bigarrays, ByteArray byteArray, int length) {
-        this(bigarrays, byteArray, 0, length);
-    }
-
-    public PagedBytesReference(BigArrays bigarrays, ByteArray byteArray, int from, int length) {
-        this.bigarrays = bigarrays;
+    PagedBytesReference(ByteArray byteArray, int from, int length) {
+        assert byteArray.hasArray() == false : "use BytesReference#fromByteArray";
         this.byteArray = byteArray;
         this.offset = from;
         this.length = length;
@@ -63,17 +47,16 @@ public class PagedBytesReference extends BytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
-        if (from < 0 || (from + length) > length()) {
-            throw new IllegalArgumentException("can't slice a buffer with length [" + length() +
-                "], with slice parameters from [" + from + "], length [" + length + "]");
+        if (from == 0 && this.length == length) {
+            return this;
         }
-        return new PagedBytesReference(bigarrays, byteArray, offset + from, length);
+        Objects.checkFromIndexSize(from, length, this.length);
+        return new PagedBytesReference(byteArray, offset + from, length);
     }
 
     @Override
     public BytesRef toBytesRef() {
         BytesRef bref = new BytesRef();
-        // if length <= pagesize this will dereference the page, or materialize the byte[]
         byteArray.get(offset, length, bref);
         return bref;
     }

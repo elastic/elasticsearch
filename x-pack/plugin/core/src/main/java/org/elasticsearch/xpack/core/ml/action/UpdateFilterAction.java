@@ -1,17 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,18 +31,13 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 
-public class UpdateFilterAction extends Action<PutFilterAction.Response> {
+public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
 
     public static final UpdateFilterAction INSTANCE = new UpdateFilterAction();
     public static final String NAME = "cluster:admin/xpack/ml/filters/update";
 
     private UpdateFilterAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PutFilterAction.Response newResponse() {
-        return new PutFilterAction.Response();
+        super(NAME, PutFilterAction.Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -64,7 +58,7 @@ public class UpdateFilterAction extends Action<PutFilterAction.Response> {
             Request request = PARSER.apply(parser, null);
             if (request.filterId == null) {
                 request.filterId = filterId;
-            } else if (!Strings.isNullOrEmpty(filterId) && !filterId.equals(request.filterId)) {
+            } else if (Strings.isNullOrEmpty(filterId) == false && filterId.equals(request.filterId) == false) {
                 // If we have both URI and body filter ID, they must be identical
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, MlFilter.ID.getPreferredName(),
                         request.filterId, filterId));
@@ -79,6 +73,14 @@ public class UpdateFilterAction extends Action<PutFilterAction.Response> {
         private SortedSet<String> removeItems = Collections.emptySortedSet();
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            filterId = in.readString();
+            description = in.readOptionalString();
+            addItems = new TreeSet<>(Arrays.asList(in.readStringArray()));
+            removeItems = new TreeSet<>(Arrays.asList(in.readStringArray()));
         }
 
         public Request(String filterId) {
@@ -120,15 +122,6 @@ public class UpdateFilterAction extends Action<PutFilterAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            filterId = in.readString();
-            description = in.readOptionalString();
-            addItems = new TreeSet<>(Arrays.asList(in.readStringArray()));
-            removeItems = new TreeSet<>(Arrays.asList(in.readStringArray()));
         }
 
         @Override
@@ -175,13 +168,6 @@ public class UpdateFilterAction extends Action<PutFilterAction.Response> {
                     && Objects.equals(description, other.description)
                     && Objects.equals(addItems, other.addItems)
                     && Objects.equals(removeItems, other.removeItems);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, PutFilterAction.Response> {
-
-        public RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
         }
     }
 }

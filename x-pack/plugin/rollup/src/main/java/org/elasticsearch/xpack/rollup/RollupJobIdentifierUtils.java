@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup;
 
-import org.elasticsearch.common.rounding.DateTimeUnit;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.Rounding;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -16,14 +17,18 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig.CALENDAR_INTERVAL;
+import static org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig.FIXED_INTERVAL;
+import static org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig.INTERVAL;
 
 /**
  * This class contains utilities to identify which jobs are the "best" for a given aggregation tree.
@@ -87,8 +92,7 @@ public class RollupJobIdentifierUtils {
     /**
      * Find the set of date_histo's with the largest granularity interval
      */
-    private static void checkDateHisto(DateHistogramAggregationBuilder source, List<RollupJobCaps> jobCaps,
-                                       Set<RollupJobCaps> bestCaps) {
+    private static void checkDateHisto(DateHistogramAggregationBuilder source, List<RollupJobCaps> jobCaps, Set<RollupJobCaps> bestCaps) {
         ArrayList<RollupJobCaps> localCaps = new ArrayList<>();
         for (RollupJobCaps cap : jobCaps) {
             RollupJobCaps.RollupFieldCaps fieldCaps = cap.getFieldCaps().get(source.field());
@@ -97,28 +101,74 @@ public class RollupJobIdentifierUtils {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
                         DateHistogramInterval interval = new DateHistogramInterval((String)agg.get(RollupField.INTERVAL));
 
-                        String thisTimezone  = (String)agg.get(DateHistogramGroupConfig.TIME_ZONE);
-                        String sourceTimeZone = source.timeZone() == null ? DateTimeZone.UTC.toString() : source.timeZone().toString();
+                        ZoneId thisTimezone = ZoneId.of(((String) agg.get(DateHistogramGroupConfig.TIME_ZONE)), ZoneId.SHORT_IDS);
+                        ZoneId sourceTimeZone = source.timeZone() == null
+                            ? DateHistogramGroupConfig.DEFAULT_ZONEID_TIMEZONE
+                            : ZoneId.of(source.timeZone().toString(), ZoneId.SHORT_IDS);
 
                         // Ensure we are working on the same timezone
-                        if (thisTimezone.equalsIgnoreCase(sourceTimeZone) == false) {
+                        if (thisTimezone.getRules().equals(sourceTimeZone.getRules()) == false) {
                             continue;
                         }
-                        if (source.dateHistogramInterval() != null) {
-                            // Check if both are calendar and validate if they are.
-                            // If not, check if both are fixed and validate
-                            if (validateCalendarInterval(source.dateHistogramInterval(), interval)) {
+
+                        /*
+                          This is convoluted, but new + legacy intervals makes for a big pattern match.
+                          We have to match up date_histo [interval, fixed_interval, calendar_interval] with
+                          rollup config [interval, fixed_interval, calendar_interval]
+
+                          To keep rightward drift to a minimum we break out of the loop if a successful match is found
+                        */
+
+                        DateHistogramInterval configCalendarInterval = agg.get(CALENDAR_INTERVAL) != null
+                            ? new DateHistogramInterval((String) agg.get(CALENDAR_INTERVAL)) : null;
+                        DateHistogramInterval configFixedInterval = agg.get(FIXED_INTERVAL) != null
+                            ? new DateHistogramInterval((String) agg.get(FIXED_INTERVAL)) : null;
+                        DateHistogramInterval configLegacyInterval = agg.get(INTERVAL) != null
+                            ? new DateHistogramInterval((String) agg.get(INTERVAL)) : null;
+
+                        // If histo used calendar_interval explicitly
+                        if (source.getCalendarInterval() != null) {
+                            DateHistogramInterval requestInterval = source.getCalendarInterval();
+
+                            // Try to use explicit calendar_interval on config if it exists
+                            if (validateCalendarInterval(requestInterval, configCalendarInterval)) {
                                 localCaps.add(cap);
-                            } else if (validateFixedInterval(source.dateHistogramInterval(), interval)) {
-                                localCaps.add(cap);
+                                break;
                             }
+
+                            // Otherwise fall back to old style where we prefer calendar over fixed (e.g. `1h` == calendar)
+                            if (validateCalendarInterval(requestInterval, configLegacyInterval)) {
+                                localCaps.add(cap);
+                                break;
+                            }
+
+                            // Note that this ignores FIXED_INTERVAL on purpose, it would not be compatible
+
+                        } else if (source.getFixedInterval() != null) {
+                            // If histo used fixed_interval explicitly
+
+                            DateHistogramInterval requestInterval = source.getFixedInterval();
+
+                            // Try to use explicit fixed_interval on config if it exists
+                            if (validateFixedInterval(requestInterval, configFixedInterval)) {
+                                localCaps.add(cap);
+                                break;
+                            }
+
+                            // Otherwise fall back to old style
+                            if (validateFixedInterval(requestInterval, configLegacyInterval)) {
+                                localCaps.add(cap);
+                                break;
+                            }
+
+                            // Note that this ignores CALENDER_INTERVAL on purpose, it would not be compatible
+
                         } else {
-                            // check if config is fixed and validate if it is
-                            if (validateFixedInterval(source.interval(), interval)) {
-                                localCaps.add(cap);
-                            }
+                            // This _should not_ happen, but if miraculously it does we need to just quit
+                            throw new IllegalArgumentException("An interval of some variety must be configured on " +
+                                "the date_histogram aggregation.");
                         }
-                        // not a candidate if we get here
+                        // If we get here nothing matched, and we can break out
                         break;
                     }
                 }
@@ -139,32 +189,46 @@ public class RollupJobIdentifierUtils {
         }
     }
 
-    private static boolean isCalendarInterval(DateHistogramInterval interval) {
-        return DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(interval.toString());
+    static String retrieveInterval(Map<String, Object> agg) {
+        String interval = (String) agg.get(RollupField.INTERVAL);
+        if (interval == null) {
+            interval = (String) agg.get(CALENDAR_INTERVAL);
+        }
+        if (interval == null) {
+            interval = (String) agg.get(FIXED_INTERVAL);
+        }
+        if (interval == null) {
+            throw new IllegalStateException("Could not find interval in agg cap: " + agg.toString());
+        }
+        return interval;
     }
 
     static boolean validateCalendarInterval(DateHistogramInterval requestInterval,
                                                     DateHistogramInterval configInterval) {
-        // Both must be calendar intervals
-        if (isCalendarInterval(requestInterval) == false || isCalendarInterval(configInterval) == false) {
+        if (requestInterval == null || configInterval == null) {
             return false;
         }
 
         // The request must be gte the config.  The CALENDAR_ORDERING map values are integers representing
         // relative orders between the calendar units
-        DateTimeUnit requestUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(requestInterval.toString());
-        long requestOrder = requestUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
-        DateTimeUnit configUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(configInterval.toString());
-        long configOrder = configUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
+        Rounding.DateTimeUnit requestUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(requestInterval.toString());
+        if (requestUnit == null) {
+            return false;
+        }
+        Rounding.DateTimeUnit configUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(configInterval.toString());
+        if (configUnit == null) {
+            return false;
+        }
+
+        long requestOrder = requestUnit.getField().getBaseUnit().getDuration().toMillis();
+        long configOrder = configUnit.getField().getBaseUnit().getDuration().toMillis();
 
         // All calendar units are multiples naturally, so we just care about gte
         return requestOrder >= configOrder;
     }
 
-    static boolean validateFixedInterval(DateHistogramInterval requestInterval,
-                                                 DateHistogramInterval configInterval) {
-        // Neither can be calendar intervals
-        if (isCalendarInterval(requestInterval) || isCalendarInterval(configInterval)) {
+    static boolean validateFixedInterval(DateHistogramInterval requestInterval, DateHistogramInterval configInterval) {
+        if (requestInterval == null || configInterval == null) {
             return false;
         }
 
@@ -178,18 +242,6 @@ public class RollupJobIdentifierUtils {
         return requestIntervalMillis >= configIntervalMillis && requestIntervalMillis % configIntervalMillis == 0;
     }
 
-    static boolean validateFixedInterval(long requestInterval, DateHistogramInterval configInterval) {
-        // config must not be a calendar interval
-        if (isCalendarInterval(configInterval)) {
-            return false;
-        }
-        long configIntervalMillis = TimeValue.parseTimeValue(configInterval.toString(),
-            "date_histo.config.interval").getMillis();
-
-        // Must be a multiple and gte the config
-        return requestInterval >= configIntervalMillis && requestInterval % configIntervalMillis == 0;
-    }
-
     /**
      * Find the set of histo's with the largest interval
      */
@@ -200,7 +252,7 @@ public class RollupJobIdentifierUtils {
             if (fieldCaps != null) {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(HistogramAggregationBuilder.NAME)) {
-                        Long interval = (long)agg.get(RollupField.INTERVAL);
+                        long interval = (long) agg.get(RollupField.INTERVAL);
                         // query interval must be gte the configured interval, and a whole multiple
                         if (interval <= source.interval() && source.interval() % interval == 0) {
                             localCaps.add(cap);
@@ -261,7 +313,7 @@ public class RollupJobIdentifierUtils {
      * Ensure that the metrics are supported by one or more job caps.  There is no notion of "best"
      * caps for metrics, it is either supported or not.
      */
-    private static void checkVSLeaf(ValuesSourceAggregationBuilder.LeafOnly source, List<RollupJobCaps> jobCaps,
+    private static void checkVSLeaf(ValuesSourceAggregationBuilder.LeafOnly<?,?> source, List<RollupJobCaps> jobCaps,
                                     Set<RollupJobCaps> bestCaps) {
         ArrayList<RollupJobCaps> localCaps = new ArrayList<>();
         for (RollupJobCaps cap : jobCaps) {
@@ -322,7 +374,7 @@ public class RollupJobIdentifierUtils {
             for (RollupJobCaps.RollupFieldCaps fieldCaps : o1.getFieldCaps().values()) {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                        thisTime = getMillisFixedOrCalendar((String) agg.get(RollupField.INTERVAL));
+                        thisTime = new DateHistogramInterval(retrieveInterval(agg)).estimateMillis();
                     } else if (agg.get(RollupField.AGG).equals(HistogramAggregationBuilder.NAME)) {
                         thisHistoWeights += (long) agg.get(RollupField.INTERVAL);
                         counter += 1;
@@ -338,7 +390,7 @@ public class RollupJobIdentifierUtils {
             for (RollupJobCaps.RollupFieldCaps fieldCaps : o2.getFieldCaps().values()) {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                        thatTime = getMillisFixedOrCalendar((String) agg.get(RollupField.INTERVAL));
+                        thatTime = new DateHistogramInterval(retrieveInterval(agg)).estimateMillis();
                     } else if (agg.get(RollupField.AGG).equals(HistogramAggregationBuilder.NAME)) {
                         thatHistoWeights += (long) agg.get(RollupField.INTERVAL);
                         counter += 1;
@@ -382,15 +434,5 @@ public class RollupJobIdentifierUtils {
             // Could potentially optimize there in the future to choose jobs with more metric
             // coverage
         };
-    }
-
-    static long getMillisFixedOrCalendar(String value) {
-        DateHistogramInterval interval = new DateHistogramInterval(value);
-        if (isCalendarInterval(interval)) {
-            DateTimeUnit intervalUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
-            return intervalUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
-        } else {
-            return TimeValue.parseTimeValue(value, "date_histo.comparator.interval").getMillis();
-        }
     }
 }

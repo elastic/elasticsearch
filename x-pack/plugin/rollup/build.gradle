@@ -1,28 +1,26 @@
-evaluationDependsOn(xpackModule('core'))
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 esplugin {
-    name 'x-pack-rollup'
-    description 'Elasticsearch Expanded Pack Plugin - Rollup'
-    classname 'org.elasticsearch.xpack.rollup.Rollup'
-    extendedPlugins = ['x-pack-core']
+  name 'x-pack-rollup'
+  description 'Elasticsearch Expanded Pack Plugin - Rollup'
+  classname 'org.elasticsearch.xpack.rollup.Rollup'
+  extendedPlugins = ['x-pack-core']
 }
+
 archivesBaseName = 'x-pack-rollup'
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
-
-
 dependencies {
-    compileOnly "org.elasticsearch:elasticsearch:${version}"
-
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    compileOnly project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(":server")
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('analytics'))
+  compileOnly project(path: xpackModule('mapper-aggregate-metric'))
+  compileOnly project(path: xpackModule('data-streams'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-run {
-    plugin xpackModule('core')
-}
+addQaCheckDependencies()
 
-integTest.enabled = false
+tasks.named("test").configure {
+  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+}

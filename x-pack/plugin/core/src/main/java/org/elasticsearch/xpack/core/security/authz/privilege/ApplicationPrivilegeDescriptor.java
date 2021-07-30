@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,10 +19,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 
 /**
  * An {@code ApplicationPrivilegeDescriptor} is a representation of a <em>stored</em> {@link ApplicationPrivilege}.
@@ -104,6 +107,11 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
         return builder.endObject();
     }
 
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "{[" + application + "],[" + name + "],[" + collectionToCommaDelimitedString(actions) + "]}";
+    }
+
     /**
      * Construct a new {@link ApplicationPrivilegeDescriptor} from XContent.
      *
@@ -160,7 +168,7 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
         }
 
         private Builder actions(Collection<String> actions) {
-            this.actions = new HashSet<>(actions);
+            this.actions = new LinkedHashSet<>(actions);
             return this;
         }
 

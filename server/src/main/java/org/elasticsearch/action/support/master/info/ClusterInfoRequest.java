@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.master.info;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
@@ -32,7 +22,6 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
         implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    private String[] types = Strings.EMPTY_ARRAY;
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
@@ -42,7 +31,9 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     public ClusterInfoRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        types = in.readStringArray();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readStringArray();
+        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
@@ -50,7 +41,9 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
-        out.writeStringArray(types);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
         indicesOptions.writeIndicesOptions(out);
     }
 
@@ -58,12 +51,6 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     @SuppressWarnings("unchecked")
     public Request indices(String... indices) {
         this.indices = indices;
-        return (Request) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Request types(String... types) {
-        this.types = types;
         return (Request) this;
     }
 
@@ -78,22 +65,13 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
         return indices;
     }
 
-    public String[] types() {
-        return types;
-    }
-
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        // TODO(talevy): once all ClusterInfoRequest objects are converted, remove this
-        super.readFrom(in);
-        indices = in.readStringArray();
-        types = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        // throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    public boolean includeDataStreams() {
+        return true;
     }
 }

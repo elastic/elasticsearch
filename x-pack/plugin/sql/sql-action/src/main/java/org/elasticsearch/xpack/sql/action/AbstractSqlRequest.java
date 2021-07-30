@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.action;
 
@@ -12,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -39,7 +41,8 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
         super(in);
         Mode mode = in.readEnum(Mode.class);
         String clientId = in.readOptionalString();
-        requestInfo = new RequestInfo(mode, clientId);
+        String clientVersion = in.readOptionalString();
+        requestInfo = new RequestInfo(mode, clientId, clientVersion);
     }
 
     @Override
@@ -52,21 +55,17 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
     }
 
     @Override
-    public final void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeEnum(requestInfo.mode());
         out.writeOptionalString(requestInfo.clientId());
+        out.writeOptionalString(requestInfo.version() == null ? null : requestInfo.version().toString());
     }
-    
+
     public RequestInfo requestInfo() {
         return requestInfo;
     }
-    
+
     public void requestInfo(RequestInfo requestInfo) {
         this.requestInfo = requestInfo;
     }
@@ -82,13 +81,21 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
     public void mode(String mode) {
         this.requestInfo.mode(Mode.fromString(mode));
     }
-    
+
     public String clientId() {
         return requestInfo.clientId();
     }
 
     public void clientId(String clientId) {
         this.requestInfo.clientId(clientId);
+    }
+
+    public void version(String clientVersion) {
+        requestInfo.version(clientVersion);
+    }
+
+    public SqlVersion version() {
+        return requestInfo.version();
     }
 
     @Override

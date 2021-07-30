@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -14,20 +16,23 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.TimeZone;
 
 public class QuarterProcessor extends BaseDateTimeProcessor {
-    
-    public QuarterProcessor(TimeZone timeZone) {
-        super(timeZone);
+
+    public static final String NAME = "q";
+    private static final DateTimeFormatter QUARTER_FORMAT = DateTimeFormatter.ofPattern("q", Locale.ROOT);
+
+
+    public QuarterProcessor(ZoneId zoneId) {
+        super(zoneId);
     }
-    
+
     public QuarterProcessor(StreamInput in) throws IOException {
         super(in);
     }
-    
-    public static final String NAME = "q";
-    private static final DateTimeFormatter QUARTER_FORMAT = DateTimeFormatter.ofPattern("q", Locale.ROOT);
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -38,7 +43,7 @@ public class QuarterProcessor extends BaseDateTimeProcessor {
     public Object doProcess(ZonedDateTime zdt) {
         return quarter(zdt);
     }
-    
+
     public static Integer quarter(ZonedDateTime dateTime, String tzId) {
         return quarter(dateTime.withZoneSameInstant(ZoneId.of(tzId)));
     }
@@ -49,7 +54,7 @@ public class QuarterProcessor extends BaseDateTimeProcessor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(timeZone());
+        return Objects.hash(zoneId());
     }
 
     @Override
@@ -58,6 +63,6 @@ public class QuarterProcessor extends BaseDateTimeProcessor {
             return false;
         }
         DateTimeProcessor other = (DateTimeProcessor) obj;
-        return Objects.equals(timeZone(), other.timeZone());
+        return Objects.equals(zoneId(), other.zoneId());
     }
 }

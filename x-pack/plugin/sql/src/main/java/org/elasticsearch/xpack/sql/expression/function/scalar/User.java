@@ -1,31 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
-import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.session.Configuration;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.util.Objects;
+public class User extends SqlConfigurationFunction {
 
-public class User extends BaseSystemFunction {
-
-    public User(Location location, Configuration configuration) {
-        super(location, configuration);
-    }
-
-    @Override
-    protected NodeInfo<User> info() {
-        return NodeInfo.create(this, User::new, configuration());
-    }
-
-    @Override
-    public boolean nullable() {
-        return true;
+    public User(Source source, Configuration configuration) {
+        super(source, configuration, DataTypes.KEYWORD);
     }
 
     @Override
@@ -34,13 +24,7 @@ public class User extends BaseSystemFunction {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), configuration().username());
+    protected NodeInfo<User> info() {
+        return NodeInfo.create(this, User::new, configuration());
     }
-
-    @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(configuration().username(), ((User) obj).configuration().username());
-    }
-
 }

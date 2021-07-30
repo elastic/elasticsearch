@@ -1,2 +1,0 @@
-You must have the `manage` privilege on the indices being managed to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security Privileges].

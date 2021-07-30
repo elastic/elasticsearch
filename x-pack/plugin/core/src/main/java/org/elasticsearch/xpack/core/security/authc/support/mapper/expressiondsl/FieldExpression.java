@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * An expression that evaluates to <code>true</code> if a field (map element) matches
@@ -118,15 +120,11 @@ public final class FieldExpression implements RoleMapperExpression {
         private static CharacterRunAutomaton buildAutomaton(Object value) {
             if (value instanceof String) {
                 final String str = (String) value;
-                if (Regex.isSimpleMatchPattern(str) || isLuceneRegex(str)) {
+                if (Regex.isSimpleMatchPattern(str) || Automatons.isLuceneRegex(str)) {
                     return new CharacterRunAutomaton(Automatons.patterns(str));
                 }
             }
             return null;
-        }
-
-        private static boolean isLuceneRegex(String str) {
-            return str.length() > 1 && str.charAt(0) == '/' && str.charAt(str.length() - 1) == '/';
         }
 
         public Object getValue() {
@@ -151,6 +149,27 @@ public final class FieldExpression implements RoleMapperExpression {
             return builder.value(value);
         }
 
+        @Override
+        public String toString() {
+            return Objects.toString(value);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final FieldValue that = (FieldValue) o;
+            return Objects.equals(this.value, that.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(value);
+        }
     }
 
 }

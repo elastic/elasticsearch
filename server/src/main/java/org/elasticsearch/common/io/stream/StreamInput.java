@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.io.stream;
@@ -30,23 +19,29 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.joda.time.DateTime;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryNotEmptyException;
@@ -56,9 +51,13 @@ import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.time.Instant;
+import java.time.LocalTime;
+import java.time.OffsetTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -66,13 +65,13 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
@@ -88,25 +87,6 @@ import static org.elasticsearch.ElasticsearchException.readStackTrace;
  * on {@link StreamInput}.
  */
 public abstract class StreamInput extends InputStream {
-
-    private static final Map<Byte, TimeUnit> BYTE_TIME_UNIT_MAP;
-
-    static {
-        final Map<Byte, TimeUnit> byteTimeUnitMap = new HashMap<>();
-        byteTimeUnitMap.put((byte)0, TimeUnit.NANOSECONDS);
-        byteTimeUnitMap.put((byte)1, TimeUnit.MICROSECONDS);
-        byteTimeUnitMap.put((byte)2, TimeUnit.MILLISECONDS);
-        byteTimeUnitMap.put((byte)3, TimeUnit.SECONDS);
-        byteTimeUnitMap.put((byte)4, TimeUnit.MINUTES);
-        byteTimeUnitMap.put((byte)5, TimeUnit.HOURS);
-        byteTimeUnitMap.put((byte)6, TimeUnit.DAYS);
-
-        for (TimeUnit value : TimeUnit.values()) {
-            assert byteTimeUnitMap.containsValue(value) : value;
-        }
-
-        BYTE_TIME_UNIT_MAP = Collections.unmodifiableMap(byteTimeUnitMap);
-    }
 
     private Version version = Version.CURRENT;
 
@@ -139,12 +119,21 @@ public abstract class StreamInput extends InputStream {
     public abstract void readBytes(byte[] b, int offset, int len) throws IOException;
 
     /**
-     * Reads a bytes reference from this stream, might hold an actual reference to the underlying
-     * bytes of the stream.
+     * Reads a bytes reference from this stream, copying any bytes read to a new {@code byte[]}. Use {@link #readReleasableBytesReference()}
+     * when reading large bytes references where possible top avoid needless allocations and copying.
      */
     public BytesReference readBytesReference() throws IOException {
         int length = readArraySize();
         return readBytesReference(length);
+    }
+
+    /**
+     * Reads a releasable bytes reference from this stream. Unlike {@link #readBytesReference()} the returned bytes reference may reference
+     * bytes in a pooled buffer and must be explicitly released via {@link ReleasableBytesReference#close()} once no longer used.
+     * Prefer this method over {@link #readBytesReference()} when reading large bytes references to avoid allocations and copying.
+     */
+    public ReleasableBytesReference readReleasableBytesReference() throws IOException {
+        return ReleasableBytesReference.wrap(readBytesReference());
     }
 
     /**
@@ -205,12 +194,26 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional {@link Integer}.
+     */
+    public Integer readOptionalInt() throws IOException {
+        if (readBoolean()) {
+            return readInt();
+        }
+        return null;
+    }
+
+    /**
      * Reads an int stored in variable-length format.  Reads between one and
      * five bytes.  Smaller values take fewer bytes.  Negative numbers
      * will always use all 5 bytes and are therefore better serialized
      * using {@link #readInt}
      */
     public int readVInt() throws IOException {
+        return readVIntSlow();
+    }
+
+    protected final int readVIntSlow() throws IOException {
         byte b = readByte();
         int i = b & 0x7F;
         if ((b & 0x80) == 0) {
@@ -233,9 +236,13 @@ public abstract class StreamInput extends InputStream {
         }
         b = readByte();
         if ((b & 0x80) != 0) {
-            throw new IOException("Invalid vInt ((" + Integer.toHexString(b) + " & 0x7f) << 28) | " + Integer.toHexString(i));
+            throwOnBrokenVInt(b, i);
         }
         return i | ((b & 0x7F) << 28);
+    }
+
+    protected static void throwOnBrokenVInt(byte b, int accumulated) throws IOException {
+        throw new IOException("Invalid vInt ((" + Integer.toHexString(b) + " & 0x7f) << 28) | " + Integer.toHexString(accumulated));
     }
 
     /**
@@ -250,6 +257,10 @@ public abstract class StreamInput extends InputStream {
      * are encoded in ten bytes so prefer {@link #readLong()} or {@link #readZLong()} for negative numbers.
      */
     public long readVLong() throws IOException {
+        return readVLongSlow();
+    }
+
+    protected final long readVLongSlow() throws IOException {
         byte b = readByte();
         long i = b & 0x7FL;
         if ((b & 0x80) == 0) {
@@ -297,10 +308,22 @@ public abstract class StreamInput extends InputStream {
         }
         b = readByte();
         if (b != 0 && b != 1) {
-            throw new IOException("Invalid vlong (" + Integer.toHexString(b) + " << 63) | " + Long.toHexString(i));
+            throwOnBrokenVLong(b, i);
         }
         i |= ((long) b) << 63;
         return i;
+    }
+
+    protected static void throwOnBrokenVLong(byte b, long accumulated) throws IOException {
+        throw new IOException("Invalid vlong (" + Integer.toHexString(b) + " << 63) | " + Long.toHexString(accumulated));
+    }
+
+    @Nullable
+    public Long readOptionalVLong() throws IOException {
+        if (readBoolean()) {
+            return readVLong();
+        }
+        return null;
     }
 
     public long readZLong() throws IOException {
@@ -324,6 +347,11 @@ public abstract class StreamInput extends InputStream {
         }
         return null;
     }
+
+    public BigInteger readBigInteger() throws IOException {
+        return new BigInteger(readString());
+    }
+
 
     @Nullable
     public Text readOptionalText() throws IOException {
@@ -349,6 +377,21 @@ public abstract class StreamInput extends InputStream {
     }
 
     @Nullable
+    public SecureString readOptionalSecureString() throws IOException {
+        SecureString value = null;
+        BytesReference bytesRef = readOptionalBytesReference();
+        if (bytesRef != null) {
+            byte[] bytes = BytesReference.toBytes(bytesRef);
+            try {
+                value = new SecureString(CharArrays.utf8BytesToChars(bytes));
+            } finally {
+                Arrays.fill(bytes, (byte) 0);
+            }
+        }
+        return value;
+    }
+
+    @Nullable
     public Float readOptionalFloat() throws IOException {
         if (readBoolean()) {
             return readFloat();
@@ -364,47 +407,158 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
-    // we don't use a CharsRefBuilder since we exactly know the size of the character array up front
+    // Maximum char-count to de-serialize via the thread-local CharsRef buffer
+    private static final int SMALL_STRING_LIMIT = 1024;
+
+    // Reusable bytes for deserializing strings
+    private static final ThreadLocal<byte[]> stringReadBuffer = ThreadLocal.withInitial(() -> new byte[1024]);
+
+    // Thread-local buffer for smaller strings
+    private static final ThreadLocal<CharsRef> smallSpare = ThreadLocal.withInitial(() -> new CharsRef(SMALL_STRING_LIMIT));
+
+    // Larger buffer used for long strings that can't fit into the thread-local buffer
+    // We don't use a CharsRefBuilder since we exactly know the size of the character array up front
     // this prevents calling grow for every character since we don't need this
-    private final CharsRef spare = new CharsRef();
+    private CharsRef largeSpare;
 
     public String readString() throws IOException {
-        // TODO it would be nice to not call readByte() for every character but we don't know how much to read up-front
-        // we can make the loop much more complicated but that won't buy us much compared to the bounds checks in readByte()
         final int charCount = readArraySize();
-        if (spare.chars.length < charCount) {
-            // we don't use ArrayUtils.grow since there is no need to copy the array
-            spare.chars = new char[ArrayUtil.oversize(charCount, Character.BYTES)];
+        final CharsRef charsRef;
+        if (charCount > SMALL_STRING_LIMIT) {
+            if (largeSpare == null) {
+                largeSpare = new CharsRef(ArrayUtil.oversize(charCount, Character.BYTES));
+            } else if (largeSpare.chars.length < charCount) {
+                // we don't use ArrayUtils.grow since there is no need to copy the array
+                largeSpare.chars = new char[ArrayUtil.oversize(charCount, Character.BYTES)];
+            }
+            charsRef = largeSpare;
+        } else {
+            charsRef = smallSpare.get();
         }
-        spare.length = charCount;
-        final char[] buffer = spare.chars;
-        for (int i = 0; i < charCount; i++) {
-            final int c = readByte() & 0xff;
-            switch (c >> 4) {
-                case 0:
-                case 1:
-                case 2:
-                case 3:
-                case 4:
-                case 5:
-                case 6:
-                case 7:
-                    buffer[i] = (char) c;
-                    break;
-                case 12:
-                case 13:
-                    buffer[i] = ((char) ((c & 0x1F) << 6 | readByte() & 0x3F));
-                    break;
-                case 14:
-                    buffer[i] = ((char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0));
-                    break;
-                default:
-                    throw new IOException("Invalid string; unexpected character: " + c + " hex: " + Integer.toHexString(c));
+        charsRef.length = charCount;
+        int charsOffset = 0;
+        int offsetByteArray = 0;
+        int sizeByteArray = 0;
+        int missingFromPartial = 0;
+        final byte[] byteBuffer = stringReadBuffer.get();
+        final char[] charBuffer = charsRef.chars;
+        for (; charsOffset < charCount; ) {
+            final int charsLeft = charCount - charsOffset;
+            int bufferFree = byteBuffer.length - sizeByteArray;
+            // Determine the minimum amount of bytes that are left in the string
+            final int minRemainingBytes;
+            if (missingFromPartial > 0) {
+                // One byte for each remaining char except for the already partially read char
+                minRemainingBytes = missingFromPartial + charsLeft - 1;
+                missingFromPartial = 0;
+            } else {
+                // Each char has at least a single byte
+                minRemainingBytes = charsLeft;
+            }
+            final int toRead;
+            if (bufferFree < minRemainingBytes) {
+                // We don't have enough space left in the byte array to read as much as we'd like to so we free up as many bytes in the
+                // buffer by moving unused bytes that didn't make up a full char in the last iteration to the beginning of the buffer,
+                // if there are any
+                if (offsetByteArray > 0) {
+                    sizeByteArray = sizeByteArray - offsetByteArray;
+                    switch (sizeByteArray) { // We only have 0, 1 or 2 => no need to bother with a native call to System#arrayCopy
+                        case 1:
+                            byteBuffer[0] = byteBuffer[offsetByteArray];
+                            break;
+                        case 2:
+                            byteBuffer[0] = byteBuffer[offsetByteArray];
+                            byteBuffer[1] = byteBuffer[offsetByteArray + 1];
+                            break;
+                    }
+                    assert sizeByteArray <= 2 : "We never copy more than 2 bytes here since a char is 3 bytes max";
+                    toRead = Math.min(bufferFree + offsetByteArray, minRemainingBytes);
+                    offsetByteArray = 0;
+                } else {
+                    toRead = bufferFree;
+                }
+            } else {
+                toRead = minRemainingBytes;
+            }
+            readBytes(byteBuffer, sizeByteArray, toRead);
+            sizeByteArray += toRead;
+            // As long as we at least have three bytes buffered we don't need to do any bounds checking when getting the next char since we
+            // read 3 bytes per char/iteration at most
+            for (; offsetByteArray < sizeByteArray - 2; offsetByteArray++) {
+                final int c = byteBuffer[offsetByteArray] & 0xff;
+                switch (c >> 4) {
+                    case 0:
+                    case 1:
+                    case 2:
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 6:
+                    case 7:
+                        charBuffer[charsOffset++] = (char) c;
+                        break;
+                    case 12:
+                    case 13:
+                        charBuffer[charsOffset++] = (char) ((c & 0x1F) << 6 | byteBuffer[++offsetByteArray] & 0x3F);
+                        break;
+                    case 14:
+                        charBuffer[charsOffset++] = (char) (
+                            (c & 0x0F) << 12 | (byteBuffer[++offsetByteArray] & 0x3F) << 6 | (byteBuffer[++offsetByteArray] & 0x3F));
+                        break;
+                    default:
+                        throwOnBrokenChar(c);
+                }
+            }
+            // try to extract chars from remaining bytes with bounds checks for multi-byte chars
+            final int bufferedBytesRemaining = sizeByteArray - offsetByteArray;
+            for (int i = 0; i < bufferedBytesRemaining; i++) {
+                final int c = byteBuffer[offsetByteArray] & 0xff;
+                switch (c >> 4) {
+                    case 0:
+                    case 1:
+                    case 2:
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 6:
+                    case 7:
+                        charBuffer[charsOffset++] = (char) c;
+                        offsetByteArray++;
+                        break;
+                    case 12:
+                    case 13:
+                        missingFromPartial = 2 - (bufferedBytesRemaining - i);
+                        if (missingFromPartial == 0) {
+                            offsetByteArray++;
+                            charBuffer[charsOffset++] = (char) ((c & 0x1F) << 6 | byteBuffer[offsetByteArray++] & 0x3F);
+                        }
+                        ++i;
+                        break;
+                    case 14:
+                        missingFromPartial = 3 - (bufferedBytesRemaining - i);
+                        ++i;
+                        break;
+                    default:
+                        throwOnBrokenChar(c);
+                }
             }
         }
-        return spare.toString();
+        return charsRef.toString();
     }
 
+    private static void throwOnBrokenChar(int c) throws IOException {
+        throw new IOException("Invalid string; unexpected character: " + c + " hex: " + Integer.toHexString(c));
+    }
+
+    public SecureString readSecureString() throws IOException {
+        BytesReference bytesRef = readBytesReference();
+        byte[] bytes = BytesReference.toBytes(bytesRef);
+        try {
+            return new SecureString(CharArrays.utf8BytesToChars(bytes));
+        } finally {
+            Arrays.fill(bytes, (byte) 0);
+        }
+    }
 
     public final float readFloat() throws IOException {
         return Float.intBitsToFloat(readInt());
@@ -479,9 +633,24 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    /**
+     * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
+     */
     public <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
+        return readMap(keyReader, valueReader, HashMap::new);
+    }
+
+    public <K, V> Map<K, V> readOrderedMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
+        return readMap(keyReader, valueReader, LinkedHashMap::new);
+    }
+
+    private <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader, IntFunction<Map<K, V>> constructor)
+        throws IOException {
         int size = readArraySize();
-        Map<K, V> map = new HashMap<>(size);
+        if (size == 0) {
+            return Collections.emptyMap();
+        }
+        Map<K, V> map = constructor.apply(size);
         for (int i = 0; i < size; i++) {
             K key = keyReader.read(this);
             V value = valueReader.read(this);
@@ -495,6 +664,8 @@ public abstract class StreamInput extends InputStream {
      * <pre><code>
      * Map&lt;String, List&lt;String&gt;&gt; map = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
      * </code></pre>
+     * If the map or a list in it contains any elements it will be mutable, otherwise either the empty map or empty lists it contains
+     * might be immutable.
      *
      * @param keyReader The key reader
      * @param valueReader The value reader
@@ -513,12 +684,38 @@ public abstract class StreamInput extends InputStream {
         return map;
     }
 
+    /**
+     * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
+     */
     @Nullable
     @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {
         return (Map<String, Object>) readGenericValue();
     }
 
+    /**
+     * Read {@link ImmutableOpenMap} using given key and value readers.
+     *
+     * @param keyReader   key reader
+     * @param valueReader value reader
+     */
+    public <K, V> ImmutableOpenMap<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
+            throws IOException {
+        final int size = readVInt();
+        if (size == 0) {
+            return ImmutableOpenMap.of();
+        }
+        final ImmutableOpenMap.Builder<K,V> builder = ImmutableOpenMap.builder(size);
+        for (int i = 0; i < size; i++) {
+            builder.put(keyReader.read(this), valueReader.read(this));
+        }
+        return builder.build();
+    }
+
+    /**
+     * Reads a value of unspecified type. If a collection is read then the collection will be mutable if it contains any entry but might
+     * be immutable if it is empty.
+     */
     @Nullable
     public Object readGenericValue() throws IOException {
         byte type = readByte();
@@ -573,24 +770,54 @@ public abstract class StreamInput extends InputStream {
                 return readGeoPoint();
             case 23:
                 return readZonedDateTime();
+            case 24:
+                return readCollection(StreamInput::readGenericValue, LinkedHashSet::new, Collections.emptySet());
+            case 25:
+                return readCollection(StreamInput::readGenericValue, HashSet::new, Collections.emptySet());
+            case 26:
+                return readBigInteger();
+            case 27:
+                return readOffsetTime();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private List readArrayList() throws IOException {
+    /**
+     * Read an {@link Instant} from the stream with nanosecond resolution
+     */
+    public final Instant readInstant() throws IOException {
+        return Instant.ofEpochSecond(readLong(), readInt());
+    }
+
+    /**
+     * Read an optional {@link Instant} from the stream. Returns <code>null</code> when
+     * no instant is present.
+     */
+    @Nullable
+    public final Instant readOptionalInstant() throws IOException {
+        final boolean present = readBoolean();
+        return present ? readInstant() : null;
+    }
+
+    private List<Object> readArrayList() throws IOException {
         int size = readArraySize();
-        List list = new ArrayList(size);
+        if (size == 0) {
+            return Collections.emptyList();
+        }
+        List<Object> list = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             list.add(readGenericValue());
         }
         return list;
     }
 
-    private DateTime readDateTime() throws IOException {
-        final String timeZoneId = readString();
-        return new DateTime(readLong(), DateTimeZone.forID(timeZoneId));
+    private JodaCompatibleZonedDateTime readDateTime() throws IOException {
+        // we reuse DateTime to communicate with older nodes that don't know about the joda compat layer, but
+        // here we are on a new node so we always want a compat datetime
+        final ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(DateTimeZone.forID(readString()));
+        long millis = readLong();
+        return new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), zoneId);
     }
 
     private ZonedDateTime readZonedDateTime() throws IOException {
@@ -598,8 +825,18 @@ public abstract class StreamInput extends InputStream {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(readLong()), ZoneId.of(timeZoneId));
     }
 
+    private OffsetTime readOffsetTime() throws IOException {
+        final String zoneOffsetId = readString();
+        return OffsetTime.of(LocalTime.ofNanoOfDay(readLong()), ZoneOffset.of(zoneOffsetId));
+    }
+
+    private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
+
     private Object[] readArray() throws IOException {
         int size8 = readArraySize();
+        if (size8 == 0) {
+            return EMPTY_OBJECT_ARRAY;
+        }
         Object[] list8 = new Object[size8];
         for (int i = 0; i < size8; i++) {
             list8[i] = readGenericValue();
@@ -607,18 +844,24 @@ public abstract class StreamInput extends InputStream {
         return list8;
     }
 
-    private Map readLinkedHashMap() throws IOException {
+    private Map<String, Object> readLinkedHashMap() throws IOException {
         int size9 = readArraySize();
-        Map map9 = new LinkedHashMap(size9);
+        if (size9 == 0) {
+            return Collections.emptyMap();
+        }
+        Map<String, Object> map9 = new LinkedHashMap<>(size9);
         for (int i = 0; i < size9; i++) {
             map9.put(readString(), readGenericValue());
         }
         return map9;
     }
 
-    private Map readHashMap() throws IOException {
+    private Map<String, Object> readHashMap() throws IOException {
         int size10 = readArraySize();
-        Map map10 = new HashMap(size10);
+        if (size10 == 0) {
+            return Collections.emptyMap();
+        }
+        Map<String, Object> map10 = new HashMap<>(size10);
         for (int i = 0; i < size10; i++) {
             map10.put(readString(), readGenericValue());
         }
@@ -653,8 +896,30 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    /**
+     * Read a {@linkplain DateTimeZone}.
+     */
+    public ZoneId readZoneId() throws IOException {
+        return ZoneId.of(readString());
+    }
+
+    /**
+     * Read an optional {@linkplain ZoneId}.
+     */
+    public ZoneId readOptionalZoneId() throws IOException {
+        if (readBoolean()) {
+            return ZoneId.of(readString());
+        }
+        return null;
+    }
+
+    private static final int[] EMPTY_INT_ARRAY = new int[0];
+
     public int[] readIntArray() throws IOException {
         int length = readArraySize();
+        if (length == 0) {
+            return EMPTY_INT_ARRAY;
+        }
         int[] values = new int[length];
         for (int i = 0; i < length; i++) {
             values[i] = readInt();
@@ -664,6 +929,9 @@ public abstract class StreamInput extends InputStream {
 
     public int[] readVIntArray() throws IOException {
         int length = readArraySize();
+        if (length == 0) {
+            return EMPTY_INT_ARRAY;
+        }
         int[] values = new int[length];
         for (int i = 0; i < length; i++) {
             values[i] = readVInt();
@@ -671,8 +939,13 @@ public abstract class StreamInput extends InputStream {
         return values;
     }
 
+    private static final long[] EMPTY_LONG_ARRAY = new long[0];
+
     public long[] readLongArray() throws IOException {
         int length = readArraySize();
+        if (length == 0) {
+            return EMPTY_LONG_ARRAY;
+        }
         long[] values = new long[length];
         for (int i = 0; i < length; i++) {
             values[i] = readLong();
@@ -682,6 +955,9 @@ public abstract class StreamInput extends InputStream {
 
     public long[] readVLongArray() throws IOException {
         int length = readArraySize();
+        if (length == 0) {
+            return EMPTY_LONG_ARRAY;
+        }
         long[] values = new long[length];
         for (int i = 0; i < length; i++) {
             values[i] = readVLong();
@@ -689,8 +965,13 @@ public abstract class StreamInput extends InputStream {
         return values;
     }
 
+    private static final float[] EMPTY_FLOAT_ARRAY = new float[0];
+
     public float[] readFloatArray() throws IOException {
         int length = readArraySize();
+        if (length == 0) {
+            return EMPTY_FLOAT_ARRAY;
+        }
         float[] values = new float[length];
         for (int i = 0; i < length; i++) {
             values[i] = readFloat();
@@ -698,8 +979,13 @@ public abstract class StreamInput extends InputStream {
         return values;
     }
 
+    private static final double[] EMPTY_DOUBLE_ARRAY = new double[0];
+
     public double[] readDoubleArray() throws IOException {
         int length = readArraySize();
+        if (length == 0) {
+            return EMPTY_DOUBLE_ARRAY;
+        }
         double[] values = new double[length];
         for (int i = 0; i < length; i++) {
             values[i] = readDouble();
@@ -707,8 +993,13 @@ public abstract class StreamInput extends InputStream {
         return values;
     }
 
+    private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
+
     public byte[] readByteArray() throws IOException {
         final int length = readArraySize();
+        if (length == 0) {
+            return EMPTY_BYTE_ARRAY;
+        }
         final byte[] bytes = new byte[length];
         readBytes(bytes, 0, bytes.length);
         return bytes;
@@ -739,20 +1030,6 @@ public abstract class StreamInput extends InputStream {
         return readBoolean() ? readArray(reader, arraySupplier) : null;
     }
 
-    /**
-     * Serializes a potential null value.
-     */
-    @Nullable
-    public <T extends Streamable> T readOptionalStreamable(Supplier<T> supplier) throws IOException {
-        if (readBoolean()) {
-            T streamable = supplier.get();
-            streamable.readFrom(this);
-            return streamable;
-        } else {
-            return null;
-        }
-    }
-
     @Nullable
     public <T extends Writeable> T readOptionalWriteable(Writeable.Reader<T> reader) throws IOException {
         if (readBoolean()) {
@@ -767,6 +1044,8 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
+    @Nullable
+    @SuppressWarnings("unchecked")
     public <T extends Exception> T readException() throws IOException {
         if (readBoolean()) {
             int key = readVInt();
@@ -868,6 +1147,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Get the registry of named writeables if this stream has one,
+     * {@code null} otherwise.
+     */
+    public NamedWriteableRegistry namedWriteableRegistry() {
+        return null;
+    }
+
+    /**
      * Reads a {@link NamedWriteable} from the current stream, by first reading its name and then looking for
      * the corresponding entry in the registry by name, so that the proper object can be read and returned.
      * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
@@ -906,48 +1193,61 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Read a {@link List} of {@link Streamable} objects, using the {@code constructor} to instantiate each instance.
-     * <p>
-     * This is expected to take the form:
-     * <code>
-     * List&lt;MyStreamableClass&gt; list = in.readStreamList(MyStreamableClass::new);
-     * </code>
+     * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeList(List)}.
+     * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
      *
-     * @param constructor Streamable instance creator
-     * @return Never {@code null}.
-     * @throws IOException if any step fails
+     * @return the list of objects
+     * @throws IOException if an I/O exception occurs reading the list
      */
-    public <T extends Streamable> List<T> readStreamableList(Supplier<T> constructor) throws IOException {
-        int count = readArraySize();
-        List<T> builder = new ArrayList<>(count);
-        for (int i=0; i<count; i++) {
-            T instance = constructor.get();
-            instance.readFrom(this);
-            builder.add(instance);
+    public <T> List<T> readList(final Writeable.Reader<T> reader) throws IOException {
+        return readCollection(reader, ArrayList::new, Collections.emptyList());
+    }
+
+    /**
+     * Reads a list of strings. The list is expected to have been written using {@link StreamOutput#writeStringCollection(Collection)}.
+     * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
+     *
+     * @return the list of strings
+     * @throws IOException if an I/O exception occurs reading the list
+     */
+    public List<String> readStringList() throws IOException {
+        return readList(StreamInput::readString);
+    }
+
+    /**
+     * Reads an optional list of strings. The list is expected to have been written using
+     * {@link StreamOutput#writeOptionalStringCollection(Collection)}. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
+     *
+     * @return the list of strings
+     * @throws IOException if an I/O exception occurs reading the list
+     */
+    public List<String> readOptionalStringList() throws IOException {
+        final boolean isPresent = readBoolean();
+        if (isPresent) {
+            return readList(StreamInput::readString);
+        } else {
+            return null;
         }
-        return builder;
     }
 
     /**
-     * Reads a list of objects
-     */
-    public <T> List<T> readList(Writeable.Reader<T> reader) throws IOException {
-        return readCollection(reader, ArrayList::new);
-    }
-
-    /**
-     * Reads a set of objects
+     * Reads a set of objects. If the returned set contains any entries it will be mutable. If it is empty it might be immutable.
      */
     public <T> Set<T> readSet(Writeable.Reader<T> reader) throws IOException {
-        return readCollection(reader, HashSet::new);
+        return readCollection(reader, HashSet::new, Collections.emptySet());
     }
 
     /**
      * Reads a collection of objects
      */
     private <T, C extends Collection<? super T>> C readCollection(Writeable.Reader<T> reader,
-                                                                  IntFunction<C> constructor) throws IOException {
+                                                                  IntFunction<C> constructor,
+                                                                  C empty) throws IOException {
         int count = readArraySize();
+        if (count == 0) {
+            return empty;
+        }
         C builder = constructor.apply(count);
         for (int i=0; i<count; i++) {
             builder.add(reader.read(this));
@@ -956,10 +1256,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a list of {@link NamedWriteable}s.
+     * Reads a list of {@link NamedWriteable}s. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
      */
     public <T extends NamedWriteable> List<T> readNamedWriteableList(Class<T> categoryClass) throws IOException {
         int count = readArraySize();
+        if (count == 0) {
+            return Collections.emptyList();
+        }
         List<T> builder = new ArrayList<>(count);
         for (int i=0; i<count; i++) {
             builder.add(readNamedWriteable(categoryClass));
@@ -968,11 +1272,26 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads an enum with type E that was serialized based on the value of it's ordinal
+     * Reads an enum with type E that was serialized based on the value of its ordinal
      */
     public <E extends Enum<E>> E readEnum(Class<E> enumClass) throws IOException {
+        return readEnum(enumClass, enumClass.getEnumConstants());
+    }
+
+    /**
+     * Reads an optional enum with type E that was serialized based on the value of its ordinal
+     */
+    @Nullable
+    public <E extends Enum<E>> E readOptionalEnum(Class<E> enumClass) throws IOException {
+        if (readBoolean()) {
+            return readEnum(enumClass, enumClass.getEnumConstants());
+        } else {
+            return null;
+        }
+    }
+
+    private <E extends Enum<E>> E readEnum(Class<E> enumClass, E[] values) throws IOException {
         int ordinal = readVInt();
-        E[] values = enumClass.getEnumConstants();
         if (ordinal < 0 || ordinal >= values.length) {
             throw new IOException("Unknown " + enumClass.getSimpleName() + " ordinal [" + ordinal + "]");
         }
@@ -984,14 +1303,15 @@ public abstract class StreamInput extends InputStream {
      */
     public <E extends Enum<E>> EnumSet<E> readEnumSet(Class<E> enumClass) throws IOException {
         int size = readVInt();
+        final EnumSet<E> res = EnumSet.noneOf(enumClass);
         if (size == 0) {
-             return EnumSet.noneOf(enumClass);
+            return res;
         }
-        Set<E> enums = new HashSet<>(size);
+        final E[] values = enumClass.getEnumConstants();
         for (int i = 0; i < size; i++) {
-            enums.add(readEnum(enumClass));
+            res.add(readEnum(enumClass, values));
         }
-        return EnumSet.copyOf(enums);
+        return res;
     }
 
     public static StreamInput wrap(byte[] bytes) {
@@ -999,14 +1319,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     public static StreamInput wrap(byte[] bytes, int offset, int length) {
-        return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length), length);
+        return new ByteBufferStreamInput(ByteBuffer.wrap(bytes, offset, length));
     }
 
     /**
      * Reads a vint via {@link #readVInt()} and applies basic checks to ensure the read array size is sane.
      * This method uses {@link #ensureCanReadBytes(int)} to ensure this stream has enough bytes to read for the read array size.
      */
-    private int readArraySize() throws IOException {
+    protected int readArraySize() throws IOException {
         final int arraySize = readVInt();
         if (arraySize > ArrayUtil.MAX_ARRAY_LENGTH) {
             throw new IllegalStateException("array length must be <= to " + ArrayUtil.MAX_ARRAY_LENGTH  + " but was: " + arraySize);
@@ -1027,12 +1347,22 @@ public abstract class StreamInput extends InputStream {
      */
     protected abstract void ensureCanReadBytes(int length) throws EOFException;
 
+    private static final TimeUnit[] TIME_UNITS = TimeUnit.values();
+
+    static {
+        // assert the exact form of the TimeUnit values to ensure we're not silently broken by a JDK change
+        if (Arrays.equals(TIME_UNITS, new TimeUnit[]{TimeUnit.NANOSECONDS, TimeUnit.MICROSECONDS, TimeUnit.MILLISECONDS,
+            TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS}) == false) {
+            throw new AssertionError("Incompatible JDK version used that breaks assumptions on the structure of the TimeUnit enum");
+        }
+    }
+
     /**
      * Read a {@link TimeValue} from the stream
      */
     public TimeValue readTimeValue() throws IOException {
         long duration = readZLong();
-        TimeUnit timeUnit = BYTE_TIME_UNIT_MAP.get(readByte());
+        TimeUnit timeUnit = TIME_UNITS[readByte()];
         return new TimeValue(duration, timeUnit);
     }
 

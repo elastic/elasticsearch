@@ -1,40 +1,47 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-start]]
-=== Start {ILM} API
+=== Start {ilm} API
+
+[subs="attributes"]
 ++++
-<titleabbrev>Start {ILM}</titleabbrev>
+<titleabbrev>Start {ilm}</titleabbrev>
 ++++
 
-beta[]
+Start the {ilm} ({ilm-init}) plugin.
 
-Start the {ILM} plugin.
-
-==== Request
+[[ilm-start-request]]
+==== {api-request-title}
 
 `POST /_ilm/start`
 
-==== Description
+[[ilm-start-prereqs]]
+==== {api-prereq-title}
 
-Starts the {ILM} plugin if it is currently stopped. {ILM} is started
-automatically when the cluster is formed. Restarting {ILM} is only
-necessary if it has been stopped using the <<ilm-stop, Stop {ILM} API>>.
+* If the {es} {security-features} are enabled, you must have the `manage_ilm`
+cluster privilege to use this API. For more information, see
+<<security-privileges>>.
 
-==== Request Parameters
+[[ilm-start-desc]]
+==== {api-description-title}
 
-include::{docdir}/rest-api/timeoutparms.asciidoc[]
+Starts the {ilm-init} plugin if it is currently stopped. {ilm-init} is started
+automatically when the cluster is formed. Restarting {ilm-init} is only
+necessary if it has been stopped using the <<ilm-stop, Stop {ilm-init} API>>.
 
-==== Authorization
+[[ilm-start-query-params]]
+==== {api-query-parms-title}
 
-include::ilm-cluster-mgt-privilege.asciidoc[]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Examples
+[[ilm-start-example]]
+==== {api-examples-title}
 
-The following example starts the ILM plugin.
+The following example starts the {ilm-init} plugin.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -58,29 +65,24 @@ PUT _ilm/policy/my_policy
   }
 }
 
-PUT my_index
+PUT my-index-000001
 
 POST _ilm/stop
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ilm/start
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 If the request succeeds, you receive the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged": true
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE

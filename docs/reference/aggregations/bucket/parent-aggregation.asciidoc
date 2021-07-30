@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-parent-aggregation]]
-=== Parent Aggregation
+=== Parent aggregation
+++++
+<titleabbrev>Parent</titleabbrev>
+++++
 
 A special single bucket aggregation that selects parent documents that have the specified type, as defined in a <<parent-join,`join` field>>.
 
@@ -9,25 +12,22 @@ This aggregation has a single option:
 
 For example, let's say we have an index of questions and answers. The answer type has the following `join` field in the mapping:
 
-[source,js]
+[source,console,id=parent-aggregation-example]
 --------------------------------------------------
 PUT parent_example
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "join": {
-          "type": "join",
-          "relations": {
-            "question": "answer"
-          }
-        }
-      }
-    }
+     "properties": {
+       "join": {
+         "type": "join",
+         "relations": {
+           "question": "answer"
+         }
+       }
+     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `question` document contain a tag field and the `answer` documents contain an owner field. With the `parent`
 aggregation the owner buckets can be mapped to the tag buckets in a single request even though the two fields exist in
@@ -35,7 +35,7 @@ two different kinds of documents.
 
 An example of a question document:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT parent_example/_doc/1
 {
@@ -51,12 +51,11 @@ PUT parent_example/_doc/1
   ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Examples of `answer` documents:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT parent_example/_doc/2?routing=1
 {
@@ -88,12 +87,11 @@ PUT parent_example/_doc/3?routing=1&refresh
   "creation_date": "2009-05-05T13:45:37.030"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The following request can be built that connects the two together:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST parent_example/_search?size=0
 {
@@ -122,7 +120,6 @@ POST parent_example/_search?size=0
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> The `type` points to type / mapping with the name `answer`.
@@ -131,7 +128,7 @@ The above example returns the top answer owners and per owner the top question t
 
 Possible response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 9,

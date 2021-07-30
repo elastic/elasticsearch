@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -47,13 +38,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 /**
  * {@link Script} represents used-defined input that can be used to
  * compile and execute a script from the {@link ScriptService}
  * based on the {@link ScriptType}.
  *
- * There are three types of scripts specified by {@link ScriptType}.
+ * There are two types of scripts specified by {@link ScriptType},
+ * <code>INLINE</code>, and <code>STORED</code>.
  *
  * The following describes the expected parameters for each type of script:
  *
@@ -269,6 +262,27 @@ public final class Script implements ToXContentObject, Writeable {
     }
 
     /**
+     * Declare a script field on an {@link ObjectParser} with the standard name ({@code script}).
+     * @param <T> Whatever type the {@linkplain ObjectParser} is parsing.
+     * @param parser the parser itself
+     * @param consumer the consumer for the script
+     */
+    public static <T> void declareScript(AbstractObjectParser<T, ?> parser, BiConsumer<T, Script> consumer) {
+        declareScript(parser, consumer, Script.SCRIPT_PARSE_FIELD);
+    }
+
+    /**
+     * Declare a script field on an {@link ObjectParser}.
+     * @param <T> Whatever type the {@linkplain ObjectParser} is parsing.
+     * @param parser the parser itself
+     * @param consumer the consumer for the script
+     * @param parseField the field name
+     */
+    public static <T> void declareScript(AbstractObjectParser<T, ?> parser, BiConsumer<T, Script> consumer, ParseField parseField) {
+        parser.declareField(consumer, (p, c) -> Script.parse(p), parseField, ValueType.OBJECT_OR_STRING);
+    }
+
+    /**
      * Convenience method to call {@link Script#parse(XContentParser, String)}
      * using the default scripting language.
      */
@@ -379,6 +393,84 @@ public final class Script implements ToXContentObject, Writeable {
         }
 
         return PARSER.apply(parser, null).build(defaultLang);
+    }
+
+    /**
+     * Parse a {@link Script} from an {@link Object}, that can either be a {@link String} or a {@link Map}.
+     * @see #parse(XContentParser, String)
+     * @param config  The object to parse the script from.
+     * @return        The parsed {@link Script}.
+     */
+    @SuppressWarnings("unchecked")
+    public static Script parse(Object config) {
+        Objects.requireNonNull(config, "Script must not be null");
+        if (config instanceof String) {
+            return new Script((String) config);
+        } else if (config instanceof Map) {
+            Map<String,Object> configMap = (Map<String, Object>) config;
+            String script = null;
+            ScriptType type = null;
+            String lang = null;
+            Map<String, Object> params = Collections.emptyMap();
+            Map<String, String> options = Collections.emptyMap();
+            for (Map.Entry<String, Object> entry : configMap.entrySet()) {
+                String parameterName = entry.getKey();
+                Object parameterValue = entry.getValue();
+                if (Script.LANG_PARSE_FIELD.match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (parameterValue instanceof String || parameterValue == null) {
+                        lang = (String) parameterValue;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                    }
+                } else if (Script.PARAMS_PARSE_FIELD.match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (parameterValue instanceof Map || parameterValue == null) {
+                        params = (Map<String, Object>) parameterValue;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type Map: [" + parameterName + "]");
+                    }
+                } else if (Script.OPTIONS_PARSE_FIELD.match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (parameterValue instanceof Map || parameterValue == null) {
+                        options = (Map<String, String>) parameterValue;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type Map: [" + parameterName + "]");
+                    }
+                } else if (ScriptType.INLINE.getParseField().match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (parameterValue instanceof String || parameterValue == null) {
+                        script = (String) parameterValue;
+                        type = ScriptType.INLINE;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                    }
+                } else if (ScriptType.STORED.getParseField().match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (parameterValue instanceof String || parameterValue == null) {
+                        script = (String) parameterValue;
+                        type = ScriptType.STORED;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                    }
+                } else {
+                    throw new ElasticsearchParseException("Unsupported field [" + parameterName + "]");
+                }
+            }
+            if (script == null) {
+                throw new ElasticsearchParseException("Expected one of [{}] or [{}] fields, but found none",
+                    ScriptType.INLINE.getParseField().getPreferredName(), ScriptType.STORED.getParseField().getPreferredName());
+            }
+            assert type != null : "if script is not null, type should definitely not be null";
+
+            if (type == ScriptType.STORED) {
+                if (lang != null) {
+                    throw new IllegalArgumentException("[" + Script.LANG_PARSE_FIELD.getPreferredName() +
+                        "] cannot be specified for stored scripts");
+                }
+
+                return new Script(type, null, script, null, params);
+            } else {
+                return new Script(type, lang == null ? DEFAULT_SCRIPT_LANG : lang, script, options, params);
+            }
+        } else {
+            throw new IllegalArgumentException("Script value should be a String or a Map");
+        }
     }
 
     private final ScriptType type;
@@ -545,11 +637,11 @@ public final class Script implements ToXContentObject, Writeable {
             builder.field(LANG_PARSE_FIELD.getPreferredName(), lang);
         }
 
-        if (options != null && !options.isEmpty()) {
+        if (options != null && options.isEmpty() == false) {
             builder.field(OPTIONS_PARSE_FIELD.getPreferredName(), options);
         }
 
-        if (!params.isEmpty()) {
+        if (params.isEmpty() == false) {
             builder.field(PARAMS_PARSE_FIELD.getPreferredName(), params);
         }
 
@@ -599,17 +691,18 @@ public final class Script implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Script script = (Script)o;
-
-        if (type != script.type) return false;
-        if (lang != null ? !lang.equals(script.lang) : script.lang != null) return false;
-        if (!idOrCode.equals(script.idOrCode)) return false;
-        if (options != null ? !options.equals(script.options) : script.options != null) return false;
-        return params.equals(script.params);
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        Script script = (Script) o;
+        return type == script.type
+            && Objects.equals(lang, script.lang)
+            && Objects.equals(idOrCode, script.idOrCode)
+            && Objects.equals(options, script.options)
+            && Objects.equals(params, script.params);
     }
 
     @Override

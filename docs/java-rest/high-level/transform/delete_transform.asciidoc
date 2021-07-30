@@ -1,0 +1,31 @@
+--
+:api: delete-transform
+:request: DeleteTransformRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Delete {transform} API
+
+Deletes an existing {transform}.
+
+[id="{upid}-{api}-request"]
+==== Delete {transform} request
+
+A +{request}+ object requires a non-null `id`.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+---------------------------------------------------
+<1> Constructing a new request referencing an existing {transform}
+<2> Sets the optional argument `force`. When `true`, the {transform}
+is deleted regardless of its current state. The default value is `false`,
+meaning that only `stopped` {transforms} can be deleted.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ object acknowledges the {transform} deletion.

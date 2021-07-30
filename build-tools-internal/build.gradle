@@ -1,0 +1,279 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesLoader
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.gradle.plugins.ide.eclipse.model.AccessRule
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
+import org.gradle.plugins.ide.eclipse.model.ProjectDependency
+
+plugins {
+  id 'java-gradle-plugin'
+  id 'groovy-gradle-plugin'
+  id 'groovy'
+  id 'elasticsearch.build-tools'
+  id 'elasticsearch.eclipse'
+}
+
+group = 'org.elasticsearch.gradle'
+
+// we update the version property to reflect if we are building a snapshot or a release build
+// we write this back out below to load it in the Build.java which will be shown in rest main action
+// to indicate this being a snapshot build or a release build.
+Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'))
+version = props.getProperty("elasticsearch")
+
+gradlePlugin {
+  // We already configure publication and we don't need or want the one that comes
+  // with the java-gradle-plugin
+  automatedPublishing = false
+  plugins {
+    build {
+      id = 'elasticsearch.build'
+      implementationClass = 'org.elasticsearch.gradle.internal.BuildPlugin'
+    }
+    distroTest {
+      id = 'elasticsearch.distro-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.DistroTestPlugin'
+    }
+    dockerSupport {
+      id = 'elasticsearch.docker-support'
+      implementationClass = 'org.elasticsearch.gradle.internal.docker.DockerSupportPlugin'
+    }
+    docsTest {
+      id = 'elasticsearch.docs-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.doc.DocsTestPlugin'
+    }
+    globalBuildInfo {
+      id = 'elasticsearch.global-build-info'
+      implementationClass = 'org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin'
+    }
+    internalAvailablePorts {
+      id = 'elasticsearch.internal-available-ports'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalAvailableTcpPortProviderPlugin'
+    }
+    internalClusterTest {
+      id = 'elasticsearch.internal-cluster-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin'
+    }
+    internalDistributionArchiveCheck {
+      id = 'elasticsearch.internal-distribution-archive-check'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionArchiveCheckPlugin'
+    }
+    internalDistributionArchiveSetup {
+      id = 'elasticsearch.internal-distribution-archive-setup'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionArchiveSetupPlugin'
+    }
+    internalDistributionBwcSetup {
+      id = 'elasticsearch.internal-distribution-bwc-setup'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin'
+    }
+    internalDistributionDownload {
+      id = 'elasticsearch.internal-distribution-download'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin'
+    }
+    internalPlugin {
+      id = 'elasticsearch.internal-es-plugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalPluginBuildPlugin'
+    }
+    internalTestArtifact {
+      id = 'elasticsearch.internal-test-artifact'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalTestArtifactPlugin'
+    }
+    internalTestArtifactBase {
+      id = 'elasticsearch.internal-test-artifact-base'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalTestArtifactBasePlugin'
+    }
+    internalTestClusters {
+      id = 'elasticsearch.internal-testclusters'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalTestClustersPlugin'
+    }
+    internalTestRerun {
+      id = 'elasticsearch.internal-test-rerun'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin'
+    }
+    java {
+      id = 'elasticsearch.java'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin'
+    }
+    javaRestTest {
+      id = 'elasticsearch.java-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.JavaRestTestPlugin'
+    }
+    jdkDownload {
+      id = 'elasticsearch.jdk-download'
+      implementationClass = 'org.elasticsearch.gradle.internal.JdkDownloadPlugin'
+    }
+    releaseTools {
+      id = 'elasticsearch.release-tools'
+      implementationClass = 'org.elasticsearch.gradle.internal.release.ReleaseToolsPlugin'
+    }
+    repositories {
+      id = 'elasticsearch.repositories'
+      implementationClass = 'org.elasticsearch.gradle.internal.RepositoriesSetupPlugin'
+    }
+    restResources {
+      id = 'elasticsearch.rest-resources'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin'
+    }
+    restTest {
+      id = 'elasticsearch.rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.RestTestPlugin'
+    }
+    standaloneRestTest {
+      id = 'elasticsearch.standalone-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.StandaloneRestTestPlugin'
+    }
+    standaloneTest {
+      id = 'elasticsearch.standalone-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.StandaloneTestPlugin'
+    }
+    testFixtures {
+      id = 'elasticsearch.test.fixtures'
+      implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin'
+    }
+    testBase {
+      id = 'elasticsearch.test-base'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin'
+    }
+    testWithDependencies {
+      id = 'elasticsearch.test-with-dependencies'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.TestWithDependenciesPlugin'
+    }
+    testWithSsl {
+      id = 'elasticsearch.test-with-ssl'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.TestWithSslPlugin'
+    }
+    validateRestSpec {
+      id = 'elasticsearch.validate-rest-spec'
+      implementationClass = 'org.elasticsearch.gradle.internal.precommit.ValidateRestSpecPlugin'
+    }
+    yamlRestCompatTest {
+      id = 'elasticsearch.yaml-rest-compat-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin'
+    }
+    yamlRestTest {
+      id = 'elasticsearch.yaml-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.YamlRestTestPlugin'
+    }
+  }
+}
+
+/*****************************************************************************
+ *         Java version                                                      *
+ *****************************************************************************/
+
+def minCompilerJava = JavaVersion.toVersion(file('src/main/resources/minimumCompilerVersion').text)
+targetCompatibility = minCompilerJava
+sourceCompatibility = minCompilerJava
+
+if (JavaVersion.current() < JavaVersion.toVersion(minCompilerJava)) {
+  throw new GradleException("Java ${minCompilerJava} is required to build Elasticsearch but current Java is version ${JavaVersion.current()}.")
+}
+
+sourceSets {
+  integTest {
+    compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+    runtimeClasspath += output + compileClasspath
+  }
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.encoding = 'UTF-8'
+}
+
+tasks.named('licenseHeaders').configure {
+  // ignore gradle generated binary script plugins
+  excludes << "Elasticsearch*Plugin.java"
+}
+/*****************************************************************************
+ *                    Dependencies used by the entire build                  *
+ *****************************************************************************/
+
+repositories {
+  mavenCentral()
+  gradlePluginPortal()
+}
+
+configurations {
+  integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
+}
+dependencies {
+  api localGroovy()
+  api gradleApi()
+
+  api "org.elasticsearch:build-conventions:$version"
+  api "org.elasticsearch.gradle:build-tools:$version"
+
+  api 'commons-codec:commons-codec:1.12'
+  api 'org.apache.commons:commons-compress:1.19'
+  api 'org.apache.ant:ant:1.10.8'
+  api 'com.netflix.nebula:gradle-extra-configurations-plugin:5.0.1'
+  api 'com.netflix.nebula:gradle-info-plugin:9.2.0'
+  api 'org.apache.rat:apache-rat:0.11'
+  api "org.elasticsearch:jna:5.7.0-1"
+  api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
+  // for our ide tweaking
+  api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7'
+  // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
+  api 'de.thetaphi:forbiddenapis:3.1'
+  api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.0'
+  api 'org.apache.maven:maven-model:3.6.2'
+  api 'com.networknt:json-schema-validator:1.0.36'
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${props.getProperty('jackson')}"
+  api 'org.ow2.asm:asm:9.0'
+  api 'org.ow2.asm:asm-tree:9.0'
+  api "org.apache.httpcomponents:httpclient:${props.getProperty('httpclient')}"
+  api "org.apache.httpcomponents:httpcore:${props.getProperty('httpcore')}"
+  compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
+  runtimeOnly "org.elasticsearch.gradle:reaper:$version"
+  testImplementation "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
+  testImplementation "junit:junit:${props.getProperty('junit')}"
+  testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
+  testImplementation 'org.mockito:mockito-core:1.9.5'
+  testImplementation "org.hamcrest:hamcrest:${props.getProperty('hamcrest')}"
+
+  testImplementation testFixtures("org.elasticsearch.gradle:build-tools:$version")
+
+  integTestImplementation(platform("org.junit:junit-bom:${props.getProperty('junit5')}"))
+  integTestImplementation("org.junit.jupiter:junit-jupiter") {
+    because 'allows to write and run Jupiter tests'
+  }
+  integTestImplementation("net.bytebuddy:byte-buddy:1.11.0") {
+    because 'Generating dynamic mocks of internal libraries like JdkJarHell'
+  }
+  testRuntimeOnly("org.junit.vintage:junit-vintage-engine") {
+    because 'allows JUnit 3 and JUnit 4 tests to run'
+  }
+  integTestRuntimeOnly("org.junit.platform:junit-platform-launcher") {
+    because 'allows tests to run from IDEs that bundle older version of launcher'
+  }
+
+  testImplementation platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
+  testImplementation("org.spockframework:spock-core") {
+    exclude module: "groovy"
+  }
+  integTestImplementation platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
+  integTestImplementation("org.spockframework:spock-core") {
+    exclude module: "groovy"
+  }
+  // required as we rely on junit4 rules
+  integTestImplementation "org.spockframework:spock-junit4"
+  integTestImplementation "org.xmlunit:xmlunit-core:2.8.2"
+}
+
+tasks.register("integTest", Test) {
+  inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
+  systemProperty 'test.version_under_test', version
+  testClassesDirs = sourceSets.integTest.output.classesDirs
+  classpath = sourceSets.integTest.runtimeClasspath
+  useJUnitPlatform()
+}
+
+tasks.named("check").configure { dependsOn("integTest") }

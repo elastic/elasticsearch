@@ -1,32 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.rescore;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.action.search.SearchType;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
  * A query rescorer interface used to re-rank the Top-K results of a previously
@@ -34,7 +20,7 @@ import java.util.Set;
  *
  * Subclasses should borrow heavily from {@link QueryRescorer} because it is
  * fairly well behaved and documents that tradeoffs that it is making. There
- * is also an {@code ExampleRescorer} that is worth looking at. 
+ * is also an {@code ExampleRescorer} that is worth looking at.
  */
 public interface Rescorer {
     /**
@@ -61,10 +47,4 @@ public interface Rescorer {
     Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext,
                         Explanation sourceExplanation) throws IOException;
 
-    /**
-     * Extracts all terms needed to execute this {@link Rescorer}. This method
-     * is executed in a distributed frequency collection roundtrip for
-     * {@link SearchType#DFS_QUERY_THEN_FETCH}
-     */
-    void extractTerms(IndexSearcher searcher, RescoreContext rescoreContext, Set<Term> termsSet) throws IOException;
 }

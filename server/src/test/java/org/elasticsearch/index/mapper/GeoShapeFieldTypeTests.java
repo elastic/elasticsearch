@@ -1,86 +1,69 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
+
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper.GeoShapeFieldType;
-import org.junit.Before;
-
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new GeoShapeFieldMapper.GeoShapeFieldType();
-    }
 
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("tree", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setTree("quadtree");
-            }
-        });
-        addModifier(new Modifier("strategy", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setStrategyName("term");
-            }
-        });
-        addModifier(new Modifier("tree_levels", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setTreeLevels(10);
-            }
-        });
-        addModifier(new Modifier("precision", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setPrecisionInMeters(20);
-            }
-        });
-        addModifier(new Modifier("distance_error_pct", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setDefaultDistanceErrorPct(0.5);
-            }
-        });
-        addModifier(new Modifier("orientation", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setOrientation(ShapeBuilder.Orientation.LEFT);
-            }
-        });
-    }
+    public void testFetchSourceValue() throws IOException {
+        MappedFieldType mapper
+            = new GeoShapeFieldMapper.Builder("field", true, true).build(new ContentPath()).fieldType();
 
-    /**
-     * Test for {@link GeoShapeFieldType#setStrategyName(String)} that checks that {@link GeoShapeFieldType#pointsOnly()}
-     * gets set as a side effect when using SpatialStrategy.TERM
-     */
-    public void testSetStrategyName() throws IOException {
-        GeoShapeFieldType fieldType = new GeoShapeFieldMapper.GeoShapeFieldType();
-        assertFalse(fieldType.pointsOnly());
-        fieldType.setStrategyName(SpatialStrategy.RECURSIVE.getStrategyName());
-        assertFalse(fieldType.pointsOnly());
-        fieldType.setStrategyName(SpatialStrategy.TERM.getStrategyName());
-        assertTrue(fieldType.pointsOnly());
+        Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates",
+            List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
+        Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
+        Map<String, Object> jsonMalformed = Map.of("type", "Point", "coordinates", "foo");
+        String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
+        String wktPoint = "POINT (14.0 15.0)";
+        String wktMalformed = "POINT foo";
+
+        // Test a single shape in geojson format.
+        Object sourceValue = jsonLineString;
+        assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a malformed single shape in geojson format
+        sourceValue = jsonMalformed;
+        assertEquals(List.of(), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a list of shapes in geojson format.
+        sourceValue = List.of(jsonLineString, jsonPoint);
+        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a list of shapes including one malformed in geojson format
+        sourceValue = List.of(jsonLineString, jsonMalformed, jsonPoint);
+        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a single shape in wkt format.
+        sourceValue = wktLineString;
+        assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a single malformed shape in wkt format
+        sourceValue = wktMalformed;
+        assertEquals(List.of(), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a list of shapes in wkt format.
+        sourceValue = List.of(wktLineString, wktPoint);
+        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a list of shapes including one malformed in wkt format
+        sourceValue = List.of(wktLineString, wktMalformed, wktPoint);
+        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
     }
 }

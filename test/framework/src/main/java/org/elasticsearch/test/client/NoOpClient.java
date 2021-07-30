@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.client;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -32,7 +21,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Client that always responds with {@code null} to every request. Override this for testing.
+ * Client that always responds with {@code null} to every request. Override {@link #doExecute(ActionType, ActionRequest, ActionListener)}
+ * for testing.
+ *
+ * See also {@link NoOpNodeClient} if you need to mock a {@link org.elasticsearch.client.node.NodeClient}.
  */
 public class NoOpClient extends AbstractClient {
     /**
@@ -43,7 +35,7 @@ public class NoOpClient extends AbstractClient {
     }
 
     /**
-     * Create a new {@link TestThreadPool} for this client.
+     * Create a new {@link TestThreadPool} for this client. This {@linkplain TestThreadPool} is terminated on {@link #close()}.
      */
     public NoOpClient(String testName) {
         super(Settings.EMPTY, new TestThreadPool(testName));
@@ -51,7 +43,7 @@ public class NoOpClient extends AbstractClient {
 
     @Override
     protected <Request extends ActionRequest, Response extends ActionResponse>
-    void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+    void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
         listener.onResponse(null);
     }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -13,7 +14,7 @@ import com.unboundid.ldap.sdk.SearchResultEntry;
 import com.unboundid.ldap.sdk.SearchScope;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
@@ -22,12 +23,12 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsRes
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING;
 import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySIDUtil.convertToString;
+import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySIDUtil.TOKEN_GROUPS;
 import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactory.buildDnFromDomain;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.search;
@@ -35,7 +36,6 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.sear
 
 class ActiveDirectoryGroupsResolver implements GroupsResolver {
 
-    private static final String TOKEN_GROUPS = "tokenGroups";
     private final String baseDn;
     private final LdapSearchScope scope;
     private final boolean ignoreReferralErrors;
@@ -53,7 +53,7 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
         buildGroupQuery(connection, userDn, timeout,
                 ignoreReferralErrors, ActionListener.wrap((filter) -> {
                     if (filter == null) {
-                        listener.onResponse(Collections.emptyList());
+                        listener.onResponse(List.of());
                     } else {
                         logger.debug("group SID to DN [{}] search filter: [{}]", userDn, filter);
                         search(connection, baseDn, scope.scope(), filter,
@@ -61,8 +61,8 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
                                 ActionListener.wrap((results) -> {
                                             List<String> groups = results.stream()
                                                     .map(SearchResultEntry::getDN)
-                                                    .collect(Collectors.toList());
-                                            listener.onResponse(Collections.unmodifiableList(groups));
+                                                    .collect(Collectors.toUnmodifiableList());
+                                            listener.onResponse(groups);
                                         },
                                         listener::onFailure),
                                 SearchRequest.NO_ATTRIBUTES);

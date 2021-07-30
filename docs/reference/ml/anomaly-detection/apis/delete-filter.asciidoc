@@ -1,0 +1,53 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-delete-filter]]
+= Delete filters API
+++++
+<titleabbrev>Delete filters</titleabbrev>
+++++
+
+Deletes a filter.
+
+[[ml-delete-filter-request]]
+== {api-request-title}
+
+`DELETE _ml/filters/<filter_id>`
+
+[[ml-delete-filter-prereqs]]
+== {api-prereq-title}
+
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
+
+[[ml-delete-filter-desc]]
+== {api-description-title}
+
+This API deletes a filter. If an {anomaly-job} references the filter, you cannot
+delete the filter. You must update or delete the job before you can delete the
+filter. For more information, see
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-rules[Custom rules].
+
+[[ml-delete-filter-path-parms]]
+== {api-path-parms-title}
+
+`<filter_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter-id]
+
+[[ml-delete-filter-example]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+DELETE _ml/filters/safe_domains
+--------------------------------------------------
+// TEST[skip:setup:ml_filter_safe_domains]
+
+When the filter is deleted, you receive the following results:
+
+[source,console-result]
+----
+{
+  "acknowledged": true
+}
+----

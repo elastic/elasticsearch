@@ -1,32 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -35,7 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class GetPipelineResponseTests extends AbstractStreamableXContentTestCase<GetPipelineResponse> {
+public class GetPipelineResponseTests extends AbstractSerializingTestCase<GetPipelineResponse> {
 
     private XContentBuilder getRandomXContentBuilder() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
@@ -100,11 +91,6 @@ public class GetPipelineResponseTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected GetPipelineResponse createBlankInstance() {
-        return new GetPipelineResponse();
-    }
-
-    @Override
     protected GetPipelineResponse createTestInstance() {
         try {
             return new GetPipelineResponse(new ArrayList<>(createPipelineConfigMap().values()));
@@ -114,18 +100,18 @@ public class GetPipelineResponseTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
+    protected Writeable.Reader<GetPipelineResponse> instanceReader() {
+        return GetPipelineResponse::new;
+    }
+
+    @Override
     protected boolean supportsUnknownFields() {
         return false;
     }
 
     @Override
-    protected GetPipelineResponse mutateInstance(GetPipelineResponse response) {
-        try {
-            List<PipelineConfiguration> clonePipelines = new ArrayList<>(response.pipelines());
-            clonePipelines.add(createRandomPipeline("pipeline_" + clonePipelines.size() + 1));
-            return new GetPipelineResponse(clonePipelines);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    protected GetPipelineResponse mutateInstance(GetPipelineResponse response) throws IOException {
+        return new GetPipelineResponse(CollectionUtils.appendToCopy(response.pipelines(),
+                createRandomPipeline("pipeline_" + response.pipelines().size() + 1)));
     }
 }

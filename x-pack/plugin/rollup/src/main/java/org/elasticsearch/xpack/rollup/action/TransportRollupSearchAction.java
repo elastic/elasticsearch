@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.action;
 
@@ -17,9 +18,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -47,6 +48,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,17 +58,14 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
-import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.elasticsearch.xpack.rollup.RollupJobIdentifierUtils;
 import org.elasticsearch.xpack.rollup.RollupRequestTranslator;
 import org.elasticsearch.xpack.rollup.RollupResponseTranslator;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -81,18 +80,20 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final IndexNameExpressionResolver resolver;
     private static final Logger logger = LogManager.getLogger(RollupSearchAction.class);
 
     @Inject
     public TransportRollupSearchAction(TransportService transportService,
                                  ActionFilters actionFilters, Client client, NamedWriteableRegistry registry, BigArrays bigArrays,
-                                 ScriptService scriptService, ClusterService clusterService) {
+                                 ScriptService scriptService, ClusterService clusterService, IndexNameExpressionResolver resolver) {
         super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager());
         this.client = client;
         this.registry = registry;
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
+        this.resolver = resolver;
 
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, false, true, SearchRequest::new,
                 new TransportRollupSearchAction.TransportHandler());
@@ -100,21 +101,20 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
     @Override
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
-        String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request.indices());
-        RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetaData().indices());
+        String[] indices = resolver.concreteIndexNames(clusterService.state(), request);
+        RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetadata().indices());
 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
 
         client.multiSearch(msearch, ActionListener.wrap(msearchResponse -> {
-            InternalAggregation.ReduceContext context
-                    = new InternalAggregation.ReduceContext(bigArrays, scriptService, false);
+            InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
+                    bigArrays, scriptService, () -> PipelineAggregator.PipelineTree.EMPTY);
             listener.onResponse(processResponses(rollupSearchContext, msearchResponse, context));
         }, listener::onFailure));
     }
 
     static SearchResponse processResponses(RollupSearchContext rollupContext, MultiSearchResponse msearchResponse,
-                                           InternalAggregation.ReduceContext reduceContext) {
+                                           InternalAggregation.ReduceContext reduceContext) throws Exception {
         if (rollupContext.hasLiveIndices() && rollupContext.hasRollupIndices()) {
             // Both
             return RollupResponseTranslator.combineResponses(msearchResponse.getResponses(), reduceContext);
@@ -164,7 +164,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             // Note: we can't apply any query rewriting or filtering on the query because there
             // are no validated caps, so we have no idea what job is intended here.  The only thing
             // this affects is doc count, since hits and aggs will both be empty it doesn't really matter.
-            msearch.add(new SearchRequest(context.getRollupIndices(), request.source()).types(request.types()));
+            msearch.add(new SearchRequest(context.getRollupIndices(), request.source()));
             return msearch;
         }
 
@@ -176,10 +176,12 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
         for (AggregationBuilder agg : sourceAgg.getAggregatorFactories()) {
 
+            // TODO this filter agg is now redundant given we filter on job ID
+            // in the query and the translator doesn't add any clauses anymore
             List<QueryBuilder> filterConditions = new ArrayList<>(5);
 
             // Translate the agg tree, and collect any potential filtering clauses
-            List<AggregationBuilder> translatedAgg = RollupRequestTranslator.translateAggregation(agg, filterConditions, registry);
+            List<AggregationBuilder> translatedAgg = RollupRequestTranslator.translateAggregation(agg, registry);
 
             BoolQueryBuilder boolQuery = new BoolQueryBuilder();
             filterConditions.forEach(boolQuery::must);
@@ -209,7 +211,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         new long[]{Rollup.ROLLUP_VERSION_V1, Rollup.ROLLUP_VERSION_V2})));
 
             // And add a new msearch per JobID
-            msearch.add(new SearchRequest(context.getRollupIndices(), copiedSource).types(request.types()));
+            msearch.add(new SearchRequest(context.getRollupIndices(), copiedSource));
         }
 
         return msearch;
@@ -286,11 +288,8 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         } else if (builder.getWriteableName().equals(RangeQueryBuilder.NAME)) {
             RangeQueryBuilder range = (RangeQueryBuilder) builder;
             String fieldName = range.fieldName();
-            // Many range queries don't include the timezone because the default is UTC, but the query
-            // builder will return null so we need to set it here
-            String timeZone = range.timeZone() == null ? DateTimeZone.UTC.toString() : range.timeZone();
 
-            String rewrittenFieldName = rewriteFieldName(jobCaps, RangeQueryBuilder.NAME, fieldName, timeZone);
+            String rewrittenFieldName = rewriteFieldName(jobCaps, RangeQueryBuilder.NAME, fieldName);
             RangeQueryBuilder rewritten = new RangeQueryBuilder(rewrittenFieldName)
                 .from(range.from())
                 .to(range.to())
@@ -306,13 +305,13 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         } else if (builder.getWriteableName().equals(TermQueryBuilder.NAME)) {
             TermQueryBuilder term = (TermQueryBuilder) builder;
             String fieldName = term.fieldName();
-            String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName, null);
+            String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName);
             return new TermQueryBuilder(rewrittenFieldName, term.value());
         } else if (builder.getWriteableName().equals(TermsQueryBuilder.NAME)) {
             TermsQueryBuilder terms = (TermsQueryBuilder) builder;
             String fieldName = terms.fieldName();
-            String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName, null);
-            return new TermsQueryBuilder(rewrittenFieldName, terms.values());
+            String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName);
+            return new TermsQueryBuilder(rewrittenFieldName, terms.getValues());
         } else if (builder.getWriteableName().equals(MatchAllQueryBuilder.NAME)) {
             // no-op
             return builder;
@@ -321,11 +320,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         }
     }
 
-    private static String rewriteFieldName(Set<RollupJobCaps> jobCaps,
-                                           String builderName,
-                                           String fieldName,
-                                           String timeZone) {
-        List<String> incompatibleTimeZones = timeZone == null ? Collections.emptyList() : new ArrayList<>();
+    private static String rewriteFieldName(Set<RollupJobCaps> jobCaps, String builderName, String fieldName) {
         List<String> rewrittenFieldNames = jobCaps.stream()
             // We only care about job caps that have the query's target field
             .filter(caps -> caps.getFieldCaps().keySet().contains(fieldName))
@@ -335,17 +330,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                     // For now, we only allow filtering on grouping fields
                     .filter(agg -> {
                         String type = (String)agg.get(RollupField.AGG);
-
-                        // If the cap is for a date_histo, and the query is a range, the timezones need to match
-                        if (type.equals(DateHistogramAggregationBuilder.NAME) && timeZone != null) {
-                            boolean matchingTZ = ((String)agg.get(DateHistogramGroupConfig.TIME_ZONE))
-                                .equalsIgnoreCase(timeZone);
-                            if (matchingTZ == false) {
-                                incompatibleTimeZones.add((String)agg.get(DateHistogramGroupConfig.TIME_ZONE));
-                            }
-                            return matchingTZ;
-                        }
-                        // Otherwise just make sure it's one of the three groups
+                        // make sure it's one of the three groups
                         return type.equals(TermsAggregationBuilder.NAME)
                             || type.equals(DateHistogramAggregationBuilder.NAME)
                             || type.equals(HistogramAggregationBuilder.NAME);
@@ -363,14 +348,8 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             .distinct()
             .collect(ArrayList::new, List::addAll, List::addAll);
         if (rewrittenFieldNames.isEmpty()) {
-            if (incompatibleTimeZones.isEmpty()) {
-                throw new IllegalArgumentException("Field [" + fieldName + "] in [" + builderName
+            throw new IllegalArgumentException("Field [" + fieldName + "] in [" + builderName
                     + "] query is not available in selected rollup indices, cannot query.");
-            } else {
-                throw new IllegalArgumentException("Field [" + fieldName + "] in [" + builderName
-                    + "] query was found in rollup indices, but requested timezone is not compatible. Options include: "
-                    + incompatibleTimeZones);
-            }
         } else if (rewrittenFieldNames.size() > 1) {
             throw new IllegalArgumentException("Ambiguous field name resolution when mapping to rolled fields.  Field name [" +
                 fieldName + "] was mapped to: [" + Strings.collectionToDelimitedString(rewrittenFieldNames, ",") + "].");
@@ -379,7 +358,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         }
     }
 
-    static RollupSearchContext separateIndices(String[] indices, ImmutableOpenMap<String, IndexMetaData> indexMetaData) {
+    static RollupSearchContext separateIndices(String[] indices, ImmutableOpenMap<String, IndexMetadata> indexMetadata) {
 
         if (indices.length == 0) {
             throw new IllegalArgumentException("Must specify at least one concrete index.");
@@ -389,10 +368,10 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         List<String> normal = new ArrayList<>();
         Set<RollupJobCaps>  jobCaps = new HashSet<>();
         Arrays.stream(indices).forEach(i -> {
-            if (i.equals(MetaData.ALL)) {
+            if (i.equals(Metadata.ALL)) {
                 throw new IllegalArgumentException("Searching _all via RollupSearch endpoint is not supported at this time.");
             }
-            Optional<RollupIndexCaps> caps = TransportGetRollupCapsAction.findRollupIndexCaps(i, indexMetaData.get(i));
+            Optional<RollupIndexCaps> caps = TransportGetRollupCapsAction.findRollupIndexCaps(i, indexMetadata.get(i));
             if (caps.isPresent()) {
                 rollup.add(i);
                 jobCaps.addAll(caps.get().getJobCaps());

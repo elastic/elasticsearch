@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.support;
 
@@ -51,19 +52,19 @@ public class FileAttributesChecker {
             PosixFileAttributes newAttributes = view.readAttributes();
             PosixFileAttributes oldAttributes = attributes[i];
             if (oldAttributes.permissions().equals(newAttributes.permissions()) == false) {
-                terminal.println(Terminal.Verbosity.SILENT, "WARNING: The file permissions of [" + paths[i] + "] have changed "
+                terminal.errorPrintln(Terminal.Verbosity.SILENT, "WARNING: The file permissions of [" + paths[i] + "] have changed "
                     + "from [" + PosixFilePermissions.toString(oldAttributes.permissions()) + "] "
                     + "to [" + PosixFilePermissions.toString(newAttributes.permissions()) + "]");
-                terminal.println(Terminal.Verbosity.SILENT,
+                terminal.errorPrintln(Terminal.Verbosity.SILENT,
                     "Please ensure that the user account running Elasticsearch has read access to this file!");
             }
             if (oldAttributes.owner().getName().equals(newAttributes.owner().getName()) == false) {
-                terminal.println(Terminal.Verbosity.SILENT, "WARNING: Owner of file [" + paths[i] + "] "
+                terminal.errorPrintln(Terminal.Verbosity.SILENT, "WARNING: Owner of file [" + paths[i] + "] "
                     + "used to be [" + oldAttributes.owner().getName() + "], "
                     + "but now is [" + newAttributes.owner().getName() + "]");
             }
             if (oldAttributes.group().getName().equals(newAttributes.group().getName()) == false) {
-                terminal.println(Terminal.Verbosity.SILENT, "WARNING: Group of file [" + paths[i] + "] "
+                terminal.errorPrintln(Terminal.Verbosity.SILENT, "WARNING: Group of file [" + paths[i] + "] "
                     + "used to be [" + oldAttributes.group().getName() + "], "
                     + "but now is [" + newAttributes.group().getName() + "]");
             }

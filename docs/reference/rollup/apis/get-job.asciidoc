@@ -1,176 +1,197 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-get-job]]
-=== Get Rollup Jobs API
+=== Get {rollup-jobs} API
 ++++
-<titleabbrev>Get Job</titleabbrev>
+<titleabbrev>Get job</titleabbrev>
 ++++
+
+Retrieves the configuration, stats, and status of {rollup-jobs}.
 
 experimental[]
 
-This API returns the configuration, stats and status of rollup jobs.  The API can return the details for a single job,
-or for all jobs.
-
-Note: This API only returns active (both `STARTED` and `STOPPED`) jobs.  If a job was created, ran for a while then deleted,
-this API will not return any details about that job.
-
-For details about a historical job, the <<rollup-get-rollup-caps,Rollup Capabilities API>> may be more useful
-
-==== Request
+[[rollup-get-job-request]]
+==== {api-request-title}
 
 `GET _rollup/job/<job_id>`
 
-//===== Description
+[[rollup-get-job-prereqs]]
+==== {api-prereq-title}
 
-==== Path Parameters
+* If the {es} {security-features} are enabled, you must have `monitor`,
+`monitor_rollup`, `manage` or `manage_rollup` cluster privileges to use this API.
+For more information, see <<security-privileges>>.
 
-`job_id`::
-  (string) Identifier for the job to retrieve.  If omitted (or `_all` is used) all jobs will be returned
+[[rollup-get-job-desc]]
+==== {api-description-title}
 
+The API can return the details for a single {rollup-job} or for all {rollup-jobs}.
 
-==== Request Body
+NOTE: This API returns only active (both `STARTED` and `STOPPED`) jobs. If a job
+was created, ran for a while then deleted, this API does not return any details
+about that job.
 
-There is no request body for the Get Jobs API.
+For details about a historical {rollup-job}, the
+<<rollup-get-rollup-caps,rollup capabilities API>> may be more useful.
 
-==== Authorization
+[[rollup-get-job-path-params]]
+==== {api-path-parms-title}
 
-You must have `monitor`, `monitor_rollup`, `manage` or `manage_rollup` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+`<job_id>`::
+  (Optional, string) Identifier for the {rollup-job}. If it is `_all` or omitted,
+   the API returns all {rollup-jobs}.
 
-==== Examples
+[role="child_attributes"]
+[[rollup-get-job-response-body]]
+==== {api-response-body-title}
 
-If we have already created a rollup job named `sensor`, the details about the job can be retrieved with:
+`jobs`::
+(array) An array of {rollup-job} resources. 
++
+.Properties of {rollup-job} resources
+[%collapsible%open]
+====
+`config`:::
+(object) Contains the configuration for the {rollup-job}. This information is
+identical to the configuration that was supplied when creating the job via the
+<<rollup-put-job,create job API>>.
 
-[source,js]
+`stats`:::
+(object) Contains transient statistics about the {rollup-job}, such as how many
+documents have been processed and how many rollup summary docs have been
+indexed. These stats are not persisted. If a node is restarted, these stats are
+reset.
+
+`status`:::
+(object) Contains the current status of the indexer for the {rollup-job}. The
+possible values and their meanings are:
++
+- `stopped` means the indexer is paused and will not process data, even if its
+cron interval triggers.
+- `started` means the indexer is running, but not actively indexing data. When
+the cron interval triggers, the job's indexer will begin to process data.
+- `indexing` means the indexer is actively processing data and creating new
+rollup documents. When in this state, any subsequent cron interval triggers will
+be ignored because the job is already active with the prior trigger.
+- `abort` is a transient state, which is usually not witnessed by the user. It
+is used if the task needs to be shut down for some reason (job has been deleted,
+an unrecoverable error has been encountered, etc). Shortly after the `abort`
+state is set, the job will remove itself from the cluster.
+====
+
+[[rollup-get-job-example]]
+==== {api-examples-title}
+
+If we have already created a rollup job named `sensor`, the details about the
+job can be retrieved with:
+
+[source,console]
 --------------------------------------------------
 GET _rollup/job/sensor
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_rollup_job]
 
-Which will yield the following response:
+The API yields the following response:
 
-[source,js]
+[source,console-result]
 ----
 {
-    "jobs" : [
-        {
-          "config" : {
-            "id" : "sensor",
-            "index_pattern" : "sensor-*",
-            "rollup_index" : "sensor_rollup",
-            "cron" : "*/30 * * * * ?",
-            "groups" : {
-              "date_histogram" : {
-                "interval" : "1h",
-                "delay": "7d",
-                "field": "timestamp",
-                "time_zone": "UTC"
-              },
-              "terms" : {
-                "fields" : [
-                  "node"
-                ]
-              }
-            },
-            "metrics" : [
-              {
-                "field" : "temperature",
-                "metrics" : [
-                  "min",
-                  "max",
-                  "sum"
-                ]
-              },
-              {
-                "field" : "voltage",
-                "metrics" : [
-                  "avg"
-                ]
-              }
-            ],
-            "timeout" : "20s",
-            "page_size" : 1000
+  "jobs": [
+    {
+      "config": {
+        "id": "sensor",
+        "index_pattern": "sensor-*",
+        "rollup_index": "sensor_rollup",
+        "cron": "*/30 * * * * ?",
+        "groups": {
+          "date_histogram": {
+            "fixed_interval": "1h",
+            "delay": "7d",
+            "field": "timestamp",
+            "time_zone": "UTC"
           },
-          "status" : {
-            "job_state" : "stopped",
-            "upgraded_doc_id": true
-          },
-          "stats" : {
-            "pages_processed" : 0,
-            "documents_processed" : 0,
-            "rollups_indexed" : 0,
-            "trigger_count" : 0,
-            "index_failures": 0,
-            "index_time_in_ms": 0,
-            "index_total": 0,
-            "search_failures": 0,
-            "search_time_in_ms": 0,
-            "search_total": 0
+          "terms": {
+            "fields": [
+              "node"
+            ]
           }
-        }
-    ]
+        },
+        "metrics": [
+          {
+            "field": "temperature",
+            "metrics": [
+              "min",
+              "max",
+              "sum"
+            ]
+          },
+          {
+            "field": "voltage",
+            "metrics": [
+              "avg"
+            ]
+          }
+        ],
+        "timeout": "20s",
+        "page_size": 1000
+      },
+      "status": {
+        "job_state": "stopped"
+      },
+      "stats": {
+        "pages_processed": 0,
+        "documents_processed": 0,
+        "rollups_indexed": 0,
+        "trigger_count": 0,
+        "index_failures": 0,
+        "index_time_in_ms": 0,
+        "index_total": 0,
+        "search_failures": 0,
+        "search_time_in_ms": 0,
+        "search_total": 0,
+        "processing_time_in_ms": 0,
+        "processing_total": 0
+      }
+    }
+  ]
 }
 ----
-// TESTRESPONSE
 
-The `jobs` array contains a single job (`id: sensor`) since we requested a single job in the endpoint's URL.  The
-details for this job contain three top-level parameters: `config`, `status` and `stats`
-
-`config` holds the rollup job's configuration, which is identical to the configuration that was supplied when creating
-the job via the <<rollup-put-job,Create Job API>>.
-
-The `status` object holds the current status of the rollup job's indexer.  The possible values and their meanings are:
-
-- `stopped` means the indexer is paused and will not process data, even if it's cron interval triggers
-- `started` means the indexer is running, but not actively indexing data.  When the cron interval triggers, the job's
-indexer will begin to process data
-- `indexing` means the indexer is actively processing data and creating new rollup documents.  When in this state, any
-subsequent cron interval triggers will be ignored because the job is already active with the prior trigger
-- `abort` a transient state, which is usually not witnessed by the user.  The `abort` state is used if the task needs to
-be shut down for some reason (job has been deleted, an unrecoverable error has been encountered, etc).  Shortly after
-the `abort` state is set, the job will remove itself from the cluster
-
-Finally, the `stats` object provides transient statistics about the rollup job, such as how many documents have been
-processed and how many rollup summary docs have been indexed.  These stats are not persisted, so if a node is restarted
-these stats will be reset.
-
+The `jobs` array contains a single job (`id: sensor`) since we requested a single job in the endpoint's URL.
 If we add another job, we can see how multi-job responses are handled:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _rollup/job/sensor2 <1>
 {
-    "index_pattern": "sensor-*",
-    "rollup_index": "sensor_rollup",
-    "cron": "*/30 * * * * ?",
-    "page_size" :1000,
-    "groups" : {
-      "date_histogram": {
-        "field": "timestamp",
-        "interval": "1h",
-        "delay": "7d"
-      },
-      "terms": {
-        "fields": ["node"]
-      }
+  "index_pattern": "sensor-*",
+  "rollup_index": "sensor_rollup",
+  "cron": "*/30 * * * * ?",
+  "page_size": 1000,
+  "groups": {
+    "date_histogram": {
+      "field": "timestamp",
+      "fixed_interval": "1h",
+      "delay": "7d"
     },
-    "metrics": [
-        {
-            "field": "temperature",
-            "metrics": ["min", "max", "sum"]
-        },
-        {
-            "field": "voltage",
-            "metrics": ["avg"]
-        }
-    ]
+    "terms": {
+      "fields": [ "node" ]
+    }
+  },
+  "metrics": [
+    {
+      "field": "temperature",
+      "metrics": [ "min", "max", "sum" ]
+    },
+    {
+      "field": "voltage",
+      "metrics": [ "avg" ]
+    }
+  ]
 }
 
 GET _rollup/job/_all <2>
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_rollup_job]
 <1> We create a second job with name `sensor2`
 <2> Then request all jobs by using `_all` in the GetJobs API
@@ -180,118 +201,120 @@ Which will yield the following response:
 [source,js]
 ----
 {
-    "jobs" : [
-        {
-          "config" : {
-            "id" : "sensor2",
-            "index_pattern" : "sensor-*",
-            "rollup_index" : "sensor_rollup",
-            "cron" : "*/30 * * * * ?",
-            "groups" : {
-              "date_histogram" : {
-                "interval" : "1h",
-                "delay": "7d",
-                "field": "timestamp",
-                "time_zone": "UTC"
-              },
-              "terms" : {
-                "fields" : [
-                  "node"
-                ]
-              }
-            },
-            "metrics" : [
-              {
-                "field" : "temperature",
-                "metrics" : [
-                  "min",
-                  "max",
-                  "sum"
-                ]
-              },
-              {
-                "field" : "voltage",
-                "metrics" : [
-                  "avg"
-                ]
-              }
-            ],
-            "timeout" : "20s",
-            "page_size" : 1000
+  "jobs": [
+    {
+      "config": {
+        "id": "sensor2",
+        "index_pattern": "sensor-*",
+        "rollup_index": "sensor_rollup",
+        "cron": "*/30 * * * * ?",
+        "groups": {
+          "date_histogram": {
+            "fixed_interval": "1h",
+            "delay": "7d",
+            "field": "timestamp",
+            "time_zone": "UTC"
           },
-          "status" : {
-            "job_state" : "stopped",
-            "upgraded_doc_id": true
-          },
-          "stats" : {
-            "pages_processed" : 0,
-            "documents_processed" : 0,
-            "rollups_indexed" : 0,
-            "trigger_count" : 0,
-            "index_failures": 0,
-            "index_time_in_ms": 0,
-            "index_total": 0,
-            "search_failures": 0,
-            "search_time_in_ms": 0,
-            "search_total": 0
+          "terms": {
+            "fields": [
+              "node"
+            ]
           }
         },
-        {
-          "config" : {
-            "id" : "sensor",
-            "index_pattern" : "sensor-*",
-            "rollup_index" : "sensor_rollup",
-            "cron" : "*/30 * * * * ?",
-            "groups" : {
-              "date_histogram" : {
-                "interval" : "1h",
-                "delay": "7d",
-                "field": "timestamp",
-                "time_zone": "UTC"
-              },
-              "terms" : {
-                "fields" : [
-                  "node"
-                ]
-              }
-            },
-            "metrics" : [
-              {
-                "field" : "temperature",
-                "metrics" : [
-                  "min",
-                  "max",
-                  "sum"
-                ]
-              },
-              {
-                "field" : "voltage",
-                "metrics" : [
-                  "avg"
-                ]
-              }
-            ],
-            "timeout" : "20s",
-            "page_size" : 1000
+        "metrics": [
+          {
+            "field": "temperature",
+            "metrics": [
+              "min",
+              "max",
+              "sum"
+            ]
           },
-          "status" : {
-            "job_state" : "stopped",
-            "upgraded_doc_id": true
-          },
-          "stats" : {
-            "pages_processed" : 0,
-            "documents_processed" : 0,
-            "rollups_indexed" : 0,
-            "trigger_count" : 0,
-            "index_failures": 0,
-            "index_time_in_ms": 0,
-            "index_total": 0,
-            "search_failures": 0,
-            "search_time_in_ms": 0,
-            "search_total": 0
+          {
+            "field": "voltage",
+            "metrics": [
+              "avg"
+            ]
           }
-        }
-    ]
+        ],
+        "timeout": "20s",
+        "page_size": 1000
+      },
+      "status": {
+        "job_state": "stopped"
+      },
+      "stats": {
+        "pages_processed": 0,
+        "documents_processed": 0,
+        "rollups_indexed": 0,
+        "trigger_count": 0,
+        "index_failures": 0,
+        "index_time_in_ms": 0,
+        "index_total": 0,
+        "search_failures": 0,
+        "search_time_in_ms": 0,
+        "search_total": 0,
+        "processing_time_in_ms": 0,
+        "processing_total": 0
+      }
+    },
+    {
+      "config": {
+        "id": "sensor",
+        "index_pattern": "sensor-*",
+        "rollup_index": "sensor_rollup",
+        "cron": "*/30 * * * * ?",
+        "groups": {
+          "date_histogram": {
+            "fixed_interval": "1h",
+            "delay": "7d",
+            "field": "timestamp",
+            "time_zone": "UTC"
+          },
+          "terms": {
+            "fields": [
+              "node"
+            ]
+          }
+        },
+        "metrics": [
+          {
+            "field": "temperature",
+            "metrics": [
+              "min",
+              "max",
+              "sum"
+            ]
+          },
+          {
+            "field": "voltage",
+            "metrics": [
+              "avg"
+            ]
+          }
+        ],
+        "timeout": "20s",
+        "page_size": 1000
+      },
+      "status": {
+        "job_state": "stopped"
+      },
+      "stats": {
+        "pages_processed": 0,
+        "documents_processed": 0,
+        "rollups_indexed": 0,
+        "trigger_count": 0,
+        "index_failures": 0,
+        "index_time_in_ms": 0,
+        "index_total": 0,
+        "search_failures": 0,
+        "search_time_in_ms": 0,
+        "search_total": 0,
+        "processing_time_in_ms": 0,
+        "processing_total": 0
+      }
+    }
+  ]
 }
 ----
 // NOTCONSOLE

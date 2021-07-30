@@ -1,32 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
-import org.elasticsearch.search.aggregations.metrics.ParsedGeoBounds;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,14 +21,12 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
     static final double GEOHASH_TOLERANCE = 1E-5D;
 
     @Override
-    protected InternalGeoBounds createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                   Map<String, Object> metaData) {
+    protected InternalGeoBounds createTestInstance(String name, Map<String, Object> metadata) {
         // we occasionally want to test top = Double.NEGATIVE_INFINITY since this triggers empty xContent object
         double top = frequently() ? randomDouble() : Double.NEGATIVE_INFINITY;
         InternalGeoBounds geo = new InternalGeoBounds(name,
             top, randomDouble(), randomDouble(), randomDouble(),
-            randomDouble(), randomDouble(), randomBoolean(),
-            pipelineAggregators, Collections.emptyMap());
+            randomDouble(), randomDouble(), randomBoolean(), metadata);
         return geo;
     }
 
@@ -102,11 +84,6 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
     }
 
     @Override
-    protected Writeable.Reader<InternalGeoBounds> instanceReader() {
-        return InternalGeoBounds::new;
-    }
-
-    @Override
     protected InternalGeoBounds mutateInstance(InternalGeoBounds instance) {
         String name = instance.getName();
         double top = instance.top;
@@ -116,8 +93,7 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
         double negLeft = instance.negLeft;
         double negRight = instance.negRight;
         boolean wrapLongitude = instance.wrapLongitude;
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 8)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -148,16 +124,16 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
             wrapLongitude = wrapLongitude == false;
             break;
         case 8:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, pipelineAggregators, metaData);
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, metadata);
     }
 }

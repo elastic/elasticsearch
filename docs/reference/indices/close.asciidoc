@@ -1,0 +1,90 @@
+[[indices-close]]
+=== Close index API
+++++
+<titleabbrev>Close index</titleabbrev>
+++++
+
+Closes an index.
+
+[source,console]
+--------------------------------------------------
+POST /my-index-000001/_close
+--------------------------------------------------
+// TEST[setup:my_index]
+
+
+[[close-index-api-request]]
+==== {api-request-title}
+
+`POST /<index>/_close`
+
+[[close-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
+
+[[close-index-api-desc]]
+==== {api-description-title}
+
+You use the close index API to close open indices.
+
+include::{es-repo-dir}/indices/open-close.asciidoc[tag=closed-index]
+
+
+[[close-index-api-path-params]]
+==== {api-path-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
++
+To close all indices, use `_all` or `*`.
+By default, you must explicitly name the indices you are closing.
+To specify indices to close with `_all`, `*`, or other wildcard
+expressions, change the `action.destructive_requires_name` setting to `false`.
+You can update this setting in the `elasticsearch.yml` file
+or using the <<cluster-update-settings,cluster update settings>> API.
+
+
+[[close-index-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+
+[[close-index-api-example]]
+==== {api-examples-title}
+
+The following example shows how to close an index:
+
+[source,console]
+--------------------------------------------------
+POST /my-index-000001/_close
+--------------------------------------------------
+// TEST[s/^/PUT my-index-000001\n/]
+
+The API returns following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true,
+  "shards_acknowledged": true,
+  "indices": {
+    "my-index-000001": {
+      "closed": true
+    }
+  }
+}
+--------------------------------------------------

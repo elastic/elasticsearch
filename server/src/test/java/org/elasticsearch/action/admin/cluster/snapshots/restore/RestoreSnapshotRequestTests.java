@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -40,6 +30,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase<RestoreSnapshotRequest> {
     private RestoreSnapshotRequest randomState(RestoreSnapshotRequest instance) {
         if (randomBoolean()) {
@@ -52,6 +44,18 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
 
             instance.indices(indices);
         }
+
+        if (randomBoolean()) {
+            List<String> plugins = new ArrayList<>();
+            int count = randomInt(3) + 1;
+
+            for (int i = 0; i < count; ++i) {
+                plugins.add(randomAlphaOfLength(randomInt(3) + 2));
+            }
+
+            instance.featureStates(plugins);
+        }
+
         if (randomBoolean()) {
             instance.renamePattern(randomUnicodeOfLengthBetween(1, 100));
         }
@@ -62,21 +66,11 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         instance.includeAliases(randomBoolean());
 
         if (randomBoolean()) {
-            Map<String, Object> settings = new HashMap<>();
-            int count = randomInt(3) + 1;
-
-            for (int i = 0; i < count; ++i) {
-                settings.put(randomAlphaOfLengthBetween(2, 5), randomAlphaOfLengthBetween(2, 5));
-            }
-
-            instance.settings(settings);
-        }
-        if (randomBoolean()) {
             Map<String, Object> indexSettings = new HashMap<>();
             int count = randomInt(3) + 1;
 
             for (int i = 0; i < count; ++i) {
-                indexSettings.put(randomAlphaOfLengthBetween(2, 5), randomAlphaOfLengthBetween(2, 5));;
+                indexSettings.put(randomAlphaOfLengthBetween(2, 5), randomAlphaOfLengthBetween(2, 5));
             }
             instance.indexSettings(indexSettings);
         }
@@ -85,13 +79,18 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
 
         if (randomBoolean()) {
             Collection<IndicesOptions.WildcardStates> wildcardStates = randomSubsetOf(
-                Arrays.asList(IndicesOptions.WildcardStates.values()));
+                Arrays.asList(IndicesOptions.WildcardStates.values())
+            );
             Collection<IndicesOptions.Option> options = randomSubsetOf(
-                Arrays.asList(IndicesOptions.Option.ALLOW_NO_INDICES, IndicesOptions.Option.IGNORE_UNAVAILABLE));
+                Arrays.asList(IndicesOptions.Option.ALLOW_NO_INDICES, IndicesOptions.Option.IGNORE_UNAVAILABLE)
+            );
 
-            instance.indicesOptions(new IndicesOptions(
-                options.isEmpty() ? IndicesOptions.Option.NONE : EnumSet.copyOf(options),
-                wildcardStates.isEmpty() ? IndicesOptions.WildcardStates.NONE : EnumSet.copyOf(wildcardStates)));
+            instance.indicesOptions(
+                new IndicesOptions(
+                    options.isEmpty() ? IndicesOptions.Option.NONE : EnumSet.copyOf(options),
+                    wildcardStates.isEmpty() ? IndicesOptions.WildcardStates.NONE : EnumSet.copyOf(wildcardStates)
+                )
+            );
         }
 
         instance.waitForCompletion(randomBoolean());
@@ -99,6 +98,11 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         if (randomBoolean()) {
             instance.masterNodeTimeout(randomTimeValue());
         }
+
+        if (randomBoolean()) {
+            instance.snapshotUuid(randomBoolean() ? null : randomAlphaOfLength(10));
+        }
+
         return instance;
     }
 
@@ -122,9 +126,10 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
 
     public void testSource() throws IOException {
         RestoreSnapshotRequest original = createTestInstance();
+        original.snapshotUuid(null); // cannot be set via the REST API
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
-        XContentParser parser = XContentType.JSON.xContent().createParser(
-            NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
+        XContentParser parser = XContentType.JSON.xContent()
+            .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
         Map<String, Object> map = parser.mapOrdered();
 
         // we will only restore properties from the map that are contained in the request body. All other
@@ -137,5 +142,38 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         processed.source(map);
 
         assertEquals(original, processed);
+    }
+
+    public void testSkipOperatorOnlyWillNotBeSerialised() throws IOException {
+        RestoreSnapshotRequest original = createTestInstance();
+        assertFalse(original.skipOperatorOnlyState()); // default is false
+        if (randomBoolean()) {
+            original.skipOperatorOnlyState(true);
+        }
+        Map<String, Object> map = convertRequestToMap(original);
+        // It is not serialised as xcontent
+        assertFalse(map.containsKey("skip_operator_only"));
+
+        // Xcontent is not affected by the value of skipOperatorOnlyState
+        original.skipOperatorOnlyState(original.skipOperatorOnlyState() == false);
+        assertEquals(map, convertRequestToMap(original));
+
+        // Nor does it serialise to streamInput
+        final BytesStreamOutput streamOutput = new BytesStreamOutput();
+        original.writeTo(streamOutput);
+        final RestoreSnapshotRequest deserialized = new RestoreSnapshotRequest(streamOutput.bytes().streamInput());
+        assertFalse(deserialized.skipOperatorOnlyState());
+    }
+
+    public void testToStringWillIncludeSkipOperatorOnlyState() {
+        RestoreSnapshotRequest original = createTestInstance();
+        assertThat(original.toString(), containsString("skipOperatorOnlyState"));
+    }
+
+    private Map<String, Object> convertRequestToMap(RestoreSnapshotRequest request) throws IOException {
+        XContentBuilder builder = request.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
+        XContentParser parser = XContentType.JSON.xContent()
+            .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
+        return parser.mapOrdered();
     }
 }

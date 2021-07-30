@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.gcs;
@@ -27,7 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -65,11 +54,13 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
                 .build();
         final GoogleCloudStorageService service = new GoogleCloudStorageService();
         service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.client("another_client"));
+        GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats("bucket");
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> service.client("another_client", "repo", statsCollector));
         assertThat(e.getMessage(), Matchers.startsWith("Unknown client name"));
         assertSettingDeprecationsAndWarnings(
                 new Setting<?>[] { GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING.getConcreteSettingForNamespace(clientName) });
-        final Storage storage = service.client(clientName);
+        final Storage storage = service.client(clientName, "repo", statsCollector);
         assertThat(storage.getOptions().getApplicationName(), Matchers.containsString(applicationName));
         assertThat(storage.getOptions().getHost(), Matchers.is(endpoint));
         assertThat(storage.getOptions().getProjectId(), Matchers.is(projectIdName));
@@ -92,34 +83,56 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings1)) {
             final GoogleCloudStorageService storageService = plugin.storageService;
-            final Storage client11 = storageService.client("gcs1");
+            GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats("bucket");
+            final Storage client11 = storageService.client("gcs1", "repo1", statsCollector);
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
-            final Storage client12 = storageService.client("gcs2");
+            final Storage client12 = storageService.client("gcs2", "repo2", statsCollector);
             assertThat(client12.getOptions().getProjectId(), equalTo("project_gcs12"));
             // client 3 is missing
-            final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> storageService.client("gcs3"));
+            final IllegalArgumentException e1 =
+                expectThrows(IllegalArgumentException.class, () -> storageService.client("gcs3", "repo3", statsCollector));
             assertThat(e1.getMessage(), containsString("Unknown client name [gcs3]."));
             // update client settings
             plugin.reload(settings2);
             // old client 1 not changed
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
             // new client 1 is changed
-            final Storage client21 = storageService.client("gcs1");
+            final Storage client21 = storageService.client("gcs1", "repo1", statsCollector);
             assertThat(client21.getOptions().getProjectId(), equalTo("project_gcs21"));
             // old client 2 not changed
             assertThat(client12.getOptions().getProjectId(), equalTo("project_gcs12"));
             // new client2 is gone
-            final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> storageService.client("gcs2"));
+            final IllegalArgumentException e2 =
+                expectThrows(IllegalArgumentException.class, () -> storageService.client("gcs2", "repo2", statsCollector));
             assertThat(e2.getMessage(), containsString("Unknown client name [gcs2]."));
             // client 3 emerged
-            final Storage client23 = storageService.client("gcs3");
+            final Storage client23 = storageService.client("gcs3", "repo3", statsCollector);
             assertThat(client23.getOptions().getProjectId(), equalTo("project_gcs23"));
+        }
+    }
+
+    public void testClientsAreNotSharedAcrossRepositories() throws Exception {
+        final MockSecureSettings secureSettings1 = new MockSecureSettings();
+        secureSettings1.setFile("gcs.client.gcs1.credentials_file", serviceAccountFileContent("test_project"));
+        final Settings settings = Settings.builder().setSecureSettings(secureSettings1).build();
+        try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings)) {
+            final GoogleCloudStorageService storageService = plugin.storageService;
+
+            final Storage repo1Client =
+                storageService.client("gcs1", "repo1", new GoogleCloudStorageOperationsStats("bucket"));
+            final Storage repo2Client =
+                storageService.client("gcs1", "repo2", new GoogleCloudStorageOperationsStats("bucket"));
+            final Storage repo1ClientSecondInstance =
+                storageService.client("gcs1", "repo1", new GoogleCloudStorageOperationsStats("bucket"));
+
+            assertNotSame(repo1Client, repo2Client);
+            assertSame(repo1Client, repo1ClientSecondInstance);
         }
     }
 
     private byte[] serviceAccountFileContent(String projectId) throws Exception {
         final KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(1024);
+        keyPairGenerator.initialize(2048);
         final KeyPair keyPair = keyPairGenerator.generateKeyPair();
         final String encodedKey = Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
         final XContentBuilder serviceAccountBuilder = jsonBuilder().startObject()

@@ -1,81 +1,377 @@
 [[analysis-stop-tokenfilter]]
-=== Stop Token Filter
+=== Stop token filter
+++++
+<titleabbrev>Stop</titleabbrev>
+++++
 
-A token filter of type `stop` that removes stop words from token
-streams.
+Removes {wikipedia}/Stop_words[stop words] from a token
+stream.
 
-The following are settings that can be set for a `stop` token filter
-type:
+When not customized, the filter removes the following English stop words by
+default:
 
-[horizontal]
+`a`, `an`, `and`, `are`, `as`, `at`, `be`, `but`, `by`, `for`, `if`, `in`,
+`into`, `is`, `it`, `no`, `not`, `of`, `on`, `or`, `such`, `that`, `the`,
+`their`, `then`, `there`, `these`, `they`, `this`, `to`, `was`, `will`, `with`
+
+In addition to English, the `stop` filter supports predefined
+<<analysis-stop-tokenfilter-stop-words-by-lang,stop word lists for several
+languages>>. You can also specify your own stop words as an array or file.
+
+The `stop` filter uses Lucene's
+{lucene-analysis-docs}/StopFilter.html[StopFilter].
+
+[[analysis-stop-tokenfilter-analyze-ex]]
+==== Example
+
+The following analyze API request uses the `stop` filter to remove the stop words
+`a` and `the` from `a quick fox jumps over the lazy dog`:
+
+[source,console]
+----
+GET /_analyze
+{
+  "tokenizer": "standard",
+  "filter": [ "stop" ],
+  "text": "a quick fox jumps over the lazy dog"
+}
+----
+
+The filter produces the following tokens:
+
+[source,text]
+----
+[ quick, fox, jumps, over, lazy, dog ]
+----
+
+////
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "quick",
+      "start_offset": 2,
+      "end_offset": 7,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "fox",
+      "start_offset": 8,
+      "end_offset": 11,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "jumps",
+      "start_offset": 12,
+      "end_offset": 17,
+      "type": "<ALPHANUM>",
+      "position": 3
+    },
+    {
+      "token": "over",
+      "start_offset": 18,
+      "end_offset": 22,
+      "type": "<ALPHANUM>",
+      "position": 4
+    },
+    {
+      "token": "lazy",
+      "start_offset": 27,
+      "end_offset": 31,
+      "type": "<ALPHANUM>",
+      "position": 6
+    },
+    {
+      "token": "dog",
+      "start_offset": 32,
+      "end_offset": 35,
+      "type": "<ALPHANUM>",
+      "position": 7
+    }
+  ]
+}
+----
+////
+
+[[analysis-stop-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+
+The following <<indices-create-index,create index API>> request uses the `stop`
+filter to configure a new <<analysis-custom-analyzer,custom analyzer>>.
+
+[source,console]
+----
+PUT /my-index-000001
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "whitespace",
+          "filter": [ "stop" ]
+        }
+      }
+    }
+  }
+}
+----
+
+[[analysis-stop-tokenfilter-configure-parms]]
+==== Configurable parameters
+
 `stopwords`::
++
+--
+(Optional, string or array of strings)
+Language value, such as `_arabic_` or `_thai_`. Defaults to
+<<english-stop-words,`_english_`>>.
 
-    A list of stop words to use. Defaults to `_english_` stop words.
+Each language value corresponds to a predefined list of stop words in Lucene.
+See <<analysis-stop-tokenfilter-stop-words-by-lang>> for supported language
+values and their stop words.
+
+Also accepts an array of stop words.
+
+For an empty list of stop words, use `_none_`.
+--
 
 `stopwords_path`::
++
+--
+(Optional, string)
+Path to a file that contains a list of stop words to remove.
 
-    A path (either relative to `config` location, or absolute) to a stopwords
-    file configuration. Each stop word should be in its own "line" (separated
-    by a line break). The file must be UTF-8 encoded.
+This path must be absolute or relative to the `config` location, and the file
+must be UTF-8 encoded. Each stop word in the file must be separated by a line
+break.
+--
 
 `ignore_case`::
-
-    Set to `true` to lower case all words first. Defaults to `false`.
+(Optional, Boolean)
+If `true`, stop word matching is case insensitive. For example, if `true`, a
+stop word of `the` matches and removes `The`, `THE`, or `the`. Defaults to
+`false`.
 
 `remove_trailing`::
++
+--
+(Optional, Boolean)
+If `true`, the last token of a stream is removed if it's a stop word. Defaults
+to `true`.
 
-    Set to `false` in order to not ignore the last term of a search if it is a
-    stop word. This is very useful for the completion suggester as a query
-    like `green a` can be extended to `green apple` even though you remove
-    stop words in general. Defaults to `true`.
+This parameter should be `false` when using the filter with a
+<<completion-suggester,completion suggester>>. This would ensure a query like
+`green a` matches and suggests `green apple` while still removing other stop
+words.
+--
 
-The `stopwords` parameter accepts either an array of stopwords:
+[[analysis-stop-tokenfilter-customize]]
+==== Customize
 
-[source,js]
-------------------------------------
-PUT /my_index
+To customize the `stop` filter, duplicate it to create the basis
+for a new custom token filter. You can modify the filter using its configurable
+parameters.
+
+For example, the following request creates a custom case-insensitive `stop`
+filter that removes stop words from the <<english-stop-words,`_english_`>> stop
+words list:
+
+[source,console]
+----
+PUT /my-index-000001
 {
-    "settings": {
-        "analysis": {
-            "filter": {
-                "my_stop": {
-                    "type":       "stop",
-                    "stopwords": ["and", "is", "the"]
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "default": {
+          "tokenizer": "whitespace",
+          "filter": [ "my_custom_stop_words_filter" ]
         }
+      },
+      "filter": {
+        "my_custom_stop_words_filter": {
+          "type": "stop",
+          "ignore_case": true
+        }
+      }
     }
+  }
 }
-------------------------------------
-// CONSOLE
+----
 
-or a predefined language-specific list:
+You can also specify your own list of stop words. For example, the following
+request creates a custom case-sensitive `stop` filter that removes only the stop
+words `and`, `is`, and `the`:
 
-[source,js]
-------------------------------------
-PUT /my_index
+[source,console]
+----
+PUT /my-index-000001
 {
-    "settings": {
-        "analysis": {
-            "filter": {
-                "my_stop": {
-                    "type":       "stop",
-                    "stopwords":  "_english_"
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "default": {
+          "tokenizer": "whitespace",
+          "filter": [ "my_custom_stop_words_filter" ]
         }
+      },
+      "filter": {
+        "my_custom_stop_words_filter": {
+          "type": "stop",
+          "ignore_case": true,
+          "stopwords": [ "and", "is", "the" ]
+        }
+      }
     }
+  }
 }
-------------------------------------
-// CONSOLE
+----
 
-Elasticsearch provides the following predefined list of languages:
+[[analysis-stop-tokenfilter-stop-words-by-lang]]
+==== Stop words by language
 
-`_arabic_`, `_armenian_`, `_basque_`, `_bengali_`, `_brazilian_`, `_bulgarian_`,
-`_catalan_`, `_czech_`, `_danish_`, `_dutch_`, `_english_`, `_finnish_`,
-`_french_`, `_galician_`, `_german_`, `_greek_`, `_hindi_`, `_hungarian_`,
-`_indonesian_`, `_irish_`, `_italian_`, `_latvian_`, `_norwegian_`, `_persian_`,
-`_portuguese_`, `_romanian_`, `_russian_`, `_sorani_`, `_spanish_`,
-`_swedish_`, `_thai_`, `_turkish_`.
+The following list contains supported language values for the `stopwords`
+parameter and a link to their predefined stop words in Lucene.
 
-For the empty stopwords list (to disable stopwords) use: `\_none_`.
+[[arabic-stop-words]]
+`_arabic_`::
+{lucene-stop-word-link}/ar/stopwords.txt[Arabic stop words]
+
+[[armenian-stop-words]]
+`_armenian_`::
+{lucene-stop-word-link}/hy/stopwords.txt[Armenian stop words]
+
+[[basque-stop-words]]
+`_basque_`::
+{lucene-stop-word-link}/eu/stopwords.txt[Basque stop words]
+
+[[bengali-stop-words]]
+`_bengali_`::
+{lucene-stop-word-link}/bn/stopwords.txt[Bengali stop words]
+
+[[brazilian-stop-words]]
+`_brazilian_` (Brazilian Portuguese)::
+{lucene-stop-word-link}/br/stopwords.txt[Brazilian Portuguese stop words]
+
+[[bulgarian-stop-words]]
+`_bulgarian_`::
+{lucene-stop-word-link}/bg/stopwords.txt[Bulgarian stop words]
+
+[[catalan-stop-words]]
+`_catalan_`::
+{lucene-stop-word-link}/ca/stopwords.txt[Catalan stop words]
+
+[[cjk-stop-words]]
+`_cjk_` (Chinese, Japanese, and Korean)::
+{lucene-stop-word-link}/cjk/stopwords.txt[CJK stop words]
+
+[[czech-stop-words]]
+`_czech_`::
+{lucene-stop-word-link}/cz/stopwords.txt[Czech stop words]
+
+[[danish-stop-words]]
+`_danish_`::
+{lucene-stop-word-link}/snowball/danish_stop.txt[Danish stop words]
+
+[[dutch-stop-words]]
+`_dutch_`::
+{lucene-stop-word-link}/snowball/dutch_stop.txt[Dutch stop words]
+
+[[english-stop-words]]
+`_english_`::
+{lucene-gh-main-link}/analysis/common/src/java/org/apache/lucene/analysis/en/EnglishAnalyzer.java#L48[English stop words]
+
+[[estonian-stop-words]]
+`_estonian_`::
+{lucene-stop-word-link}/et/stopwords.txt[Estonian stop words]
+
+[[finnish-stop-words]]
+`_finnish_`::
+{lucene-stop-word-link}/snowball/finnish_stop.txt[Finnish stop words]
+
+[[french-stop-words]]
+`_french_`::
+{lucene-stop-word-link}/snowball/french_stop.txt[French stop words]
+
+[[galician-stop-words]]
+`_galician_`::
+{lucene-stop-word-link}/gl/stopwords.txt[Galician stop words]
+
+[[german-stop-words]]
+`_german_`::
+{lucene-stop-word-link}/snowball/german_stop.txt[German stop words]
+
+[[greek-stop-words]]
+`_greek_`::
+{lucene-stop-word-link}/el/stopwords.txt[Greek stop words]
+
+[[hindi-stop-words]]
+`_hindi_`::
+{lucene-stop-word-link}/hi/stopwords.txt[Hindi stop words]
+
+[[hungarian-stop-words]]
+`_hungarian_`::
+{lucene-stop-word-link}/snowball/hungarian_stop.txt[Hungarian stop words]
+
+[[indonesian-stop-words]]
+`_indonesian_`::
+{lucene-stop-word-link}/id/stopwords.txt[Indonesian stop words]
+
+[[irish-stop-words]]
+`_irish_`::
+{lucene-stop-word-link}/ga/stopwords.txt[Irish stop words]
+
+[[italian-stop-words]]
+`_italian_`::
+{lucene-stop-word-link}/snowball/italian_stop.txt[Italian stop words]
+
+[[latvian-stop-words]]
+`_latvian_`::
+{lucene-stop-word-link}/lv/stopwords.txt[Latvian stop words]
+
+[[lithuanian-stop-words]]
+`_lithuanian_`::
+{lucene-stop-word-link}/lt/stopwords.txt[Lithuanian stop words]
+
+[[norwegian-stop-words]]
+`_norwegian_`::
+{lucene-stop-word-link}/snowball/norwegian_stop.txt[Norwegian stop words]
+
+[[persian-stop-words]]
+`_persian_`::
+{lucene-stop-word-link}/fa/stopwords.txt[Persian stop words]
+
+[[portuguese-stop-words]]
+`_portuguese_`::
+{lucene-stop-word-link}/snowball/portuguese_stop.txt[Portuguese stop words]
+
+[[romanian-stop-words]]
+`_romanian_`::
+{lucene-stop-word-link}/ro/stopwords.txt[Romanian stop words]
+
+[[russian-stop-words]]
+`_russian_`::
+{lucene-stop-word-link}/snowball/russian_stop.txt[Russian stop words]
+
+[[sorani-stop-words]]
+`_sorani_`::
+{lucene-stop-word-link}/ckb/stopwords.txt[Sorani stop words]
+
+[[spanish-stop-words]]
+`_spanish_`::
+{lucene-stop-word-link}/snowball/spanish_stop.txt[Spanish stop words]
+
+[[swedish-stop-words]]
+`_swedish_`::
+{lucene-stop-word-link}/snowball/swedish_stop.txt[Swedish stop words]
+
+[[thai-stop-words]]
+`_thai_`::
+{lucene-stop-word-link}/th/stopwords.txt[Thai stop words]
+
+[[turkish-stop-words]]
+`_turkish_`::
+{lucene-stop-word-link}/tr/stopwords.txt[Turkish stop words]

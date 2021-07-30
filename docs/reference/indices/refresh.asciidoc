@@ -1,30 +1,115 @@
 [[indices-refresh]]
-== Refresh
+=== Refresh API
+++++
+<titleabbrev>Refresh</titleabbrev>
+++++
 
-The refresh API allows to explicitly refresh one or more index, making
-all operations performed since the last refresh available for search.
-The (near) real-time capabilities depend on the index engine used. For
-example, the internal one requires refresh to be called, but by default a
-refresh is scheduled periodically.
+Refreshes one or more indices. For data streams, the API refreshes the stream's
+backing indices.
 
-[source,js]
---------------------------------------------------
-POST /twitter/_refresh
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+[source,console]
+----
+POST /my-index-000001/_refresh
+----
+// TEST[setup:my_index]
 
-[float]
-=== Multi Index
 
-The refresh API can be applied to more than one index with a single
-call, or even on `_all` the indices.
+[[refresh-api-request]]
+==== {api-request-title}
 
-[source,js]
---------------------------------------------------
-POST /kimchy,elasticsearch/_refresh
+`POST <target>/_refresh`
 
+`GET <target>/_refresh`
+
+`POST /_refresh`
+
+`GET /_refresh`
+
+[[refresh-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `maintenance`
+or `manage` <<privileges-list-indices,index privilege>> for the target data
+stream, index, or alias.
+
+[[refresh-api-desc]]
+==== {api-description-title}
+
+Use the refresh API to explicitly refresh one or more indices.
+If the request targets a data stream, it refreshes the stream's backing indices.
+A _refresh_ makes all operations performed on an index
+since the last refresh
+available for search.
+
+// tag::refresh-interval-default[]
+By default, Elasticsearch periodically refreshes indices every second, but only on
+indices that have received one search request or more in the last 30 seconds.
+// end::refresh-interval-default[]
+You can change this default interval
+using the <<index-refresh-interval-setting,`index.refresh_interval`>> setting.
+
+Refresh requests are synchronous and do not return a response until the
+refresh operation completes.
+
+[IMPORTANT]
+====
+Refreshes are resource-intensive.
+To ensure good cluster performance,
+we recommend waiting for {es}'s periodic refresh
+rather than performing an explicit refresh
+when possible.
+
+If your application workflow
+indexes documents and then runs a search
+to retrieve the indexed document,
+we recommend using the <<docs-index_,index API>>'s
+`refresh=wait_for` query parameter option.
+This option ensures the indexing operation waits
+for a periodic refresh
+before running the search.
+====
+
+[[refresh-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and aliases used to limit
+the request. Supports wildcards (`*`). To target all data streams and indices,
+omit this parameter or use `*` or `_all`.
+
+[[refresh-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+
+[[refresh-api-example]]
+==== {api-examples-title}
+
+
+[[refresh-api-multiple-ex]]
+===== Refresh several data streams and indices
+
+[source,console]
+----
+POST /my-index-000001,my-index-000002/_refresh
+----
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
+
+
+[[refresh-api-all-ex]]
+===== Refresh all data streams and indices in a cluster
+
+[source,console]
+----
 POST /_refresh
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+----

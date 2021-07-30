@@ -1,32 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo.builders;
 
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryFactory;
-
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;
@@ -35,6 +19,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 import org.locationtech.spatial4j.shape.Shape;
@@ -46,13 +33,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
  */
-public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>> implements NamedWriteable, ToXContentObject {
+public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.geometry.Geometry,
+    E extends ShapeBuilder<T, G, E>> implements NamedWriteable, ToXContentObject {
 
     protected static final Logger LOGGER = LogManager.getLogger(ShapeBuilder.class);
 
@@ -112,10 +99,7 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
     protected static Coordinate readFromStream(StreamInput in) throws IOException {
         double x = in.readDouble();
         double y = in.readDouble();
-        Double z = null;
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            z = in.readOptionalDouble();
-        }
+        Double z = in.readOptionalDouble();
         return z == null ? new Coordinate(x, y) : new Coordinate(x, y, z);
     }
 
@@ -130,9 +114,7 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
     protected static void writeCoordinateTo(Coordinate coordinate, StreamOutput out) throws IOException {
         out.writeDouble(coordinate.x);
         out.writeDouble(coordinate.y);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeOptionalDouble(Double.isNaN(coordinate.z) ? null : coordinate.z);
-        }
+        out.writeOptionalDouble(Double.isNaN(coordinate.z) ? null : coordinate.z);
     }
 
     @SuppressWarnings("unchecked")
@@ -218,7 +200,7 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
      *
      * @return GeoPoint, double[][], Line, Line[], Polygon, Polygon[], Rectangle, Object[]
      */
-    public abstract Object buildLucene();
+    public abstract G buildGeometry();
 
     protected static Coordinate shift(Coordinate coordinate, double dateline) {
         if (dateline == 0) {
@@ -278,21 +260,58 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
      */
     protected static int intersections(double dateline, Edge[] edges) {
         int numIntersections = 0;
-        assert !Double.isNaN(dateline);
+        assert Double.isNaN(dateline) == false;
+        int maxComponent = 0;
         for (int i = 0; i < edges.length; i++) {
             Coordinate p1 = edges[i].coordinate;
             Coordinate p2 = edges[i].next.coordinate;
-            assert !Double.isNaN(p2.x) && !Double.isNaN(p1.x);
+            assert Double.isNaN(p2.x) == false && Double.isNaN(p1.x) == false;
             edges[i].intersect = Edge.MAX_COORDINATE;
 
             double position = intersection(p1, p2, dateline);
-            if (!Double.isNaN(position)) {
+            if (Double.isNaN(position) == false) {
                 edges[i].intersection(position);
                 numIntersections++;
+                maxComponent = Math.max(maxComponent, edges[i].component);
             }
         }
+        if (maxComponent > 0) {
+            // we might detect polygons touching the dateline as intersections
+            // Here we clean them up
+            for (int i = 0; i < maxComponent; i++) {
+                if (clearComponentTouchingDateline(edges, i + 1)) {
+                    numIntersections--;
+                }
+            }
+        }
+
         Arrays.sort(edges, INTERSECTION_ORDER);
         return numIntersections;
+    }
+
+    /**
+     * Checks the number of dateline intersections detected for a component. If there is only
+     * one, it clears it as it means that the component just touches the dateline.
+     *
+     * @param edges    set of edges that may intersect with the dateline
+     * @param component    The component to check
+     * @return true if the component touches the dateline.
+     */
+    private static boolean clearComponentTouchingDateline(Edge[] edges, int component) {
+        Edge intersection = null;
+        for (Edge edge : edges) {
+            if (edge.intersect != Edge.MAX_COORDINATE && edge.component == component) {
+                if (intersection == null) {
+                    intersection = edge;
+                } else {
+                    return false;
+                }
+            }
+        }
+        if (intersection != null) {
+            intersection.intersect = Edge.MAX_COORDINATE;
+        }
+        return intersection != null;
     }
 
     /**
@@ -410,40 +429,6 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
         }
     }
 
-    public enum Orientation {
-        LEFT,
-        RIGHT;
-
-        public static final Orientation CLOCKWISE = Orientation.LEFT;
-        public static final Orientation COUNTER_CLOCKWISE = Orientation.RIGHT;
-        public static final Orientation CW = Orientation.LEFT;
-        public static final Orientation CCW = Orientation.RIGHT;
-
-        public void writeTo (StreamOutput out) throws IOException {
-            out.writeBoolean(this == Orientation.RIGHT);
-        }
-
-        public static Orientation readFrom (StreamInput in) throws IOException {
-            return in.readBoolean() ? Orientation.RIGHT : Orientation.LEFT;
-        }
-
-        public static Orientation fromString(String orientation) {
-            orientation = orientation.toLowerCase(Locale.ROOT);
-            switch (orientation) {
-                case "right":
-                case "counterclockwise":
-                case "ccw":
-                    return Orientation.RIGHT;
-                case "left":
-                case "clockwise":
-                case "cw":
-                    return Orientation.LEFT;
-                default:
-                    throw new IllegalArgumentException("Unknown orientation [" + orientation + "]");
-            }
-        }
-    }
-
     protected static final boolean debugEnabled() {
         return LOGGER.isDebugEnabled() || DEBUG;
     }
@@ -482,9 +467,9 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof ShapeBuilder)) return false;
+        if ((o instanceof ShapeBuilder) == false) return false;
 
-        ShapeBuilder<?,?> that = (ShapeBuilder<?,?>) o;
+        ShapeBuilder<?,?,?> that = (ShapeBuilder<?,?,?>) o;
 
         return Objects.equals(coordinates, that.coordinates);
     }

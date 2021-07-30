@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
+import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 
-public class GetCalendarEventsActionRequestTests extends AbstractStreamableXContentTestCase<GetCalendarEventsAction.Request> {
+public class GetCalendarEventsActionRequestTests extends AbstractSerializingTestCase<GetCalendarEventsAction.Request> {
 
     @Override
     protected GetCalendarEventsAction.Request createTestInstance() {
@@ -33,8 +34,8 @@ public class GetCalendarEventsActionRequestTests extends AbstractStreamableXCont
     }
 
     @Override
-    protected GetCalendarEventsAction.Request createBlankInstance() {
-        return new GetCalendarEventsAction.Request();
+    protected Writeable.Reader<GetCalendarEventsAction.Request> instanceReader() {
+        return GetCalendarEventsAction.Request::new;
     }
 
     @Override
@@ -53,7 +54,7 @@ public class GetCalendarEventsActionRequestTests extends AbstractStreamableXCont
 
         ActionRequestValidationException validationException = request.validate();
         assertNotNull(validationException);
-        assertEquals("Validation Failed: 1: If job_id is used calendar_id must be '_all';", validationException.getMessage());
+        assertEquals("Validation Failed: 1: If job_id is used calendar_id must be '_all' or '*';", validationException.getMessage());
 
         request = new GetCalendarEventsAction.Request("_all");
         request.setJobId("foo");

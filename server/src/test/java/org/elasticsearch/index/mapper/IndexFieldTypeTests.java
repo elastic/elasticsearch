@@ -1,73 +1,64 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.test.ESTestCase;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import java.util.function.Predicate;
 
-public class IndexFieldTypeTests extends FieldTypeTestCase {
+import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsString;
 
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new IndexFieldMapper.IndexFieldType();
-    }
+public class IndexFieldTypeTests extends ESTestCase {
 
     public void testPrefixQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
+        MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 
         assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("ind", null, createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("other_ind", null, createContext()));
     }
 
-    public void testRegexpQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
-
-        assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 10, null, createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.regexpQuery("ind?x", 0, 10, null, createContext()));
-    }
-
     public void testWildcardQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
+        MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("ind*x", null, createContext()));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("iNd*x", null, true, createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("other_ind*x", null, createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("Other_ind*x", null, true, createContext()));
     }
 
-    private QueryShardContext createContext() {
-        QueryShardContext context = mock(QueryShardContext.class);
+    public void testRegexpQuery() {
+        MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 
-        Index index = new Index("index", "123");
-        when(context.getFullyQualifiedIndex()).thenReturn(index);
-        when(context.index()).thenReturn(index);
+        QueryShardException e = expectThrows(QueryShardException.class, () ->
+            assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 0, 10, null, createContext())));
+        assertThat(e.getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
+    }
 
-        return context;
+    private SearchExecutionContext createContext() {
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        Predicate<String> indexNameMatcher = pattern -> Regex.simpleMatch(pattern, "index");
+        return new SearchExecutionContext(0, 0, indexSettings, null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+            null, null, System::currentTimeMillis, null, indexNameMatcher, () -> true, null, emptyMap());
     }
 }

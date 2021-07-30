@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -24,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
@@ -49,21 +39,14 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     public SearchPhaseExecutionException(StreamInput in) throws IOException {
         super(in);
         phaseName = in.readOptionalString();
-        int numFailures = in.readVInt();
-        shardFailures = new ShardSearchFailure[numFailures];
-        for (int i = 0; i < numFailures; i++) {
-            shardFailures[i] = ShardSearchFailure.readShardSearchFailure(in);
-        }
+        shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(phaseName);
-        out.writeVInt(shardFailures.length);
-        for (ShardSearchFailure failure : shardFailures) {
-            failure.writeTo(out);
-        }
+        out.writeArray(shardFailures);
     }
 
     private static Throwable deduplicateCause(Throwable cause, ShardSearchFailure[] shardFailures) {
@@ -85,8 +68,9 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     @Override
     public RestStatus status() {
         if (shardFailures.length == 0) {
-            // if no successful shards, it means no active shards, so just return SERVICE_UNAVAILABLE
-            return RestStatus.SERVICE_UNAVAILABLE;
+            // if no successful shards, the failure can be due to EsRejectedExecutionException during fetch phase
+            // on coordinator node. so get the status from cause instead of returning SERVICE_UNAVAILABLE blindly
+            return getCause() == null ? RestStatus.SERVICE_UNAVAILABLE : ExceptionsHelper.status(getCause());
         }
         RestStatus status = shardFailures[0].status();
         if (shardFailures.length > 1) {
@@ -118,7 +102,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     private static String buildMessage(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
         StringBuilder sb = new StringBuilder();
         sb.append("Failed to execute phase [").append(phaseName).append("], ").append(msg);
-        if (shardFailures != null && shardFailures.length > 0) {
+        if (CollectionUtils.isEmpty(shardFailures) == false) {
             sb.append("; shardFailures ");
             for (ShardSearchFailure shardFailure : shardFailures) {
                 if (shardFailure.shard() != null) {
@@ -139,9 +123,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         builder.startArray();
         ShardOperationFailedException[] failures = ExceptionsHelper.groupBy(shardFailures);
         for (ShardOperationFailedException failure : failures) {
-            builder.startObject();
             failure.toXContent(builder, params);
-            builder.endObject();
         }
         builder.endArray();
     }

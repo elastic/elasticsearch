@@ -1,27 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,15 +35,15 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * We would usually throw such exception, but we configure the client to not throw for 404 to support the case above, hence we also not
  * throw in case an index is not found, although it is a hard error that doesn't come back with aliases.
  */
-public class GetAliasesResponse extends ActionResponse implements StatusToXContentObject {
+public class GetAliasesResponse implements StatusToXContentObject {
 
     private final RestStatus status;
     private final String error;
     private final ElasticsearchException exception;
 
-    private final Map<String, Set<AliasMetaData>> aliases;
+    private final Map<String, Set<AliasMetadata>> aliases;
 
-    GetAliasesResponse(RestStatus status, String error, Map<String, Set<AliasMetaData>> aliases) {
+    GetAliasesResponse(RestStatus status, String error, Map<String, Set<AliasMetadata>> aliases) {
         this.status = status;
         this.error = error;
         this.aliases = aliases;
@@ -91,7 +79,7 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
     /**
      * Return the requested aliases
      */
-    public Map<String, Set<AliasMetaData>> getAliases() {
+    public Map<String, Set<AliasMetadata>> getAliases() {
         return aliases;
     }
 
@@ -104,13 +92,13 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
                 builder.field("status", status.getStatus());
             }
 
-            for (Map.Entry<String, Set<AliasMetaData>> entry : aliases.entrySet()) {
+            for (Map.Entry<String, Set<AliasMetadata>> entry : aliases.entrySet()) {
                 builder.startObject(entry.getKey());
                 {
                     builder.startObject("aliases");
                     {
-                        for (final AliasMetaData alias : entry.getValue()) {
-                            AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
+                        for (final AliasMetadata alias : entry.getValue()) {
+                            AliasMetadata.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
                         }
                     }
                     builder.endObject();
@@ -129,8 +117,8 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        Map<String, Set<AliasMetaData>> aliases = new HashMap<>();
+        ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser);
+        Map<String, Set<AliasMetadata>> aliases = new HashMap<>();
 
         String currentFieldName;
         Token token;
@@ -144,7 +132,7 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
 
                 if ("status".equals(currentFieldName)) {
                     if ((token = parser.nextToken()) != Token.FIELD_NAME) {
-                        ensureExpectedToken(Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        ensureExpectedToken(Token.VALUE_NUMBER, token, parser);
                         status = RestStatus.fromCode(parser.intValue());
                     }
                 } else if ("error".equals(currentFieldName)) {
@@ -160,7 +148,7 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
                 } else {
                     String indexName = parser.currentName();
                     if (parser.nextToken() == Token.START_OBJECT) {
-                        Set<AliasMetaData> parseInside = parseAliases(parser);
+                        Set<AliasMetadata> parseInside = parseAliases(parser);
                         aliases.put(indexName, parseInside);
                     }
                 }
@@ -174,8 +162,8 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         return new GetAliasesResponse(status, error, aliases);
     }
 
-    private static Set<AliasMetaData> parseAliases(XContentParser parser) throws IOException {
-        Set<AliasMetaData> aliases = new HashSet<>();
+    private static Set<AliasMetadata> parseAliases(XContentParser parser) throws IOException {
+        Set<AliasMetadata> aliases = new HashSet<>();
         Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != Token.END_OBJECT) {
@@ -184,7 +172,7 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
             } else if (token == Token.START_OBJECT) {
                 if ("aliases".equals(currentFieldName)) {
                     while (parser.nextToken() != Token.END_OBJECT) {
-                        AliasMetaData fromXContent = AliasMetaData.Builder.fromXContent(parser);
+                        AliasMetadata fromXContent = AliasMetadata.Builder.fromXContent(parser);
                         aliases.add(fromXContent);
                     }
                 } else {

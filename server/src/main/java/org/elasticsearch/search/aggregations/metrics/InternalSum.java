@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -23,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,9 +21,8 @@ import java.util.Objects;
 public class InternalSum extends InternalNumericMetricsAggregation.SingleValue implements Sum {
     private final double sum;
 
-    InternalSum(String name, double sum, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-                    Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public  InternalSum(String name, double sum, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, metadata);
         this.sum = sum;
         this.format = formatter;
     }
@@ -71,23 +58,15 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalSum doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalSum reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
-        double sum = 0;
-        double compensation = 0;
+        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         for (InternalAggregation aggregation : aggregations) {
             double value = ((InternalSum) aggregation).sum;
-            if (Double.isFinite(value) == false) {
-                sum += value;
-            } else if (Double.isFinite(sum)) {
-                double corrected = value - compensation;
-                double newSum = sum + corrected;
-                compensation = (newSum - sum) - corrected;
-                sum = newSum;
-            }
+            kahanSummation.add(value);
         }
-        return new InternalSum(name, sum, format, pipelineAggregators(), getMetaData());
+        return new InternalSum(name, kahanSummation.value(), format, getMetadata());
     }
 
     @Override
@@ -100,12 +79,16 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hashCode(sum);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), sum);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalSum that = (InternalSum) obj;
         return Objects.equals(sum, that.sum);
     }

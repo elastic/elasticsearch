@@ -1,31 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.rest.yaml;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-
 import org.elasticsearch.test.rest.ESRestTestCase;
 
-import static java.util.Collections.unmodifiableList;
+import java.util.List;
 
 /**
  * Allows to register additional features supported by the tests runner.
@@ -36,7 +21,8 @@ import static java.util.Collections.unmodifiableList;
  * and the related skip sections can be removed from the tests as well.
  */
 public final class Features {
-    private static final List<String> SUPPORTED = unmodifiableList(Arrays.asList(
+
+    private static final List<String> SUPPORTED = List.of(
             "catch_unauthorized",
             "default_shards",
             "embedded_stash_key",
@@ -46,9 +32,14 @@ public final class Features {
             "stash_in_path",
             "stash_path_replace",
             "warnings",
+            "warnings_regex",
             "yaml",
-            "contains"
-    ));
+            "contains",
+            "transform_and_set",
+            "arbitrary_key",
+            "allowed_warnings",
+            "allowed_warnings_regex",
+            "close_to");
 
     private Features() {
 
@@ -58,23 +49,19 @@ public final class Features {
      * Tells whether all the features provided as argument are supported
      */
     public static boolean areAllSupported(List<String> features) {
-        try {
-            for (String feature : features) {
-                if (feature.equals("xpack")) {
-                    if (false == ESRestTestCase.hasXPack()) {
-                        return false;
-                    }
-                } else if (feature.equals("no_xpack")) {
-                    if (ESRestTestCase.hasXPack()) {
-                        return false;
-                    }
-                } else if (false == SUPPORTED.contains(feature)) {
+        for (String feature : features) {
+            if (feature.equals("xpack")) {
+                if (false == ESRestTestCase.hasXPack()) {
                     return false;
                 }
+            } else if (feature.equals("no_xpack")) {
+                if (ESRestTestCase.hasXPack()) {
+                    return false;
+                }
+            } else if (false == SUPPORTED.contains(feature)) {
+                return false;
             }
-            return true;
-        } catch (IOException e) {
-            throw new RuntimeException("error checking if xpack is available", e);
         }
+        return true;
     }
 }

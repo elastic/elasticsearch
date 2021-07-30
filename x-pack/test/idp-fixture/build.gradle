@@ -1,42 +1,42 @@
-apply plugin: 'elasticsearch.build'
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.Architecture
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
 
-Map<String, String> vagrantEnvVars = [
-        'VAGRANT_CWD'           : "${project.projectDir.absolutePath}",
-        'VAGRANT_VAGRANTFILE'   : 'Vagrantfile',
-        'VAGRANT_PROJECT_DIR'   : "${project.projectDir.absolutePath}"
-]
+apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.internal-distribution-download'
 
-String box = "test.shibboleth.elastic.local"
-
-task update(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'box'
-    subcommand 'update'
-    boxName box
-    environmentVars vagrantEnvVars
+tasks.register("copyKeystore", Sync) {
+  from project(':x-pack:plugin:core')
+    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+  into "${buildDir}/certs"
+  doLast {
+    file("${buildDir}/certs").setReadable(true, false)
+    file("${buildDir}/certs/testnode.jks").setReadable(true, false)
+  }
 }
 
-task up(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'up'
-    args '--provision', '--provider', 'virtualbox'
-    boxName box
-    environmentVars vagrantEnvVars
-    dependsOn update
+elasticsearch_distributions {
+  docker {
+    type = DOCKER
+    architecture = Architecture.current()
+    version = VersionProperties.getElasticsearch()
+    failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
+  }
 }
 
-task halt(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'halt'
-    boxName box
-    environmentVars vagrantEnvVars
+tasks.named("preProcessFixture").configure {
+  dependsOn "copyKeystore", elasticsearch_distributions.docker
+  doLast {
+    File file = file("${buildDir}/logs/node1")
+    file.mkdirs()
+    file.setWritable(true, false)
+  }
 }
 
-task destroy(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'destroy'
-    args '-f'
-    boxName box
-    environmentVars vagrantEnvVars
-    dependsOn halt
+tasks.named('composeUp').configure {
+  dependsOn "preProcessFixture"
 }
 
-thirdPartyAudit.enabled = false
-test.enabled = false
-jarHell.enabled = false
+tasks.named('composePull').configure {
+  enabled = false // this task fails due to docker-compose oddities
+}

@@ -1,26 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Response for a {@link HasPrivilegesRequest}
@@ -29,11 +30,20 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
     private String username;
     private boolean completeMatch;
     private Map<String, Boolean> cluster;
-    private List<ResourcePrivileges> index;
-    private Map<String, List<ResourcePrivileges>> application;
+    private Set<ResourcePrivileges> index;
+    private Map<String, Set<ResourcePrivileges>> application;
 
     public HasPrivilegesResponse() {
         this("", true, Collections.emptyMap(), Collections.emptyList(), Collections.emptyMap());
+    }
+
+    public HasPrivilegesResponse(StreamInput in) throws IOException {
+        super(in);
+        completeMatch = in.readBoolean();
+        cluster = in.readMap(StreamInput::readString, StreamInput::readBoolean);
+        index = readResourcePrivileges(in);
+        application = in.readMap(StreamInput::readString, HasPrivilegesResponse::readResourcePrivileges);
+        username = in.readString();
     }
 
     public HasPrivilegesResponse(String username, boolean completeMatch, Map<String, Boolean> cluster, Collection<ResourcePrivileges> index,
@@ -41,15 +51,17 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         super();
         this.username = username;
         this.completeMatch = completeMatch;
-        this.cluster = new HashMap<>(cluster);
-        this.index = sorted(new ArrayList<>(index));
-        this.application = new HashMap<>();
-        application.forEach((key, val) -> this.application.put(key, Collections.unmodifiableList(sorted(new ArrayList<>(val)))));
+        this.cluster = Collections.unmodifiableMap(cluster);
+        this.index = Collections.unmodifiableSet(sorted(index));
+        final Map<String, Set<ResourcePrivileges>> applicationPrivileges = new HashMap<>();
+        application.forEach((key, val) -> applicationPrivileges.put(key, Collections.unmodifiableSet(sorted(val))));
+        this.application = Collections.unmodifiableMap(applicationPrivileges);
     }
 
-    private static List<ResourcePrivileges> sorted(List<ResourcePrivileges> resources) {
-        Collections.sort(resources, Comparator.comparing(o -> o.resource));
-        return resources;
+    private static Set<ResourcePrivileges> sorted(Collection<ResourcePrivileges> resources) {
+        final Set<ResourcePrivileges> set = new TreeSet<>(Comparator.comparing(o -> o.getResource()));
+        set.addAll(resources);
+        return set;
     }
 
     public String getUsername() {
@@ -61,19 +73,19 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
     }
 
     public Map<String, Boolean> getClusterPrivileges() {
-        return Collections.unmodifiableMap(cluster);
+        return cluster;
     }
 
-    public List<ResourcePrivileges> getIndexPrivileges() {
-        return Collections.unmodifiableList(index);
+    public Set<ResourcePrivileges> getIndexPrivileges() {
+        return index;
     }
 
     /**
      * Retrieves the results from checking application privileges,
      * @return A {@code Map} keyed by application-name
      */
-    public Map<String, List<ResourcePrivileges>> getApplicationPrivileges() {
-        return Collections.unmodifiableMap(application);
+    public Map<String, Set<ResourcePrivileges>> getApplicationPrivileges() {
+        return application;
     }
 
     @Override
@@ -97,53 +109,31 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         return Objects.hash(username, completeMatch, cluster, index, application);
     }
 
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        completeMatch = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_6_0 )) {
-            cluster = in.readMap(StreamInput::readString, StreamInput::readBoolean);
-        }
-        index = readResourcePrivileges(in);
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            application = in.readMap(StreamInput::readString, HasPrivilegesResponse::readResourcePrivileges);
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            username = in.readString();
-        }
-    }
-
-    private static List<ResourcePrivileges> readResourcePrivileges(StreamInput in) throws IOException {
+    private static Set<ResourcePrivileges> readResourcePrivileges(StreamInput in) throws IOException {
         final int count = in.readVInt();
-        final List<ResourcePrivileges> list = new ArrayList<>(count);
+        final Set<ResourcePrivileges> set = new TreeSet<>(Comparator.comparing(o -> o.getResource()));
         for (int i = 0; i < count; i++) {
             final String index = in.readString();
             final Map<String, Boolean> privileges = in.readMap(StreamInput::readString, StreamInput::readBoolean);
-            list.add(new ResourcePrivileges(index, privileges));
+            set.add(ResourcePrivileges.builder(index).addPrivileges(privileges).build());
         }
-        return list;
+        return set;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(completeMatch);
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeMap(cluster, StreamOutput::writeString, StreamOutput::writeBoolean);
-        }
+        out.writeMap(cluster, StreamOutput::writeString, StreamOutput::writeBoolean);
         writeResourcePrivileges(out, index);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeMap(application, StreamOutput::writeString, HasPrivilegesResponse::writeResourcePrivileges);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeString(username);
-        }
+        out.writeMap(application, StreamOutput::writeString, HasPrivilegesResponse::writeResourcePrivileges);
+        out.writeString(username);
     }
 
-    private static void writeResourcePrivileges(StreamOutput out, List<ResourcePrivileges> privileges) throws IOException {
+    private static void writeResourcePrivileges(StreamOutput out, Set<ResourcePrivileges> privileges) throws IOException {
         out.writeVInt(privileges.size());
         for (ResourcePrivileges priv : privileges) {
-            out.writeString(priv.resource);
-            out.writeMap(priv.privileges, StreamOutput::writeString, StreamOutput::writeBoolean);
+            out.writeString(priv.getResource());
+            out.writeMap(priv.getPrivileges(), StreamOutput::writeString, StreamOutput::writeBoolean);
         }
     }
 
@@ -179,60 +169,14 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         return builder;
     }
 
-    private void appendResources(XContentBuilder builder, String field, List<HasPrivilegesResponse.ResourcePrivileges> privileges)
+    private void appendResources(XContentBuilder builder, String field, Set<ResourcePrivileges> privileges)
         throws IOException {
         builder.startObject(field);
-        for (HasPrivilegesResponse.ResourcePrivileges privilege : privileges) {
+        for (ResourcePrivileges privilege : privileges) {
             builder.field(privilege.getResource());
             builder.map(privilege.getPrivileges());
         }
         builder.endObject();
     }
 
-
-    public static class ResourcePrivileges {
-        private final String resource;
-        private final Map<String, Boolean> privileges;
-
-        public ResourcePrivileges(String resource, Map<String, Boolean> privileges) {
-            this.resource = Objects.requireNonNull(resource);
-            this.privileges = Collections.unmodifiableMap(privileges);
-        }
-
-        public String getResource() {
-            return resource;
-        }
-
-        public Map<String, Boolean> getPrivileges() {
-            return privileges;
-        }
-
-        @Override
-        public String toString() {
-            return getClass().getSimpleName() + "{" +
-                    "resource='" + resource + '\'' +
-                    ", privileges=" + privileges +
-                    '}';
-        }
-
-        @Override
-        public int hashCode() {
-            int result = resource.hashCode();
-            result = 31 * result + privileges.hashCode();
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            final ResourcePrivileges other = (ResourcePrivileges) o;
-            return this.resource.equals(other.resource) && this.privileges.equals(other.privileges);
-        }
-    }
 }

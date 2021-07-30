@@ -1,295 +1,473 @@
-evaluationDependsOn(xpackModule('core'))
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
-apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'nebula.maven-scm'
 esplugin {
-    name 'x-pack-security'
-    description 'Elasticsearch Expanded Pack Plugin - Security'
-    classname 'org.elasticsearch.xpack.security.Security'
-    requiresKeystore true
-    extendedPlugins = ['x-pack-core']
+  name 'x-pack-security'
+  description 'Elasticsearch Expanded Pack Plugin - Security'
+  classname 'org.elasticsearch.xpack.security.Security'
+  requiresKeystore true
+  extendedPlugins = ['x-pack-core']
 }
 
 archivesBaseName = 'x-pack-security'
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    compileOnly project(path: xpackModule('core'), configuration: 'default')
-    compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
-    compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
+  compileOnly project(path: xpackModule('core'))
+  api project(path: ':modules:transport-netty4')
+  api project(path: ':plugins:transport-nio')
 
-    testCompile project(path: xpackModule('monitoring'))
-    testCompile project(path: xpackModule('sql:sql-action'))
+  testImplementation project(path: xpackModule('monitoring'))
+  testImplementation project(path: xpackModule('spatial'))
+  testImplementation project(path: ':modules:percolator')
+  testImplementation project(path: xpackModule('sql:sql-action'))
 
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  api 'com.unboundid:unboundid-ldapsdk:4.0.8'
 
-    compile 'com.unboundid:unboundid-ldapsdk:4.0.8'
-    compileOnly 'org.bouncycastle:bcprov-jdk15on:1.59'
-    compileOnly 'org.bouncycastle:bcpkix-jdk15on:1.59'
+  // the following are all SAML dependencies - might as well download the whole internet
+  api "org.opensaml:opensaml-core:3.4.5"
+  api "org.opensaml:opensaml-saml-api:3.4.5"
+  api "org.opensaml:opensaml-saml-impl:3.4.5"
+  api "org.opensaml:opensaml-messaging-api:3.4.5"
+  api "org.opensaml:opensaml-messaging-impl:3.4.5"
+  api "org.opensaml:opensaml-security-api:3.4.5"
+  api "org.opensaml:opensaml-security-impl:3.4.5"
+  api "org.opensaml:opensaml-profile-api:3.4.5"
+  api "org.opensaml:opensaml-profile-impl:3.4.5"
+  api "org.opensaml:opensaml-xmlsec-api:3.4.5"
+  api "org.opensaml:opensaml-xmlsec-impl:3.4.5"
+  api "org.opensaml:opensaml-soap-api:3.4.5"
+  api "org.opensaml:opensaml-soap-impl:3.4.5"
+  api "org.opensaml:opensaml-storage-api:3.4.5"
+  api "org.opensaml:opensaml-storage-impl:3.4.5"
+  api "net.shibboleth.utilities:java-support:7.5.1"
+  api "org.apache.santuario:xmlsec:2.1.4"
+  api "io.dropwizard.metrics:metrics-core:3.2.2"
+  api( "org.cryptacular:cryptacular:1.2.4") {
+    exclude group: 'org.bouncycastle'
+  }
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+  api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+  api "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
+  runtimeOnly 'com.google.guava:guava:19.0'
 
-    // the following are all SAML dependencies - might as well download the whole internet
-    compile "org.opensaml:opensaml-core:3.3.0"
-    compile "org.opensaml:opensaml-saml-api:3.3.0"
-    compile "org.opensaml:opensaml-saml-impl:3.3.0"
-    compile "org.opensaml:opensaml-messaging-api:3.3.0"
-    compile "org.opensaml:opensaml-messaging-impl:3.3.0"
-    compile "org.opensaml:opensaml-security-api:3.3.0"
-    compile "org.opensaml:opensaml-security-impl:3.3.0"
-    compile "org.opensaml:opensaml-profile-api:3.3.0"
-    compile "org.opensaml:opensaml-profile-impl:3.3.0"
-    compile "org.opensaml:opensaml-xmlsec-api:3.3.0"
-    compile "org.opensaml:opensaml-xmlsec-impl:3.3.0"
-    compile "org.opensaml:opensaml-soap-api:3.3.0"
-    compile "org.opensaml:opensaml-soap-impl:3.3.0"
-    compile "org.opensaml:opensaml-storage-api:3.3.0"
-    compile "org.opensaml:opensaml-storage-impl:3.3.0"
-    compile "net.shibboleth.utilities:java-support:7.3.0"
-    compile "org.apache.santuario:xmlsec:2.0.8"
-    compile "io.dropwizard.metrics:metrics-core:3.2.2"
-    compile "org.cryptacular:cryptacular:1.2.0"
-    compile "org.slf4j:slf4j-api:${versions.slf4j}"
-    compile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-    compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-    compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-    compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
-    compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
-    compile "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
-    compile 'com.google.guava:guava:19.0'
+  // Dependencies for oidc
+  api "com.nimbusds:oauth2-oidc-sdk:9.3.1"
+  api "com.nimbusds:nimbus-jose-jwt:9.8.1"
+  api "com.nimbusds:lang-tag:1.4.4"
+  api "com.sun.mail:jakarta.mail:1.6.3"
+  api "net.jcip:jcip-annotations:1.0"
+  api "net.minidev:json-smart:2.4.2"
+  api "net.minidev:accessors-smart:2.4.2"
+  api "org.ow2.asm:asm:8.0.1"
 
-    testCompile 'org.elasticsearch:securemock:1.2'
-    testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
-    //testCompile "org.yaml:snakeyaml:${versions.snakeyaml}"
+  testImplementation 'org.elasticsearch:securemock:1.2'
+  testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
-    // Test dependencies for Kerberos (MiniKdc)
-    testCompile('commons-io:commons-io:2.5')
-    testCompile('org.apache.kerby:kerb-simplekdc:1.1.1')
-    testCompile('org.apache.kerby:kerb-client:1.1.1')
-    testCompile('org.apache.kerby:kerby-config:1.1.1')
-    testCompile('org.apache.kerby:kerb-core:1.1.1')
-    testCompile('org.apache.kerby:kerby-pkix:1.1.1')
-    testCompile('org.apache.kerby:kerby-asn1:1.1.1')
-    testCompile('org.apache.kerby:kerby-util:1.1.1')
-    testCompile('org.apache.kerby:kerb-common:1.1.1')
-    testCompile('org.apache.kerby:kerb-crypto:1.1.1')
-    testCompile('org.apache.kerby:kerb-util:1.1.1')
-    testCompile('org.apache.kerby:token-provider:1.1.1')
-    testCompile('com.nimbusds:nimbus-jose-jwt:4.41.2')
-    testCompile('net.jcip:jcip-annotations:1.0')
-    testCompile('org.apache.kerby:kerb-admin:1.1.1')
-    testCompile('org.apache.kerby:kerb-server:1.1.1')
-    testCompile('org.apache.kerby:kerb-identity:1.1.1')
-    testCompile('org.apache.kerby:kerby-xdr:1.1.1')
+  // Test dependencies for Kerberos (MiniKdc)
+  testImplementation('commons-io:commons-io:2.5')
+  testImplementation('org.apache.kerby:kerb-simplekdc:1.1.1')
+  testImplementation('org.apache.kerby:kerb-client:1.1.1')
+  testImplementation('org.apache.kerby:kerby-config:1.1.1')
+  testImplementation('org.apache.kerby:kerb-core:1.1.1')
+  testImplementation('org.apache.kerby:kerby-pkix:1.1.1')
+  testImplementation('org.apache.kerby:kerby-asn1:1.1.1')
+  testImplementation('org.apache.kerby:kerby-util:1.1.1')
+  testImplementation('org.apache.kerby:kerb-common:1.1.1')
+  testImplementation('org.apache.kerby:kerb-crypto:1.1.1')
+  testImplementation('org.apache.kerby:kerb-util:1.1.1')
+  testImplementation('org.apache.kerby:token-provider:1.1.1')
+  testImplementation('com.nimbusds:nimbus-jose-jwt:9.8.1')
+  testImplementation('net.jcip:jcip-annotations:1.0')
+  testImplementation('org.apache.kerby:kerb-admin:1.1.1')
+  testImplementation('org.apache.kerby:kerb-server:1.1.1')
+  testImplementation('org.apache.kerby:kerb-identity:1.1.1')
+  testImplementation('org.apache.kerby:kerby-xdr:1.1.1')
 
-    // LDAP backend support for SimpleKdcServer
-    testCompile('org.apache.kerby:kerby-backend:1.1.1')
-    testCompile('org.apache.kerby:ldap-backend:1.1.1')
-    testCompile('org.apache.kerby:kerb-identity:1.1.1')
-    testCompile('org.apache.directory.api:api-ldap-client-api:1.0.0')
-    testCompile('org.apache.directory.api:api-ldap-schema-data:1.0.0')
-    testCompile('org.apache.directory.api:api-ldap-codec-core:1.0.0')
-    testCompile('org.apache.directory.api:api-ldap-extras-aci:1.0.0')
-    testCompile('org.apache.directory.api:api-ldap-extras-codec:1.0.0')
-    testCompile('org.apache.directory.api:api-ldap-extras-codec-api:1.0.0')
-    testCompile('commons-pool:commons-pool:1.6')
-    testCompile('commons-collections:commons-collections:3.2')
-    testCompile('org.apache.mina:mina-core:2.0.17')
-    testCompile('org.apache.directory.api:api-util:1.0.1')
-    testCompile('org.apache.directory.api:api-i18n:1.0.1')
-    testCompile('org.apache.directory.api:api-ldap-model:1.0.1')
-    testCompile('org.apache.directory.api:api-asn1-api:1.0.1')
-    testCompile('org.apache.directory.api:api-asn1-ber:1.0.1')
-    testCompile('org.apache.servicemix.bundles:org.apache.servicemix.bundles.antlr:2.7.7_5')
-    testCompile('org.apache.directory.server:apacheds-core-api:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-i18n:2.0.0-M24')
-    testCompile('org.apache.directory.api:api-ldap-extras-util:1.0.0')
-    testCompile('net.sf.ehcache:ehcache:2.10.4')
-    testCompile('org.apache.directory.server:apacheds-kerberos-codec:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-protocol-ldap:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-protocol-shared:2.0.0-M24')
-    testCompile('org.apache.directory.jdbm:apacheds-jdbm1:2.0.0-M3')
-    testCompile('org.apache.directory.server:apacheds-jdbm-partition:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-xdbm-partition:2.0.0-M24')
-    testCompile('org.apache.directory.api:api-ldap-extras-sp:1.0.0')
-    testCompile('org.apache.directory.server:apacheds-test-framework:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-core-annotations:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-ldif-partition:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-mavibot-partition:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-protocol-kerberos:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-server-annotations:2.0.0-M24')
-    testCompile('org.apache.directory.api:api-ldap-codec-standalone:1.0.0')
-    testCompile('org.apache.directory.api:api-ldap-net-mina:1.0.0')
-    testCompile('org.apache.directory.server:ldap-client-test:2.0.0-M24')
-    testCompile('org.apache.directory.server:apacheds-interceptor-kerberos:2.0.0-M24')
-    testCompile('org.apache.directory.mavibot:mavibot:1.0.0-M8')
+  // LDAP backend support for SimpleKdcServer
+  testImplementation('org.apache.kerby:kerby-backend:1.1.1')
+  testImplementation('org.apache.kerby:ldap-backend:1.1.1')
+  testImplementation('org.apache.kerby:kerb-identity:1.1.1')
+  testImplementation('org.apache.directory.api:api-ldap-client-api:1.0.0')
+  testImplementation('org.apache.directory.api:api-ldap-schema-data:1.0.0')
+  testImplementation('org.apache.directory.api:api-ldap-codec-core:1.0.0')
+  testImplementation('org.apache.directory.api:api-ldap-extras-aci:1.0.0')
+  testImplementation('org.apache.directory.api:api-ldap-extras-codec:1.0.0')
+  testImplementation('org.apache.directory.api:api-ldap-extras-codec-api:1.0.0')
+  testImplementation('commons-pool:commons-pool:1.6')
+  testImplementation('commons-collections:commons-collections:3.2.2')
+  testImplementation('org.apache.mina:mina-core:2.0.17')
+  testImplementation('org.apache.directory.api:api-util:1.0.1')
+  testImplementation('org.apache.directory.api:api-i18n:1.0.1')
+  testImplementation('org.apache.directory.api:api-ldap-model:1.0.1')
+  testImplementation('org.apache.directory.api:api-asn1-api:1.0.1')
+  testImplementation('org.apache.directory.api:api-asn1-ber:1.0.1')
+  testImplementation('org.apache.servicemix.bundles:org.apache.servicemix.bundles.antlr:2.7.7_5')
+  testImplementation('org.apache.directory.server:apacheds-core-api:2.0.0-M24')
+  testImplementation('org.apache.directory.server:apacheds-i18n:2.0.0-M24')
+  testImplementation('org.apache.directory.api:api-ldap-extras-util:1.0.0')
+  testImplementation('net.sf.ehcache:ehcache:2.10.4')
+  testImplementation('org.apache.directory.server:apacheds-kerberos-codec:2.0.0-M24')
+  testImplementation('org.apache.directory.server:apacheds-protocol-ldap:2.0.0-M24')
+  testImplementation('org.apache.directory.server:apacheds-protocol-shared:2.0.0-M24')
+  testImplementation('org.apache.directory.jdbm:apacheds-jdbm1:2.0.0-M3')
+  testImplementation('org.apache.directory.server:apacheds-jdbm-partition:2.0.0-M24')
+  testImplementation('org.apache.directory.server:apacheds-xdbm-partition:2.0.0-M24')
+  testImplementation('org.apache.directory.api:api-ldap-extras-sp:1.0.0')
+  testImplementation('org.apache.directory.server:apacheds-test-framework:2.0.0-M24')
+  testImplementation('org.apache.directory.server:apacheds-core-annotations:2.0.0-M24')
+  testImplementation('org.apache.directory.server:apacheds-ldif-partition:2.0.0-M24')
+  testImplementation('org.apache.directory.server:apacheds-mavibot-partition:2.0.0-M24')
+  testImplementation('org.apache.directory.server:apacheds-protocol-kerberos:2.0.0-M24')
+  testImplementation('org.apache.directory.server:apacheds-server-annotations:2.0.0-M24')
+  testImplementation('org.apache.directory.api:api-ldap-codec-standalone:1.0.0')
+  testImplementation('org.apache.directory.api:api-ldap-net-mina:1.0.0')
+  testImplementation('org.apache.directory.server:ldap-client-test:2.0.0-M24')
+  testImplementation('org.apache.directory.server:apacheds-interceptor-kerberos:2.0.0-M24')
+  testImplementation('org.apache.directory.mavibot:mavibot:1.0.0-M8')
 }
 
-compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+tasks.named("processInternalClusterTestResources").configure {
+  from(project(xpackModule('core')).file('src/main/config'))
+  from(project(xpackModule('core')).file('src/test/resources'))
+}
 
-configurations {
-    testArtifacts.extendsFrom testRuntime
+tasks.named("processTestResources").configure {
+  from(project(xpackModule('core')).file('src/main/config'))
+  from(project(xpackModule('core')).file('src/test/resources'))
 }
-task testJar(type: Jar) {
-    appendix 'test'
-    from sourceSets.test.output
-}
+
 artifacts {
-    // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
-    archives jar
-    testArtifacts testJar
-}
-sourceSets.test.resources {
-    srcDir '../core/src/test/resources'
-    srcDir '../core/src/main/config'
-}
-dependencyLicenses {
-    mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
-    mapping from: /http.*/, to: 'httpclient'
+  // normal es plugins do not publish the jar but we need to since users need it for extensions
+  archives tasks.named("jar")
 }
 
-licenseHeaders {
-    // This class was sourced from apache directory studio for some microsoft-specific logic
-    excludes << 'org/elasticsearch/xpack/security/authc/ldap/ActiveDirectorySIDUtil.java'
+tasks.named("dependencyLicenses").configure {
+  mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
+  mapping from: /http.*/, to: 'httpclient'
 }
 
-forbiddenPatterns {
-    exclude '**/*.key'
-    exclude '**/*.p12'
-    exclude '**/*.der'
-    exclude '**/*.zip'
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.key'
+  exclude '**/*.p12'
+  exclude '**/*.der'
+  exclude '**/*.zip'
 }
 
-forbiddenApisMain {
-    signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt')
+tasks.named('forbiddenApisMain').configure {
+  signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt', 'forbidden/oidc-signatures.txt')
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
-thirdPartyAudit.excludes = [
-        // SAML dependencies
-        // [missing classes] Some cli utilities that we don't use depend on these missing JCommander classes
-        'com.beust.jcommander.JCommander',
-        'com.beust.jcommander.converters.BaseConverter',
-        // [missing classes] Shibboleth + OpenSAML have servlet support that we don't use
-        'javax.servlet.AsyncContext',
-        'javax.servlet.DispatcherType',
-        'javax.servlet.Filter',
-        'javax.servlet.FilterChain',
-        'javax.servlet.FilterConfig',
-        'javax.servlet.RequestDispatcher',
-        'javax.servlet.ServletContext',
-        'javax.servlet.ServletException',
-        'javax.servlet.ServletInputStream',
-        'javax.servlet.ServletOutputStream',
-        'javax.servlet.ServletRequest',
-        'javax.servlet.ServletResponse',
-        'javax.servlet.http.Cookie',
-        'javax.servlet.http.HttpServletRequest',
-        'javax.servlet.http.HttpServletResponse',
-        'javax.servlet.http.HttpServletResponseWrapper',
-        'javax.servlet.http.HttpSession',
-        'javax.servlet.http.Part',
-        // [missing classes] Shibboleth + OpenSAML have velocity support that we don't use
-        'org.apache.velocity.VelocityContext',
-        'org.apache.velocity.app.VelocityEngine',
-        'org.apache.velocity.context.Context',
-        'org.apache.velocity.exception.VelocityException',
-        'org.apache.velocity.runtime.RuntimeServices',
-        'org.apache.velocity.runtime.log.LogChute',
-        'org.apache.velocity.runtime.resource.loader.StringResourceLoader',
-        'org.apache.velocity.runtime.resource.util.StringResourceRepository',
-        // [missing classes] OpenSAML depends on Apache XML security which depends on Xalan, but only for functionality that OpenSAML doesn't use
-        'org.apache.xml.dtm.DTM',
-        'org.apache.xml.utils.PrefixResolver',
-        'org.apache.xml.utils.PrefixResolverDefault',
-        'org.apache.xpath.Expression',
-        'org.apache.xpath.NodeSetDTM',
-        'org.apache.xpath.XPath',
-        'org.apache.xpath.XPathContext',
-        'org.apache.xpath.compiler.FunctionTable',
-        'org.apache.xpath.functions.Function',
-        'org.apache.xpath.objects.XNodeSet',
-        'org.apache.xpath.objects.XObject',
-        // [missing classes] OpenSAML storage has an optional LDAP storage impl
-        'org.ldaptive.AttributeModification',
-        'org.ldaptive.AttributeModificationType',
-        'org.ldaptive.Connection',
-        'org.ldaptive.DeleteOperation',
-        'org.ldaptive.DeleteRequest',
-        'org.ldaptive.LdapAttribute',
-        'org.ldaptive.LdapEntry',
-        'org.ldaptive.LdapException',
-        'org.ldaptive.ModifyOperation',
-        'org.ldaptive.ModifyRequest',
-        'org.ldaptive.Response',
-        'org.ldaptive.ResultCode',
-        'org.ldaptive.SearchOperation',
-        'org.ldaptive.SearchRequest',
-        'org.ldaptive.SearchResult',
-        'org.ldaptive.ext.MergeOperation',
-        'org.ldaptive.ext.MergeRequest',
-        'org.ldaptive.pool.ConnectionPool',
-        'org.ldaptive.pool.PooledConnectionFactory',
-        // [missing classes] OpenSAML storage has an optional JSON-backed storage impl
-        'javax.json.Json',
-        'javax.json.JsonException',
-        'javax.json.JsonNumber',
-        'javax.json.JsonObject',
-        'javax.json.JsonReader',
-        'javax.json.JsonValue$ValueType',
-        'javax.json.JsonValue',
-        'javax.json.stream.JsonGenerator',
-        // [missing classes] OpenSAML storage has an optional JPA storage impl
-        'javax.persistence.EntityManager',
-        'javax.persistence.EntityManagerFactory',
-        'javax.persistence.EntityTransaction',
-        'javax.persistence.LockModeType',
-        'javax.persistence.Query',
-        // [missing classes] OpenSAML storage and HttpClient cache have optional memcache support
-        'net.spy.memcached.CASResponse',
-        'net.spy.memcached.CASValue',
-        'net.spy.memcached.MemcachedClient',
-        'net.spy.memcached.MemcachedClientIF',
-        'net.spy.memcached.CachedData',
-        'net.spy.memcached.internal.OperationFuture',
-        'net.spy.memcached.transcoders.Transcoder',
-        // [missing classes] Http Client cache has optional ehcache support
-        'net.sf.ehcache.Ehcache',
-        'net.sf.ehcache.Element',
-        // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
-        'org.slf4j.ext.EventData',
-        // Guava uses internal java api: sun.misc.Unsafe
-        'com.google.common.cache.Striped64',
-        'com.google.common.cache.Striped64$1',
-        'com.google.common.cache.Striped64$Cell',
-        'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-        'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-        'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-        'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-]
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // SAML dependencies
+    // [missing classes] Some cli utilities that we don't use depend on these missing JCommander classes
+    'com.beust.jcommander.JCommander',
+    'com.beust.jcommander.converters.BaseConverter',
+    // [missing classes] Shibboleth + OpenSAML have servlet support that we don't use
+    'javax.servlet.AsyncContext',
+    'javax.servlet.DispatcherType',
+    'javax.servlet.Filter',
+    'javax.servlet.FilterChain',
+    'javax.servlet.FilterConfig',
+    'javax.servlet.RequestDispatcher',
+    'javax.servlet.ServletContext',
+    'javax.servlet.ServletException',
+    'javax.servlet.ServletInputStream',
+    'javax.servlet.ServletOutputStream',
+    'javax.servlet.ServletRequest',
+    'javax.servlet.ServletResponse',
+    'javax.servlet.http.Cookie',
+    'javax.servlet.http.HttpServletRequest',
+    'javax.servlet.http.HttpServletResponse',
+    'javax.servlet.http.HttpServletResponseWrapper',
+    'javax.servlet.http.HttpSession',
+    'javax.servlet.http.Part',
+    // [missing classes] Shibboleth + OpenSAML have velocity support that we don't use
+    'org.apache.velocity.VelocityContext',
+    'org.apache.velocity.app.VelocityEngine',
+    'org.apache.velocity.context.Context',
+    'org.apache.velocity.exception.VelocityException',
+    'org.apache.velocity.runtime.RuntimeServices',
+    'org.apache.velocity.runtime.log.LogChute',
+    'org.apache.velocity.runtime.resource.loader.StringResourceLoader',
+    'org.apache.velocity.runtime.resource.util.StringResourceRepository',
+    // [missing classes] OpenSAML depends on Apache XML security which depends on Xalan, but only for functionality that OpenSAML doesn't use
+    'org.apache.xml.dtm.DTM',
+    'org.apache.xml.utils.PrefixResolver',
+    'org.apache.xml.utils.PrefixResolverDefault',
+    'org.apache.xpath.Expression',
+    'org.apache.xpath.NodeSetDTM',
+    'org.apache.xpath.XPath',
+    'org.apache.xpath.XPathContext',
+    'org.apache.xpath.compiler.FunctionTable',
+    'org.apache.xpath.functions.Function',
+    'org.apache.xpath.objects.XNodeSet',
+    'org.apache.xpath.objects.XObject',
+    // [missing classes] OpenSAML storage has an optional LDAP storage impl
+    'org.ldaptive.AttributeModification',
+    'org.ldaptive.AttributeModificationType',
+    'org.ldaptive.Connection',
+    'org.ldaptive.DeleteOperation',
+    'org.ldaptive.DeleteRequest',
+    'org.ldaptive.LdapAttribute',
+    'org.ldaptive.LdapEntry',
+    'org.ldaptive.LdapException',
+    'org.ldaptive.ModifyOperation',
+    'org.ldaptive.ModifyRequest',
+    'org.ldaptive.Response',
+    'org.ldaptive.ResultCode',
+    'org.ldaptive.SearchOperation',
+    'org.ldaptive.SearchRequest',
+    'org.ldaptive.SearchResult',
+    'org.ldaptive.ext.MergeOperation',
+    'org.ldaptive.ext.MergeRequest',
+    'org.ldaptive.pool.ConnectionPool',
+    'org.ldaptive.pool.PooledConnectionFactory',
+    // [missing classes] OpenSAML storage has an optional JSON-backed storage impl
+    'javax.json.Json',
+    'javax.json.JsonException',
+    'javax.json.JsonNumber',
+    'javax.json.JsonObject',
+    'javax.json.JsonReader',
+    'javax.json.JsonValue$ValueType',
+    'javax.json.JsonValue',
+    'javax.json.stream.JsonGenerator',
+    // [missing classes] OpenSAML storage has an optional JPA storage impl
+    'javax.persistence.EntityManager',
+    'javax.persistence.EntityManagerFactory',
+    'javax.persistence.EntityTransaction',
+    'javax.persistence.LockModeType',
+    'javax.persistence.Query',
+    // [missing classes] OpenSAML storage and HttpClient cache have optional memcache support
+    'net.spy.memcached.CASResponse',
+    'net.spy.memcached.CASValue',
+    'net.spy.memcached.MemcachedClient',
+    'net.spy.memcached.MemcachedClientIF',
+    'net.spy.memcached.CachedData',
+    'net.spy.memcached.internal.OperationFuture',
+    'net.spy.memcached.transcoders.Transcoder',
+    // [missing classes] Http Client cache has optional ehcache support
+    'net.sf.ehcache.Ehcache',
+    'net.sf.ehcache.Element',
+    // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
+    'org.slf4j.ext.EventData',
+    // Bouncycastle is an optional dependency for apache directory, cryptacular and opensaml packages. We
+    // acknowledge them here instead of adding bouncy castle as a compileOnly dependency
+    'org.bouncycastle.asn1.ASN1Encodable',
+    'org.bouncycastle.asn1.ASN1InputStream',
+    'org.bouncycastle.asn1.ASN1Integer',
+    'org.bouncycastle.asn1.ASN1ObjectIdentifier',
+    'org.bouncycastle.asn1.ASN1OctetString',
+    'org.bouncycastle.asn1.ASN1Primitive',
+    'org.bouncycastle.asn1.ASN1Sequence',
+    'org.bouncycastle.asn1.ASN1TaggedObject',
+    'org.bouncycastle.asn1.DEROctetString',
+    'org.bouncycastle.asn1.DERSequence',
+    'org.bouncycastle.asn1.pkcs.EncryptedPrivateKeyInfo',
+    'org.bouncycastle.asn1.pkcs.EncryptionScheme',
+    'org.bouncycastle.asn1.pkcs.KeyDerivationFunc',
+    'org.bouncycastle.asn1.pkcs.PBEParameter',
+    'org.bouncycastle.asn1.pkcs.PBES2Parameters',
+    'org.bouncycastle.asn1.pkcs.PBKDF2Params',
+    'org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers',
+    'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
+    'org.bouncycastle.asn1.x500.AttributeTypeAndValue',
+    'org.bouncycastle.asn1.x500.RDN',
+    'org.bouncycastle.asn1.x500.X500Name',
+    'org.bouncycastle.asn1.x509.AccessDescription',
+    'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
+    'org.bouncycastle.asn1.x509.AuthorityKeyIdentifier',
+    'org.bouncycastle.asn1.x509.BasicConstraints',
+    'org.bouncycastle.asn1.x509.DistributionPoint',
+    'org.bouncycastle.asn1.x509.Extension',
+    'org.bouncycastle.asn1.x509.GeneralName',
+    'org.bouncycastle.asn1.x509.GeneralNames',
+    'org.bouncycastle.asn1.x509.GeneralNamesBuilder',
+    'org.bouncycastle.asn1.x509.KeyPurposeId',
+    'org.bouncycastle.asn1.x509.KeyUsage',
+    'org.bouncycastle.asn1.x509.PolicyInformation',
+    'org.bouncycastle.asn1.x509.SubjectKeyIdentifier',
+    'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
+    'org.bouncycastle.asn1.x9.X9ECParameters',
+    'org.bouncycastle.cert.X509v3CertificateBuilder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
+    'org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils',
+    'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
+    'org.bouncycastle.crypto.BlockCipher',
+    'org.bouncycastle.crypto.BufferedBlockCipher',
+    'org.bouncycastle.crypto.CipherParameters',
+    'org.bouncycastle.crypto.Digest',
+    'org.bouncycastle.crypto.InvalidCipherTextException',
+    'org.bouncycastle.crypto.PBEParametersGenerator',
+    'org.bouncycastle.crypto.StreamCipher',
+    'org.bouncycastle.crypto.digests.GOST3411Digest',
+    'org.bouncycastle.crypto.digests.MD2Digest',
+    'org.bouncycastle.crypto.digests.MD4Digest',
+    'org.bouncycastle.crypto.digests.MD5Digest',
+    'org.bouncycastle.crypto.digests.RIPEMD128Digest',
+    'org.bouncycastle.crypto.digests.RIPEMD160Digest',
+    'org.bouncycastle.crypto.digests.RIPEMD256Digest',
+    'org.bouncycastle.crypto.digests.RIPEMD320Digest',
+    'org.bouncycastle.crypto.digests.SHA1Digest',
+    'org.bouncycastle.crypto.digests.SHA224Digest',
+    'org.bouncycastle.crypto.digests.SHA256Digest',
+    'org.bouncycastle.crypto.digests.SHA384Digest',
+    'org.bouncycastle.crypto.digests.SHA3Digest',
+    'org.bouncycastle.crypto.digests.SHA512Digest',
+    'org.bouncycastle.crypto.digests.TigerDigest',
+    'org.bouncycastle.crypto.digests.WhirlpoolDigest',
+    'org.bouncycastle.crypto.engines.AESEngine',
+    'org.bouncycastle.crypto.engines.BlowfishEngine',
+    'org.bouncycastle.crypto.engines.CAST5Engine',
+    'org.bouncycastle.crypto.engines.CAST6Engine',
+    'org.bouncycastle.crypto.engines.CamelliaEngine',
+    'org.bouncycastle.crypto.engines.DESEngine',
+    'org.bouncycastle.crypto.engines.DESedeEngine',
+    'org.bouncycastle.crypto.engines.GOST28147Engine',
+    'org.bouncycastle.crypto.engines.Grain128Engine',
+    'org.bouncycastle.crypto.engines.HC128Engine',
+    'org.bouncycastle.crypto.engines.HC256Engine',
+    'org.bouncycastle.crypto.engines.ISAACEngine',
+    'org.bouncycastle.crypto.engines.NoekeonEngine',
+    'org.bouncycastle.crypto.engines.RC2Engine',
+    'org.bouncycastle.crypto.engines.RC4Engine',
+    'org.bouncycastle.crypto.engines.RC532Engine',
+    'org.bouncycastle.crypto.engines.RC564Engine',
+    'org.bouncycastle.crypto.engines.RC6Engine',
+    'org.bouncycastle.crypto.engines.SEEDEngine',
+    'org.bouncycastle.crypto.engines.Salsa20Engine',
+    'org.bouncycastle.crypto.engines.SerpentEngine',
+    'org.bouncycastle.crypto.engines.SkipjackEngine',
+    'org.bouncycastle.crypto.engines.TEAEngine',
+    'org.bouncycastle.crypto.engines.TwofishEngine',
+    'org.bouncycastle.crypto.engines.VMPCEngine',
+    'org.bouncycastle.crypto.engines.XTEAEngine',
+    'org.bouncycastle.crypto.generators.BCrypt',
+    'org.bouncycastle.crypto.generators.OpenSSLPBEParametersGenerator',
+    'org.bouncycastle.crypto.generators.PKCS5S1ParametersGenerator',
+    'org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator',
+    'org.bouncycastle.crypto.io.CipherInputStream',
+    'org.bouncycastle.crypto.io.CipherOutputStream',
+    'org.bouncycastle.crypto.macs.HMac',
+    'org.bouncycastle.crypto.modes.AEADBlockCipher',
+    'org.bouncycastle.crypto.modes.CBCBlockCipher',
+    'org.bouncycastle.crypto.modes.CCMBlockCipher',
+    'org.bouncycastle.crypto.modes.CFBBlockCipher',
+    'org.bouncycastle.crypto.modes.EAXBlockCipher',
+    'org.bouncycastle.crypto.modes.GCMBlockCipher',
+    'org.bouncycastle.crypto.modes.OCBBlockCipher',
+    'org.bouncycastle.crypto.modes.OFBBlockCipher',
+    'org.bouncycastle.crypto.paddings.BlockCipherPadding',
+    'org.bouncycastle.crypto.paddings.ISO10126d2Padding',
+    'org.bouncycastle.crypto.paddings.ISO7816d4Padding',
+    'org.bouncycastle.crypto.paddings.PKCS7Padding',
+    'org.bouncycastle.crypto.paddings.PaddedBufferedBlockCipher',
+    'org.bouncycastle.crypto.paddings.TBCPadding',
+    'org.bouncycastle.crypto.paddings.X923Padding',
+    'org.bouncycastle.crypto.paddings.ZeroBytePadding',
+    'org.bouncycastle.crypto.params.AEADParameters',
+    'org.bouncycastle.crypto.params.AsymmetricKeyParameter',
+    'org.bouncycastle.crypto.params.DSAKeyParameters',
+    'org.bouncycastle.crypto.params.DSAParameters',
+    'org.bouncycastle.crypto.params.DSAPrivateKeyParameters',
+    'org.bouncycastle.crypto.params.DSAPublicKeyParameters',
+    'org.bouncycastle.crypto.params.ECDomainParameters',
+    'org.bouncycastle.crypto.params.ECKeyParameters',
+    'org.bouncycastle.crypto.params.ECPrivateKeyParameters',
+    'org.bouncycastle.crypto.params.ECPublicKeyParameters',
+    'org.bouncycastle.crypto.params.KeyParameter',
+    'org.bouncycastle.crypto.params.ParametersWithIV',
+    'org.bouncycastle.crypto.params.RC2Parameters',
+    'org.bouncycastle.crypto.params.RC5Parameters',
+    'org.bouncycastle.crypto.params.RSAKeyParameters',
+    'org.bouncycastle.crypto.params.RSAPrivateCrtKeyParameters',
+    'org.bouncycastle.crypto.prng.EntropySource',
+    'org.bouncycastle.crypto.prng.SP800SecureRandom',
+    'org.bouncycastle.crypto.prng.SP800SecureRandomBuilder',
+    'org.bouncycastle.crypto.prng.drbg.HashSP800DRBG',
+    'org.bouncycastle.crypto.prng.drbg.SP80090DRBG',
+    'org.bouncycastle.crypto.signers.DSASigner',
+    'org.bouncycastle.crypto.signers.ECDSASigner',
+    'org.bouncycastle.crypto.signers.RSADigestSigner',
+    'org.bouncycastle.crypto.util.PrivateKeyFactory',
+    'org.bouncycastle.crypto.util.PrivateKeyInfoFactory',
+    'org.bouncycastle.crypto.util.PublicKeyFactory',
+    'org.bouncycastle.crypto.util.SubjectPublicKeyInfoFactory',
+    'org.bouncycastle.jcajce.provider.asymmetric.dsa.KeyPairGeneratorSpi',
+    'org.bouncycastle.jcajce.provider.asymmetric.ec.KeyPairGeneratorSpi$EC',
+    'org.bouncycastle.jcajce.provider.asymmetric.rsa.KeyPairGeneratorSpi',
+    'org.bouncycastle.jcajce.provider.asymmetric.util.EC5Util',
+    'org.bouncycastle.jcajce.provider.asymmetric.util.ECUtil',
+    'org.bouncycastle.jce.provider.BouncyCastleProvider',
+    'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
+    'org.bouncycastle.jce.spec.ECNamedCurveGenParameterSpec',
+    'org.bouncycastle.math.ec.ECFieldElement',
+    'org.bouncycastle.math.ec.ECPoint',
+    'org.bouncycastle.openssl.jcajce.JcaPEMWriter',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.operator.OperatorCreationException',
+    'org.bouncycastle.util.Arrays',
+    'org.bouncycastle.util.Strings',
+    'org.bouncycastle.util.io.Streams',
+    'org.bouncycastle.x509.extension.X509ExtensionUtil',
+    'org.bouncycastle.cert.X509CertificateHolder',
+    'org.bouncycastle.openssl.PEMKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter'
+  )
 
-if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-    thirdPartyAudit.excludes += [
-        'javax.xml.bind.JAXBContext',
-        'javax.xml.bind.JAXBElement',
-        'javax.xml.bind.JAXBException',
-        'javax.xml.bind.Unmarshaller',
-        'javax.xml.bind.UnmarshallerHandler',
-    ];
+  ignoreViolations(
+    // Guava uses internal java api: sun.misc.Unsafe
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+  )
 }
 
-run {
-    plugin xpackModule('core')
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          'javax.xml.bind.JAXBContext',
+          'javax.xml.bind.JAXBElement',
+          'javax.xml.bind.JAXBException',
+          'javax.xml.bind.Unmarshaller',
+          'javax.xml.bind.UnmarshallerHandler',
+          // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
+          'org.cryptomator.siv.SivMode',
+          // Optional dependency of nimbus-jose-jwt for handling Ed25519 signatures and ECDH with X25519 (RFC 8037)
+          'com.google.crypto.tink.subtle.Ed25519Sign',
+          'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
+          'com.google.crypto.tink.subtle.Ed25519Verify',
+          'com.google.crypto.tink.subtle.X25519',
+          'com.nimbusds.common.contenttype.ContentType',
+          'javax.activation.ActivationDataFlavor',
+          'javax.activation.DataContentHandler',
+          'javax.activation.DataHandler',
+          'javax.activation.DataSource',
+          'javax.activation.FileDataSource',
+          'javax.activation.FileTypeMap'
+  )
 }
 
-test {
-    /*
-     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
-     * other if we allow them to set the number of available processors as it's set-once in Netty.
-     */
-    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+tasks.named("internalClusterTest").configure {
+  /*
+   * Some tests in this module set up a lot of transport threads so we reduce the buffer size per transport thread from the 1M default
+   * to keep direct memory usage under control.
+   */
+  systemProperty 'es.transport.buffer.size', '256k'
 }
 
-// xpack modules are installed in real clusters as the meta plugin, so
-// installing them as individual plugins for integ tests doesn't make sense,
-// so we disable integ tests
-integTest.enabled = false
+addQaCheckDependencies()

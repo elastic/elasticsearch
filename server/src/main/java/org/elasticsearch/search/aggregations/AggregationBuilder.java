@@ -1,41 +1,36 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
 public abstract class AggregationBuilder
-        implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder {
+        implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder, Rewriteable<AggregationBuilder> {
+    public static final long DEFAULT_PREALLOCATION = 1024 * 6;
 
     protected final String name;
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
@@ -62,15 +57,27 @@ public abstract class AggregationBuilder
         return name;
     }
 
+    /**
+     * Return the field names this aggregation creates.
+     *
+     * This method is a optional helper for clients that need to know the output field names.
+     *
+     * @return The set of output field names this aggregation produces or Optional.empty() if not implemented or Optional.of(emptySet())
+     *         if the fields are not known.
+     */
+    public Optional<Set<String>> getOutputFieldNames() {
+        return Optional.empty();
+    }
+
     /** Internal: build an {@link AggregatorFactory} based on the configuration of this builder. */
-    protected abstract AggregatorFactory<?> build(SearchContext context, AggregatorFactory<?> parent) throws IOException;
+    protected abstract AggregatorFactory build(AggregationContext context, AggregatorFactory parent) throws IOException;
 
     /** Associate metadata with this {@link AggregationBuilder}. */
     @Override
-    public abstract AggregationBuilder setMetaData(Map<String, Object> metaData);
+    public abstract AggregationBuilder setMetadata(Map<String, Object> metadata);
 
     /** Return any associated metadata with this {@link AggregationBuilder}. */
-    public abstract Map<String, Object> getMetaData();
+    public abstract Map<String, Object> getMetadata();
 
     /** Add a sub aggregation to this builder. */
     public abstract AggregationBuilder subAggregation(AggregationBuilder aggregation);
@@ -102,18 +109,19 @@ public abstract class AggregationBuilder
     public abstract AggregationBuilder subAggregations(AggregatorFactories.Builder subFactories);
 
     /**
-     * Create a shallow copy of this builder and replacing {@link #factoriesBuilder} and <code>metaData</code>.
+     * Create a shallow copy of this builder and replacing {@link #factoriesBuilder} and <code>metadata</code>.
      * Used by {@link #rewrite(QueryRewriteContext)}.
      */
-    protected abstract AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData);
+    protected abstract AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata);
 
+    @Override
     public final AggregationBuilder rewrite(QueryRewriteContext context) throws IOException {
         AggregationBuilder rewritten = doRewrite(context);
         AggregatorFactories.Builder rewrittenSubAggs = factoriesBuilder.rewrite(context);
         if (rewritten != this) {
-            return rewritten.setMetaData(getMetaData()).subAggregations(rewrittenSubAggs);
+            return rewritten.setMetadata(getMetadata()).subAggregations(rewrittenSubAggs);
         } else if (rewrittenSubAggs != factoriesBuilder) {
-            return shallowCopy(rewrittenSubAggs, getMetaData());
+            return shallowCopy(rewrittenSubAggs, getMetadata());
         } else {
             return this;
         }
@@ -125,23 +133,45 @@ public abstract class AggregationBuilder
      * identity reference must be returned otherwise the builder will be
      * rewritten infinitely.
      */
-    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         return this;
     }
 
     /**
-     * Rewrites the given aggregation into its primitive form. Aggregations that for instance fetch resources from remote hosts or
-     * can simplify / optimize itself should do their heavy lifting during {@link #rewrite(QueryRewriteContext)}. This method
-     * rewrites the aggregation until it doesn't change anymore.
-     * @throws IOException if an {@link IOException} occurs
+     * Build a tree of {@link PipelineAggregator}s to modify the tree of
+     * aggregation results after the final reduction.
      */
-    static AggregationBuilder rewriteAggregation(AggregationBuilder original, QueryRewriteContext context) throws IOException {
-        AggregationBuilder builder = original;
-        for (AggregationBuilder rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
-             rewrittenBuilder = builder.rewrite(context)) {
-            builder = rewrittenBuilder;
-        }
-        return builder;
+    public PipelineTree buildPipelineTree() {
+        return factoriesBuilder.buildPipelineTree();
+    }
+
+    /**
+     * A rough count of the number of buckets that {@link Aggregator}s built
+     * by this builder will contain per parent bucket used to validate sorts
+     * and pipeline aggregations. Just "zero", "one", and "many".
+     * <p>
+     * Unlike {@link CardinalityUpperBound} which is <strong>total</strong>
+     * instead of <strong>per parent bucket</strong>.
+     */
+    public enum BucketCardinality {
+        NONE, ONE, MANY;
+    }
+    /**
+     * A rough count of the number of buckets that {@link Aggregator}s built
+     * by this builder will contain per owning parent bucket.
+     */
+    public abstract BucketCardinality bucketCardinality();
+
+    /**
+     * Bytes to preallocate on the "request" breaker for this aggregation. The
+     * goal is to request a few more bytes than we expect to use at first to
+     * cut down on contention on the "request" breaker when we are constructing
+     * the aggs. Underestimating what we allocate up front will fail to
+     * accomplish the goal. Overestimating will cause requests to fail for no
+     * reason.
+     */
+    public long bytesToPreallocate() {
+        return DEFAULT_PREALLOCATION;
     }
 
     /** Common xcontent fields shared among aggregator builders */

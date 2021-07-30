@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -36,6 +38,13 @@ public class HasherTests extends ESTestCase {
         testHasherSelfGenerated(Hasher.PBKDF2_100000);
         testHasherSelfGenerated(Hasher.PBKDF2_500000);
         testHasherSelfGenerated(Hasher.PBKDF2_1000000);
+        testHasherSelfGenerated(Hasher.PBKDF2_STRETCH);
+        testHasherSelfGenerated(Hasher.PBKDF2_STRETCH_1000);
+        testHasherSelfGenerated(Hasher.PBKDF2_STRETCH_10000);
+        testHasherSelfGenerated(Hasher.PBKDF2_STRETCH_50000);
+        testHasherSelfGenerated(Hasher.PBKDF2_STRETCH_100000);
+        testHasherSelfGenerated(Hasher.PBKDF2_STRETCH_500000);
+        testHasherSelfGenerated(Hasher.PBKDF2_STRETCH_1000000);
     }
 
     public void testMd5SelfGenerated() throws Exception {
@@ -48,6 +57,10 @@ public class HasherTests extends ESTestCase {
 
     public void testSSHA256SelfGenerated() throws Exception {
         testHasherSelfGenerated(Hasher.SSHA256);
+    }
+
+    public void testSHA256SelfGenerated() throws Exception {
+        testHasherSelfGenerated(Hasher.SHA256);
     }
 
     public void testNoopSelfGenerated() throws Exception {
@@ -74,6 +87,13 @@ public class HasherTests extends ESTestCase {
         assertThat(Hasher.resolve("pbkdf2_100000"), sameInstance(Hasher.PBKDF2_100000));
         assertThat(Hasher.resolve("pbkdf2_500000"), sameInstance(Hasher.PBKDF2_500000));
         assertThat(Hasher.resolve("pbkdf2_1000000"), sameInstance(Hasher.PBKDF2_1000000));
+        assertThat(Hasher.resolve("pbkdf2_stretch"), sameInstance(Hasher.PBKDF2_STRETCH));
+        assertThat(Hasher.resolve("pbkdf2_stretch_1000"), sameInstance(Hasher.PBKDF2_STRETCH_1000));
+        assertThat(Hasher.resolve("pbkdf2_stretch_10000"), sameInstance(Hasher.PBKDF2_STRETCH_10000));
+        assertThat(Hasher.resolve("pbkdf2_stretch_50000"), sameInstance(Hasher.PBKDF2_STRETCH_50000));
+        assertThat(Hasher.resolve("pbkdf2_stretch_100000"), sameInstance(Hasher.PBKDF2_STRETCH_100000));
+        assertThat(Hasher.resolve("pbkdf2_stretch_500000"), sameInstance(Hasher.PBKDF2_STRETCH_500000));
+        assertThat(Hasher.resolve("pbkdf2_stretch_1000000"), sameInstance(Hasher.PBKDF2_STRETCH_1000000));
         assertThat(Hasher.resolve("sha1"), sameInstance(Hasher.SHA1));
         assertThat(Hasher.resolve("md5"), sameInstance(Hasher.MD5));
         assertThat(Hasher.resolve("ssha256"), sameInstance(Hasher.SSHA256));
@@ -128,11 +148,44 @@ public class HasherTests extends ESTestCase {
         assertThat(Hasher.resolveFromHash(
             "{PBKDF2}1000000$UuyhtjDEzWmE2wyY80akZKPWWpy2r2X50so41YML82U=$WFasYLelqbjQwt3EqFlUcwHiC38EZC45Iu/Iz0xL1GQ=".toCharArray()),
             sameInstance(Hasher.PBKDF2_1000000));
+        assertThat(Hasher.resolveFromHash(
+            "{PBKDF2_STRETCH}1000$sTyix9e0zNINzq2aDZ+GD5+QlO94xVyf/bv4pWNhBxo=$4KuzGPy9HXnhY3ANHn8rcIRQuJHPB6cEtLwnOhDI5d4="
+                .toCharArray()),
+            sameInstance(Hasher.PBKDF2_STRETCH_1000));
+        assertThat(Hasher.resolveFromHash(
+            "{PBKDF2_STRETCH}10000$8M9+Ww0xkdY250CROEutsd8UP6CrJESw7ZAFu1NGORo=$ai0gxBPtHTfZU/nbNGwL5zjC+eo2/ANQM17L/tllVeo="
+                .toCharArray()),
+            sameInstance(Hasher.PBKDF2_STRETCH));
+        assertThat(Hasher.resolveFromHash(
+            "{PBKDF2_STRETCH}50000$uupwXiq8W0+jrLtC3/aqzuvyZlRarlmx1+CQGEnomlk=$by8q/+oRPPWwDE6an7B9/ndz7UZ1UQpaGY4CGurtPTI="
+                .toCharArray()),
+            sameInstance(Hasher.PBKDF2_STRETCH_50000));
+        assertThat(Hasher.resolveFromHash(
+            "{PBKDF2_STRETCH}100000$E9VqtV76PcrQuCZ6wOMMNvs4CMPcANTpzRw8Wjd24PU=$j56uKUvwbvmgQgNFkbV7SRQVZ2QOarokAgBeA8xcFD8="
+                .toCharArray()),
+            sameInstance(Hasher.PBKDF2_STRETCH_100000));
+        assertThat(Hasher.resolveFromHash(
+            "{PBKDF2_STRETCH}500000$4dpTEbu4jfjhDOjWY6xdsnxuQs4dg4QbNzZJ0Z1Tm4s=$Us/yrlCxVaW7mz0go1qIygFqGgcfUMgCZfIl2AvI4I8="
+                .toCharArray()),
+            sameInstance(Hasher.PBKDF2_STRETCH_500000));
+        assertThat(Hasher.resolveFromHash(
+            "{PBKDF2_STRETCH}1000000$eKeQvMztiIcqBynTNDFBseOBww3GBpHDZI6EPPVHYUw=$4587yrxUa02RZ1jeW1WOaMjRn5qT9iQ5/DIHk0nW2bE="
+                .toCharArray()),
+            sameInstance(Hasher.PBKDF2_STRETCH_1000000));
         assertThat(Hasher.resolveFromHash("notavalidhashformat".toCharArray()), sameInstance(Hasher.NOOP));
     }
 
+    public void testPbkdf2WithShortPasswordThrowsInFips() {
+        assumeTrue("This should run only in FIPS mode", inFipsJvm());
+        SecureString passwd = new SecureString(randomAlphaOfLength(between(6, 13)).toCharArray());
+        Hasher pbkdfHasher = randomFrom(Hasher.PBKDF2, Hasher.PBKDF2_50000, Hasher.PBKDF2_1000000);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> pbkdfHasher.hash(passwd));
+        assertThat(e.getMessage(), containsString("Error using PBKDF2 implementation from the selected Security Provider"));
+    }
+
     private static void testHasherSelfGenerated(Hasher hasher) {
-        SecureString passwd = new SecureString(randomAlphaOfLength(10).toCharArray());
+        //In FIPS 140 mode, passwords for PBKDF2 need to be at least 14 chars
+        SecureString passwd = new SecureString(randomAlphaOfLength(between(14, 18)).toCharArray());
         char[] hash = hasher.hash(passwd);
         assertTrue(hasher.verify(passwd, hash));
     }

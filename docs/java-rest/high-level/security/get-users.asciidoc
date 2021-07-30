@@ -2,9 +2,9 @@
 --
 :api: get-users
 :request: GetUsersRequest
-:respnse: GetUsersResponse
+:response: GetUsersResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get Users API
 

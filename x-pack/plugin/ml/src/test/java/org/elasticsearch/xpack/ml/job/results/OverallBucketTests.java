@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.results;
 
@@ -26,7 +27,7 @@ public class OverallBucketTests extends AbstractWireSerializingTestCase<OverallB
         for (int i = 0; i < jobCount; ++i) {
             jobs.add(new OverallBucket.JobInfo(JobTests.randomValidJobId(), randomDoubleBetween(0.0, 100.0, true)));
         }
-        return new OverallBucket(new Date(randomNonNegativeLong()),
+        return new OverallBucket(new Date(randomLongBetween(0, 3000000000000L)),
                 randomIntBetween(60, 24 * 3600),
                 randomDoubleBetween(0.0, 100.0, true),
                 jobs,

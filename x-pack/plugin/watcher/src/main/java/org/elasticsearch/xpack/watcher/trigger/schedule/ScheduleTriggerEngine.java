@@ -1,27 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
-import static org.joda.time.DateTimeZone.UTC;
 
 public abstract class ScheduleTriggerEngine implements TriggerEngine<ScheduleTrigger, ScheduleTriggerEvent> {
 
@@ -49,19 +50,19 @@ public abstract class ScheduleTriggerEngine implements TriggerEngine<ScheduleTri
 
     @Override
     public ScheduleTriggerEvent simulateEvent(String jobId, @Nullable Map<String, Object> data, TriggerService service) {
-        DateTime now = new DateTime(clock.millis(), UTC);
+        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         if (data == null) {
             return new ScheduleTriggerEvent(jobId, now, now);
         }
 
         Object value = data.get(ScheduleTriggerEvent.Field.TRIGGERED_TIME.getPreferredName());
-        DateTime triggeredTime = value != null ? WatcherDateTimeUtils.convertToDate(value, clock) : now;
+        ZonedDateTime triggeredTime = value != null ? WatcherDateTimeUtils.convertToDate(value, clock) : now;
         if (triggeredTime == null) {
             throw illegalArgument("could not simulate schedule event. could not convert provided triggered time [{}] to date/time", value);
         }
 
         value = data.get(ScheduleTriggerEvent.Field.SCHEDULED_TIME.getPreferredName());
-        DateTime scheduledTime = value != null ? WatcherDateTimeUtils.convertToDate(value, clock) : triggeredTime;
+        ZonedDateTime scheduledTime = value != null ? WatcherDateTimeUtils.convertToDate(value, clock) : triggeredTime;
         if (scheduledTime == null) {
             throw illegalArgument("could not simulate schedule event. could not convert provided scheduled time [{}] to date/time", value);
         }

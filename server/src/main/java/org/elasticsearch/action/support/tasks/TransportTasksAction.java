@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.tasks;
@@ -32,14 +21,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -247,10 +234,7 @@ public abstract class TransportTasksAction<
                     listener.onFailure(e);
                 }
             } else {
-                TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-                if (request.getTimeout() != null) {
-                    builder.withTimeout(request.getTimeout());
-                }
+                final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.getTimeout());
                 for (int i = 0; i < nodesIds.length; i++) {
                     final String nodeId = nodesIds[i];
                     final int idx = i;
@@ -261,13 +245,11 @@ public abstract class TransportTasksAction<
                         } else {
                             NodeTaskRequest nodeRequest = new NodeTaskRequest(request);
                             nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                            transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
+                            transportService.sendRequest(node, transportNodeAction, nodeRequest, transportRequestOptions,
                                 new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override
                                     public NodeTasksResponse read(StreamInput in) throws IOException {
-                                        NodeTasksResponse response = new NodeTasksResponse();
-                                        response.readFrom(in);
-                                        return response;
+                                        return new NodeTasksResponse(in);
                                     }
 
                                     @Override
@@ -278,11 +260,6 @@ public abstract class TransportTasksAction<
                                     @Override
                                     public void handleException(TransportException exp) {
                                         onFailure(idx, node.getId(), exp);
-                                    }
-
-                                    @Override
-                                    public String executor() {
-                                        return ThreadPool.Names.SAME;
                                     }
                                 });
                         }
@@ -301,9 +278,7 @@ public abstract class TransportTasksAction<
         }
 
         private void onFailure(int idx, String nodeId, Throwable t) {
-            if (logger.isDebugEnabled() && !(t instanceof NodeShouldNotConnectException)) {
-                logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
-            }
+            logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
 
             responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
 
@@ -329,19 +304,8 @@ public abstract class TransportTasksAction<
 
         @Override
         public void messageReceived(final NodeTaskRequest request, final TransportChannel channel, Task task) throws Exception {
-            nodeOperation(request, new ActionListener<NodeTasksResponse>() {
-                @Override
-                public void onResponse(
-                        TransportTasksAction<OperationTask, TasksRequest, TasksResponse, TaskResponse>.NodeTasksResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Exception e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
+            nodeOperation(request, ActionListener.wrap(channel::sendResponse,
+                e -> {
                     try {
                         channel.sendResponse(e);
                     } catch (IOException e1) {
@@ -349,10 +313,9 @@ public abstract class TransportTasksAction<
                         logger.warn("Failed to send failure", e1);
                     }
                 }
-            });
+            ));
         }
     }
-
 
     private class NodeTaskRequest extends TransportRequest {
         private TasksRequest tasksRequest;
@@ -380,7 +343,24 @@ public abstract class TransportTasksAction<
         protected List<TaskOperationFailure> exceptions;
         protected List<TaskResponse> results;
 
-        NodeTasksResponse() {
+        NodeTasksResponse(StreamInput in) throws IOException {
+            super(in);
+            nodeId = in.readString();
+            int resultsSize = in.readVInt();
+            results = new ArrayList<>(resultsSize);
+            for (; resultsSize > 0; resultsSize--) {
+                final TaskResponse result = in.readBoolean() ? responseReader.read(in) : null;
+                results.add(result);
+            }
+            if (in.readBoolean()) {
+                int taskFailures = in.readVInt();
+                exceptions = new ArrayList<>(taskFailures);
+                for (int i = 0; i < taskFailures; i++) {
+                    exceptions.add(new TaskOperationFailure(in));
+                }
+            } else {
+                exceptions = null;
+            }
         }
 
         NodeTasksResponse(String nodeId,
@@ -400,29 +380,7 @@ public abstract class TransportTasksAction<
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            nodeId = in.readString();
-            int resultsSize = in.readVInt();
-            results = new ArrayList<>(resultsSize);
-            for (; resultsSize > 0; resultsSize--) {
-                final TaskResponse result = in.readBoolean() ? responseReader.read(in) : null;
-                results.add(result);
-            }
-            if (in.readBoolean()) {
-                int taskFailures = in.readVInt();
-                exceptions = new ArrayList<>(taskFailures);
-                for (int i = 0; i < taskFailures; i++) {
-                    exceptions.add(new TaskOperationFailure(in));
-                }
-            } else {
-                exceptions = null;
-            }
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(nodeId);
             out.writeVInt(results.size());
             for (TaskResponse result : results) {

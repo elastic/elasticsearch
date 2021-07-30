@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.rest.yaml.section;
 
@@ -47,7 +36,7 @@ import java.util.stream.Stream;
  */
 public class ClientYamlTestSuite {
     public static ClientYamlTestSuite parse(NamedXContentRegistry executeableSectionRegistry, String api, Path file) throws IOException {
-        if (!Files.isRegularFile(file)) {
+        if (Files.isRegularFile(file) == false) {
             throw new IllegalArgumentException(file.toAbsolutePath() + " is not a file");
         }
 
@@ -111,9 +100,9 @@ public class ClientYamlTestSuite {
     private final TeardownSection teardownSection;
     private final List<ClientYamlTestSection> testSections;
 
-    ClientYamlTestSuite(String api, String name, SetupSection setupSection, TeardownSection teardownSection,
+    public ClientYamlTestSuite(String api, String name, SetupSection setupSection, TeardownSection teardownSection,
                         List<ClientYamlTestSection> testSections) {
-        this.api = api;
+        this.api = api.replace("\\", "/");  //since api's are sourced from the filesystem normalize backslashes to "/"
         this.name = name;
         this.setupSection = Objects.requireNonNull(setupSection, "setup section cannot be null");
         this.teardownSection = Objects.requireNonNull(teardownSection, "teardown section cannot be null");
@@ -165,6 +154,31 @@ public class ClientYamlTestSuite {
 
         errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
             .map(section -> (DoSection) section)
+            .filter(section -> false == section.getExpectedWarningHeadersRegex()
+                .isEmpty())
+            .filter(section -> false == hasSkipFeature("warnings_regex", testSection, setupSection, teardownSection))
+            .map(section -> "attempted to add a [do] with a [warnings_regex] section " +
+                "without a corresponding [\"skip\": \"features\": \"warnings_regex\"] so runners that do not support the [warnings_regex] "+
+                "section can skip the test at line [" + section.getLocation().lineNumber + "]"));
+
+        errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
+                .map(section -> (DoSection) section)
+                .filter(section -> false == section.getAllowedWarningHeaders().isEmpty())
+                .filter(section -> false == hasSkipFeature("allowed_warnings", testSection, setupSection, teardownSection))
+                .map(section -> "attempted to add a [do] with a [allowed_warnings] section " +
+                    "without a corresponding [\"skip\": \"features\": \"allowed_warnings\"] so runners that do not " +
+                    "support the [allowed_warnings] section can skip the test at line [" + section.getLocation().lineNumber + "]"));
+
+        errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
+            .map(section -> (DoSection) section)
+            .filter(section -> false == section.getAllowedWarningHeadersRegex().isEmpty())
+            .filter(section -> false == hasSkipFeature("allowed_warnings_regex", testSection, setupSection, teardownSection))
+            .map(section -> "attempted to add a [do] with a [allowed_warnings_regex] section " +
+                "without a corresponding [\"skip\": \"features\": \"allowed_warnings_regex\"] so runners that do not " +
+                "support the [allowed_warnings_regex] section can skip the test at line [" + section.getLocation().lineNumber + "]"));
+
+        errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
+            .map(section -> (DoSection) section)
             .filter(section -> NodeSelector.ANY != section.getApiCallSection().getNodeSelector())
             .filter(section -> false == hasSkipFeature("node_selector", testSection, setupSection, teardownSection))
             .map(section -> "attempted to add a [do] with a [node_selector] " +
@@ -185,6 +199,13 @@ public class ClientYamlTestSuite {
             .map(section -> "attempted to add a [do] with a [headers] section without a corresponding "
                 + "[\"skip\": \"features\": \"headers\"] so runners that do not support the [headers] section can skip the test at " +
                 "line [" + section.getLocation().lineNumber + "]"));
+
+        errors = Stream.concat(errors, sections.stream()
+            .filter(section -> section instanceof CloseToAssertion)
+            .filter(section -> false == hasSkipFeature("close_to", testSection, setupSection, teardownSection))
+            .map(section -> "attempted to add a [close_to] assertion " +
+                "without a corresponding [\"skip\": \"features\": \"close_to\"] so runners that do not support the " +
+                "[close_to] assertion can skip the test at line [" + section.getLocation().lineNumber + "]"));
 
         return errors;
     }

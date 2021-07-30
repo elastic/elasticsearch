@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.monitoring.action;
 
@@ -26,12 +27,11 @@ public class MonitoringBulkRequestBuilder
     }
 
     public MonitoringBulkRequestBuilder add(final MonitoredSystem system,
-                                            final String type,
                                             final BytesReference content,
                                             final XContentType xContentType,
                                             final long timestamp,
                                             final long intervalMillis) throws IOException {
-        request.add(system, type, content, xContentType, timestamp, intervalMillis);
+        request.add(system, content, xContentType, timestamp, intervalMillis);
         return this;
     }
 

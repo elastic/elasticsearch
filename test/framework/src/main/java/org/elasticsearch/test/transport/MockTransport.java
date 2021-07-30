@@ -1,47 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.transport;
 
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CloseableConnection;
-import org.elasticsearch.transport.ConnectionManager;
-import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.SendRequestTransportException;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportMessageListener;
@@ -50,12 +32,8 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -66,23 +44,24 @@ import static org.apache.lucene.util.LuceneTestCase.rarely;
 /**
  * A basic transport implementation that allows to intercept requests that have been sent
  */
-public class MockTransport implements Transport, LifecycleComponent {
+public class MockTransport extends StubbableTransport {
 
-    private volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
-    private final Object requestHandlerMutex = new Object();
-    private final ResponseHandlers responseHandlers = new ResponseHandlers();
     private TransportMessageListener listener;
     private ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
 
     public TransportService createTransportService(Settings settings, ThreadPool threadPool, TransportInterceptor interceptor,
                                                    Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
                                                    @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
-        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this, threadPool),
-            settings, this, threadPool);
-        connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> nodeConnected(discoveryNode));
+        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ClusterConnectionManager(settings, this));
+        connectionManager.setDefaultNodeConnectedBehavior((cm, node) -> false);
         connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> createConnection(discoveryNode));
         return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
             connectionManager);
+    }
+
+    public MockTransport() {
+        super(new FakeTransport());
+        setDefaultConnectBehavior((transport, discoveryNode, profile, listener) -> listener.onResponse(createConnection(discoveryNode)));
     }
 
     /**
@@ -91,12 +70,13 @@ public class MockTransport implements Transport, LifecycleComponent {
     @SuppressWarnings("unchecked")
     public <Response extends TransportResponse> void handleResponse(final long requestId, final Response response) {
         final TransportResponseHandler<Response> transportResponseHandler =
-            (TransportResponseHandler<Response>) responseHandlers.onResponseReceived(requestId, listener);
+            (TransportResponseHandler<Response>) getResponseHandlers().onResponseReceived(requestId, listener);
         if (transportResponseHandler != null) {
             final Response deliveredResponse;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 response.writeTo(output);
-                deliveredResponse = transportResponseHandler.read(output.bytes().streamInput());
+                deliveredResponse = transportResponseHandler.read(
+                    new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writeableRegistry()));
             } catch (IOException | UnsupportedOperationException e) {
                 throw new AssertionError("failed to serialize/deserialize response " + response, e);
             }
@@ -153,16 +133,10 @@ public class MockTransport implements Transport, LifecycleComponent {
      * @param e         the failure
      */
     public void handleError(final long requestId, final TransportException e) {
-        final TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
+        final TransportResponseHandler<?> transportResponseHandler = getResponseHandlers().onResponseReceived(requestId, listener);
         if (transportResponseHandler != null) {
             transportResponseHandler.handleException(e);
         }
-    }
-
-    @Override
-    public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
-        listener.onResponse(createConnection(node));
-        return () -> {};
     }
 
     public Connection createConnection(DiscoveryNode node) {
@@ -184,95 +158,16 @@ public class MockTransport implements Transport, LifecycleComponent {
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
     }
 
-    protected boolean nodeConnected(DiscoveryNode discoveryNode) {
-        return true;
-    }
-
     @Override
-    public TransportStats getStats() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public BoundTransportAddress boundAddress() {
-        return null;
-    }
-
-    @Override
-    public Map<String, BoundTransportAddress> profileBoundAddresses() {
-        return null;
-    }
-
-    @Override
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) {
-        return new TransportAddress[0];
-    }
-
-    @Override
-    public Lifecycle.State lifecycleState() {
-        return null;
-    }
-
-    @Override
-    public void addLifecycleListener(LifecycleListener listener) {
-    }
-
-    @Override
-    public void removeLifecycleListener(LifecycleListener listener) {
-    }
-
-    @Override
-    public void start() {
-    }
-
-    @Override
-    public void stop() {
-    }
-
-    @Override
-    public void close() {
-    }
-
-    @Override
-    public List<String> getLocalAddresses() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
-        synchronized (requestHandlerMutex) {
-            if (requestHandlers.containsKey(reg.getAction())) {
-                throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
-            }
-            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
-        }
-    }
-
-    @Override
-    public ResponseHandlers getResponseHandlers() {
-        return responseHandlers;
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public RequestHandlerRegistry<TransportRequest> getRequestHandler(String action) {
-        return requestHandlers.get(action);
-    }
-
-    @Override
-    public void addMessageListener(TransportMessageListener listener) {
+    public void setMessageListener(TransportMessageListener listener) {
         if (this.listener != null) {
             throw new IllegalStateException("listener already set");
         }
         this.listener = listener;
+        super.setMessageListener(listener);
     }
 
-    @Override
-    public boolean removeMessageListener(TransportMessageListener listener) {
-        if (listener == this.listener) {
-            this.listener = null;
-            return true;
-        }
-        return false;
+    protected NamedWriteableRegistry writeableRegistry() {
+        return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
     }
 }

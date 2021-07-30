@@ -1,27 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 public class SearchHitFieldRef extends FieldReference {
     private final String name;
     private final DataType dataType;
-    private final boolean docValue;
     private final String hitName;
 
-    public SearchHitFieldRef(String name, DataType dataType, boolean useDocValueInsteadOfSource) {
-        this(name, dataType, useDocValueInsteadOfSource, null);
+    public SearchHitFieldRef(String name, DataType dataType) {
+        this(name, dataType, null);
     }
 
-    public SearchHitFieldRef(String name, DataType dataType, boolean useDocValueInsteadOfSource, String hitName) {
+    public SearchHitFieldRef(String name, DataType dataType, String hitName) {
         this.name = name;
         this.dataType = dataType;
-        this.docValue = useDocValueInsteadOfSource;
         this.hitName = hitName;
     }
 
@@ -38,22 +38,13 @@ public class SearchHitFieldRef extends FieldReference {
         return dataType;
     }
 
-    public boolean useDocValue() {
-        return docValue;
-    }
-
     @Override
-    public void collectFields(SqlSourceBuilder sourceBuilder) {
+    public void collectFields(QlSourceBuilder sourceBuilder) {
         // nested fields are handled by inner hits
         if (hitName != null) {
             return;
         }
-        if (docValue) {
-            String format = dataType == DataType.DATE ? "epoch_millis" : null;
-            sourceBuilder.addDocField(name, format);
-        } else {
-            sourceBuilder.addSourceField(name);
-        }
+        sourceBuilder.addFetchField(name, SqlDataTypes.format(dataType));
     }
 
     @Override

@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
-
-import java.io.IOException;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * Response for a role-mapping being deleted from the
@@ -21,10 +22,10 @@ public class DeleteRoleMappingResponse extends ActionResponse implements ToXCont
 
     private boolean found = false;
 
-    /**
-     * Package private for {@link DeleteRoleMappingAction#newResponse()}
-     */
-    public DeleteRoleMappingResponse() {}
+    public DeleteRoleMappingResponse(StreamInput in) throws IOException {
+        super(in);
+        found = in.readBoolean();
+    }
 
     public DeleteRoleMappingResponse(boolean found) {
         this.found = found;
@@ -45,14 +46,7 @@ public class DeleteRoleMappingResponse extends ActionResponse implements ToXCont
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        found = in.readBoolean();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(found);
     }
 

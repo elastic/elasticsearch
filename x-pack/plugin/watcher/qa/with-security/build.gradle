@@ -1,0 +1,39 @@
+apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+dependencies {
+  yamlRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
+  javaRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
+  javaRestTestImplementation project(':x-pack:qa')
+  yamlRestTestImplementation project(':x-pack:qa')
+  restXpackTestConfig project(path: ':x-pack:plugin:watcher:qa:rest', configuration: 'restXpackTests')
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'index', 'indices', 'get', 'nodes', 'search', 'watcher', 'security', 'xpack'
+  }
+  restTests {
+    includeXpack 'watcher'
+  }
+}
+
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
+  // settings to test settings filtering on
+  setting 'xpack.notification.email.account._email.smtp.host', 'host.domain'
+  setting 'xpack.notification.email.account._email.smtp.port', '587'
+  setting 'xpack.notification.email.account._email.smtp.user', '_user'
+  keystore 'xpack.notification.email.account._email.smtp.secure_password', '_passwd'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'logger.org.elasticsearch.xpack.watcher', 'debug'
+  setting 'logger.org.elasticsearch.xpack.core.watcher', 'debug'
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: "test_admin", password: "x-pack-test-password"
+  user username: "x_pack_rest_user", password: "x-pack-test-password", role: "watcher_manager"
+  user username: "watcher_manager", password: "x-pack-test-password", role: "watcher_manager"
+  user username: "powerless_user", password: "x-pack-test-password", role: "crappy_role"
+}

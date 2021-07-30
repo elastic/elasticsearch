@@ -1,13 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
@@ -17,6 +26,7 @@ import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public class PrivilegeTests extends ESTestCase {
     @Rule
@@ -29,55 +39,78 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("bar[n][nodes]"), is(false));
         assertThat(predicate.test("[n][nodes]"), is(false));
     }
-
+    private void verifyClusterActionAllowed(ClusterPrivilege clusterPrivilege, String... actions) {
+        ClusterPermission clusterPermission = clusterPrivilege.buildPermission(ClusterPermission.builder()).build();
+        for (String action: actions) {
+            assertTrue(clusterPermission.check(action, mock(TransportRequest.class), mock(Authentication.class)));
+        }
+    }
+    private void verifyClusterActionDenied(ClusterPrivilege clusterPrivilege, String... actions) {
+        ClusterPermission clusterPermission = clusterPrivilege.buildPermission(ClusterPermission.builder()).build();
+        for (String action: actions) {
+            assertFalse(clusterPermission.check(action, mock(TransportRequest.class), mock(Authentication.class)));
+        }
+    }
     public void testCluster() throws Exception {
-        Set<String> name = Sets.newHashSet("monitor");
-        ClusterPrivilege cluster = ClusterPrivilege.get(name);
-        assertThat(cluster, is(ClusterPrivilege.MONITOR));
+        ClusterPrivilege allClusterPrivilege = ClusterPrivilegeResolver.resolve("all");
+        assertThat(allClusterPrivilege, is(ClusterPrivilegeResolver.ALL));
+        verifyClusterActionAllowed(allClusterPrivilege, "cluster:admin/xpack/security/*");
 
-        // since "all" implies "monitor", this should be the same language as All
-        name = Sets.newHashSet("monitor", "all");
-        cluster = ClusterPrivilege.get(name);
-        assertTrue(Operations.sameLanguage(ClusterPrivilege.ALL.automaton, cluster.automaton));
+        ClusterPrivilege monitorClusterPrivilege = ClusterPrivilegeResolver.resolve("monitor");
+        assertThat(monitorClusterPrivilege, is(ClusterPrivilegeResolver.MONITOR));
+        verifyClusterActionAllowed(monitorClusterPrivilege, "cluster:monitor/*");
+        verifyClusterActionDenied(monitorClusterPrivilege, "cluster:admin/xpack/security/*");
 
-        name = Sets.newHashSet("monitor", "none");
-        cluster = ClusterPrivilege.get(name);
-        assertTrue(Operations.sameLanguage(ClusterPrivilege.MONITOR.automaton, cluster.automaton));
+        ClusterPrivilege noneClusterPrivilege = ClusterPrivilegeResolver.resolve("none");
+        assertThat(noneClusterPrivilege, is(ClusterPrivilegeResolver.NONE));
+        verifyClusterActionDenied(noneClusterPrivilege, "cluster:admin/xpack/security/*");
+        verifyClusterActionDenied(noneClusterPrivilege, "cluster:monitor/*");
+        verifyClusterActionDenied(noneClusterPrivilege, "*");
 
-        Set<String> name2 = Sets.newHashSet("none", "monitor");
-        ClusterPrivilege cluster2 = ClusterPrivilege.get(name2);
-        assertThat(cluster, is(cluster2));
+        ClusterPermission monitorClusterPermission = monitorClusterPrivilege.buildPermission(ClusterPermission.builder()).build();
+        ClusterPermission allClusterPermission = allClusterPrivilege.buildPermission(ClusterPermission.builder()).build();
+
+        // all implies monitor
+        assertTrue(allClusterPermission.implies(monitorClusterPermission));
+
+        ClusterPermission.Builder builder = ClusterPermission.builder();
+        builder = allClusterPrivilege.buildPermission(builder);
+        builder = noneClusterPrivilege.buildPermission(builder);
+        ClusterPermission combinedPermission = builder.build();
+        assertTrue(combinedPermission.implies(monitorClusterPermission));
     }
 
     public void testClusterTemplateActions() throws Exception {
-        Set<String> name = Sets.newHashSet("indices:admin/template/delete");
-        ClusterPrivilege cluster = ClusterPrivilege.get(name);
-        assertThat(cluster, notNullValue());
-        assertThat(cluster.predicate().test("indices:admin/template/delete"), is(true));
+        ClusterPrivilege clusterPrivilegeTemplateDelete = ClusterPrivilegeResolver.resolve("indices:admin/template/delete");
+        assertThat(clusterPrivilegeTemplateDelete, notNullValue());
+        verifyClusterActionAllowed(clusterPrivilegeTemplateDelete, "indices:admin/template/delete");
+        verifyClusterActionDenied(clusterPrivilegeTemplateDelete, "indices:admin/template/get", "indices:admin/template/put");
 
-        name = Sets.newHashSet("indices:admin/template/get");
-        cluster = ClusterPrivilege.get(name);
-        assertThat(cluster, notNullValue());
-        assertThat(cluster.predicate().test("indices:admin/template/get"), is(true));
+        ClusterPrivilege clusterPrivilegeTemplateGet = ClusterPrivilegeResolver.resolve("indices:admin/template/get");
+        assertThat(clusterPrivilegeTemplateGet, notNullValue());
+        verifyClusterActionAllowed(clusterPrivilegeTemplateGet, "indices:admin/template/get");
+        verifyClusterActionDenied(clusterPrivilegeTemplateGet, "indices:admin/template/delete", "indices:admin/template/put");
 
-        name = Sets.newHashSet("indices:admin/template/put");
-        cluster = ClusterPrivilege.get(name);
-        assertThat(cluster, notNullValue());
-        assertThat(cluster.predicate().test("indices:admin/template/put"), is(true));
+        ClusterPrivilege clusterPrivilegeTemplatePut = ClusterPrivilegeResolver.resolve("indices:admin/template/put");
+        assertThat(clusterPrivilegeTemplatePut, notNullValue());
+        verifyClusterActionAllowed(clusterPrivilegeTemplatePut, "indices:admin/template/put");
+        verifyClusterActionDenied(clusterPrivilegeTemplatePut, "indices:admin/template/get", "indices:admin/template/delete");
     }
 
     public void testClusterInvalidName() throws Exception {
         thrown.expect(IllegalArgumentException.class);
-        Set<String> actionName = Sets.newHashSet("foobar");
-        ClusterPrivilege.get(actionName);
+        ClusterPrivilegeResolver.resolve("foobar");
+
     }
 
     public void testClusterAction() throws Exception {
-        Set<String> actionName = Sets.newHashSet("cluster:admin/snapshot/delete");
-        ClusterPrivilege cluster = ClusterPrivilege.get(actionName);
-        assertThat(cluster, notNullValue());
-        assertThat(cluster.predicate().test("cluster:admin/snapshot/delete"), is(true));
-        assertThat(cluster.predicate().test("cluster:admin/snapshot/dele"), is(false));
+        // ClusterPrivilegeResolver.resolve() for a cluster action converts action name into a pattern by adding "*"
+        ClusterPrivilege clusterPrivilegeSnapshotDelete = ClusterPrivilegeResolver.resolve("cluster:admin/snapshot/delete");
+        assertThat(clusterPrivilegeSnapshotDelete, notNullValue());
+        verifyClusterActionAllowed(clusterPrivilegeSnapshotDelete, "cluster:admin/snapshot/delete", "cluster:admin/snapshot/delete[n]",
+            "cluster:admin/snapshot/delete/non-existing");
+        verifyClusterActionDenied(clusterPrivilegeSnapshotDelete, "cluster:admin/snapshot/dele", "cluster:admin/snapshot/dele[n]",
+            "cluster:admin/snapshot/dele/non-existing");
     }
 
     public void testIndexAction() throws Exception {
@@ -123,50 +156,62 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("indices:admin/mapping/put"), is(true));
         assertThat(predicate.test("indices:admin/mapping/whatever"), is(false));
         assertThat(predicate.test("internal:transport/proxy/indices:data/read/query"), is(false));
+        assertThat(predicate.test("internal:transport/proxy/indices:monitor/whatever"), is(true));
         assertThat(predicate.test("indices:admin/seq_no/global_checkpoint_sync"), is(true));
         assertThat(predicate.test("indices:admin/seq_no/global_checkpoint_sync[p]"), is(true));
         assertThat(predicate.test("indices:admin/seq_no/global_checkpoint_sync[r]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_sync"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_sync[p]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_sync[r]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_background_sync"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_background_sync[p]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_background_sync[r]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/add_retention_lease"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/add_retention_lease[s]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/remove_retention_lease"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/remove_retention_lease[s]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/renew_retention_lease"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/renew_retention_lease[s]"), is(true));
         assertThat(predicate.test("indices:admin/settings/update"), is(true));
         assertThat(predicate.test("indices:admin/settings/foo"), is(false));
     }
 
+    public void testManageAutoscalingPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_AUTOSCALING, "cluster:admin/autoscaling/get_decision");
+    }
+
     public void testManageCcrPrivilege() {
-        Predicate<String> predicate = ClusterPrivilege.MANAGE_CCR.predicate();
-        assertThat(predicate.test("cluster:admin/xpack/ccr/follow_index"), is(true));
-        assertThat(predicate.test("cluster:admin/xpack/ccr/unfollow_index"), is(true));
-        assertThat(predicate.test("cluster:admin/xpack/ccr/brand_new_api"), is(true));
-        assertThat(predicate.test("cluster:admin/xpack/whatever"), is(false));
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_CCR, "cluster:admin/xpack/ccr/follow_index",
+            "cluster:admin/xpack/ccr/unfollow_index", "cluster:admin/xpack/ccr/brand_new_api");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_CCR, "cluster:admin/xpack/whatever");
+
+    }
+
+    public void testManageEnrichPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, DeleteEnrichPolicyAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, ExecuteEnrichPolicyAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, GetEnrichPolicyAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, PutEnrichPolicyAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, "cluster:admin/xpack/enrich/brand_new_api");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_ENRICH, "cluster:admin/xpack/whatever");
     }
 
     public void testIlmPrivileges() {
         {
-            Predicate<String> predicate = ClusterPrivilege.MANAGE_ILM.predicate();
-            // check cluster actions
-            assertThat(predicate.test("cluster:admin/ilm/delete"), is(true));
-            assertThat(predicate.test("cluster:admin/ilm/_move/post"), is(true));
-            assertThat(predicate.test("cluster:admin/ilm/put"), is(true));
-            assertThat(predicate.test("cluster:admin/ilm/start"), is(true));
-            assertThat(predicate.test("cluster:admin/ilm/stop"), is(true));
-            assertThat(predicate.test("cluster:admin/ilm/brand_new_api"), is(true));
-            assertThat(predicate.test("cluster:admin/ilm/get"), is(true));
-            assertThat(predicate.test("cluster:admin/ilm/operation_mode/get"), is(true));
-            // check non-ilm action
-            assertThat(predicate.test("cluster:admin/whatever"), is(false));
+            verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ILM, "cluster:admin/ilm/delete",
+                "cluster:admin/ilm/_move/post", "cluster:admin/ilm/put", "cluster:admin/ilm/start",
+                "cluster:admin/ilm/stop", "cluster:admin/ilm/brand_new_api", "cluster:admin/ilm/get",
+                "cluster:admin/ilm/operation_mode/get"
+            );
+            verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_ILM, "cluster:admin/whatever");
+
         }
 
         {
-            Predicate<String> predicate = ClusterPrivilege.READ_ILM.predicate();
-            // check cluster actions
-            assertThat(predicate.test("cluster:admin/ilm/delete"), is(false));
-            assertThat(predicate.test("cluster:admin/ilm/_move/post"), is(false));
-            assertThat(predicate.test("cluster:admin/ilm/put"), is(false));
-            assertThat(predicate.test("cluster:admin/ilm/start"), is(false));
-            assertThat(predicate.test("cluster:admin/ilm/stop"), is(false));
-            assertThat(predicate.test("cluster:admin/ilm/brand_new_api"), is(false));
-            assertThat(predicate.test("cluster:admin/ilm/get"), is(true));
-            assertThat(predicate.test("cluster:admin/ilm/operation_mode/get"), is(true));
-            // check non-ilm action
-            assertThat(predicate.test("cluster:admin/whatever"), is(false));
+            verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_ILM, "cluster:admin/ilm/get", "cluster:admin/ilm/operation_mode/get");
+            verifyClusterActionDenied(ClusterPrivilegeResolver.READ_ILM, "cluster:admin/ilm/delete", "cluster:admin/ilm/_move/post",
+                "cluster:admin/ilm/put", "cluster:admin/ilm/start", "cluster:admin/ilm/stop",
+                "cluster:admin/ilm/brand_new_api", "cluster:admin/whatever");
         }
 
         {
@@ -190,5 +235,57 @@ public class PrivilegeTests extends ESTestCase {
             // check non-ilm action
             assertThat(predicate.test("indices:admin/whatever"), is(false));
         }
+    }
+
+    public void testSlmPrivileges() {
+        {
+            verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_SLM, "cluster:admin/slm/delete",
+                "cluster:admin/slm/put",
+                "cluster:admin/slm/get",
+                "cluster:admin/ilm/start",
+                "cluster:admin/ilm/stop",
+                "cluster:admin/slm/execute",
+                "cluster:admin/ilm/operation_mode/get");
+            verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_SLM, "cluster:admin/whatever");
+        }
+
+        {
+            verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_SLM,
+                "cluster:admin/slm/get",
+                "cluster:admin/ilm/operation_mode/get");
+            verifyClusterActionDenied(ClusterPrivilegeResolver.READ_SLM,"cluster:admin/slm/delete",
+                "cluster:admin/slm/put",
+                "cluster:admin/ilm/start",
+                "cluster:admin/ilm/stop",
+                "cluster:admin/slm/execute",
+                "cluster:admin/whatever");
+
+        }
+    }
+
+    public void testIngestPipelinePrivileges() {
+        {
+            verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_INGEST_PIPELINES, "cluster:admin/ingest/pipeline/get",
+                "cluster:admin/ingest/pipeline/put",
+                "cluster:admin/ingest/pipeline/delete",
+                "cluster:admin/ingest/pipeline/simulate");
+            verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_INGEST_PIPELINES, "cluster:admin/whatever");
+        }
+
+        {
+            verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_PIPELINE,
+                "cluster:admin/ingest/pipeline/get",
+                "cluster:admin/ingest/pipeline/simulate");
+            verifyClusterActionDenied(ClusterPrivilegeResolver.READ_PIPELINE,"cluster:admin/ingest/pipeline/put",
+                "cluster:admin/ingest/pipeline/delete",
+                "cluster:admin/whatever");
+
+        }
+    }
+
+    public void testCancelTasksPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, CancelTasksAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, CancelTasksAction.NAME + "[n]");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.CANCEL_TASK, "cluster:admin/whatever");
     }
 }

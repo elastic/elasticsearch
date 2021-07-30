@@ -1,83 +1,63 @@
 [[analysis-mapping-charfilter]]
-=== Mapping Char Filter
+=== Mapping character filter
+++++
+<titleabbrev>Mapping</titleabbrev>
+++++
 
-The `mapping` character filter accepts a map of keys and values.  Whenever it
+The `mapping` character filter accepts a map of keys and values. Whenever it
 encounters a string of characters that is the same as a key, it replaces them
 with the value associated with that key.
 
 Matching is greedy; the longest pattern matching at a given point wins.
 Replacements are allowed to be the empty string.
 
-[float]
-=== Configuration
+The `mapping` filter uses Lucene's
+{lucene-analysis-docs}/charfilter/MappingCharFilter.html[MappingCharFilter].
 
-The `mapping` character filter accepts the following parameters:
+[[analysis-mapping-charfilter-analyze-ex]]
+==== Example
 
-[horizontal]
-`mappings`::
+The following <<indices-analyze,analyze API>> request uses the `mapping` filter
+to convert Hindu-Arabic numerals (٠‎١٢٣٤٥٦٧٨‎٩‎) into their Arabic-Latin
+equivalents (0123456789), changing the text `My license plate is ٢٥٠١٥` to
+`My license plate is 25015`.
 
-    A array of mappings, with each element having the form `key => value`.
-
-`mappings_path`::
-
-    A path, either absolute or relative to the `config` directory, to a UTF-8
-    encoded text mappings file containing a `key => value` mapping per line.
-
-Either the `mappings` or `mappings_path` parameter must be provided.
-
-[float]
-=== Example configuration
-
-In this example, we configure the `mapping` character filter to replace Arabic
-numerals with their Latin equivalents:
-
-[source,js]
-----------------------------
-PUT my_index
+[source,console]
+----
+GET /_analyze
 {
-  "settings": {
-    "analysis": {
-      "analyzer": {
-        "my_analyzer": {
-          "tokenizer": "keyword",
-          "char_filter": [
-            "my_char_filter"
-          ]
-        }
-      },
-      "char_filter": {
-        "my_char_filter": {
-          "type": "mapping",
-          "mappings": [
-            "٠ => 0",
-            "١ => 1",
-            "٢ => 2",
-            "٣ => 3",
-            "٤ => 4",
-            "٥ => 5",
-            "٦ => 6",
-            "٧ => 7",
-            "٨ => 8",
-            "٩ => 9"
-          ]
-        }
-      }
+  "tokenizer": "keyword",
+  "char_filter": [
+    {
+      "type": "mapping",
+      "mappings": [
+        "٠ => 0",
+        "١ => 1",
+        "٢ => 2",
+        "٣ => 3",
+        "٤ => 4",
+        "٥ => 5",
+        "٦ => 6",
+        "٧ => 7",
+        "٨ => 8",
+        "٩ => 9"
+      ]
     }
-  }
-}
-
-POST my_index/_analyze
-{
-  "analyzer": "my_analyzer",
+  ],
   "text": "My license plate is ٢٥٠١٥"
 }
-----------------------------
-// CONSOLE
+----
 
-/////////////////////
+The filter produces the following text:
 
-[source,js]
-----------------------------
+[source,text]
+----
+[ My license plate is 25015 ]
+----
+
+////
+[source,console-result]
+----
 {
   "tokens": [
     {
@@ -89,25 +69,45 @@ POST my_index/_analyze
     }
   ]
 }
-----------------------------
-// TESTRESPONSE
+----
+////
 
-/////////////////////
+[[analysis-mapping-charfilter-configure-parms]]
+==== Configurable parameters
 
+`mappings`::
+(Required*, array of strings)
+Array of mappings, with each element having the form `key => value`.
++
+Either this or the `mappings_path` parameter must be specified.
 
-The above example produces the following term:
+`mappings_path`::
+(Required*, string)
+Path to a file containing `key => value` mappings.
++
+This path must be absolute or relative to the `config` location, and the file
+must be UTF-8 encoded. Each mapping in the file must be separated by a line
+break.
++
+Either this or the `mappings` parameter must be specified.
 
-[source,text]
----------------------------
-[ My license plate is 25015 ]
----------------------------
+[[analysis-mapping-charfilter-customize]]
+==== Customize and add to an analyzer
 
-Keys and values can be strings with multiple characters.  The following
-example replaces the `:)` and `:(` emoticons with a text equivalent:
+To customize the `mappings` filter, duplicate it to create the basis for a new
+custom character filter. You can modify the filter using its configurable
+parameters.
 
-[source,js]
-----------------------------
-PUT my_index
+The following <<indices-create-index,create index API>> request
+configures a new <<analysis-custom-analyzer,custom analyzer>> using a custom
+`mappings` filter, `my_mappings_char_filter`.
+
+The `my_mappings_char_filter` filter replaces the `:)` and `:(` emoticons
+with a text equivalent.
+
+[source,console]
+----
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
@@ -115,12 +115,12 @@ PUT my_index
         "my_analyzer": {
           "tokenizer": "standard",
           "char_filter": [
-            "my_char_filter"
+            "my_mappings_char_filter"
           ]
         }
       },
       "char_filter": {
-        "my_char_filter": {
+        "my_mappings_char_filter": {
           "type": "mapping",
           "mappings": [
             ":) => _happy_",
@@ -131,68 +131,43 @@ PUT my_index
     }
   }
 }
+----
 
-POST my_index/_analyze
+The following <<indices-analyze,analyze API>> request uses the custom
+`my_mappings_char_filter` to replace `:(` with `_sad_` in
+the text `I'm delighted about it :(`.
+
+[source,console]
+----
+GET /my-index-000001/_analyze
 {
-  "analyzer": "my_analyzer",
+  "tokenizer": "keyword",
+  "char_filter": [ "my_mappings_char_filter" ],
   "text": "I'm delighted about it :("
 }
-----------------------------
-// CONSOLE
+----
+// TEST[continued]
 
-
-/////////////////////
-
-[source,js]
-----------------------------
-{
-  "tokens": [
-    {
-      "token": "I'm",
-      "start_offset": 0,
-      "end_offset": 3,
-      "type": "<ALPHANUM>",
-      "position": 0
-    },
-    {
-      "token": "delighted",
-      "start_offset": 4,
-      "end_offset": 13,
-      "type": "<ALPHANUM>",
-      "position": 1
-    },
-    {
-      "token": "about",
-      "start_offset": 14,
-      "end_offset": 19,
-      "type": "<ALPHANUM>",
-      "position": 2
-    },
-    {
-      "token": "it",
-      "start_offset": 20,
-      "end_offset": 22,
-      "type": "<ALPHANUM>",
-      "position": 3
-    },
-    {
-      "token": "_sad_",
-      "start_offset": 23,
-      "end_offset": 25,
-      "type": "<ALPHANUM>",
-      "position": 4
-    }
-  ]
-}
-----------------------------
-// TESTRESPONSE
-
-/////////////////////
-
-
-The above example produces the following terms:
+The filter produces the following text:
 
 [source,text]
 ---------------------------
-[ I'm, delighted, about, it, _sad_ ]
+[ I'm delighted about it _sad_ ]
 ---------------------------
+
+////
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "I'm delighted about it _sad_",
+      "start_offset": 0,
+      "end_offset": 25,
+      "type": "word",
+      "position": 0
+    }
+  ]
+}
+----
+////

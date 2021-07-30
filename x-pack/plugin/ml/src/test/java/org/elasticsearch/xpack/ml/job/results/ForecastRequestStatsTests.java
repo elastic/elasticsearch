@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.results;
 
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ForecastRequestStatsTests extends AbstractSerializingTestCase<ForecastRequestStats> {
 
@@ -95,6 +97,14 @@ public class ForecastRequestStatsTests extends AbstractSerializingTestCase<Forec
         String json = "{\"job_id\":\"job_1\", \"forecast_id\":\"forecast_1\", \"foo\":\"bar\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             ForecastRequestStats.LENIENT_PARSER.apply(parser, null);
+        }
+    }
+
+    public void testCopyCtor() {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; ++i) {
+            ForecastRequestStats forecastRequestStats = createTestInstance();
+            ForecastRequestStats clone = new ForecastRequestStats(forecastRequestStats);
+            assertThat(clone, equalTo(forecastRequestStats));
         }
     }
 }

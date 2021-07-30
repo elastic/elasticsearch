@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -11,8 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;
@@ -44,14 +45,14 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
 
     @Override
     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        LicensesMetaData oldLicensesMetaData = oldState.metaData().custom(LicensesMetaData.TYPE);
-        logger.debug("license prior to starting basic license: {}", oldLicensesMetaData);
-        License oldLicense = LicensesMetaData.extractLicense(oldLicensesMetaData);
+        LicensesMetadata oldLicensesMetadata = oldState.metadata().custom(LicensesMetadata.TYPE);
+        logger.debug("license prior to starting basic license: {}", oldLicensesMetadata);
+        License oldLicense = LicensesMetadata.extractLicense(oldLicensesMetadata);
         Map<String, String[]> acknowledgeMessages = ackMessages.get();
         if (acknowledgeMessages.isEmpty() == false) {
             listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT, acknowledgeMessages,
                     ACKNOWLEDGEMENT_HEADER));
-        } else if (oldLicense != null && oldLicense.type().equals("basic")) {
+        } else if (oldLicense != null && License.LicenseType.isBasic(oldLicense.type())) {
             listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.ALREADY_USING_BASIC));
         }  else {
             listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.GENERATED_BASIC));
@@ -61,19 +62,10 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
     @Override
     public ClusterState execute(ClusterState currentState) throws Exception {
         XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-        LicensesMetaData licensesMetaData = currentState.metaData().custom(LicensesMetaData.TYPE);
-        License currentLicense = LicensesMetaData.extractLicense(licensesMetaData);
-        if (currentLicense == null || currentLicense.type().equals("basic") == false) {
-            long issueDate = clock.millis();
-            MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-            License.Builder specBuilder = License.builder()
-                    .uid(UUID.randomUUID().toString())
-                    .issuedTo(clusterName)
-                    .maxNodes(LicenseService.SELF_GENERATED_LICENSE_MAX_NODES)
-                    .issueDate(issueDate)
-                    .type("basic")
-                    .expiryDate(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
-            License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, currentState.nodes());
+        LicensesMetadata currentLicensesMetadata = currentState.metadata().custom(LicensesMetadata.TYPE);
+        License currentLicense = LicensesMetadata.extractLicense(currentLicensesMetadata);
+        if (shouldGenerateNewBasicLicense(currentLicense)) {
+            License selfGeneratedLicense = generateBasicLicense(currentState);
             if (request.isAcknowledged() == false && currentLicense != null) {
                 Map<String, String[]> ackMessages = LicenseService.getAckMessages(selfGeneratedLicense, currentLicense);
                 if (ackMessages.isEmpty() == false) {
@@ -81,13 +73,11 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
                     return currentState;
                 }
             }
-            Version trialVersion = null;
-            if (licensesMetaData != null) {
-                trialVersion = licensesMetaData.getMostRecentTrialVersion();
-            }
-            LicensesMetaData newLicensesMetaData = new LicensesMetaData(selfGeneratedLicense, trialVersion);
-            mdBuilder.putCustom(LicensesMetaData.TYPE, newLicensesMetaData);
-            return ClusterState.builder(currentState).metaData(mdBuilder).build();
+            Version trialVersion = currentLicensesMetadata != null ? currentLicensesMetadata.getMostRecentTrialVersion() : null;
+            LicensesMetadata newLicensesMetadata = new LicensesMetadata(selfGeneratedLicense, trialVersion);
+            Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+            mdBuilder.putCustom(LicensesMetadata.TYPE, newLicensesMetadata);
+            return ClusterState.builder(currentState).metadata(mdBuilder).build();
         } else {
             return currentState;
         }
@@ -97,5 +87,24 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
     public void onFailure(String source, @Nullable Exception e) {
         logger.error(new ParameterizedMessage("unexpected failure during [{}]", source), e);
         listener.onFailure(e);
+    }
+
+    private boolean shouldGenerateNewBasicLicense(License currentLicense) {
+        return currentLicense == null
+            || License.LicenseType.isBasic(currentLicense.type()) == false
+            || LicenseService.SELF_GENERATED_LICENSE_MAX_NODES != currentLicense.maxNodes()
+            || LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS != currentLicense.expiryDate();
+    }
+
+    private License generateBasicLicense(ClusterState currentState) {
+        final License.Builder specBuilder = License.builder()
+            .uid(UUID.randomUUID().toString())
+            .issuedTo(clusterName)
+            .maxNodes(LicenseService.SELF_GENERATED_LICENSE_MAX_NODES)
+            .issueDate(clock.millis())
+            .type(License.LicenseType.BASIC)
+            .expiryDate(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
+
+        return SelfGeneratedLicense.create(specBuilder, currentState.nodes());
     }
 }

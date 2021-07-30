@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
@@ -17,7 +19,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
-import org.elasticsearch.xpack.test.rest.XPackRestIT;
+import org.elasticsearch.xpack.test.rest.AbstractXPackRestTest;
 import org.junit.After;
 
 import java.util.List;
@@ -29,7 +31,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 
-public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
+public class XDocsClientYamlTestSuiteIT extends AbstractXPackRestTest {
     private static final String USER_TOKEN = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
 
     public XDocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
@@ -53,12 +55,22 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
 
     @Override
     protected ClientYamlTestClient initClientYamlTestClient(
-            final ClientYamlSuiteRestSpec restSpec,
-            final RestClient restClient,
-            final List<HttpHost> hosts,
-            final Version esVersion,
-            final Version masterVersion) {
-        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
+        final ClientYamlSuiteRestSpec restSpec,
+        final RestClient restClient,
+        final List<HttpHost> hosts,
+        final Version esVersion,
+        final Version masterVersion,
+        final String os
+    ) {
+        return new ClientYamlDocsTestClient(
+            restSpec,
+            restClient,
+            hosts,
+            esVersion,
+            masterVersion,
+            os,
+            this::getClientBuilderWithSniffedHosts
+        );
     }
 
     /**
@@ -79,13 +91,13 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
         if (isWatcherTest()) {
             assertBusy(() -> {
                 ClientYamlTestResponse response =
-                        getAdminExecutionContext().callApi("xpack.watcher.stats", emptyMap(), emptyList(), emptyMap());
+                        getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
                 String state = (String) response.evaluate("stats.0.watcher_state");
 
                 switch (state) {
                     case "stopped":
                         ClientYamlTestResponse startResponse =
-                                getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
+                                getAdminExecutionContext().callApi("watcher.start", emptyMap(), emptyList(), emptyMap());
                         boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
                         assertThat(isAcknowledged, is(true));
                         throw new AssertionError("waiting until stopped state reached started state");
@@ -103,7 +115,6 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
         }
     }
 
-    @Override
     protected boolean isWatcherTest() {
         String testName = getTestName();
         return testName != null && (testName.contains("watcher/") || testName.contains("watcher\\"));
@@ -130,8 +141,8 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
         @SuppressWarnings("unchecked")
         Map<String, Object> users = (Map<String, Object>) response.getBody();
         for (String user: users.keySet()) {
-            Map<?, ?> metaDataMap = (Map<?, ?>) ((Map<?, ?>) users.get(user)).get("metadata");
-            Boolean reserved = metaDataMap == null ? null : (Boolean) metaDataMap.get("_reserved");
+            Map<?, ?> metadataMap = (Map<?, ?>) ((Map<?, ?>) users.get(user)).get("metadata");
+            Boolean reserved = metadataMap == null ? null : (Boolean) metadataMap.get("_reserved");
             if (reserved == null || reserved == false) {
                 logger.warn("Deleting leftover user {}", user);
                 getAdminExecutionContext().callApi("security.delete_user", singletonMap("username", user), emptyList(), emptyMap());

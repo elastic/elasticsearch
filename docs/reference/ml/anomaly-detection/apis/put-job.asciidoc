@@ -1,0 +1,444 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-put-job]]
+= Create {anomaly-jobs} API
+++++
+<titleabbrev>Create jobs</titleabbrev>
+++++
+
+Instantiates an {anomaly-job}.
+
+[[ml-put-job-request]]
+== {api-request-title}
+
+`PUT _ml/anomaly_detectors/<job_id>`
+
+[[ml-put-job-prereqs]]
+== {api-prereq-title}
+
+Requires the `manage_ml` cluster privilege. This privilege is included in the
+`machine_learning_admin` built-in role.
+
+[[ml-put-job-desc]]
+== {api-description-title}
+
+IMPORTANT: You must use {kib} or this API to create an {anomaly-job}. Do not put
+a job directly to the `.ml-config` index using the {es} index API. If {es}
+{security-features} are enabled, do not give users `write` privileges on the
+`.ml-config` index.
+
+[[ml-put-job-path-parms]]
+== {api-path-parms-title}
+
+`<job_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-define]
+
+[role="child_attributes"]
+[[ml-put-job-request-body]]
+== {api-request-body-title}
+
+`allow_lazy_open`::
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-lazy-open]
+
+//Begin analysis_config
+[[put-analysisconfig]]`analysis_config`::
+(Required, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=analysis-config]
++
+.Properties of `analysis_config`
+[%collapsible%open]
+====
+`bucket_span`:::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-span]
+
+`categorization_analyzer`:::
+(object or string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=categorization-analyzer]
+
+`categorization_field_name`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=categorization-field-name]
+
+`categorization_filters`:::
+(array of strings)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=categorization-filters]
+
+//Begin analysis_config.detectors
+`detectors`:::
+(array) An array of detector configuration objects. Detector configuration
+objects specify which data fields a job analyzes. They also specify which
+analytical functions are used. You can specify multiple detectors for a job.
++
+NOTE: If the `detectors` array does not contain at least one detector,
+no analysis can occur and an error is returned.
++
+.Properties of `detectors`
+[%collapsible%open]
+=====
+`by_field_name`::::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=by-field-name]
+
+//Begin analysis_config.detectors.custom_rules
+[[put-customrules]]`custom_rules`::::
+(array)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules]
++
+.Properties of `custom_rules`
+[%collapsible%open]
+======
+
+`actions`:::
+(array)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-actions]
+
+//Begin analysis_config.detectors.custom_rules.conditions
+`conditions`:::
+(array)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions]
++
+.Properties of `conditions`
+[%collapsible%open]
+=======
+`applies_to`::::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-applies-to]
+
+`operator`::::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-operator]
+
+`value`::::
+(double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-value]
+=======
+//End analysis_config.detectors.custom_rules.conditions
+
+//Begin analysis_config.detectors.custom_rules.scope
+`scope`:::
+(object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope]
++
+.Properties of `scope`
+[%collapsible%open]
+=======
+`filter_id`::::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-id]
+
+`filter_type`::::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
+=======
+//End analysis_config.detectors.custom_rules.scope
+======
+//End analysis_config.detectors.custom_rules
+
+`detector_description`::::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=detector-description]
+
+`detector_index`::::
+(integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=detector-index]
++
+If you specify a value for this property, it is ignored.
+
+`exclude_frequent`::::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-frequent]
+
+`field_name`::::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=detector-field-name]
+
+`function`::::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=function]
+
+`over_field_name`::::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=over-field-name]
+
+`partition_field_name`::::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=partition-field-name]
+
+`use_null`::::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=use-null]
+=====
+//End analysis_config.detectors
+
+`influencers`:::
+(array of strings)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=influencers]
+
+`latency`:::
+(time units)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=latency]
+
+`multivariate_by_fields`:::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=multivariate-by-fields]
+
+//Begin analysis_config.per_partition_categorization
+`per_partition_categorization`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization]
++
+.Properties of `per_partition_categorization`
+[%collapsible%open]
+=====
+`enabled`::::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-enabled]
+
+`stop_on_warn`::::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-stop-on-warn]
+=====
+//End analysis_config.per_partition_categorization
+
+`summary_count_field_name`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=summary-count-field-name]
+====
+//End analysis_config
+
+//Begin analysis_limits
+[[put-analysislimits]]`analysis_limits`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=analysis-limits]
++
+.Properties of `analysis_limits`
+[%collapsible%open]
+====
+`categorization_examples_limit`:::
+(long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=categorization-examples-limit]
+
+`model_memory_limit`:::
+(long or string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-ad]
+====
+//End analysis_limits
+
+`background_persist_interval`::
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
+
+[[put-customsettings]]`custom_settings`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-settings]
+
+`daily_model_snapshot_retention_after_days`::
+(Optional, long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-after-days]
+
+//Begin data_description
+[[put-datadescription]]`data_description`::
+(Required, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=data-description]
+//End data_description
+
+`datafeed_config`::
+(object) The {dfeed} configured for the current {anomaly-job}.
++
+.Properties of `datafeed`
+[%collapsible%open]
+====
+`aggregations`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=aggregations]
+
+`chunking_config`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=chunking-config]
++
+.Properties of `chunking_config`
+[%collapsible%open]
+=====
+`mode`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=mode]
+
+`time_span`:::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-span]
+=====
+
+`datafeed_id`:::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
++
+Defaults to the same ID as the {anomaly-job}.
+
+`delayed_data_check_config`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
++
+.Properties of `delayed_data_check_config`
+[%collapsible%open]
+=====
+`check_window`::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-check-window]
+
+`enabled`::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-enabled]
+=====
+
+`frequency`:::
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=frequency]
+
+`indices`:::
+(Required, array)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices]
+
+`indices_options`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
+
+`max_empty_searches`:::
+(Optional,integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
+
+`query`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query]
+
+`query_delay`:::
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query-delay]
+
+`runtime_mappings`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=runtime-mappings]
+
+`script_fields`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=script-fields]
+
+`scroll_size`:::
+(Optional, unsigned integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
+====
+
+`description`::
+  (Optional, string) A description of the job.
+
+`groups`::
+(Optional, array of strings)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=groups]
+
+//Begin model_plot_config
+`model_plot_config`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config]
++
+.Properties of `model_plot_config`
+[%collapsible%open]
+====
+`annotations_enabled`:::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-annotations-enabled]
+
+`enabled`:::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-enabled]
+
+`terms`:::
+experimental[] (string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
+====
+//End model_plot_config
+
+`model_snapshot_retention_days`::
+(Optional, long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-snapshot-retention-days]
+
+`renormalization_window_days`::
+(Optional, long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=renormalization-window-days]
+
+`results_index_name`::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-index-name]
+
+`results_retention_days`::
+(Optional, long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-retention-days]
+
+`system_annotations_retention_days`::
+(Optional, long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=system-annotations-retention-days]
+
+[[ml-put-job-example]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+PUT _ml/anomaly_detectors/total-requests
+{
+  "description" : "Total sum of requests",
+  "analysis_config" : {
+    "bucket_span":"10m",
+    "detectors": [
+      {
+        "detector_description": "Sum of total",
+        "function": "sum",
+        "field_name": "total"
+      }
+    ]
+  },
+  "data_description" : {
+    "time_field":"timestamp",
+    "time_format": "epoch_ms"
+  }
+}
+--------------------------------------------------
+
+When the job is created, you receive the following results:
+
+[source,console-result]
+----
+{
+  "job_id" : "total-requests",
+  "job_type" : "anomaly_detector",
+  "job_version" : "8.0.0",
+  "description" : "Total sum of requests",
+  "create_time" : 1562352500629,
+  "analysis_config" : {
+    "bucket_span" : "10m",
+    "detectors" : [
+      {
+        "detector_description" : "Sum of total",
+        "function" : "sum",
+        "field_name" : "total",
+        "detector_index" : 0
+      }
+    ],
+    "influencers" : [ ]
+  },
+  "analysis_limits" : {
+    "model_memory_limit" : "1024mb",
+    "categorization_examples_limit" : 4
+  },
+  "data_description" : {
+    "time_field" : "timestamp",
+    "time_format" : "epoch_ms"
+  },
+  "model_snapshot_retention_days" : 10,
+  "daily_model_snapshot_retention_after_days" : 1,
+  "results_index_name" : "shared",
+  "allow_lazy_open" : false
+}
+----
+// TESTRESPONSE[s/"job_version" : "8.0.0"/"job_version" : $body.job_version/]
+// TESTRESPONSE[s/1562352500629/$body.$_path/]

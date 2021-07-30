@@ -1,196 +1,367 @@
 [[cat-nodes]]
-== cat nodes
+=== cat nodes API
+++++
+<titleabbrev>cat nodes</titleabbrev>
+++++
 
-The `nodes` command shows the cluster topology. For example
+Returns information about a cluster's nodes.
 
-[source,js]
+[[cat-nodes-api-request]]
+==== {api-request-title}
+
+`GET /_cat/nodes`
+
+[[cat-nodes-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cat-nodes-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+`full_id`::
+(Optional, Boolean) If `true`, return the full node ID. If `false`, return the
+shortened node ID. Defaults to `false`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
++
+--
+If you do not specify which columns to include, the API returns the default columns in the order listed below. If you explicitly specify one or more columns, it only returns the specified columns.
+
+Valid columns are:
+
+`ip`, `i`::
+(Default) IP address, such as `127.0.1.1`.
+
+`heap.percent`, `hp`, `heapPercent`::
+(Default) Maximum configured heap, such as `7`.
+
+`ram.percent`, `rp`, `ramPercent`::
+(Default) Used total memory percentage, such as `47`.
+
+`file_desc.percent`, `fdp`, `fileDescriptorPercent`::
+(Default) Used file descriptors percentage, such as `1`.
+
+`node.role`, `r`, `role`, `nodeRole`::
+(Default) Roles of the node. Returned values include
+`c` (cold node),
+`d` (data node),
+`f` (frozen node),
+`h` (hot node),
+`i` (ingest node),
+`l` (machine learning node),
+`m` (master-eligible node),
+`r` (remote cluster client node),
+`s` (content node),
+`t` ({transform} node),
+`v` (voting-only node),
+`w` (warm node), and
+`-` (coordinating node only).
++
+For example, `dim` indicates a master-eligible data and ingest node. See
+<<modules-node>>.
+
+`master`, `m`::
+(Default) Indicates whether the node is the elected master node. Returned values
+include `*` (elected master) and `-` (not elected master).
+
+`name`, `n`::
+(Default) Node name, such as `I8hydUG`.
+
+`id`, `nodeId`::
+ID of the node, such as `k0zy`.
+
+`pid`, `p`::
+Process ID, such as `13061`.
+
+`port`, `po`::
+Bound transport port, such as `9300`.
+
+`http_address`, `http`::
+Bound http address, such as `127.0.0.1:9200`.
+
+`version`, `v`::
+Elasticsearch version, such as {version}.
+
+`build`, `b`::
+Elasticsearch build hash, such as `5c03844`.
+
+`jdk`, `j`::
+Java version, such as `1.8.0`.
+
+`disk.total`, `dt`, `diskTotal`::
+Total disk space, such as `458.3gb`.
+
+`disk.used`, `du`, `diskUsed`::
+Used disk space, such as `259.8gb`.
+
+`disk.avail`, `d`, `disk`, `diskAvail`::
+Available disk space, such as `198.4gb`.
+
+`disk.used_percent`, `dup`, `diskUsedPercent`::
+Used disk space percentage, such as `47`.
+
+`heap.current`, `hc`, `heapCurrent`::
+Used heap, such as `311.2mb`.
+
+`ram.current`,`rc`, `ramCurrent`::
+Used total memory, such as `513.4mb`.
+
+`ram.max`, `rm`, `ramMax`::
+Total memory, such as `2.9gb`.
+
+`file_desc.current`, `fdc`, `fileDescriptorCurrent`::
+Used file descriptors, such as `123`.
+
+`file_desc.max`, `fdm`, `fileDescriptorMax`::
+Maximum number of file descriptors, such as `1024`.
+
+`cpu`::
+Recent system CPU usage as percent, such as `12`.
+
+`load_1m`, `l`::
+Most recent load average, such as `0.22`.
+
+`load_5m`, `l`::
+Load average for the last five minutes, such as `0.78`.
+
+`load_15m`, `l`::
+Load average for the last fifteen minutes, such as `1.24`.
+
+`uptime`, `u`::
+Node uptime, such as `17.3m`.
+
+`completion.size`, `cs`, `completionSize`::
+Size of completion, such as `0b`.
+
+`fielddata.memory_size`, `fm`, `fielddataMemory`::
+Used fielddata cache memory, such as `0b`.
+
+`fielddata.evictions`, `fe`, `fielddataEvictions`::
+Fielddata cache evictions, such as `0`.
+
+`query_cache.memory_size`, `qcm`, `queryCacheMemory`::
+Used query cache memory, such as `0b`.
+
+`query_cache.evictions`, `qce`, `queryCacheEvictions`::
+Query cache evictions, such as `0`.
+
+`query_cache.hit_count`, `qchc`, `queryCacheHitCount`::
+Query cache hit count, such as `0`.
+
+`query_cache.miss_count`, `qcmc`, `queryCacheMissCount`::
+Query cache miss count, such as `0`.
+
+`request_cache.memory_size`, `rcm`, `requestCacheMemory`::
+Used request cache memory, such as `0b`.
+
+`request_cache.evictions`, `rce`, `requestCacheEvictions`::
+Request cache evictions, such as `0`.
+
+`request_cache.hit_count`, `rchc`, `requestCacheHitCount`::
+Request cache hit count, such as `0`.
+
+`request_cache.miss_count`, `rcmc`, `requestCacheMissCount`::
+Request cache miss count, such as `0`.
+
+`flush.total`, `ft`, `flushTotal`::
+Number of flushes, such as `1`.
+
+`flush.total_time`, `ftt`, `flushTotalTime`::
+Time spent in flush, such as `1`.
+
+`get.current`, `gc`, `getCurrent`::
+Number of current get operations, such as `0`.
+
+`get.time`, `gti`, `getTime`::
+Time spent in get, such as `14ms`.
+
+`get.total`, `gto`, `getTotal`::
+Number of get operations, such as `2`.
+
+`get.exists_time`, `geti`, `getExistsTime`::
+Time spent in successful gets, such as `14ms`.
+
+`get.exists_total`, `geto`, `getExistsTotal`::
+Number of successful get operations, such as `2`.
+
+`get.missing_time`, `gmti`, `getMissingTime`::
+Time spent in failed gets, such as `0s`.
+
+`get.missing_total`, `gmto`, `getMissingTotal`::
+Number of failed get operations, such as `1`.
+
+`indexing.delete_current`, `idc`, `indexingDeleteCurrent`::
+Number of current deletion operations, such as `0`.
+
+`indexing.delete_time`, `idti`, `indexingDeleteTime`::
+Time spent in deletions, such as `2ms`.
+
+`indexing.delete_total`, `idto`, `indexingDeleteTotal`::
+Number of deletion operations, such as `2`.
+
+`indexing.index_current`, `iic`, `indexingIndexCurrent`::
+Number of current indexing operations, such as `0`.
+
+`indexing.index_time`, `iiti`, `indexingIndexTime`::
+Time spent in indexing, such as `134ms`.
+
+`indexing.index_total`, `iito`, `indexingIndexTotal`::
+Number of indexing operations, such as `1`.
+
+`indexing.index_failed`, `iif`, `indexingIndexFailed`::
+Number of failed indexing operations, such as `0`.
+
+`merges.current`, `mc`, `mergesCurrent`::
+Number of current merge operations, such as `0`.
+
+`merges.current_docs`, `mcd`, `mergesCurrentDocs`::
+Number of current merging documents, such as `0`.
+
+`merges.current_size`, `mcs`, `mergesCurrentSize`::
+Size of current merges, such as `0b`.
+
+`merges.total`, `mt`, `mergesTotal`::
+Number of completed merge operations, such as `0`.
+
+`merges.total_docs`, `mtd`, `mergesTotalDocs`::
+Number of merged documents, such as `0`.
+
+`merges.total_size`, `mts`, `mergesTotalSize`::
+Size of current merges, such as `0b`.
+
+`merges.total_time`, `mtt`, `mergesTotalTime`::
+Time spent merging documents, such as `0s`.
+
+`refresh.total`, `rto`, `refreshTotal`::
+Number of refreshes, such as `16`.
+
+`refresh.time`, `rti`, `refreshTime`::
+Time spent in refreshes, such as `91ms`.
+
+`script.compilations`, `scrcc`, `scriptCompilations`::
+Total script compilations, such as `17`.
+
+`script.cache_evictions`, `scrce`, `scriptCacheEvictions`::
+Total compiled scripts evicted from cache, such as `6`.
+
+`search.fetch_current`, `sfc`, `searchFetchCurrent`::
+Current fetch phase operations, such as `0`.
+
+`search.fetch_time`, `sfti`, `searchFetchTime`::
+Time spent in fetch phase, such as `37ms`.
+
+`search.fetch_total`, `sfto`, `searchFetchTotal`::
+Number of fetch operations, such as `7`.
+
+`search.open_contexts`, `so`, `searchOpenContexts`::
+Open search contexts, such as `0`.
+
+`search.query_current`, `sqc`, `searchQueryCurrent`::
+Current query phase operations, such as `0`.
+
+`search.query_time`, `sqti`, `searchQueryTime`::
+Time spent in query phase, such as `43ms`.
+
+`search.query_total`, `sqto`, `searchQueryTotal`::
+Number of query operations, such as `9`.
+
+`search.scroll_current`, `scc`, `searchScrollCurrent`::
+Open scroll contexts, such as `2`.
+
+`search.scroll_time`, `scti`, `searchScrollTime`::
+Time scroll contexts held open, such as `2m`.
+
+`search.scroll_total`, `scto`, `searchScrollTotal`::
+Completed scroll contexts, such as `1`.
+
+`segments.count`, `sc`, `segmentsCount`::
+Number of segments, such as `4`.
+
+`segments.memory`, `sm`, `segmentsMemory`::
+Memory used by segments, such as `1.4kb`.
+
+`segments.index_writer_memory`, `siwm`, `segmentsIndexWriterMemory`::
+Memory used by index writer, such as `18mb`.
+
+`segments.version_map_memory`, `svmm`, `segmentsVersionMapMemory`::
+Memory used by version map, such as `1.0kb`.
+
+`segments.fixed_bitset_memory`, `sfbm`, `fixedBitsetMemory`::
+Memory used by fixed bit sets for nested object field types and type filters for
+types referred in <<parent-join,`join`>> fields, such as `1.0kb`.
+
+`suggest.current`, `suc`, `suggestCurrent`::
+Number of current suggest operations, such as `0`.
+
+`suggest.time`, `suti`, `suggestTime`::
+Time spent in suggest, such as `0`.
+
+`suggest.total`, `suto`, `suggestTotal`::
+Number of suggest operations, such as `0`.
+--
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
+
+[[cat-nodes-api-example]]
+==== {api-examples-title}
+
+[[cat-nodes-api-ex-default]]
+===== Example with default columns
+
+[source,console]
 --------------------------------------------------
-GET /_cat/nodes?v
+GET /_cat/nodes?v=true
 --------------------------------------------------
-// CONSOLE
 
-Might look like:
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
 ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master name
-127.0.0.1           65          99  42    3.07                  mdi       *      mJw06l1
+127.0.0.1           65          99  42    3.07                  dim       *      mJw06l1
 --------------------------------------------------
 // TESTRESPONSE[s/3.07/(\\d+\\.\\d+( \\d+\\.\\d+ (\\d+\\.\\d+)?)?)?/]
 // TESTRESPONSE[s/65          99  42/\\d+ \\d+ \\d+/]
-// TESTRESPONSE[s/[*]/[*]/ s/mJw06l1/.+/ _cat]
+// TESTRESPONSE[s/dim/.+/ s/[*]/[*]/ s/mJw06l1/.+/ non_json]
 
-The first few columns (`ip`, `heap.percent`, `ram.percent`, `cpu`, `load_*`) tell
-you where your nodes live and give a quick picture of performance stats.
+The `ip`, `heap.percent`, `ram.percent`, `cpu`, and `load_*` columns provide the
+IP addresses and performance information of each node.
 
-The last (`node.role`, `master`, and `name`) columns provide ancillary
-information that can often be useful when looking at the cluster as a whole,
-particularly large ones.  How many master-eligible nodes do I have?
+The `node.role`, `master`, and `name` columns provide information useful for
+monitoring an entire cluster, particularly large ones.
 
-The `nodes` API accepts an additional URL parameter `full_id` accepting `true`
-or `false`. The purpose of this parameter is to format the ID field (if
-requested with `id` or `nodeId`) in its full length or in abbreviated form (the
-default).
 
-[float]
-=== Columns
+[[cat-nodes-api-ex-headings]]
+===== Example with explicit columns
+The following API request returns the `id`, `ip`, `port`, `v` (version), and `m`
+(master) columns.
 
-Below is an exhaustive list of the existing headers that can be
-passed to `nodes?h=` to retrieve the relevant details in ordered
-columns.  If no headers are specified, then those marked to Appear
-by Default will appear. If any header is specified, then the defaults
-are not used.
-
-Aliases can be used in place of the full header name for brevity.
-Columns appear in the order that they are listed below unless a
-different order is specified (e.g., `h=pid,id` versus `h=id,pid`).
-
-When specifying headers, the headers are not placed in the output
-by default.  To have the headers appear in the output, use verbose
-mode (`v`). The header name will match the supplied value (e.g.,
-`pid` versus `p`).  For example:
-
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /_cat/nodes?v&h=id,ip,port,v,m
+GET /_cat/nodes?v=true&h=id,ip,port,v,m
 --------------------------------------------------
-// CONSOLE
 
-Might look like:
+The API returns the following response:
 
 ["source","txt",subs="attributes,callouts"]
 --------------------------------------------------
 id   ip        port  v         m
 veJR 127.0.0.1 59938 {version} *
 --------------------------------------------------
-// TESTRESPONSE[s/veJR/.+/ s/59938/\\d+/ s/[*]/[*]/ _cat]
-
-[cols="<,<,<,<,<",options="header",subs="normal"]
-|=======================================================================
-|Header |Alias |Appear by Default |Description |Example
-|`id` |`nodeId` |No |Unique node ID |k0zy
-|`pid` |`p` |No |Process ID |13061
-|`ip` |`i` |Yes |IP address |127.0.1.1
-|`port` |`po` |No |Bound transport port |9300
-|`http_address` |`http`| No |Bound http address | 127.0.0.1:9200
-|`version` |`v` |No |Elasticsearch version |{version}
-|`build` |`b` |No |Elasticsearch Build hash |5c03844
-|`jdk` |`j` |No |Running Java version |1.8.0
-|`disk.total` |`dt`, `diskTotal` |No |Total disk space| 458.3gb
-|`disk.used` |`du`, `diskUsed` |No |Used disk space| 259.8gb
-|`disk.avail` |`d`, `disk`, `diskAvail` |No |Available disk space |198.4gb
-|`disk.used_percent` |`dup`, `diskUsedPercent` |No |Used disk space percentage |56.71
-|`heap.current` |`hc`, `heapCurrent` |No |Used heap |311.2mb
-|`heap.percent` |`hp`, `heapPercent` |Yes |Used heap percentage |7
-|`heap.max` |`hm`, `heapMax` |No |Maximum configured heap |1015.6mb
-|`ram.current` |`rc`, `ramCurrent` |No |Used total memory |513.4mb
-|`ram.percent` |`rp`, `ramPercent` |Yes |Used total memory percentage |47
-|`ram.max` |`rm`, `ramMax` |No |Total memory |2.9gb
-|`file_desc.current` |`fdc`, `fileDescriptorCurrent` |No |Used file
-descriptors |123
-|`file_desc.percent` |`fdp`, `fileDescriptorPercent` |Yes |Used file
-descriptors percentage |1
-|`file_desc.max` |`fdm`, `fileDescriptorMax` |No |Maximum number of file
-descriptors |1024
-|`cpu` | |No |Recent system CPU usage as percent |12
-|`load_1m` |`l` |No |Most recent load average |0.22
-|`load_5m` |`l` |No |Load average for the last five minutes |0.78
-|`load_15m` |`l` |No |Load average for the last fifteen minutes |1.24
-|`uptime` |`u` |No |Node uptime |17.3m
-|`node.role` |`r`, `role`, `nodeRole` |Yes |Master eligible node (m);
-Data node (d); Ingest node (i); Coordinating node only (-) |mdi
-|`master` |`m` |Yes |Elected master (*); Not elected master (-) |*
-|`name` |`n` |Yes |Node name |I8hydUG
-|`completion.size` |`cs`, `completionSize` |No |Size of completion |0b
-|`fielddata.memory_size` |`fm`, `fielddataMemory` |No |Used fielddata
-cache memory |0b
-|`fielddata.evictions` |`fe`, `fielddataEvictions` |No |Fielddata cache
-evictions |0
-|`query_cache.memory_size` |`qcm`, `queryCacheMemory` |No |Used query
-cache memory |0b
-|`query_cache.evictions` |`qce`, `queryCacheEvictions` |No |Query
-cache evictions |0
-|`request_cache.memory_size` |`rcm`, `requestCacheMemory` |No | Used request
-cache memory |0b
-|`request_cache.evictions` |`rce`, `requestCacheEvictions` |No |Request
-cache evictions |0
-|`request_cache.hit_count` |`rchc`, `requestCacheHitCount` |No | Request
-cache hit count |0
-|`request_cache.miss_count` |`rcmc`, `requestCacheMissCount` |No | Request
-cache miss count |0
-|`flush.total` |`ft`, `flushTotal` |No |Number of flushes |1
-|`flush.total_time` |`ftt`, `flushTotalTime` |No |Time spent in flush |1
-|`get.current` |`gc`, `getCurrent` |No |Number of current get
-operations |0
-|`get.time` |`gti`, `getTime` |No |Time spent in get |14ms
-|`get.total` |`gto`, `getTotal` |No |Number of get operations |2
-|`get.exists_time` |`geti`, `getExistsTime` |No |Time spent in
-successful gets |14ms
-|`get.exists_total` |`geto`, `getExistsTotal` |No |Number of successful
-get operations |2
-|`get.missing_time` |`gmti`, `getMissingTime` |No |Time spent in failed
-gets |0s
-|`get.missing_total` |`gmto`, `getMissingTotal` |No |Number of failed
-get operations |1
-|`indexing.delete_current` |`idc`, `indexingDeleteCurrent` |No |Number
-of current deletion operations |0
-|`indexing.delete_time` |`idti`, `indexingDeleteTime` |No |Time spent in
-deletions |2ms
-|`indexing.delete_total` |`idto`, `indexingDeleteTotal` |No |Number of
-deletion operations |2
-|`indexing.index_current` |`iic`, `indexingIndexCurrent` |No |Number
-of current indexing operations |0
-|`indexing.index_time` |`iiti`, `indexingIndexTime` |No |Time spent in
-indexing |134ms
-|`indexing.index_total` |`iito`, `indexingIndexTotal` |No |Number of
-indexing operations |1
-|`indexing.index_failed` |`iif`, `indexingIndexFailed` |No |Number of
-failed indexing operations |0
-|`merges.current` |`mc`, `mergesCurrent` |No |Number of current
-merge operations |0
-|`merges.current_docs` |`mcd`, `mergesCurrentDocs` |No |Number of
-current merging documents |0
-|`merges.current_size` |`mcs`, `mergesCurrentSize` |No |Size of current
-merges |0b
-|`merges.total` |`mt`, `mergesTotal` |No |Number of completed merge
-operations |0
-|`merges.total_docs` |`mtd`, `mergesTotalDocs` |No |Number of merged
-documents |0
-|`merges.total_size` |`mts`, `mergesTotalSize` |No |Size of current
-merges |0b
-|`merges.total_time` |`mtt`, `mergesTotalTime` |No |Time spent merging
-documents |0s
-|`refresh.total` |`rto`, `refreshTotal` |No |Number of refreshes |16
-|`refresh.time` |`rti`, `refreshTime` |No |Time spent in refreshes |91ms
-|`script.compilations` |`scrcc`, `scriptCompilations` |No |Total script compilations |17
-|`script.cache_evictions` |`scrce`, `scriptCacheEvictions` |No |Total compiled scripts evicted from cache |6
-|`search.fetch_current` |`sfc`, `searchFetchCurrent` |No |Current fetch
-phase operations |0
-|`search.fetch_time` |`sfti`, `searchFetchTime` |No |Time spent in fetch
-phase |37ms
-|`search.fetch_total` |`sfto`, `searchFetchTotal` |No |Number of fetch
-operations |7
-|`search.open_contexts` |`so`, `searchOpenContexts` |No |Open search
-contexts |0
-|`search.query_current` |`sqc`, `searchQueryCurrent` |No |Current query
-phase operations |0
-|`search.query_time` |`sqti`, `searchQueryTime` |No |Time spent in query
-phase |43ms
-|`search.query_total` |`sqto`, `searchQueryTotal` |No |Number of query
-operations |9
-|`search.scroll_current` |`scc`, `searchScrollCurrent` |No |Open scroll contexts |2
-|`search.scroll_time` |`scti`, `searchScrollTime` |No |Time scroll contexts held open|2m
-|`search.scroll_total` |`scto`, `searchScrollTotal` |No |Completed scroll contexts |1
-|`segments.count` |`sc`, `segmentsCount` |No |Number of segments |4
-|`segments.memory` |`sm`, `segmentsMemory` |No |Memory used by
-segments |1.4kb
-|`segments.index_writer_memory` |`siwm`, `segmentsIndexWriterMemory` |No
-|Memory used by index writer |18mb
-|`segments.version_map_memory` |`svmm`, `segmentsVersionMapMemory` |No
-|Memory used by version map |1.0kb
-|`segments.fixed_bitset_memory` |`sfbm`, `fixedBitsetMemory` |No
-|Memory used by fixed bit sets for nested object field types and type filters for types referred in `join` fields |1.0kb
-|`suggest.current` |`suc`, `suggestCurrent` |No |Number of current suggest operations |0
-|`suggest.time` |`suti`, `suggestTime` |No |Time spent in suggest |0
-|`suggest.total` |`suto`, `suggestTotal` |No |Number of suggest operations |0
-|=======================================================================
+// TESTRESPONSE[s/veJR/.+/ s/59938/\\d+/ s/[*]/[*]/ non_json]

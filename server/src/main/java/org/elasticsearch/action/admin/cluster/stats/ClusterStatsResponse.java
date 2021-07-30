@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -36,25 +26,46 @@ import java.util.Locale;
 
 public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContentFragment {
 
-    ClusterStatsNodes nodesStats;
-    ClusterStatsIndices indicesStats;
-    ClusterHealthStatus status;
-    long timestamp;
-    String clusterUUID;
+    final ClusterStatsNodes nodesStats;
+    final ClusterStatsIndices indicesStats;
+    final ClusterHealthStatus status;
+    final long timestamp;
+    final String clusterUUID;
 
-    ClusterStatsResponse() {
+    public ClusterStatsResponse(StreamInput in) throws IOException {
+        super(in);
+        timestamp = in.readVLong();
+        // it may be that the master switched on us while doing the operation. In this case the status may be null.
+        status = in.readOptionalWriteable(ClusterHealthStatus::readFrom);
+
+        String clusterUUID = in.readOptionalString();
+        MappingStats mappingStats = in.readOptionalWriteable(MappingStats::new);
+        AnalysisStats analysisStats = in.readOptionalWriteable(AnalysisStats::new);
+        VersionStats versionStats = null;
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+            versionStats = in.readOptionalWriteable(VersionStats::new);
+        }
+        this.clusterUUID = clusterUUID;
+
+        // built from nodes rather than from the stream directly
+        nodesStats = new ClusterStatsNodes(getNodes());
+        indicesStats = new ClusterStatsIndices(getNodes(), mappingStats, analysisStats, versionStats);
     }
 
     public ClusterStatsResponse(long timestamp,
                                 String clusterUUID,
                                 ClusterName clusterName,
                                 List<ClusterStatsNodeResponse> nodes,
-                                List<FailedNodeException> failures) {
+                                List<FailedNodeException> failures,
+                                MappingStats mappingStats,
+                                AnalysisStats analysisStats,
+                                VersionStats versionStats) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;
         nodesStats = new ClusterStatsNodes(nodes);
-        indicesStats = new ClusterStatsIndices(nodes);
+        indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats, versionStats);
+        ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status
             if (response.clusterStatus() != null) {
@@ -62,6 +73,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
                 break;
             }
         }
+        this.status = status;
     }
 
     public String getClusterUUID() {
@@ -85,35 +97,27 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        timestamp = in.readVLong();
-        // it may be that the master switched on us while doing the operation. In this case the status may be null.
-        status = in.readOptionalWriteable(ClusterHealthStatus::readFrom);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(timestamp);
         out.writeOptionalWriteable(status);
+        out.writeOptionalString(clusterUUID);
+        out.writeOptionalWriteable(indicesStats.getMappings());
+        out.writeOptionalWriteable(indicesStats.getAnalysis());
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+            out.writeOptionalWriteable(indicesStats.getVersions());
+        }
     }
 
     @Override
     protected List<ClusterStatsNodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        List<ClusterStatsNodeResponse> nodes = in.readList(ClusterStatsNodeResponse::readNodeResponse);
-
-        // built from nodes rather than from the stream directly
-        nodesStats = new ClusterStatsNodes(nodes);
-        indicesStats = new ClusterStatsIndices(nodes);
-
-        return nodes;
+        return in.readList(ClusterStatsNodeResponse::readNodeResponse);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<ClusterStatsNodeResponse> nodes) throws IOException {
         // nodeStats and indicesStats are rebuilt from nodes
-        out.writeStreamableList(nodes);
+        out.writeList(nodes);
     }
 
     @Override

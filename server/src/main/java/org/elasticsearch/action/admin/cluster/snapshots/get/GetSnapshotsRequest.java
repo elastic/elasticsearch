@@ -1,31 +1,32 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -38,7 +39,25 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     public static final String CURRENT_SNAPSHOT = "_current";
     public static final boolean DEFAULT_VERBOSE_MODE = true;
 
-    private String repository;
+    public static final Version MULTIPLE_REPOSITORIES_SUPPORT_ADDED = Version.V_7_14_0;
+
+    public static final Version PAGINATED_GET_SNAPSHOTS_VERSION = Version.V_7_14_0;
+
+    public static final int NO_LIMIT = -1;
+
+    /**
+     * Number of snapshots to fetch information for or {@link #NO_LIMIT} for fetching all snapshots matching the request.
+     */
+    private int size = NO_LIMIT;
+
+    @Nullable
+    private After after;
+
+    private SortBy sort = SortBy.START_TIME;
+
+    private SortOrder order = SortOrder.ASC;
+
+    private String[] repositories;
 
     private String[] snapshots = Strings.EMPTY_ARRAY;
 
@@ -46,73 +65,125 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private boolean verbose = DEFAULT_VERBOSE_MODE;
 
-    public GetSnapshotsRequest() {
-    }
+    public GetSnapshotsRequest() {}
 
     /**
-     * Constructs a new get snapshots request with given repository name and list of snapshots
+     * Constructs a new get snapshots request with given repository names and list of snapshots
      *
-     * @param repository repository name
+     * @param repositories repository names
      * @param snapshots  list of snapshots
      */
-    public GetSnapshotsRequest(String repository, String[] snapshots) {
-        this.repository = repository;
+    public GetSnapshotsRequest(String[] repositories, String[] snapshots) {
+        this.repositories = repositories;
         this.snapshots = snapshots;
     }
 
     /**
-     * Constructs a new get snapshots request with given repository name
+     * Constructs a new get snapshots request with given repository names
      *
-     * @param repository repository name
+     * @param repositories repository names
      */
-    public GetSnapshotsRequest(String repository) {
-        this.repository = repository;
+    public GetSnapshotsRequest(String... repositories) {
+        this.repositories = repositories;
     }
 
     public GetSnapshotsRequest(StreamInput in) throws IOException {
         super(in);
-        repository = in.readString();
+        if (in.getVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
+            repositories = in.readStringArray();
+        } else {
+            repositories = new String[] { in.readString() };
+        }
         snapshots = in.readStringArray();
         ignoreUnavailable = in.readBoolean();
         verbose = in.readBoolean();
+        if (in.getVersion().onOrAfter(PAGINATED_GET_SNAPSHOTS_VERSION)) {
+            after = in.readOptionalWriteable(After::new);
+            sort = in.readEnum(SortBy.class);
+            size = in.readVInt();
+            order = SortOrder.readFromStream(in);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(repository);
+        if (out.getVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
+            out.writeStringArray(repositories);
+        } else {
+            if (repositories.length != 1) {
+                throw new IllegalArgumentException(
+                    "Requesting snapshots from multiple repositories is not supported in versions prior "
+                        + "to "
+                        + MULTIPLE_REPOSITORIES_SUPPORT_ADDED.toString()
+                );
+            }
+            out.writeString(repositories[0]);
+        }
         out.writeStringArray(snapshots);
         out.writeBoolean(ignoreUnavailable);
         out.writeBoolean(verbose);
+        if (out.getVersion().onOrAfter(PAGINATED_GET_SNAPSHOTS_VERSION)) {
+            out.writeOptionalWriteable(after);
+            out.writeEnum(sort);
+            out.writeVInt(size);
+            order.writeTo(out);
+        } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null || order != SortOrder.ASC) {
+            throw new IllegalArgumentException("can't use paginated get snapshots request with node version [" + out.getVersion() + "]");
+        }
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (repository == null) {
-            validationException = addValidationError("repository is missing", validationException);
+        if (repositories == null || repositories.length == 0) {
+            validationException = addValidationError("repositories are missing", validationException);
+        }
+        if (size == 0 || size < NO_LIMIT) {
+            validationException = addValidationError("size must be -1 or greater than 0", validationException);
+        }
+        if (verbose == false) {
+            if (sort != SortBy.START_TIME) {
+                validationException = addValidationError("can't use non-default sort with verbose=false", validationException);
+            }
+            if (size > 0) {
+                validationException = addValidationError("can't use size limit with verbose=false", validationException);
+            }
+            if (after != null) {
+                validationException = addValidationError("can't use after with verbose=false", validationException);
+            }
+            if (order != SortOrder.ASC) {
+                validationException = addValidationError("can't use non-default sort order with verbose=false", validationException);
+            }
         }
         return validationException;
     }
 
     /**
-     * Sets repository name
+     * Sets repository names
      *
-     * @param repository repository name
+     * @param repositories repository names
      * @return this request
      */
-    public GetSnapshotsRequest repository(String repository) {
-        this.repository = repository;
+    public GetSnapshotsRequest repositories(String... repositories) {
+        this.repositories = repositories;
         return this;
     }
 
     /**
-     * Returns repository name
+     * Returns repository names
      *
-     * @return repository name
+     * @return repository names
      */
-    public String repository() {
-        return this.repository;
+    public String[] repositories() {
+        return this.repositories;
+    }
+
+    public boolean isSingleRepositoryRequest() {
+        return repositories.length == 1
+            && repositories[0] != null
+            && "_all".equals(repositories[0]) == false
+            && Regex.isSimpleMatchPattern(repositories[0]) == false;
     }
 
     /**
@@ -165,6 +236,42 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return this;
     }
 
+    public After after() {
+        return after;
+    }
+
+    public SortBy sort() {
+        return sort;
+    }
+
+    public GetSnapshotsRequest after(@Nullable After after) {
+        this.after = after;
+        return this;
+    }
+
+    public GetSnapshotsRequest sort(SortBy sort) {
+        this.sort = sort;
+        return this;
+    }
+
+    public GetSnapshotsRequest size(int size) {
+        this.size = size;
+        return this;
+    }
+
+    public int size() {
+        return size;
+    }
+
+    public SortOrder order() {
+        return order;
+    }
+
+    public GetSnapshotsRequest order(SortOrder order) {
+        this.order = order;
+        return this;
+    }
+
     /**
      * Returns whether the request will return a verbose response.
      */
@@ -173,7 +280,115 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+    }
+
+    public enum SortBy {
+        START_TIME("start_time"),
+        NAME("name"),
+        DURATION("duration"),
+        INDICES("index_count");
+
+        private final String param;
+
+        SortBy(String param) {
+            this.param = param;
+        }
+
+        @Override
+        public String toString() {
+            return param;
+        }
+
+        public static SortBy of(String value) {
+            switch (value) {
+                case "start_time":
+                    return START_TIME;
+                case "name":
+                    return NAME;
+                case "duration":
+                    return DURATION;
+                case "index_count":
+                    return INDICES;
+                default:
+                    throw new IllegalArgumentException("unknown sort order [" + value + "]");
+            }
+        }
+    }
+
+    public static final class After implements Writeable {
+
+        private final String value;
+
+        private final String repoName;
+
+        private final String snapshotName;
+
+        After(StreamInput in) throws IOException {
+            this(in.readString(), in.readString(), in.readString());
+        }
+
+        public static After fromQueryParam(String param) {
+            final String[] parts = new String(Base64.getUrlDecoder().decode(param), StandardCharsets.UTF_8).split(",");
+            if (parts.length != 3) {
+                throw new IllegalArgumentException("invalid ?after parameter [" + param + "]");
+            }
+            return new After(parts[0], parts[1], parts[2]);
+        }
+
+        @Nullable
+        public static After from(@Nullable SnapshotInfo snapshotInfo, SortBy sortBy) {
+            if (snapshotInfo == null) {
+                return null;
+            }
+            final String afterValue;
+            switch (sortBy) {
+                case START_TIME:
+                    afterValue = String.valueOf(snapshotInfo.startTime());
+                    break;
+                case NAME:
+                    afterValue = snapshotInfo.snapshotId().getName();
+                    break;
+                case DURATION:
+                    afterValue = String.valueOf(snapshotInfo.endTime() - snapshotInfo.startTime());
+                    break;
+                case INDICES:
+                    afterValue = String.valueOf(snapshotInfo.indices().size());
+                    break;
+                default:
+                    throw new AssertionError("unknown sort column [" + sortBy + "]");
+            }
+            return new After(afterValue, snapshotInfo.repository(), snapshotInfo.snapshotId().getName());
+        }
+
+        public After(String value, String repoName, String snapshotName) {
+            this.value = value;
+            this.repoName = repoName;
+            this.snapshotName = snapshotName;
+        }
+
+        public String value() {
+            return value;
+        }
+
+        public String snapshotName() {
+            return snapshotName;
+        }
+
+        public String repoName() {
+            return repoName;
+        }
+
+        public String asQueryParam() {
+            return Base64.getUrlEncoder().encodeToString((value + "," + repoName + "," + snapshotName).getBytes(StandardCharsets.UTF_8));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(value);
+            out.writeString(repoName);
+            out.writeString(snapshotName);
+        }
     }
 }

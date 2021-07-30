@@ -1,7 +1,10 @@
 [[search-aggregations-metrics-median-absolute-deviation-aggregation]]
-=== Median Absolute Deviation Aggregation
+=== Median absolute deviation aggregation
+++++
+<titleabbrev>Median absolute deviation</titleabbrev>
+++++
 
-This `single-value` aggregation approximates the https://en.wikipedia.org/wiki/Median_absolute_deviation[median absolute deviation]
+This `single-value` aggregation approximates the {wikipedia}/Median_absolute_deviation[median absolute deviation]
 of its search results.
 
 Median absolute deviation is a measure of variability. It is a robust
@@ -24,7 +27,7 @@ In this example we have a product which has an average rating of
 3 stars. Let's look at its ratings' median absolute deviation to determine
 how much they vary
 
-[source,js]
+[source,console]
 ---------------------------------------------------------
 GET reviews/_search
 {
@@ -43,7 +46,6 @@ GET reviews/_search
   }
 }
 ---------------------------------------------------------
-// CONSOLE
 // TEST[setup:reviews]
 <1> `rating` must be a numeric field
 
@@ -51,7 +53,7 @@ The resulting median absolute deviation of `2` tells us that there is a fair
 amount of variability in the ratings. Reviewers must have diverse opinions about
 this product.
 
-[source,js]
+[source,console-result]
 ---------------------------------------------------------
 {
   ...
@@ -84,7 +86,7 @@ cost of higher memory usage. For more about the characteristics of the TDigest
 `compression` parameter see
 <<search-aggregations-metrics-percentile-aggregation-compression>>.
 
-[source,js]
+[source,console]
 ---------------------------------------------------------
 GET reviews/_search
 {
@@ -99,7 +101,6 @@ GET reviews/_search
   }
 }
 ---------------------------------------------------------
-// CONSOLE
 // TEST[setup:reviews]
 
 The default `compression` value for this aggregation is `1000`. At this
@@ -108,58 +109,56 @@ but observed performance will depend on the sample data.
 
 ==== Script
 
-This metric aggregation supports scripting. In our example above, product
-reviews are on a scale of one to five. If we wanted to modify them to a scale
-of one to ten, we can using scripting.
+In the example above, product reviews are on a scale of one to five. If you
+want to modify them to a scale of one to ten, use a <<runtime,runtime field>>.
 
-To provide an inline script:
-
-[source,js]
----------------------------------------------------------
-GET reviews/_search
+[source,console]
+----
+GET reviews/_search?filter_path=aggregations
 {
   "size": 0,
+  "runtime_mappings": {
+    "rating.out_of_ten": {
+      "type": "long",
+      "script": {
+        "source": "emit(doc['rating'].value * params.scaleFactor)",
+        "params": {
+          "scaleFactor": 2
+        }
+      }
+    }
+  },
   "aggs": {
+    "review_average": {
+      "avg": {
+        "field": "rating.out_of_ten"
+      }
+    },
     "review_variability": {
       "median_absolute_deviation": {
-        "script": {
-          "lang": "painless",
-          "source": "doc['rating'].value * params.scaleFactor",
-          "params": {
-            "scaleFactor": 2
-          }
-        }
+        "field": "rating.out_of_ten"
       }
     }
   }
 }
----------------------------------------------------------
-// CONSOLE
+----
 // TEST[setup:reviews]
 
-To provide a stored script:
+Which will result in:
 
-[source,js]
+[source,console-result]
 ---------------------------------------------------------
-GET reviews/_search
 {
-  "size": 0,
-  "aggs": {
+  "aggregations": {
+    "review_average": {
+      "value": 6.0
+    },
     "review_variability": {
-      "median_absolute_deviation": {
-        "script": {
-          "id": "my_script",
-          "params": {
-            "field": "rating"
-          }
-        }
-      }
+      "value": 4.0
     }
   }
 }
 ---------------------------------------------------------
-// CONSOLE
-// TEST[setup:reviews,stored_example_script]
 
 ==== Missing value
 
@@ -170,7 +169,7 @@ as if they had a value.
 Let's be optimistic and assume some reviewers loved the product so much that
 they forgot to give it a rating. We'll assign them five stars
 
-[source,js]
+[source,console]
 ---------------------------------------------------------
 GET reviews/_search
 {
@@ -185,5 +184,4 @@ GET reviews/_search
   }
 }
 ---------------------------------------------------------
-// CONSOLE
 // TEST[setup:reviews]

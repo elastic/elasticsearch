@@ -1,23 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.node;
+
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -26,25 +20,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import java.util.function.Function;
-
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.Node;
+import java.util.function.Supplier;
 
 public class InternalSettingsPreparer {
 
-    private static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
-    private static final String TEXT_PROMPT_VALUE = "${prompt.text}";
-
-    /**
-     * Prepares settings for the transport client by gathering all
-     * elasticsearch system properties and setting defaults.
-     */
+    // TODO: refactor this method out, it used to exist for the transport client
     public static Settings prepareSettings(Settings input) {
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, Collections.emptyMap());
@@ -88,13 +69,8 @@ public class InternalSettingsPreparer {
 
         // re-initialize settings now that the config file has been loaded
         initializeSettings(output, input, properties);
-        checkSettingsForTerminalDeprecation(output);
         finalizeSettings(output, defaultNodeName);
 
-        environment = new Environment(output.build(), configPath);
-
-        // we put back the path.logs so we can use it in the logging configuration file
-        output.put(Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile().toAbsolutePath().normalize().toString());
         return new Environment(output.build(), configPath);
     }
 
@@ -110,25 +86,6 @@ public class InternalSettingsPreparer {
         output.put(input);
         output.putProperties(esSettings, Function.identity());
         output.replacePropertyPlaceholders();
-    }
-
-    /**
-     * Checks all settings values to make sure they do not have the old prompt settings. These were deprecated in 6.0.0.
-     * This check should be removed in 8.0.0.
-     */
-    private static void checkSettingsForTerminalDeprecation(final Settings.Builder output) throws SettingsException {
-        // This method to be removed in 8.0.0, as it was deprecated in 6.0 and removed in 7.0
-        assert Version.CURRENT.major != 8: "Logic pertaining to config driven prompting should be removed";
-        for (String setting : output.keys()) {
-            switch (output.get(setting)) {
-                case SECRET_PROMPT_VALUE:
-                    throw new SettingsException("Config driven secret prompting was deprecated in 6.0.0. Use the keystore" +
-                        " for secure settings.");
-                case TEXT_PROMPT_VALUE:
-                    throw new SettingsException("Config driven text prompting was deprecated in 6.0.0. Use the keystore" +
-                        " for secure settings.");
-            }
-        }
     }
 
     /**

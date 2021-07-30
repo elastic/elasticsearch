@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -14,12 +15,16 @@ import org.owasp.html.ElementPolicy;
 import org.owasp.html.HtmlPolicyBuilder;
 import org.owasp.html.PolicyFactory;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 public class HtmlSanitizer {
 
@@ -47,23 +52,43 @@ public class HtmlSanitizer {
     private static Setting<List<String>> SETTING_SANITIZATION_DISALLOW =
             Setting.listSetting("xpack.notification.email.html.sanitization.disallow", Collections.emptyList(), Function.identity(),
                     Property.NodeScope);
+    private static final MethodHandle sanitizeHandle;
+    static {
+        try {
+            MethodHandles.Lookup methodLookup = MethodHandles.publicLookup();
+            MethodType sanitizeSignature = MethodType.methodType(String.class, String.class);
+            sanitizeHandle = methodLookup.findVirtual(PolicyFactory.class, "sanitize", sanitizeSignature);
+        } catch (NoSuchMethodException|IllegalAccessException e) {
+            throw new RuntimeException("Missing guava on runtime classpath", e);
+        }
+    }
 
     private final boolean enabled;
-    @SuppressForbidden( reason = "PolicyFactory uses guava Function")
-    private final PolicyFactory policy;
-    
+    private final UnaryOperator<String> sanitizer;
+
     public HtmlSanitizer(Settings settings) {
         enabled = SETTING_SANITIZATION_ENABLED.get(settings);
         List<String> allow = SETTING_SANITIZATION_ALLOW.get(settings);
         List<String> disallow = SETTING_SANITIZATION_DISALLOW.get(settings);
-        policy = createCommonPolicy(allow, disallow);
+
+        // The sanitize method of PolicyFactory pulls in guava dependencies, which we want to isolate to
+        // runtime only rather than compile time where more guava uses can be accidentally pulled in.
+        // Here we lookup the sanitize method at runtime and grab a method handle to invoke.
+        PolicyFactory policy = createCommonPolicy(allow, disallow);
+        sanitizer = s -> {
+            try {
+                return (String) sanitizeHandle.invokeExact(policy, s);
+            } catch (Throwable e) {
+                throw new RuntimeException("Failed to invoke sanitize method of PolicyFactory", e);
+            }
+        };
     }
 
     public String sanitize(String html) {
-        if (!enabled) {
+        if (enabled == false) {
             return html;
         }
-        return policy.sanitize(html);
+        return sanitizer.apply(html);
     }
 
     @SuppressForbidden( reason = "PolicyFactory uses guava Function")
@@ -155,7 +180,7 @@ public class HtmlSanitizer {
             }
         }
 
-        if (!images.isEmpty()) {
+        if (images.isEmpty() == false) {
             policyBuilder.allowAttributes("src").onElements("img").allowUrlProtocols("cid");
             if (images.contains(Images.ALL)) {
                 policyBuilder.allowElements("img");
@@ -182,7 +207,7 @@ public class HtmlSanitizer {
 
         @Override
         public String apply(String elementName, List<String> attrs) {
-            if (!"img".equals(elementName) || attrs.size() == 0) {
+            if ("img".equals(elementName) == false || attrs.isEmpty()) {
                 return elementName;
             }
             String attrName = null;
@@ -192,7 +217,7 @@ public class HtmlSanitizer {
                     continue;
                 }
                 // reject external image source (only allow embedded ones)
-                if ("src".equals(attrName) && !attr.startsWith("cid:")) {
+                if ("src".equals(attrName) && attr.startsWith("cid:") == false) {
                     return null;
                 }
             }

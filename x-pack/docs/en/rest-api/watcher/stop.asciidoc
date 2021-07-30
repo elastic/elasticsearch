@@ -1,35 +1,59 @@
 [role="xpack"]
 [[watcher-api-stop]]
-=== Stop API
+=== Stop watch service API
+++++
+<titleabbrev>Stop watch service</titleabbrev>
+++++
 
-The `stop` API stops the {watcher} service if the service is running.
+Stops the {watcher} service if it is running.
 
-[float]
-==== Request
+[[watcher-api-stop-request]]
+==== {api-request-title}
 
 `POST _watcher/_stop`
 
-[float]
-==== Authorization
+[[watcher-api-stop-prereqs]]
+==== {api-prereq-title}
 
-You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {xpack-ref}/security-privileges.html[Security Privileges].
+* You must have `manage_watcher` cluster privileges to use this API. For more
+information, see <<security-privileges>>.
 
-[float]
-==== Examples
+//[[watcher-api-stop-desc]]
+//==== {api-description-title}
 
-[source,js]
+//[[watcher-api-stop-path-params]]
+//==== {api-path-parms-title}
+
+[[watcher-api-stop-query-params]]
+==== {api-query-parms-title}
+
+`master_timeout`::
+(Optional, <<time-units, time units>>) Specifies the period of time to wait for
+a connection to the master node. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
+
+//[[watcher-api-stop-request-body]]
+//==== {api-request-body-title}
+
+//[[watcher-api-stop-response-body]]
+//==== {api-response-body-title}
+
+//[[watcher-api-stop-response-codes]]
+//==== {api-response-codes-title}
+
+[[watcher-api-stop-example]]
+==== {api-examples-title}
+
+[source,console]
 --------------------------------------------------
 POST _watcher/_stop
 --------------------------------------------------
-// CONSOLE
 
 {watcher} returns the following response if the request is successful:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "acknowledged": true
 }
 --------------------------------------------------
-// TESTRESPONSE

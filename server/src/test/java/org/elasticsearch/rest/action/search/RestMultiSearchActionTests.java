@@ -1,39 +1,41 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class RestMultiSearchActionTests extends RestActionTestCase {
+    final List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
+
+    private RestMultiSearchAction action;
 
     @Before
     public void setUpAction() {
-        new RestMultiSearchAction(Settings.EMPTY, controller());
+        action = new RestMultiSearchAction(Settings.EMPTY);
+        controller().registerHandler(action);
+        verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(MultiSearchResponse.class));
+        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(MultiSearchResponse.class));
     }
 
     public void testTypeInPath() {
@@ -41,9 +43,10 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
         BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
             .withMethod(RestRequest.Method.GET)
             .withPath("/some_index/some_type/_msearch")
-            .withContent(bytesContent, XContentType.JSON)
+            .withContent(bytesContent, null)
             .build();
 
         dispatchRequest(request);
@@ -55,12 +58,19 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
         BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
             .withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_msearch")
-            .withContent(bytesContent, XContentType.JSON)
+            .withContent(bytesContent, null)
             .build();
 
         dispatchRequest(request);
         assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    private Map<String, List<String>> headersWith(String accept, List<String> value) {
+        Map<String, List<String>> headers = new HashMap<>();
+        headers.put(accept, value);
+        return headers;
     }
 }

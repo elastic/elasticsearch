@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -22,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -79,24 +83,49 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
     }
 
     public void testNoRemoteClusterAliases() {
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
         final List<String> indices = Arrays.asList("local-index1", "local-index2");
-        assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(indices), empty());
+        assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices), empty());
     }
 
     public void testOneRemoteClusterAlias() {
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
         final List<String> indices = Arrays.asList("local-index1", "remote-cluster1:remote-index1");
-        assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(indices), contains("remote-cluster1"));
+        assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices), contains("remote-cluster1"));
     }
 
     public void testMoreThanOneRemoteClusterAlias() {
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
         final List<String> indices = Arrays.asList("remote-cluster1:remote-index1", "local-index1", "remote-cluster2:remote-index1");
-        assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(indices), contains("remote-cluster1", "remote-cluster2"));
+        assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices),
+                containsInAnyOrder("remote-cluster1", "remote-cluster2"));
     }
 
     public void testDuplicateRemoteClusterAlias() {
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
         final List<String> indices = Arrays.asList(
                 "remote-cluster1:remote-index1", "local-index1", "remote-cluster2:index1", "remote-cluster2:remote-index2");
-        assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(indices), contains("remote-cluster1", "remote-cluster2"));
+        assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices),
+                containsInAnyOrder("remote-cluster1", "remote-cluster2"));
+    }
+
+    public void testSimpleWildcardRemoteClusterAlias() {
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
+        final List<String> indices = Arrays.asList("*:remote-index1", "local-index1");
+        assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices),
+                containsInAnyOrder("remote-cluster1", "remote-cluster2"));
+    }
+
+    public void testPartialWildcardRemoteClusterAlias() {
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
+        final List<String> indices = Arrays.asList("*2:remote-index1", "local-index1");
+        assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices), contains("remote-cluster2"));
+    }
+
+    public void testNonMatchingWildcardRemoteClusterAlias() {
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
+        final List<String> indices = Arrays.asList("*3:remote-index1", "local-index1");
+        assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices), empty());
     }
 
     public void testCheckRemoteClusterLicensesGivenCompatibleLicenses() {
@@ -118,7 +147,8 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
 
         final RemoteClusterLicenseChecker licenseChecker =
-                new RemoteClusterLicenseChecker(client, XPackLicenseState::isPlatinumOrTrialOperationMode);
+                new RemoteClusterLicenseChecker(client, operationMode ->
+                    XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
         final AtomicReference<RemoteClusterLicenseChecker.LicenseCheck> licenseCheck = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(
@@ -160,7 +190,8 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         }).when(client).execute(same(XPackInfoAction.INSTANCE), any(), any());
 
         final RemoteClusterLicenseChecker licenseChecker =
-                new RemoteClusterLicenseChecker(client, XPackLicenseState::isPlatinumOrTrialOperationMode);
+                new RemoteClusterLicenseChecker(client, operationMode ->
+                    XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
         final AtomicReference<RemoteClusterLicenseChecker.LicenseCheck> licenseCheck = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(
@@ -206,7 +237,8 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
 
         final RemoteClusterLicenseChecker licenseChecker =
-                new RemoteClusterLicenseChecker(client, XPackLicenseState::isPlatinumOrTrialOperationMode);
+                new RemoteClusterLicenseChecker(client, operationMode ->
+                    XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
         final AtomicReference<Exception> exception = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(
@@ -246,7 +278,8 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
             }).when(client).execute(same(XPackInfoAction.INSTANCE), any(), any());
 
             final RemoteClusterLicenseChecker licenseChecker =
-                    new RemoteClusterLicenseChecker(client, XPackLicenseState::isPlatinumOrTrialOperationMode);
+                    new RemoteClusterLicenseChecker(client, operationMode ->
+                        XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
 
             final List<String> remoteClusterAliases = Collections.singletonList("valid");
             licenseChecker.checkRemoteClusterLicenses(
@@ -285,7 +318,8 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
             responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
 
             final RemoteClusterLicenseChecker licenseChecker =
-                    new RemoteClusterLicenseChecker(client, XPackLicenseState::isPlatinumOrTrialOperationMode);
+                    new RemoteClusterLicenseChecker(client, operationMode ->
+                        XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
 
             final AtomicBoolean listenerInvoked = new AtomicBoolean();
             threadPool.getThreadContext().putHeader("key", "value");
@@ -327,7 +361,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
                 new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo("platinum-cluster", platinumLicence);
         final AssertionError e = expectThrows(
                 AssertionError.class,
-                () -> RemoteClusterLicenseChecker.buildErrorMessage("", info, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial));
+                () -> RemoteClusterLicenseChecker.buildErrorMessage("", info, RemoteClusterLicenseChecker::isAllowedByLicense));
         assertThat(e, hasToString(containsString("license must be incompatible to build error message")));
     }
 
@@ -336,7 +370,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info =
                 new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo("basic-cluster", basicLicense);
         assertThat(
-                RemoteClusterLicenseChecker.buildErrorMessage("Feature", info, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial),
+                RemoteClusterLicenseChecker.buildErrorMessage("Feature", info, RemoteClusterLicenseChecker::isAllowedByLicense),
                 equalTo("the license mode [BASIC] on cluster [basic-cluster] does not enable [Feature]"));
     }
 
@@ -345,8 +379,44 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info =
                 new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo("expired-cluster", expiredLicense);
         assertThat(
-                RemoteClusterLicenseChecker.buildErrorMessage("Feature", info, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial),
+                RemoteClusterLicenseChecker.buildErrorMessage("Feature", info, RemoteClusterLicenseChecker::isAllowedByLicense),
                 equalTo("the license on cluster [expired-cluster] is not active"));
+    }
+
+    public void testCheckRemoteClusterLicencesNoLicenseMetadata() {
+        final ThreadPool threadPool = createMockThreadPool();
+        final Client client = createMockClient(threadPool);
+        doAnswer(invocationMock -> {
+            @SuppressWarnings("unchecked") ActionListener<XPackInfoResponse> listener =
+                (ActionListener<XPackInfoResponse>) invocationMock.getArguments()[2];
+            listener.onResponse(new XPackInfoResponse(null, null, null));
+            return null;
+        }).when(client).execute(same(XPackInfoAction.INSTANCE), any(), any());
+
+        final RemoteClusterLicenseChecker licenseChecker =
+            new RemoteClusterLicenseChecker(client, operationMode ->
+                XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
+        final AtomicReference<Exception> exception = new AtomicReference<>();
+
+        licenseChecker.checkRemoteClusterLicenses(
+            Collections.singletonList("remote"),
+            doubleInvocationProtectingListener(new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
+
+                @Override
+                public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck response) {
+                    fail();
+                }
+
+                @Override
+                public void onFailure(final Exception e) {
+                    exception.set(e);
+                }
+
+            }));
+
+        assertNotNull(exception.get());
+        assertThat(exception.get(), instanceOf(ResourceNotFoundException.class));
+        assertThat(exception.get().getMessage(), equalTo("license info is missing for cluster [remote]"));
     }
 
     private ActionListener<RemoteClusterLicenseChecker.LicenseCheck> doubleInvocationProtectingListener(

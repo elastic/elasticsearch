@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
@@ -28,6 +29,13 @@ public final class DeletePrivilegesRequest extends ActionRequest
     private String application;
     private String[] privileges;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
+
+    public DeletePrivilegesRequest(StreamInput in) throws IOException {
+        super(in);
+        application = in.readString();
+        privileges = in.readStringArray();
+        refreshPolicy = RefreshPolicy.readFrom(in);
+    }
 
     public DeletePrivilegesRequest() {
         this(null, Strings.EMPTY_ARRAY);
@@ -80,14 +88,6 @@ public final class DeletePrivilegesRequest extends ActionRequest
 
     public void privileges(String[] privileges) {
         this.privileges = privileges;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        application = in.readString();
-        privileges = in.readStringArray();
-        refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override

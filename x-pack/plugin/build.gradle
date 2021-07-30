@@ -1,70 +1,35 @@
-import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.elasticsearch.gradle.test.NodeInfo
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.util.GradleUtils
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
-import java.nio.charset.StandardCharsets
-
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.validate-rest-spec'
+apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 archivesBaseName = 'x-pack'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-subprojects {
-  afterEvaluate {
-    if (project.plugins.hasPlugin(PluginBuildPlugin)) {
-      // see the root Gradle file for additional logic regarding this configuration
-      project.configurations.create('featureAwarePlugin')
-      project.dependencies.add('featureAwarePlugin', project.configurations.compileClasspath)
-      project.dependencies.add(
-              'featureAwarePlugin',
-              "org.elasticsearch.xpack.test:feature-aware:${org.elasticsearch.gradle.VersionProperties.elasticsearch}")
-      project.dependencies.add('featureAwarePlugin', project.sourceSets.main.output.getClassesDirs())
+// let the yamlRestTests see the classpath of test
+GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
+GradleUtils.extendSourceSet(project, "test", "yamlRestCompatTest")
 
-      final Task featureAwareTask = project.tasks.create("featureAwareCheck", LoggedExec) {
-        description = "Runs FeatureAwareCheck on main classes."
-        dependsOn project.configurations.featureAwarePlugin
-
-        final File successMarker = new File(project.buildDir, 'markers/featureAware')
-        outputs.file(successMarker)
-
-        executable = new File(project.runtimeJavaHome, 'bin/java')
-
-        // default to main class files if such a source set exists
-        final List files = []
-        if (project.sourceSets.findByName("main")) {
-          files.add(project.sourceSets.main.output.classesDirs)
-          dependsOn project.tasks.classes
-        }
-        // filter out non-existent classes directories from empty source sets
-        final FileCollection classDirectories = project.files(files).filter { it.exists() }
-
-        doFirst {
-          args('-cp', project.configurations.featureAwarePlugin.asPath, 'org.elasticsearch.xpack.test.feature_aware.FeatureAwareCheck')
-          classDirectories.each { args it.getAbsolutePath() }
-        }
-        doLast {
-          successMarker.parentFile.mkdirs()
-          successMarker.setText("", 'UTF-8')
-        }
-      }
-
-      project.precommit.dependsOn featureAwareTask
-    }
+restResources {
+  restApi {
+    include '*'
   }
 }
 
-// https://github.com/elastic/x-plugins/issues/724
-configurations {
-  testArtifacts.extendsFrom testRuntime
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
-task testJar(type: Jar) {
-  appendix 'test'
-  from sourceSets.test.output
+tasks.named("testJar").configure {
   /*
    * Stick the license and notice file in the jar. This isn't strictly
    * needed because we don't publish it but it makes our super-paranoid
@@ -80,110 +45,166 @@ task testJar(type: Jar) {
     }
   }
 }
-artifacts {
-  testArtifacts testJar
-}
-
-integTestRunner {
-  /*
-   * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
-   * other if we allow them to set the number of available processors as it's set-once in Netty.
-   */
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-
-
-  // TODO: fix this rest test to not depend on a hardcoded port!
-  def blacklist = ['getting_started/10_monitor_cluster_health/*']
-  boolean snapshot = "true".equals(System.getProperty("build.snapshot", "true"))
-  if (!snapshot) {
-    // these tests attempt to install basic/internal licenses signed against the dev/public.key
-    // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
-    // private key, these tests are whitelisted in non-snapshot test runs
-    blacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*'])
-  }
-  systemProperty 'tests.rest.blacklist', blacklist.join(',')
-}
 
 // location for keys and certificates
-File keystoreDir = new File(project.buildDir, 'keystore')
-File nodeKey = file("$keystoreDir/testnode.pem")
-File nodeCert = file("$keystoreDir/testnode.crt")
+File extraResourceDir = file("$buildDir/extra_resource")
+File nodeKey = file("$extraResourceDir/testnode.pem")
+File nodeCert = file("$extraResourceDir/testnode.crt")
+// location for service tokens
+File serviceTokens = file("$extraResourceDir/service_tokens")
 
 // Add key and certs to test classpath: it expects them there
 // User cert and key PEM files instead of a JKS Keystore for the cluster's trust material so that
 // it can run in a FIPS 140 JVM
 // TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
 // https://github.com/elastic/elasticsearch/pull/32201
-task copyKeyCerts(type: Copy) {
+tasks.register("copyExtraResources", Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
-    }
-  into keystoreDir
+  }
+  from(project(':x-pack:plugin:security:qa:service-account').file('src/javaRestTest/resources/')) {
+    include 'service_tokens'
+  }
+  into extraResourceDir
 }
 // Add keystores to test classpath: it expects it there
-sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(copyKeyCerts)
+sourceSets.yamlRestTest.resources.srcDir(extraResourceDir)
+tasks.named("processYamlRestTestResources").configure {
+  dependsOn("copyExtraResources")
+}
+def restTestBlacklist = []
+tasks.withType(RestIntegTestTask).configureEach {
+  // TODO: fix this rest test to not depend on a hardcoded port!
+  restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
+  if (BuildParams.isSnapshotBuild() == false) {
+    // these tests attempt to install basic/internal licenses signed against the dev/public.key
+    // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
+    // private key, these tests are blacklisted in non-snapshot test runs
+    restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
+  }
+}
 
-integTestCluster {
-  dependsOn copyKeyCerts
+tasks.named("yamlRestTest").configure {
+  systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
+  dependsOn "copyExtraResources"
+}
+
+tasks.named("transformV7RestTests").configure({ task ->
+  task.replaceKeyInDo("license.delete", "xpack-license.delete")
+  task.replaceKeyInDo("license.get", "xpack-license.get")
+  task.replaceKeyInDo("license.get_basic_status", "xpack-license.get_basic_status")
+  task.replaceKeyInDo("license.get_trial_status", "xpack-license.get_trial_status")
+  task.replaceKeyInDo("license.post", "xpack-license.post")
+  task.replaceKeyInDo("license.post_start_basic", "xpack-license.post_start_basic")
+  task.replaceKeyInDo("license.post_start_trial", "xpack-license.post_start_trial")
+  task.addAllowedWarningRegex(".*_xpack/license.* is deprecated.*")
+
+  task.replaceKeyInDo("rollup.delete_job", "xpack-rollup.delete_job")
+  task.replaceKeyInDo("rollup.get_jobs", "xpack-rollup.get_jobs")
+  task.replaceKeyInDo("rollup.get_rollup_caps", "xpack-rollup.get_rollup_caps")
+  task.replaceKeyInDo("rollup.get_rollup_index_caps", "xpack-rollup.get_rollup_index_caps")
+  task.replaceKeyInDo("rollup.put_job", "xpack-rollup.put_job")
+  task.replaceKeyInDo("rollup.start_job", "xpack-rollup.start_job")
+  task.replaceKeyInDo("rollup.stop_job", "xpack-rollup.stop_job")
+  task.addAllowedWarningRegex(".*_xpack/rollup.* is deprecated.*")
+})
+def v7compatibilityNotSupportedTests = {
+  return [
+    // to support it, it would require to almost revert back the #48725 and complicate the code
+    'vectors/10_dense_vector_basic/Deprecated function signature',
+    // not going to be supported
+    'vectors/30_sparse_vector_basic/Cosine Similarity',
+    'vectors/30_sparse_vector_basic/Deprecated function signature',
+    'vectors/30_sparse_vector_basic/Dot Product',
+    'vectors/35_sparse_vector_l1l2/L1 norm',
+    'vectors/35_sparse_vector_l1l2/L2 norm',
+    'vectors/40_sparse_vector_special_cases/Dimensions can be sorted differently',
+    'vectors/40_sparse_vector_special_cases/Documents missing a vector field',
+    'vectors/40_sparse_vector_special_cases/Query vector has different dimensions from documents\' vectors',
+    'vectors/40_sparse_vector_special_cases/Sparse vectors should error with dense vector functions',
+    'vectors/40_sparse_vector_special_cases/Vectors of different dimensions and data types',
+    // the test uses sparse vector - not supported
+    'vectors/50_vector_stats/Usage stats on vector fields',
+
+    // put role request with a term lookup (deprecated) and type. Requires validation in REST layer
+    'roles/30_prohibited_role_query/Test use prohibited query inside role query',
+    //removing undocumented functionality
+    'ml/jobs_crud/Test create job with delimited format',
+    // behaviour change #44752 - not allowing to update datafeed job_id
+    'ml/datafeeds_crud/Test update datafeed to point to missing job',
+    'ml/datafeeds_crud/Test update datafeed to point to different job',
+    'ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed',
+    //rollup was an experimental feature
+    //https://github.com/elastic/elasticsearch/pull/41227.
+    'rollup/delete_job/Test basic delete_job',
+    'rollup/delete_job/Test delete job twice',
+    'rollup/delete_job/Test delete running job',
+    'rollup/get_jobs/Test basic get_jobs',
+    'rollup/put_job/Test basic put_job',
+    //https://github.com/elastic/elasticsearch/pull/41502
+    'rollup/start_job/Test start job twice',
+
+    // a type field was added to cat.ml_trained_models #73660, this is a backwards compatible change.
+    // still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)
+    'ml/trained_model_cat_apis/Test cat trained models'
+  ]
+}
+
+tasks.named("yamlRestCompatTest").configure {
+  systemProperty 'tests.rest.blacklist', v7compatibilityNotSupportedTests().join(',')
+  dependsOn "copyExtraResources"
+}
+
+testClusters.all {
+  testDistribution = 'DEFAULT' // this is important since we use the reindex module in ML
   setting 'xpack.ml.enabled', 'true'
   setting 'xpack.security.enabled', 'true'
-  setting 'logger.org.elasticsearch.xpack.ml.datafeed', 'TRACE'
+  setting 'xpack.watcher.enabled', 'false'
   // Integration tests are supposed to enable/disable exporters before/after each test
   setting 'xpack.monitoring.exporters._local.type', 'local'
   setting 'xpack.monitoring.exporters._local.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
   setting 'xpack.security.transport.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.key', nodeKey.name
   setting 'xpack.security.transport.ssl.certificate', nodeCert.name
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
   setting 'xpack.security.audit.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
-  keystoreSetting 'bootstrap.password', 'x-pack-test-password'
-  keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-  distribution = 'zip' // this is important since we use the reindex module in ML
+  // disable ILM history, since it disturbs tests using _all
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  keystore 'bootstrap.password', 'x-pack-test-password'
+  keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+  setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
 
-  setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-
+  user username: "x_pack_rest_user", password: "x-pack-test-password"
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
+  extraConfigFile serviceTokens.name, serviceTokens
+}
 
-  waitCondition = { NodeInfo node, AntBuilder ant ->
-      File tmpFile = new File(node.cwd, 'wait.success')
-
-      for (int i = 0; i < 10; i++) {
-        // we use custom wait logic here as the elastic user is not available immediately and ant.get will fail when a 401 is returned
-        HttpURLConnection httpURLConnection = null;
-        try {
-          httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}&wait_for_status=yellow").openConnection();
-          httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                  Base64.getEncoder().encodeToString("x_pack_rest_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
-          httpURLConnection.setRequestMethod("GET");
-          httpURLConnection.connect();
-          if (httpURLConnection.getResponseCode() == 200) {
-            tmpFile.withWriter StandardCharsets.UTF_8.name(), {
-              it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
-            }
-          }
-        } catch (Exception e) {
-          if (i == 9) {
-            logger.error("final attempt of calling cluster health failed", e)
-          } else {
-            logger.debug("failed to call cluster health", e)
-          }
-        } finally {
-          if (httpURLConnection != null) {
-            httpURLConnection.disconnect();
-          }
-        }
-
-        // did not start, so wait a bit before trying again
-        Thread.sleep(500L);
-      }
-      return tmpFile.exists()
+tasks.register('enforceApiSpecsConvention').configure {
+  doLast {
+    if (fileTree('src/test/resources/rest-api-spec/api').files) {
+      throw new GradleException("There are REST specs in src/test source set. These should be moved to the :rest-api-spec project.")
+    }
   }
 }
-if (integTestCluster.distribution.startsWith("oss-")) {
-  integTest.enabled = false
+
+tasks.register('enforceYamlTestConvention').configure {
+  doLast {
+    if (fileTree('src/test/resources/rest-api-spec/test').files) {
+      throw new GradleException("There are YAML tests in src/test source set. These should be moved to src/yamlRestTest.")
+    }
+  }
 }
 
+tasks.named("precommit").configure {
+  dependsOn 'enforceYamlTestConvention', 'enforceApiSpecsConvention'
+}
+
+tasks.named("transformV7RestTests").configure({ task ->
+  task.replaceValueInMatch("_type", "_doc")
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+  task.addAllowedWarningRegexForTest("Including \\[accept_enterprise\\] in get license.*", "Installing enterprise license")
+})

@@ -3,15 +3,24 @@
 [[info-api]]
 == Info API
 
-The info API provides general information about the installed {xpack} features.
+Provides general information about the installed {xpack} features.
 
-[float]
-=== Request
+[discrete]
+[[info-api-request]]
+=== {api-request-title}
 
 `GET /_xpack`
 
-[float]
-=== Description
+[discrete]
+[[info-api-prereqs]]
+=== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[discrete]
+[[info-api-desc]]
+=== {api-description-title}
 
 The information provided by this API includes:
 
@@ -20,35 +29,33 @@ The information provided by this API includes:
 * Features Information - The features that are currently enabled and available
   under the current license.
 
-[float]
-=== Path Parameters
+[discrete]
+[[info-api-path-params]]
+=== {api-path-parms-title}
 
 `categories`::
-  (list) A comma-separated list of the information categories to include in the
-  response. For example, `build,license,features`.
+  (Optional, list) A comma-separated list of the information categories to
+  include in the response. For example, `build,license,features`.
 
 `human`::
-  (boolean) Defines whether additional human-readable information is included in
-  the response. In particular, it adds descriptions and a tag line. The
-  default value is `true`.
+  (Optional, Boolean) Defines whether additional human-readable information is
+  included in the response. In particular, it adds descriptions and a tag line.
+  The default value is `true`.
 
-//=== Query Parameters
-
-//=== Authorization
-
-[float]
-=== Examples
+[discrete]
+[[info-api-example]]
+=== {api-examples-title}
 
 The following example queries the info API:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_xpack
 ------------------------------------------------------------
-// CONSOLE
 
 Example response:
-[source,js]
+
+[source,console-result]
 ------------------------------------------------------------
 {
    "build" : {
@@ -63,54 +70,93 @@ Example response:
       "expiry_date_in_millis" : 1542665112332
    },
    "features" : {
+      "ccr" : {
+        "available" : true,
+        "enabled" : true
+      },
+     "aggregate_metric" : {
+          "available" : true,
+          "enabled" : true
+      },
+      "analytics" : {
+          "available" : true,
+          "enabled" : true
+      },
+      "enrich" : {
+          "available" : true,
+          "enabled" : true
+      },
+      "frozen_indices" : {
+         "available" : true,
+         "enabled" : true
+      },
       "graph" : {
-         "description" : "Graph Data Exploration for the Elastic Stack",
          "available" : true,
          "enabled" : true
       },
       "ilm" : {
-         "description" : "Index lifecycle management for the Elastic Stack",
          "available" : true,
          "enabled" : true
       },
       "logstash" : {
-         "description" : "Logstash management component for X-Pack",
          "available" : true,
          "enabled" : true
       },
       "ml" : {
-         "description" : "Machine Learning for the Elastic Stack",
          "available" : true,
-         "enabled" : true,
-         "native_code_info" : {
-           "version" : "7.0.0-alpha1-SNAPSHOT",
-           "build_hash" : "99a07c016d5a73"
-        }
+         "enabled" : true
       },
       "monitoring" : {
-         "description" : "Monitoring for the Elastic Stack",
          "available" : true,
          "enabled" : true
       },
       "rollup": {
-        "description": "Time series pre-aggregation and rollup",
          "available": true,
          "enabled": true
       },
+      "searchable_snapshots" : {
+         "available" : true,
+         "enabled" : true
+      },
       "security" : {
-         "description" : "Security for the Elastic Stack",
          "available" : true,
          "enabled" : false
       },
+      "slm" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "spatial" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "eql" : {
+         "available" : true,
+         "enabled" : true
+      },
       "sql" : {
-         "description" : "SQL access to Elasticsearch",
+         "available" : true,
+         "enabled" : true
+      },
+      "transform" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "voting_only" : {
          "available" : true,
          "enabled" : true
       },
       "watcher" : {
-         "description" : "Alerting, Notification and Automation for the Elastic Stack",
          "available" : true,
          "enabled" : true
+      },
+      "data_streams" : {
+         "available" : true,
+         "enabled" : true,
+      },
+      "data_tiers" : {
+         "available" : true,
+         "enabled" : true,
       }
    },
    "tagline" : "You know, for X"
@@ -122,20 +168,20 @@ Example response:
 // TESTRESPONSE[s/"expiry_date_in_millis" : 1542665112332/"expiry_date_in_millis" : "$body.license.expiry_date_in_millis"/]
 // TESTRESPONSE[s/"version" : "7.0.0-alpha1-SNAPSHOT",/"version": "$body.features.ml.native_code_info.version",/]
 // TESTRESPONSE[s/"build_hash" : "99a07c016d5a73"/"build_hash": "$body.features.ml.native_code_info.build_hash"/]
+// TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql": $body.$_path,/]
+// eql is disabled by default on release builds and enabled everywhere else during the initial implementation phase until its release
 // So much s/// but at least we test that the layout is close to matching....
 
 The following example only returns the build and features information:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_xpack?categories=build,features
 ------------------------------------------------------------
-// CONSOLE
 
 The following example removes the descriptions from the response:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_xpack?human=false
 ------------------------------------------------------------
-// CONSOLE

@@ -1,36 +1,43 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
+import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TASK_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.IDP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.LOGSTASH_MANAGEMENT_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.PERSISTENT_TASK_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ROLLUP_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.STACK_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
 public final class AuthorizationUtils {
@@ -70,7 +77,7 @@ public final class AuthorizationUtils {
         // we have a internal action being executed by a user other than the system user, lets verify that there is a
         // originating action that is not a internal action. We verify that there must be a originating action as an
         // internal action should never be called by user code from a client
-        final String originatingAction = threadContext.getTransient(AuthorizationService.ORIGINATING_ACTION_KEY);
+        final String originatingAction = threadContext.getTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY);
         if (originatingAction != null && isInternalAction(originatingAction) == false) {
             return true;
         }
@@ -110,12 +117,23 @@ public final class AuthorizationUtils {
             case WATCHER_ORIGIN:
             case ML_ORIGIN:
             case MONITORING_ORIGIN:
+            case TRANSFORM_ORIGIN:
             case DEPRECATION_ORIGIN:
             case PERSISTENT_TASK_ORIGIN:
             case ROLLUP_ORIGIN:
             case INDEX_LIFECYCLE_ORIGIN:
+            case ENRICH_ORIGIN:
+            case IDP_ORIGIN:
+            case INGEST_ORIGIN:
+            case STACK_ORIGIN:
+            case SEARCHABLE_SNAPSHOTS_ORIGIN:
+            case LOGSTASH_MANAGEMENT_ORIGIN:
+            case FLEET_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
                 securityContext.executeAsUser(XPackUser.INSTANCE, consumer, Version.CURRENT);
+                break;
+            case ASYNC_SEARCH_ORIGIN:
+                securityContext.executeAsUser(AsyncSearchUser.INSTANCE, consumer, Version.CURRENT);
                 break;
             default:
                 assert false : "action.origin [" + actionOrigin + "] is unknown!";
@@ -125,61 +143,5 @@ public final class AuthorizationUtils {
 
     private static boolean isInternalAction(String action) {
         return INTERNAL_PREDICATE.test(action);
-    }
-
-    /**
-     * A base class to authorize authorize a given {@link Authentication} against it's users or run-as users roles.
-     * This class fetches the roles for the users asynchronously and then authenticates the in the callback.
-     */
-    public static class AsyncAuthorizer {
-
-        private final ActionListener<Void> listener;
-        private final BiConsumer<Role, Role> consumer;
-        private final Authentication authentication;
-        private volatile Role userRoles;
-        private volatile Role runAsRoles;
-        private CountDown countDown = new CountDown(2); // we expect only two responses!!
-
-        public AsyncAuthorizer(Authentication authentication, ActionListener<Void> listener, BiConsumer<Role, Role> consumer) {
-            this.consumer = consumer;
-            this.listener = listener;
-            this.authentication = authentication;
-        }
-
-        public void authorize(AuthorizationService service) {
-            if (SystemUser.is(authentication.getUser().authenticatedUser())) {
-                assert authentication.getUser().isRunAs() == false;
-                setUserRoles(null); // we can inform the listener immediately - nothing to fetch for us on system user
-                setRunAsRoles(null);
-            } else {
-                service.roles(authentication.getUser().authenticatedUser(), ActionListener.wrap(this::setUserRoles, listener::onFailure));
-                if (authentication.getUser().isRunAs()) {
-                    service.roles(authentication.getUser(), ActionListener.wrap(this::setRunAsRoles, listener::onFailure));
-                } else {
-                    setRunAsRoles(null);
-                }
-            }
-        }
-
-        private void setUserRoles(Role roles) {
-            this.userRoles = roles;
-            maybeRun();
-        }
-
-        private void setRunAsRoles(Role roles) {
-            this.runAsRoles = roles;
-            maybeRun();
-        }
-
-        private void maybeRun() {
-            if (countDown.countDown()) {
-                try {
-                    consumer.accept(userRoles, runAsRoles);
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            }
-        }
-
     }
 }

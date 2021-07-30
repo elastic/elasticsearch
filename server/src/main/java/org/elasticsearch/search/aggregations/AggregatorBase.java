@@ -1,32 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SearchContext.Lifetime;
-import org.elasticsearch.search.query.QueryPhaseExecutionException;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
+import org.elasticsearch.search.aggregations.metrics.MinAggregator;
+import org.elasticsearch.search.aggregations.metrics.SumAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,6 +26,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Base implementation for concrete aggregators.
@@ -45,15 +38,13 @@ public abstract class AggregatorBase extends Aggregator {
 
     protected final String name;
     protected final Aggregator parent;
-    protected final SearchContext context;
-    private final Map<String, Object> metaData;
+    private final AggregationContext context;
+    private final Map<String, Object> metadata;
 
     protected final Aggregator[] subAggregators;
     protected BucketCollector collectableSubAggregators;
 
     private Map<String, Aggregator> subAggregatorbyName;
-    private final List<PipelineAggregator> pipelineAggregators;
-    private final CircuitBreakerService breakerService;
     private long requestBytesUsed;
 
     /**
@@ -63,24 +54,22 @@ public abstract class AggregatorBase extends Aggregator {
      * @param factories             The factories for all the sub-aggregators under this aggregator
      * @param context               The aggregation context
      * @param parent                The parent aggregator (may be {@code null} for top level aggregators)
-     * @param metaData              The metaData associated with this aggregator
+     * @param subAggregatorCardinality Upper bound of the number of buckets that sub aggregations will collect
+     * @param metadata              The metadata associated with this aggregator
      */
-    protected AggregatorBase(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    protected AggregatorBase(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
+            CardinalityUpperBound subAggregatorCardinality, Map<String, Object> metadata) throws IOException {
         this.name = name;
-        this.pipelineAggregators = pipelineAggregators;
-        this.metaData = metaData;
+        this.metadata = metadata;
         this.parent = parent;
         this.context = context;
-        this.breakerService = context.bigArrays().breakerService();
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
-        this.subAggregators = factories.createSubAggregators(this);
-        context.addReleasable(this, Lifetime.PHASE);
+        this.subAggregators = factories.createSubAggregators(this, subAggregatorCardinality);
+        context.addReleasable(this);
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
             void badState(){
-                throw new QueryPhaseExecutionException(AggregatorBase.this.context,
-                        "preCollection not called on new Aggregator before use", null);
+                throw new IllegalStateException("preCollection not called on new Aggregator before use");
             }
             @Override
             public LeafBucketCollector getLeafCollector(LeafReaderContext reader) {
@@ -108,6 +97,26 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     /**
+     * Returns a converter for point values if it's safe to use the indexed data instead of
+     * doc values.  Generally, this means that the query has no filters or scripts, the aggregation is
+     * top level, and the underlying field is indexed, and the index is sorted in the right order.
+     *
+     * If those conditions aren't met, return <code>null</code> to indicate a point reader cannot
+     * be used in this case.
+     *
+     * @param config The config for the values source metric.
+     */
+    public final Function<byte[], Number> pointReaderIfAvailable(ValuesSourceConfig config) {
+        if (topLevelQuery() != null && topLevelQuery().getClass() != MatchAllDocsQuery.class) {
+            return null;
+        }
+        if (parent != null) {
+            return null;
+        }
+        return config.getPointReaderOrNull();
+    }
+
+    /**
      * Increment or decrement the number of bytes that have been allocated to service
      * this request and potentially trigger a {@link CircuitBreakingException}. The
      * number of bytes allocated is automatically decremented with the circuit breaker
@@ -122,13 +131,9 @@ public abstract class AggregatorBase extends Aggregator {
     protected long addRequestCircuitBreakerBytes(long bytes) {
         // Only use the potential to circuit break if bytes are being incremented
         if (bytes > 0) {
-            this.breakerService
-                    .getBreaker(CircuitBreaker.REQUEST)
-                    .addEstimateBytesAndMaybeBreak(bytes, "<agg [" + name + "]>");
+            context.breaker().addEstimateBytesAndMaybeBreak(bytes, "<agg [" + name + "]>");
         } else {
-            this.breakerService
-                    .getBreaker(CircuitBreaker.REQUEST)
-                    .addWithoutBreaking(bytes);
+            context.breaker().addWithoutBreaking(bytes);
         }
         this.requestBytesUsed += bytes;
         return requestBytesUsed;
@@ -147,23 +152,57 @@ public abstract class AggregatorBase extends Aggregator {
         return ScoreMode.COMPLETE_NO_SCORES;
     }
 
-    public Map<String, Object> metaData() {
-        return this.metaData;
-    }
-
-    public List<PipelineAggregator> pipelineAggregators() {
-        return this.pipelineAggregators;
+    public Map<String, Object> metadata() {
+        return this.metadata;
     }
 
     /**
-     * Get a {@link LeafBucketCollector} for the given ctx, which should
-     * delegate to the given collector.
+     * Collect results for this leaf.
+     * <p>
+     * Most {@linkplain Aggregator}s will return a custom
+     * {@link LeafBucketCollector} that collects document information for
+     * every hit. Callers of this method will make sure to call
+     * {@link LeafBucketCollector#collect(int, long) collect} for every hit. So any
+     * {@link Aggregator} that returns a customer {@linkplain LeafBucketCollector}
+     * from this method runs at best {@code O(hits)} time. See the
+     * {@link SumAggregator#getLeafCollector(LeafReaderContext, LeafBucketCollector) sum}
+     * {@linkplain Aggregator} for a fairly strait forward example of this.
+     * <p>
+     * Some {@linkplain Aggregator}s are able to correctly collect results on
+     * their own, without being iterated by the top level query or the rest
+     * of the aggregations framework. These aggregations collect what they
+     * need by calling methods on {@link LeafReaderContext} and then they
+     * return {@link LeafBucketCollector#NO_OP_COLLECTOR} to signal that they've
+     * done their own collection. These aggregations can do better than
+     * {@code O(hits)}. See the
+     * {@link MinAggregator#getLeafCollector(LeafReaderContext, LeafBucketCollector) min}
+     * {@linkplain Aggregator} for an example of an aggregation that does this. It
+     * happens to run in constant time in some cases.
+     * <p>
+     * In other cases {@link MinAggregator} can't get correct results by
+     * taking the constant time path so instead it returns a custom
+     * {@link LeafBucketCollector}. This is fairly common for aggregations
+     * that have these fast paths because most of these fast paths are
+     * only possible when the aggregation is at the root of the tree.
+     * <p>
+     * Its also useful to look at the {@link FiltersAggregator#build filters}
+     * {@linkplain Aggregator} chooses whether or not it can use the fast
+     * path before building the {@linkplain Aggregator} rather than on each
+     * leaf. Either is fine.
      */
     protected abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException;
 
+    /**
+     * Collect results for this leaf.
+     * <p>
+     * Implemented by the {@linkplain Aggregator} base class to correctly set
+     * up sub {@linkplain Aggregator}s. See the
+     * {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector) abstract delegate}
+     * for more details on what this does.
+     */
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        preGetSubLeafCollectors();
+        preGetSubLeafCollectors(ctx);
         final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
         return getLeafCollector(ctx, sub);
     }
@@ -172,7 +211,7 @@ public abstract class AggregatorBase extends Aggregator {
      * Can be overridden by aggregator implementations that like the perform an operation before the leaf collectors
      * of children aggregators are instantiated for the next segment.
      */
-    protected void preGetSubLeafCollectors() throws IOException {
+    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {
     }
 
     /**
@@ -183,8 +222,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     @Override
     public final void preCollection() throws IOException {
-        List<BucketCollector> collectors = Arrays.asList(subAggregators);
-        collectableSubAggregators = MultiBucketCollector.wrap(collectors);
+        collectableSubAggregators = MultiBucketCollector.wrap(false, Arrays.asList(subAggregators));
         doPreCollection();
         collectableSubAggregators.preCollection();
     }
@@ -208,6 +246,7 @@ public abstract class AggregatorBase extends Aggregator {
         return parent;
     }
 
+    @Override
     public Aggregator[] subAggregators() {
         return subAggregators;
     }
@@ -224,18 +263,13 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     /**
-     * @return  The current aggregation context.
-     */
-    @Override
-    public SearchContext context() {
-        return context;
-    }
-
-    /**
      * Called after collection of all document is done.
+     * <p>
+     * Warning: this is not final only to allow the parent join aggregator
+     * to delay this until building buckets.
      */
     @Override
-    public final void postCollection() throws IOException {
+    public void postCollection() throws IOException {
         // post-collect this agg before subs to make it possible to buffer and then replay in postCollection()
         doPostCollection();
         collectableSubAggregators.postCollection();
@@ -247,7 +281,7 @@ public abstract class AggregatorBase extends Aggregator {
         try {
             doClose();
         } finally {
-            this.breakerService.getBreaker(CircuitBreaker.REQUEST).addWithoutBreaking(-this.requestBytesUsed);
+            context.breaker().addWithoutBreaking(-this.requestBytesUsed);
         }
     }
 
@@ -265,11 +299,41 @@ public abstract class AggregatorBase extends Aggregator {
         for (Aggregator aggregator : subAggregators) {
             aggs.add(aggregator.buildEmptyAggregation());
         }
-        return new InternalAggregations(aggs);
+        return InternalAggregations.from(aggs);
     }
 
     @Override
     public String toString() {
         return name;
+    }
+
+    /**
+     * Utilities for sharing large primitive arrays and tracking their usage.
+     * Used by all subclasses.
+     */
+    protected final BigArrays bigArrays() {
+        return context.bigArrays();
+    }
+
+    /**
+     * The "top level" query that will filter the results sent to this
+     * {@linkplain Aggregator}. Used by all {@linkplain Aggregator}s that
+     * perform extra collection phases in addition to the one done in
+     * {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector)}.
+     */
+    protected final Query topLevelQuery() {
+        return context.query();
+    }
+
+    /**
+     * The searcher for the shard this {@linkplain Aggregator} is running
+     * against. Used by all {@linkplain Aggregator}s that perform extra
+     * collection phases in addition to the one done in
+     * {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector)}
+     * and by to look up extra "background" information about contents of
+     * the shard itself.
+     */
+    protected final IndexSearcher searcher() {
+        return context.searcher();
     }
 }

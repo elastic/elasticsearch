@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.opensaml.saml.common.xml.SAMLConstants;
-import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.metadata.AssertionConsumerService;
 import org.opensaml.saml.saml2.metadata.AttributeConsumingService;
 import org.opensaml.saml.saml2.metadata.ContactPerson;
@@ -92,7 +92,7 @@ public class SamlSpMetadataBuilder {
         this.attributeNames = new LinkedHashMap<>();
         this.contacts = new ArrayList<>();
         this.serviceName = "Elasticsearch";
-        this.nameIdFormat = NameID.TRANSIENT;
+        this.nameIdFormat = null;
         this.authnRequestsSigned = Boolean.FALSE;
     }
 
@@ -222,7 +222,7 @@ public class SamlSpMetadataBuilder {
         spRoleDescriptor.setWantAssertionsSigned(true);
         spRoleDescriptor.setAuthnRequestsSigned(this.authnRequestsSigned);
 
-        if (Strings.hasLength(nameIdFormat)) {
+        if (Strings.isNullOrEmpty(nameIdFormat) == false) {
             spRoleDescriptor.getNameIDFormats().add(buildNameIdFormat());
         }
         spRoleDescriptor.getAssertionConsumerServices().add(buildAssertionConsumerService());
@@ -241,12 +241,17 @@ public class SamlSpMetadataBuilder {
         if (organization != null) {
             descriptor.setOrganization(buildOrganization());
         }
-        contacts.forEach(c -> descriptor.getContactPersons().add(buildContact(c)));
+        if(contacts.size() > 0) {
+            contacts.forEach(c -> descriptor.getContactPersons().add(buildContact(c)));
+        }
 
         return descriptor;
     }
 
     private NameIDFormat buildNameIdFormat() {
+        if (Strings.isNullOrEmpty(nameIdFormat)) {
+            throw new IllegalStateException("NameID format has not been specified");
+        }
         final NameIDFormat format = new NameIDFormatBuilder().buildObject();
         format.setFormat(this.nameIdFormat);
         return format;

@@ -1,15 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
+
+import java.io.IOException;
+import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.text.ParseException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -33,6 +41,11 @@ import static java.util.Calendar.MINUTE;
 import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.DATE;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.DATETIME;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asDateTimeField;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
 
 /**
  * Conversion utilities for conversion of JDBC types to Java type and back
@@ -45,8 +58,6 @@ import static java.util.Calendar.YEAR;
 final class TypeConverter {
 
     private TypeConverter() {}
-
-    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000;
 
     /**
      * Converts millisecond after epoc to date
@@ -75,10 +86,14 @@ final class TypeConverter {
     }
 
     /**
-     * Converts millisecond after epoc to timestamp
+     * Converts millisecond after epoch to timestamp
      */
-    static Timestamp convertTimestamp(Long millis, Calendar cal) {
-        return dateTimeConvert(millis, cal, c -> new Timestamp(c.getTimeInMillis()));
+    static Timestamp convertTimestamp(Long millis, int nanos, Calendar cal) {
+        Timestamp ts = dateTimeConvert(millis, cal, c -> new Timestamp(c.getTimeInMillis()));
+        if (ts != null) {
+            ts.setNanos(nanos);
+        }
+        return ts;
     }
 
     private static <T> T dateTimeConvert(Long millis, Calendar c, Function<Calendar, T> creator) {
@@ -93,7 +108,6 @@ final class TypeConverter {
             c.setTimeInMillis(initial);
         }
     }
-
 
     static long convertFromCalendarToUTC(long value, Calendar cal) {
         if (cal == null) {
@@ -118,10 +132,11 @@ final class TypeConverter {
             return (T) convert(val, columnType, typeString);
         }
 
-        // converting a Long to a Timestamp shouldn't be possible according to the spec,
-        // it feels a little brittle to check this scenario here and I don't particularly like it
-        // TODO: can we do any better or should we go over the spec and allow getLong(date) to be valid?
-        if (!(type == Long.class && columnType == EsType.DATE) && type.isInstance(val)) {
+        // if the value type is the same as the target, no conversion is needed
+        // make sure though to check the internal type against the desired one
+        // since otherwise the internal object format can leak out
+        // (for example dates when longs are requested or intervals for strings)
+        if (type.isInstance(val) && TypeUtils.classOf(columnType) == type) {
             try {
                 return type.cast(val);
             } catch (ClassCastException cce) {
@@ -164,6 +179,9 @@ final class TypeConverter {
         }
         if (type == byte[].class) {
             return (T) asByteArray(val, columnType, typeString);
+        }
+        if (type == BigDecimal.class) {
+            return (T) asBigDecimal(val, columnType, typeString);
         }
         //
         // JDK 8 types
@@ -213,7 +231,11 @@ final class TypeConverter {
             case FLOAT:
                 return floatValue(v); // Float might be represented as string for infinity and NaN values
             case DATE:
-                return new Timestamp(((Number) v).longValue());
+                return asDateTimeField(v, JdbcDateUtils::asDate, Date::new);
+            case TIME:
+                return timeAsTime(v.toString());
+            case DATETIME:
+                return asDateTimeField(v, JdbcDateUtils::asTimestamp, Timestamp::new);
             case INTERVAL_YEAR:
             case INTERVAL_MONTH:
             case INTERVAL_YEAR_TO_MONTH:
@@ -229,6 +251,16 @@ final class TypeConverter {
             case INTERVAL_HOUR_TO_SECOND:
             case INTERVAL_MINUTE_TO_SECOND:
                 return Duration.parse(v.toString());
+            case GEO_POINT:
+            case GEO_SHAPE:
+            case SHAPE:
+                try {
+                    return WellKnownText.fromWKT(StandardValidator.instance(true), true, v.toString());
+                } catch (IOException | ParseException ex) {
+                    throw new SQLException("Cannot parse geo_shape", ex);
+                }
+            case IP:
+                return v.toString();
             default:
                 throw new SQLException("Unexpected column type [" + typeString + "]");
 
@@ -268,7 +300,7 @@ final class TypeConverter {
     }
 
     private static String asString(Object nativeValue) {
-        return nativeValue == null ? null : String.valueOf(nativeValue);
+        return nativeValue == null ? null : StringUtils.toString(nativeValue);
     }
 
     private static <T> T failConversion(Object value, EsType columnType, String typeString, Class<T> target) throws SQLException {
@@ -466,28 +498,69 @@ final class TypeConverter {
     }
 
     private static Date asDate(Object val, EsType columnType, String typeString) throws SQLException {
-        if (columnType == EsType.DATE) {
-            return new Date(utcMillisRemoveTime(((Number) val).longValue()));
+        if (columnType == DATETIME || columnType == DATE) {
+            return asDateTimeField(val, JdbcDateUtils::asDate, Date::new);
+        }
+        if (columnType == TIME) {
+            return new Date(0L);
         }
         return failConversion(val, columnType, typeString, Date.class);
     }
 
     private static Time asTime(Object val, EsType columnType, String typeString) throws SQLException {
-        if (columnType == EsType.DATE) {
-            return new Time(utcMillisRemoveDate(((Number) val).longValue()));
+        if (columnType == DATETIME) {
+            return asDateTimeField(val, JdbcDateUtils::asTime, Time::new);
+        }
+        if (columnType == TIME) {
+            return asDateTimeField(val, JdbcDateUtils::timeAsTime, Time::new);
+        }
+        if (columnType == DATE) {
+            return new Time(0L);
         }
         return failConversion(val, columnType, typeString, Time.class);
     }
 
     private static Timestamp asTimestamp(Object val, EsType columnType, String typeString) throws SQLException {
-        if (columnType == EsType.DATE) {
-            return new Timestamp(((Number) val).longValue());
+        if (columnType == DATETIME || columnType == DATE) {
+            return asDateTimeField(val, JdbcDateUtils::asTimestamp, Timestamp::new);
+        }
+        if (columnType == TIME) {
+            return asDateTimeField(val, JdbcDateUtils::timeAsTimestamp, Timestamp::new);
         }
         return failConversion(val, columnType, typeString, Timestamp.class);
     }
 
     private static byte[] asByteArray(Object val, EsType columnType, String typeString) throws SQLException {
         throw new SQLFeatureNotSupportedException();
+    }
+
+    private static BigDecimal asBigDecimal(Object val, EsType columnType, String typeString) throws SQLException {
+        switch (columnType) {
+            case BOOLEAN:
+                return (Boolean) val ? BigDecimal.ONE : BigDecimal.ZERO;
+            case BYTE:
+            case SHORT:
+            case INTEGER:
+            case LONG:
+                return BigDecimal.valueOf(((Number) val).longValue());
+            case FLOAT:
+            case HALF_FLOAT:
+                // floats are passed in as doubles here, so we need to dip into string to keep original float's (reduced) precision.
+                return new BigDecimal(String.valueOf(((Number) val).floatValue()));
+            case DOUBLE:
+            case SCALED_FLOAT:
+                return BigDecimal.valueOf(((Number) val).doubleValue());
+            case KEYWORD:
+            case TEXT:
+                try {
+                    return new BigDecimal((String) val);
+                } catch (NumberFormatException nfe) {
+                    return failConversion(val, columnType, typeString, BigDecimal.class, nfe);
+                }
+            // TODO: should we implement numeric - interval types conversions too; ever needed? ODBC does mandate it
+            //       https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/converting-data-from-c-to-sql-data-types
+        }
+        return failConversion(val, columnType, typeString, BigDecimal.class);
     }
 
     private static LocalDate asLocalDate(Object val, EsType columnType, String typeString) throws SQLException {
@@ -508,14 +581,6 @@ final class TypeConverter {
 
     private static OffsetDateTime asOffsetDateTime(Object val, EsType columnType, String typeString) throws SQLException {
         throw new SQLFeatureNotSupportedException();
-    }
-
-    private static long utcMillisRemoveTime(long l) {
-        return l - (l % DAY_IN_MILLIS);
-    }
-
-    private static long utcMillisRemoveDate(long l) {
-        return l % DAY_IN_MILLIS;
     }
 
     private static byte safeToByte(long x) throws SQLException {

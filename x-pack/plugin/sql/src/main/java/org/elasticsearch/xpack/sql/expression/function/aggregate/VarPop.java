@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+
 import java.util.List;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class VarPop extends NumericAggregate implements ExtendedStatsEnclosed {
 
-    public VarPop(Location location, Expression field) {
-        super(location, field);
+    public VarPop(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -23,10 +25,7 @@ public class VarPop extends NumericAggregate implements ExtendedStatsEnclosed {
 
     @Override
     public VarPop replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
-        return new VarPop(location(), newChildren.get(0));
+        return new VarPop(source(), newChildren.get(0));
     }
 
     @Override

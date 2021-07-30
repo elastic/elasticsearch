@@ -1,79 +1,128 @@
 [[analysis-predicatefilter-tokenfilter]]
-=== Predicate Token Filter Script
+=== Predicate script token filter
+++++
+<titleabbrev>Predicate script</titleabbrev>
+++++
 
-The predicate_token_filter token filter takes a predicate script, and removes tokens that do
-not match the predicate.
+Removes tokens that don't match a provided predicate script. The filter supports
+inline {painless}/index.html[Painless] scripts only. Scripts are evaluated in
+the {painless}/painless-analysis-predicate-context.html[analysis predicate
+context].
 
-[float]
-=== Options
-[horizontal]
-script:: a predicate script that determines whether or not the current token will
-be emitted.  Note that only inline scripts are supported.
+[[analysis-predicatefilter-tokenfilter-analyze-ex]]
+==== Example
 
-[float]
-=== Settings example
+The following <<indices-analyze,analyze API>> request uses the
+`predicate_token_filter` filter to only output tokens longer than three
+characters from `the fox jumps the lazy dog`.
 
-You can set it up like:
-
-[source,js]
---------------------------------------------------
-PUT /condition_example
+[source,console]
+----
+GET /_analyze
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "my_analyzer" : {
-                    "tokenizer" : "standard",
-                    "filter" : [ "my_script_filter" ]
-                }
-            },
-            "filter" : {
-                "my_script_filter" : {
-                    "type" : "predicate_token_filter",
-                    "script" : {
-                        "source" : "token.getTerm().length() > 5"  <1>
-                    }
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-<1> This will emit tokens that are more than 5 characters long
-
-And test it like:
-
-[source,js]
---------------------------------------------------
-POST /condition_example/_analyze
-{
-  "analyzer" : "my_analyzer",
-  "text" : "What Flapdoodle"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-And it'd respond:
-
-[source,js]
---------------------------------------------------
-{
-  "tokens": [
+  "tokenizer": "whitespace",
+  "filter": [
     {
-      "token": "Flapdoodle",        <1>
-      "start_offset": 5,
-      "end_offset": 15,
-      "type": "<ALPHANUM>",
-      "position": 1                 <2>
+      "type": "predicate_token_filter",
+      "script": {
+        "source": """
+          token.term.length() > 3
+        """
+      }
+    }
+  ],
+  "text": "the fox jumps the lazy dog"
+}
+----
+
+The filter produces the following tokens.
+
+[source,text]
+----
+[ jumps, lazy ]
+----
+
+The API response contains the position and offsets of each output token. Note
+the `predicate_token_filter` filter does not change the tokens' original
+positions or offets.
+
+.*Response*
+[%collapsible]
+====
+[source,console-result]
+----
+{
+  "tokens" : [
+    {
+      "token" : "jumps",
+      "start_offset" : 8,
+      "end_offset" : 13,
+      "type" : "word",
+      "position" : 2
+    },
+    {
+      "token" : "lazy",
+      "start_offset" : 18,
+      "end_offset" : 22,
+      "type" : "word",
+      "position" : 4
     }
   ]
 }
---------------------------------------------------
-// TESTRESPONSE
+----
+====
 
-<1> The token 'What' has been removed from the tokenstream because it does not
-match the predicate.
-<2> The position and offset values are unaffected by the removal of earlier tokens
+[[analysis-predicatefilter-tokenfilter-configure-parms]]
+==== Configurable parameters
+
+`script`::
+(Required, <<modules-scripting-using,script object>>)
+Script containing a condition used to filter incoming tokens. Only tokens that
+match this script are included in the output.
++
+This parameter supports inline {painless}/index.html[Painless] scripts only. The
+script is evaluated in the
+{painless}/painless-analysis-predicate-context.html[analysis predicate context].
+
+[[analysis-predicatefilter-tokenfilter-customize]]
+==== Customize and add to an analyzer
+
+To customize the `predicate_token_filter` filter, duplicate it to create the basis
+for a new custom token filter. You can modify the filter using its configurable
+parameters.
+
+The following <<indices-create-index,create index API>> request
+configures a new <<analysis-custom-analyzer,custom analyzer>> using a custom
+`predicate_token_filter` filter, `my_script_filter`.
+
+The `my_script_filter` filter removes tokens with of any type other than
+`ALPHANUM`.
+
+[source,console]
+----
+PUT /my-index-000001
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "filter": [
+            "my_script_filter"
+          ]
+        }
+      },
+      "filter": {
+        "my_script_filter": {
+          "type": "predicate_token_filter",
+          "script": {
+            "source": """
+              token.type.contains("ALPHANUM")
+            """
+          }
+        }
+      }
+    }
+  }
+}
+----

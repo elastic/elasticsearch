@@ -1,0 +1,16 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name 'vectors'
+  description 'A plugin for working with vectors'
+  classname 'org.elasticsearch.xpack.vectors.Vectors'
+  extendedPlugins = ['x-pack-core', 'lang-painless']
+}
+archivesBaseName = 'x-pack-vectors'
+
+dependencies {
+  compileOnly project(':modules:lang-painless:spi')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}

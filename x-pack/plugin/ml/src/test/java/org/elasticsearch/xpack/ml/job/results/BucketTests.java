@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.results;
 
@@ -27,13 +28,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class BucketTests extends AbstractSerializingTestCase<Bucket> {
 
+    private static final long MAX_BUCKET_SPAN_SEC = 100_000_000_000L;  // bucket span of > 3000 years should be enough for everyone
+
     @Override
     public Bucket createTestInstance() {
         return createTestInstance("foo");
     }
 
     public Bucket createTestInstance(String jobId) {
-        Bucket bucket = new Bucket(jobId, new Date(randomNonNegativeLong()), randomNonNegativeLong());
+        Bucket bucket = new Bucket(jobId, randomDate(), randomLongBetween(1, MAX_BUCKET_SPAN_SEC));
         if (randomBoolean()) {
             bucket.setAnomalyScore(randomDouble());
         }
@@ -61,7 +64,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
             bucket.setInterim(randomBoolean());
         }
         if (randomBoolean()) {
-            bucket.setProcessingTimeMs(randomLong());
+            bucket.setProcessingTimeMs(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             int size = randomInt(10);
@@ -92,7 +95,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
     }
 
     public void testEquals_GivenDifferentClass() {
-        Bucket bucket = new Bucket("foo", new Date(randomLong()), randomNonNegativeLong());
+        Bucket bucket = new Bucket("foo", randomDate(), randomNonNegativeLong());
         assertFalse(bucket.equals("a string"));
     }
 

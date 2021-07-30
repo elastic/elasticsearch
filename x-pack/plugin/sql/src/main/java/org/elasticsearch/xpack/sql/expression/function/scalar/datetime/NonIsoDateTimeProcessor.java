@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
@@ -10,18 +11,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
-import java.util.Calendar;
-import java.util.Locale;
+import java.time.temporal.WeekFields;
 import java.util.Objects;
-import java.util.TimeZone;
 import java.util.function.Function;
 
 public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
-    
+
     public enum NonIsoDateTimeExtractor {
         DAY_OF_WEEK(zdt -> {
             // by ISO 8601 standard, Monday is the first day of the week and has the value 1
@@ -30,15 +28,7 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
             return dayOfWeek == 8 ? 1 : dayOfWeek;
         }),
         WEEK_OF_YEAR(zdt -> {
-            // by ISO 8601 standard, the first week of a year is the first week with a majority (4 or more) of its days in January.
-            // Other Locales may have their own standards (see Arabic or Japanese calendars).
-            LocalDateTime ld = zdt.toLocalDateTime();
-            Calendar cal = Calendar.getInstance(TimeZone.getTimeZone(zdt.getZone()), Locale.ROOT);
-            cal.clear();
-            cal.set(ld.get(ChronoField.YEAR), ld.get(ChronoField.MONTH_OF_YEAR) - 1, ld.get(ChronoField.DAY_OF_MONTH),
-                    ld.get(ChronoField.HOUR_OF_DAY), ld.get(ChronoField.MINUTE_OF_HOUR), ld.get(ChronoField.SECOND_OF_MINUTE));
-
-            return cal.get(Calendar.WEEK_OF_YEAR);
+            return zdt.get(WeekFields.SUNDAY_START.weekOfYear());
         });
 
         private final Function<ZonedDateTime, Integer> apply;
@@ -55,13 +45,13 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
             return apply.apply(millis.withZoneSameInstant(ZoneId.of(tzId)));
         }
     }
-    
+
     public static final String NAME = "nidt";
 
     private final NonIsoDateTimeExtractor extractor;
 
-    public NonIsoDateTimeProcessor(NonIsoDateTimeExtractor extractor, TimeZone timeZone) {
-        super(timeZone);
+    public NonIsoDateTimeProcessor(NonIsoDateTimeExtractor extractor, ZoneId zoneId) {
+        super(zoneId);
         this.extractor = extractor;
     }
 
@@ -72,7 +62,6 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeEnum(extractor);
     }
 
@@ -92,7 +81,7 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(extractor, timeZone());
+        return Objects.hash(extractor, zoneId());
     }
 
     @Override
@@ -102,7 +91,7 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
         }
         NonIsoDateTimeProcessor other = (NonIsoDateTimeProcessor) obj;
         return Objects.equals(extractor, other.extractor)
-                && Objects.equals(timeZone(), other.timeZone());
+                && Objects.equals(zoneId(), other.zoneId());
     }
 
     @Override

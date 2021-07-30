@@ -4,7 +4,7 @@
 The fact that Elasticsearch operates with shards and replicas adds challenges
 when it comes to having good scoring.
 
-[float]
+[discrete]
 ==== Scores are not reproducible
 
 Say the same user runs the same request twice in a row and documents do not come
@@ -28,8 +28,8 @@ from the replica (which still have plenty of deleted documents) so that scores
 are different too.
 
 The recommended way to work around this issue is to use a string that identifies
-the user that is logged is (a user id or session id for instance) as a
-<<search-request-preference,preference>>. This ensures that all queries of a
+the user that is logged in (a user id or session id for instance) as a
+<<search-preference,preference>>. This ensures that all queries of a
 given user are always going to hit the same shards, so scores remain more
 consistent across queries.
 
@@ -39,7 +39,7 @@ they will be sorted by their internal Lucene doc id (which is unrelated to the
 the same shard. So by always hitting the same shard, we would get more
 consistent ordering of documents that have the same scores.
 
-[float]
+[discrete]
 ==== Relevancy looks wrong
 
 If you notice that two documents with the same content get different scores or
@@ -60,8 +60,8 @@ request do not have similar index statistics and relevancy could be bad.
 
 If you have a small dataset, the easiest way to work around this issue is to
 index everything into an index that has a single shard
-(`index.number_of_shards: 1`). Then index statistics will be the same for all
-documents and scores will be consistent.
+(`index.number_of_shards: 1`), which is the default. Then index statistics
+will be the same for all documents and scores will be consistent.
 
 Otherwise the recommended way to work around this issue is to use the
 <<dfs-query-then-fetch,`dfs_query_then_fetch`>> search type. This will make
@@ -78,3 +78,122 @@ queries, beware that gathering statistics alone might not be cheap since all
 terms have to be looked up in the terms dictionaries in order to look up
 statistics.
 
+[[static-scoring-signals]]
+=== Incorporating static relevance signals into the score
+
+Many domains have static signals that are known to be correlated with relevance.
+For instance {wikipedia}/PageRank[PageRank] and url length are
+two commonly used features for web search in order to tune the score of web
+pages independently of the query.
+
+There are two main queries that allow combining static score contributions with
+textual relevance, eg. as computed with BM25:
+ - <<query-dsl-script-score-query,`script_score` query>>
+ - <<query-dsl-rank-feature-query,`rank_feature` query>>
+
+For instance imagine that you have a `pagerank` field that you wish to
+combine with the BM25 score so that the final score is equal to
+`score = bm25_score + pagerank / (10 + pagerank)`.
+
+With the <<query-dsl-script-score-query,`script_score` query>> the query would
+look like this:
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT index
+{
+  "mappings": {
+    "properties": {
+      "body": {
+        "type": "text"
+      },
+      "pagerank": {
+        "type": "long"
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+GET index/_search
+{
+  "query": {
+    "script_score": {
+      "query": {
+        "match": { "body": "elasticsearch" }
+      },
+      "script": {
+        "source": "_score * saturation(doc['pagerank'].value, 10)" <1>
+      }
+    }
+  }
+}
+--------------------------------------------------
+//TEST[continued]
+
+<1> `pagerank` must be mapped as a <<number>>
+
+while with the <<query-dsl-rank-feature-query,`rank_feature` query>> it would
+look like below:
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT index
+{
+  "mappings": {
+    "properties": {
+      "body": {
+        "type": "text"
+      },
+      "pagerank": {
+        "type": "rank_feature"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+GET _search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match": { "body": "elasticsearch" }
+      },
+      "should": {
+        "rank_feature": {
+          "field": "pagerank", <1>
+          "saturation": {
+            "pivot": 10
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+<1> `pagerank` must be mapped as a <<rank-feature,`rank_feature`>> field
+
+While both options would return similar scores, there are trade-offs:
+<<query-dsl-script-score-query,script_score>> provides a lot of flexibility,
+enabling you to combine the text relevance score with static signals as you
+prefer. On the other hand, the <<rank-feature,`rank_feature` query>> only
+exposes a couple ways to incorporate static signails into the score. However,
+it relies on the <<rank-feature,`rank_feature`>> and
+<<rank-features,`rank_features`>> fields, which index values in a special way
+that allows the <<query-dsl-rank-feature-query,`rank_feature` query>> to skip
+over non-competitive documents and get the top matches of a query faster.

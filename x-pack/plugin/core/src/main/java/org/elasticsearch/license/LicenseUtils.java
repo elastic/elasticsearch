@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.license.License.LicenseType;
 import org.elasticsearch.rest.RestStatus;
-
-import java.util.stream.StreamSupport;
 
 public class LicenseUtils {
 
@@ -39,7 +39,8 @@ public class LicenseUtils {
     }
 
     public static boolean licenseNeedsExtended(License license) {
-        return "basic".equals(license.type()) && license.expiryDate() != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+        return LicenseType.isBasic(license.type()) &&
+            license.expiryDate() != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
     }
 
     /**
@@ -47,24 +48,26 @@ public class LicenseUtils {
      * recreated with the new key
      */
     public static boolean signatureNeedsUpdate(License license, DiscoveryNodes currentNodes) {
-        assert License.VERSION_CRYPTO_ALGORITHMS == License.VERSION_CURRENT : "update this method when adding a new version";
+        assert License.VERSION_ENTERPRISE == License.VERSION_CURRENT : "update this method when adding a new version";
 
-        return ("basic".equals(license.type()) || "trial".equals(license.type())) &&
+        String typeName = license.type();
+        return (LicenseType.isBasic(typeName) || LicenseType.isTrial(typeName)) &&
                 // only upgrade signature when all nodes are ready to deserialize the new signature
                 (license.version() < License.VERSION_CRYPTO_ALGORITHMS &&
-                    compatibleLicenseVersion(currentNodes) == License.VERSION_CRYPTO_ALGORITHMS
+                    compatibleLicenseVersion(currentNodes) >= License.VERSION_CRYPTO_ALGORITHMS
                 );
     }
 
     public static int compatibleLicenseVersion(DiscoveryNodes currentNodes) {
-        assert License.VERSION_CRYPTO_ALGORITHMS == License.VERSION_CURRENT : "update this method when adding a new version";
+        return getMaxLicenseVersion(currentNodes.getMinNodeVersion());
+    }
 
-        if (StreamSupport.stream(currentNodes.spliterator(), false)
-            .allMatch(node -> node.getVersion().onOrAfter(Version.V_6_4_0))) {
-            // License.VERSION_CRYPTO_ALGORITHMS was introduced in 6.4.0
+    public static int getMaxLicenseVersion(Version version) {
+        if (version != null && version.before(Version.V_7_6_0)) {
             return License.VERSION_CRYPTO_ALGORITHMS;
         } else {
-            return License.VERSION_START_DATE;
+            assert License.VERSION_ENTERPRISE == License.VERSION_CURRENT : "update this method when adding a new version";
+            return License.VERSION_ENTERPRISE;
         }
     }
 }

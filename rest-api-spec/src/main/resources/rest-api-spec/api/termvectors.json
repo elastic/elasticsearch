@@ -1,97 +1,108 @@
 {
-  "termvectors" : {
-    "documentation" : "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-termvectors.html",
-    "methods" : ["GET", "POST"],
-    "url" : {
-      "path" : "/{index}/_termvectors/{id}",
-      "paths" : ["/{index}/_termvectors/{id}", "/{index}/_termvectors/",
-                 "/{index}/{type}/{id}/_termvectors", "/{index}/{type}/_termvectors"],
-      "parts" : {
-        "index" : {
-         "type" : "string",
-         "description" : "The index in which the document resides.",
-         "required" : true
+  "termvectors":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-termvectors.html",
+      "description":"Returns information and statistics about terms in the fields of a particular document."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_termvectors/{id}",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The index in which the document resides."
+            },
+            "id":{
+              "type":"string",
+              "description":"The id of the document, when not specified a doc param should be supplied."
+            }
+          }
         },
-        "type" : {
-          "type" : "string",
-          "description" : "The type of the document.",
-          "required" : false
-        },
-        "id" : {
-           "type" : "string",
-           "description" : "The id of the document, when not specified a doc param should be supplied."
-         }
-      },
-      "params": {
-        "term_statistics" : {
-          "type" : "boolean",
-          "description" : "Specifies if total term frequency and document frequency should be returned.",
-          "default" : false,
-          "required" : false
-        },
-        "field_statistics" : {
-           "type" : "boolean",
-           "description" : "Specifies if document count, sum of document frequencies and sum of total term frequencies should be returned.",
-           "default" : true,
-           "required" : false
-        },
-        "fields" : {
-          "type" : "list",
-          "description" : "A comma-separated list of fields to return.",
-          "required" : false
-        },
-        "offsets" : {
-          "type" : "boolean",
-          "description" : "Specifies if term offsets should be returned.",
-          "default" : true,
-          "required" : false
-        },
-        "positions" : {
-          "type" : "boolean",
-          "description" : "Specifies if term positions should be returned.",
-          "default" : true,
-          "required" : false
-        },
-        "payloads" : {
-          "type" : "boolean",
-          "description" : "Specifies if term payloads should be returned.",
-          "default" : true,
-          "required" : false
-        },
-        "preference" : {
-          "type" : "string",
-          "description" : "Specify the node or shard the operation should be performed on (default: random).",
-          "required" : false
-        },
-        "routing" : {
-          "type" : "string",
-          "description" : "Specific routing value.",
-          "required" : false
-        },
-        "parent": {
-          "type" : "string",
-          "description" : "Parent id of documents.",
-          "required" : false
-        },
-        "realtime": {
-          "type": "boolean",
-          "description": "Specifies if request is real-time as opposed to near-real-time (default: true).",
-          "required": false
-        },
-        "version" : {
-          "type" : "number",
-          "description" : "Explicit version number for concurrency control"
-        },
-        "version_type": {
-          "type" : "enum",
-          "options" : ["internal", "external", "external_gte", "force"],
-          "description" : "Specific version type"
+        {
+          "path":"/{index}/_termvectors",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The index in which the document resides."
+            }
+          }
         }
+      ]
+    },
+    "params":{
+      "term_statistics":{
+        "type":"boolean",
+        "description":"Specifies if total term frequency and document frequency should be returned.",
+        "default":false
+      },
+      "field_statistics":{
+        "type":"boolean",
+        "description":"Specifies if document count, sum of document frequencies and sum of total term frequencies should be returned.",
+        "default":true
+      },
+      "fields":{
+        "type":"list",
+        "description":"A comma-separated list of fields to return."
+      },
+      "offsets":{
+        "type":"boolean",
+        "description":"Specifies if term offsets should be returned.",
+        "default":true
+      },
+      "positions":{
+        "type":"boolean",
+        "description":"Specifies if term positions should be returned.",
+        "default":true
+      },
+      "payloads":{
+        "type":"boolean",
+        "description":"Specifies if term payloads should be returned.",
+        "default":true
+      },
+      "preference":{
+        "type":"string",
+        "description":"Specify the node or shard the operation should be performed on (default: random)."
+      },
+      "routing":{
+        "type":"string",
+        "description":"Specific routing value."
+      },
+      "realtime":{
+        "type":"boolean",
+        "description":"Specifies if request is real-time as opposed to near-real-time (default: true)."
+      },
+      "version":{
+        "type":"number",
+        "description":"Explicit version number for concurrency control"
+      },
+      "version_type":{
+        "type":"enum",
+        "options":[
+          "internal",
+          "external",
+          "external_gte"
+        ],
+        "description":"Specific version type"
       }
     },
-    "body": {
-      "description" : "Define parameters and or supply a document to get termvectors for. See documentation.",
-      "required" : false
+    "body":{
+      "description":"Define parameters and or supply a document to get termvectors for. See documentation.",
+      "required":false
     }
   }
 }

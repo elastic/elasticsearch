@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc.saml;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -24,7 +25,6 @@ import java.util.function.Function;
 public class SamlRealmSettings {
 
     public static final String TYPE = "saml";
-    private static final String TRANSIENT_NAMEID_FORMAT = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient";
 
     // these settings will be used under the prefix xpack.security.authc.realms.REALM_NAME.
     private static final String IDP_METADATA_SETTING_PREFIX = "idp.metadata.";
@@ -49,9 +49,8 @@ public class SamlRealmSettings {
     public static final Setting.AffixSetting<String> SP_ACS = RealmSettings.simpleString(TYPE, "sp.acs", Setting.Property.NodeScope);
     public static final Setting.AffixSetting<String> SP_LOGOUT = RealmSettings.simpleString(TYPE, "sp.logout", Setting.Property.NodeScope);
 
-    public static final Setting.AffixSetting<String> NAMEID_FORMAT = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(TYPE), "nameid_format",
-            key -> new Setting<>(key, s -> TRANSIENT_NAMEID_FORMAT, Function.identity(), Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<String> NAMEID_FORMAT
+        = RealmSettings.simpleString(TYPE, "nameid_format", Setting.Property.NodeScope);
 
     public static final Setting.AffixSetting<Boolean> NAMEID_ALLOW_CREATE = Setting.affixKeySetting(
             RealmSettings.realmSettingPrefix(TYPE), "nameid.allow_create",
@@ -103,11 +102,11 @@ public class SamlRealmSettings {
      */
     public static Set<Setting.AffixSetting<?>> getSettings() {
         final Set<Setting.AffixSetting<?>> set = Sets.newHashSet(
-                IDP_ENTITY_ID, IDP_METADATA_PATH, IDP_SINGLE_LOGOUT,
-                SP_ENTITY_ID, SP_ACS, SP_LOGOUT,
-                NAMEID_FORMAT, NAMEID_ALLOW_CREATE, NAMEID_SP_QUALIFIER, FORCE_AUTHN,
-                POPULATE_USER_METADATA, CLOCK_SKEW,
-                ENCRYPTION_KEY_ALIAS, SIGNING_KEY_ALIAS, SIGNING_MESSAGE_TYPES, REQUESTED_AUTHN_CONTEXT_CLASS_REF);
+            IDP_ENTITY_ID, IDP_METADATA_PATH, IDP_METADATA_HTTP_REFRESH, IDP_SINGLE_LOGOUT,
+            SP_ENTITY_ID, SP_ACS, SP_LOGOUT,
+            NAMEID_FORMAT, NAMEID_ALLOW_CREATE, NAMEID_SP_QUALIFIER, FORCE_AUTHN,
+            POPULATE_USER_METADATA, CLOCK_SKEW,
+            ENCRYPTION_KEY_ALIAS, SIGNING_KEY_ALIAS, SIGNING_MESSAGE_TYPES, REQUESTED_AUTHN_CONTEXT_CLASS_REF);
         set.addAll(X509KeyPairSettings.affix(RealmSettings.realmSettingPrefix(TYPE), ENCRYPTION_SETTING_KEY, false));
         set.addAll(X509KeyPairSettings.affix(RealmSettings.realmSettingPrefix(TYPE), SIGNING_SETTING_KEY, false));
         set.addAll(SSLConfigurationSettings.getRealmSettings(TYPE));

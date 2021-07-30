@@ -1,60 +1,73 @@
 [role="xpack"]
 [[security-api-get-role-mapping]]
 === Get role mappings API
+++++
+<titleabbrev>Get role mappings</titleabbrev>
+++++
 
 Retrieves role mappings.
 
-==== Request
+[[security-api-get-role-mapping-request]]
+==== {api-request-title}
 
 `GET /_security/role_mapping` +
 
 `GET /_security/role_mapping/<name>` 
 
-==== Description
+[[security-api-get-role-mapping-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_security` cluster privilege.
+
+[[security-api-get-role-mapping-desc]]
+==== {api-description-title}
 
 Role mappings define which roles are assigned to each user. For more information, 
-see {stack-ov}/mapping-roles.html[Mapping users and groups to roles]. 
+see <<mapping-roles>>.
 
-==== Path Parameters
+The role mapping APIs are generally the preferred way to manage role mappings
+rather than using <<mapping-roles-file,role mapping files>>.
+The get role mappings API cannot retrieve role mappings that are defined
+in role mapping files.
+
+[[security-api-get-role-mapping-path-params]]
+==== {api-path-parms-title}
 
 `name`::
- (string) The distinct name that identifies the role mapping. The name is
-  used solely as an identifier to facilitate interaction via the API; it does
+  (Optional, string) The distinct name that identifies the role mapping. The name
+  is used solely as an identifier to facilitate interaction via the API; it does
   not affect the behavior of the mapping in any way. You can specify multiple 
   mapping names as a comma-separated list. If you do not specify this
   parameter, the API returns information about all role mappings. 
 
-//==== Request Body
-
-==== Results
+[[security-api-get-role-mapping-response-body]]
+==== {api-response-body-title}
 
 A successful call retrieves an object, where the keys are the
 names of the request mappings, and the values are the JSON representation of 
 those mappings. For more information, see 
 <<role-mapping-resources>>.
 
+[[security-api-get-role-mapping-response-codes]]
+==== {api-response-codes-title}
+
 If there is no mapping with the requested name, the
 response will have status code `404`.
 
 
-==== Authorization
-
-To use this API, you must have at least the `manage_security` cluster privilege.
-
-
-==== Examples
+[[security-api-get-role-mapping-example]]
+==== {api-examples-title}
 
 The following example retrieves information about the `mapping1` role mapping:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/role_mapping/mapping1
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:role_mapping]
 
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "mapping1": {
@@ -71,4 +84,3 @@ GET /_security/role_mapping/mapping1
   }
 }
 --------------------------------------------------
-// TESTRESPONSE

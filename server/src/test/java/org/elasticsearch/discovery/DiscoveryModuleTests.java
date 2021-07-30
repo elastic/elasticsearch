@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.discovery;
 
@@ -22,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -30,12 +19,9 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.NoopDiscovery;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -60,38 +46,24 @@ public class DiscoveryModuleTests extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
     private MasterService masterService;
     private ClusterApplier clusterApplier;
-    private ThreadPool threadPool;
     private ClusterSettings clusterSettings;
     private GatewayMetaState gatewayMetaState;
 
     public interface DummyHostsProviderPlugin extends DiscoveryPlugin {
-        Map<String, Supplier<UnicastHostsProvider>> impl();
+        Map<String, Supplier<SeedHostsProvider>> impl();
         @Override
-        default Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
-                                                                                 NetworkService networkService) {
-            return impl();
-        }
-    }
-
-    public interface DummyDiscoveryPlugin extends DiscoveryPlugin {
-        Map<String, Supplier<Discovery>> impl();
-        @Override
-        default Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
-                                                                   NamedWriteableRegistry namedWriteableRegistry,
-                                                                   MasterService masterService, ClusterApplier clusterApplier,
-                                                                   ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider,
-                                                                   AllocationService allocationService, GatewayMetaState gatewayMetaState) {
+        default Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService,
+                                                                              NetworkService networkService) {
             return impl();
         }
     }
 
     @Before
     public void setupDummyServices() {
-        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, null, null);
+        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, mock(ThreadPool.class), null);
         masterService = mock(MasterService.class);
         namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         clusterApplier = mock(ClusterApplier.class);
-        threadPool = mock(ThreadPool.class);
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         gatewayMetaState = mock(GatewayMetaState.class);
     }
@@ -102,26 +74,14 @@ public class DiscoveryModuleTests extends ESTestCase {
     }
 
     private DiscoveryModule newModule(Settings settings, List<DiscoveryPlugin> plugins) {
-        return new DiscoveryModule(settings, threadPool, transportService, namedWriteableRegistry, null, masterService,
-            clusterApplier, clusterSettings, plugins, null, createTempDir().toAbsolutePath(), gatewayMetaState);
+        return new DiscoveryModule(settings, transportService, namedWriteableRegistry, null, masterService,
+            clusterApplier, clusterSettings, plugins, null, createTempDir().toAbsolutePath(), gatewayMetaState,
+            mock(RerouteService.class), null);
     }
 
     public void testDefaults() {
         DiscoveryModule module = newModule(Settings.EMPTY, Collections.emptyList());
         assertTrue(module.getDiscovery() instanceof Coordinator);
-    }
-
-    public void testLazyConstructionDiscovery() {
-        DummyDiscoveryPlugin plugin = () -> Collections.singletonMap("custom",
-            () -> { throw new AssertionError("created discovery type which was not selected"); });
-        newModule(Settings.EMPTY, Collections.singletonList(plugin));
-    }
-
-    public void testRegisterDiscovery() {
-        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "custom").build();
-        DummyDiscoveryPlugin plugin = () -> Collections.singletonMap("custom", NoopDiscovery::new);
-        DiscoveryModule module = newModule(settings, Collections.singletonList(plugin));
-        assertTrue(module.getDiscovery() instanceof NoopDiscovery);
     }
 
     public void testUnknownDiscovery() {
@@ -131,16 +91,8 @@ public class DiscoveryModuleTests extends ESTestCase {
         assertEquals("Unknown discovery type [dne]", e.getMessage());
     }
 
-    public void testDuplicateDiscovery() {
-        DummyDiscoveryPlugin plugin1 = () -> Collections.singletonMap("dup", () -> null);
-        DummyDiscoveryPlugin plugin2 = () -> Collections.singletonMap("dup", () -> null);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            newModule(Settings.EMPTY, Arrays.asList(plugin1, plugin2)));
-        assertEquals("Cannot register discovery type [dup] twice", e.getMessage());
-    }
-
-    public void testHostsProvider() {
-        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "custom").build();
+    public void testSeedProviders() {
+        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "custom").build();
         AtomicBoolean created = new AtomicBoolean(false);
         DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom", () -> {
             created.set(true);
@@ -150,29 +102,29 @@ public class DiscoveryModuleTests extends ESTestCase {
         assertTrue(created.get());
     }
 
-    public void testUnknownHostsProvider() {
-        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "dne").build();
+    public void testUnknownSeedsProvider() {
+        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "dne").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             newModule(settings, Collections.emptyList()));
-        assertEquals("Unknown zen hosts providers [dne]", e.getMessage());
+        assertEquals("Unknown seed providers [dne]", e.getMessage());
     }
 
-    public void testDuplicateHostsProvider() {
+    public void testDuplicateSeedsProvider() {
         DummyHostsProviderPlugin plugin1 = () -> Collections.singletonMap("dup", () -> null);
         DummyHostsProviderPlugin plugin2 = () -> Collections.singletonMap("dup", () -> null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             newModule(Settings.EMPTY, Arrays.asList(plugin1, plugin2)));
-        assertEquals("Cannot register zen hosts provider [dup] twice", e.getMessage());
+        assertEquals("Cannot register seed provider [dup] twice", e.getMessage());
     }
 
-    public void testSettingsHostsProvider() {
+    public void testSettingsSeedsProvider() {
         DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("settings", () -> null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             newModule(Settings.EMPTY, Arrays.asList(plugin)));
-        assertEquals("Cannot register zen hosts provider [settings] twice", e.getMessage());
+        assertEquals("Cannot register seed provider [settings] twice", e.getMessage());
     }
 
-    public void testMultiHostsProvider() {
+    public void testMultipleSeedsProviders() {
         AtomicBoolean created1 = new AtomicBoolean(false);
         DummyHostsProviderPlugin plugin1 = () -> Collections.singletonMap("provider1", () -> {
             created1.set(true);
@@ -188,7 +140,7 @@ public class DiscoveryModuleTests extends ESTestCase {
             created3.set(true);
             return hostsResolver -> Collections.emptyList();
         });
-        Settings settings = Settings.builder().putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(),
+        Settings settings = Settings.builder().putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(),
             "provider1", "provider3").build();
         newModule(settings, Arrays.asList(plugin1, plugin2, plugin3));
         assertTrue(created1.get());
@@ -196,7 +148,7 @@ public class DiscoveryModuleTests extends ESTestCase {
         assertTrue(created3.get());
     }
 
-    public void testLazyConstructionHostsProvider() {
+    public void testLazyConstructionSeedsProvider() {
         DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom",
             () -> {
                 throw new AssertionError("created hosts provider which was not selected");
@@ -206,15 +158,14 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     public void testJoinValidator() {
         BiConsumer<DiscoveryNode, ClusterState> consumer = (a, b) -> {};
-        // TODO: move to zen2 once join validators are implemented
         DiscoveryModule module = newModule(Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
-            DiscoveryModule.ZEN_DISCOVERY_TYPE).build(), Collections.singletonList(new DiscoveryPlugin() {
+            DiscoveryModule.ZEN2_DISCOVERY_TYPE).build(), Collections.singletonList(new DiscoveryPlugin() {
             @Override
             public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
                 return consumer;
             }
         }));
-        ZenDiscovery discovery = (ZenDiscovery) module.getDiscovery();
+        Coordinator discovery = (Coordinator) module.getDiscovery();
         Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators = discovery.getOnJoinValidators();
         assertEquals(2, onJoinValidators.size());
         assertTrue(onJoinValidators.contains(consumer));

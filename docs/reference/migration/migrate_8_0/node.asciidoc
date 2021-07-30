@@ -1,0 +1,159 @@
+[discrete]
+[[breaking_80_node_changes]]
+==== Node changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+.The `node.max_local_storage_nodes` setting has been removed.
+[%collapsible]
+====
+*Details* +
+The `node.max_local_storage_nodes` setting was deprecated in 7.x and
+has been removed in 8.0. Nodes should be run on separate data paths
+to ensure that each node is consistently assigned to the same data path.
+
+*Impact* +
+Discontinue use of the `node.max_local_storage_nodes` setting. Specifying this
+setting in `elasticsearch.yml` will result in an error on startup.
+====
+
+.The layout of the data folder has changed.
+[%collapsible]
+====
+*Details* +
+Each node's data is now stored directly in the data directory set by the
+`path.data` setting, rather than in `${path.data}/nodes/0`, because the removal
+of the `node.max_local_storage_nodes` setting means that nodes may no longer
+share a data path.
+
+*Impact* +
+At startup, {es} will automatically migrate the data path to the new layout.
+This automatic migration will not proceed if the data path contains data for
+more than one node. You should move to a configuration in which each node has
+its own data path before upgrading.
+
+If you try to upgrade a configuration in which there is data for more than one
+node in a data path then the automatic migration will fail and {es}
+will refuse to start. To resolve this you will need to perform the migration
+manually. The data for the extra nodes are stored in folders named
+`${path.data}/nodes/1`, `${path.data}/nodes/2` and so on, and you should move
+each of these folders to an appropriate location and then configure the
+corresponding node to use this location for its data path. If your nodes each
+have more than one data path in their `path.data` settings then you should move
+all the corresponding subfolders in parallel. Each node uses the same subfolder
+(e.g. `nodes/2`) across all its data paths.
+====
+
+.Support for multiple data paths has been removed.
+[%collapsible]
+====
+*Details* +
+In earlier versions the `path.data` setting accepted a list of data paths, but
+if you specified multiple paths then the behaviour was unintuitive and usually
+did not give the desired outcomes. Support for multiple data paths is now
+removed.
+
+*Impact* +
+Specify a single path in `path.data`. If needed, you can create a filesystem
+which spans multiple disks with a hardware virtualisation layer such as RAID,
+or a software virtualisation layer such as Logical Volume Manager (LVM) on
+Linux or Storage Spaces on Windows. If you wish to use multiple data paths on a
+single machine then you must run one node for each data path.
+
+If you currently use multiple data paths in a
+{ref}/high-availability-cluster-design.html[highly available cluster] then you 
+can migrate to a setup that uses a single path for each node without downtime 
+using a process similar to a 
+{ref}/restart-cluster.html#restart-cluster-rolling[rolling restart]: shut each
+node down in turn and replace it with one or more nodes each configured to use
+a single data path. In more detail, for each node that currently has multiple
+data paths you should follow the following process. In principle you can
+perform this migration during a rolling upgrade to 8.0, but we recommend
+migrating to a single-data-path setup before starting to upgrade.
+
+1. Take a snapshot to protect your data in case of disaster.
+
+2. Optionally, migrate the data away from the target node by using an
+{ref}/modules-cluster.html#cluster-shard-allocation-filtering[allocation filter]:
++
+[source,console]
+--------------------------------------------------
+PUT _cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.exclude._name": "target-node-name"
+  }
+}
+--------------------------------------------------
++
+You can use the {ref}/cat-allocation.html[cat allocation API] to track progress 
+of this data migration. If some shards do not migrate then the
+{ref}/cluster-allocation-explain.html[cluster allocation explain API] will help 
+you to determine why.
+
+3. Follow the steps in the 
+{ref}/restart-cluster.html#restart-cluster-rolling[rolling restart process]
+up to and including shutting the target node down.
+
+4. Ensure your cluster health is `yellow` or `green`, so that there is a copy
+of every shard assigned to at least one of the other nodes in your cluster.
+
+5. If applicable, remove the allocation filter applied in the earlier step.
++
+[source,console]
+--------------------------------------------------
+PUT _cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.exclude._name": null
+  }
+}
+--------------------------------------------------
+
+6. Discard the data held by the stopped node by deleting the contents of its
+data paths.
+
+7. Reconfigure your storage. For instance, combine your disks into a single
+filesystem using LVM or Storage Spaces. Ensure that your reconfigured storage
+has sufficient space for the data that it will hold.
+
+8. Reconfigure your node by adjusting the `path.data` setting in its
+`elasticsearch.yml` file. If needed, install more nodes each with their own
+`path.data` setting pointing at a separate data path.
+
+9. Start the new nodes and follow the rest of the
+{ref}/restart-cluster.html#restart-cluster-rolling[rolling restart process] for 
+them.
+
+10. Ensure your cluster health is `green`, so that every shard has been
+assigned.
+
+You can alternatively add some number of single-data-path nodes to your
+cluster, migrate all your data over to these new nodes using
+{ref}/modules-cluster.html#cluster-shard-allocation-filtering[allocation filters], 
+and then remove the old nodes from the cluster. This approach will temporarily 
+double the size of your cluster so it will only work if you have the capacity to 
+expand your cluster like this.
+
+If you currently use multiple data paths but your cluster is not highly
+available then the you can migrate to a non-deprecated configuration by taking
+a snapshot, creating a new cluster with the desired configuration and restoring
+the snapshot into it.
+====
+
+.Closed indices created in {es} 6.x and earlier versions are not supported.
+[%collapsible]
+====
+*Details* +
+In earlier versions a node would start up even if it had data from indices
+created in a version before the previous major version, as long as those
+indices were closed. {es} now ensures that it is compatible with every index,
+open or closed, at startup time.
+
+*Impact* +
+Reindex closed indices created in {es} 6.x or before with {es} 7.x if they need
+to be carried forward to {es} 8.x.
+====
+// end::notable-breaking-changes[]

@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 
 public abstract class AbstractBulkByScrollRequestBuilder<
@@ -35,7 +24,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<
     private final SearchRequestBuilder source;
 
     protected AbstractBulkByScrollRequestBuilder(ElasticsearchClient client,
-                                                 Action<BulkByScrollResponse> action, SearchRequestBuilder source, Request request) {
+                                                 ActionType<BulkByScrollResponse> action, SearchRequestBuilder source, Request request) {
         super(client, action, request);
         this.source = source;
     }
@@ -67,15 +56,27 @@ public abstract class AbstractBulkByScrollRequestBuilder<
     }
 
     /**
-     * The maximum number of documents to attempt.
+     * Maximum number of processed documents. Defaults to processing all
+     * documents.
+     * @deprecated please use maxDocs(int) instead.
      */
+    @Deprecated
     public Self size(int size) {
-        request.setSize(size);
+        return maxDocs(size);
+    }
+
+
+    /**
+     * Maximum number of processed documents. Defaults to processing all
+     * documents.
+     */
+    public Self maxDocs(int maxDocs) {
+        request.setMaxDocs(maxDocs);
         return self();
     }
 
     /**
-     * Should we version conflicts cause the action to abort?
+     * Set whether or not version conflicts cause the action to abort.
      */
     public Self abortOnVersionConflict(boolean abortOnVersionConflict) {
         request.setAbortOnVersionConflict(abortOnVersionConflict);

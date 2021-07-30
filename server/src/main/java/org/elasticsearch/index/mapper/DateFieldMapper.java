@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -22,306 +11,559 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.DateFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.DocValueFormat;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.search.lookup.FieldValues;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Iterator;
+import java.text.NumberFormat;
+import java.time.DateTimeException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
-import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
+import static org.elasticsearch.common.time.DateUtils.toLong;
 
-/** A {@link FieldMapper} for ip addresses. */
-public class DateFieldMapper extends FieldMapper {
+/** A {@link FieldMapper} for dates. */
+public final class DateFieldMapper extends FieldMapper {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateFieldMapper.class);
 
     public static final String CONTENT_TYPE = "date";
-    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern(
-            "strict_date_optional_time||epoch_millis", Locale.ROOT);
+    public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
+    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
+    public static final DateFormatter DEFAULT_DATE_TIME_NANOS_FORMATTER =
+        DateFormatter.forPattern("strict_date_optional_time_nanos||epoch_millis");
+    private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
-    public static class Defaults {
-        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
-    }
-
-    public static class Builder extends FieldMapper.Builder<Builder, DateFieldMapper> {
-
-        private Boolean ignoreMalformed;
-        private Locale locale;
-        private boolean dateTimeFormatterSet = false;
-
-        public Builder(String name) {
-            super(name, new DateFieldType(), new DateFieldType());
-            builder = this;
-            locale = Locale.ROOT;
-        }
-
-        @Override
-        public DateFieldType fieldType() {
-            return (DateFieldType)fieldType;
-        }
-
-        public Builder ignoreMalformed(boolean ignoreMalformed) {
-            this.ignoreMalformed = ignoreMalformed;
-            return builder;
-        }
-
-        protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
-            if (ignoreMalformed != null) {
-                return new Explicit<>(ignoreMalformed, true);
+    public enum Resolution {
+        MILLISECONDS(CONTENT_TYPE, NumericType.DATE) {
+            @Override
+            public long convert(Instant instant) {
+                return instant.toEpochMilli();
             }
-            if (context.indexSettings() != null) {
-                return new Explicit<>(IGNORE_MALFORMED_SETTING.get(context.indexSettings()), false);
+
+            @Override
+            public Instant toInstant(long value) {
+                return Instant.ofEpochMilli(value);
             }
-            return Defaults.IGNORE_MALFORMED;
-        }
 
-        /** Whether an explicit format for this date field has been set already. */
-        public boolean isDateTimeFormatterSet() {
-            return dateTimeFormatterSet;
-        }
-
-        public Builder dateTimeFormatter(DateFormatter dateTimeFormatter) {
-            fieldType().setDateTimeFormatter(dateTimeFormatter);
-            dateTimeFormatterSet = true;
-            return this;
-        }
-
-        public void locale(Locale locale) {
-            this.locale = locale;
-        }
-
-        @Override
-        protected void setupFieldType(BuilderContext context) {
-            super.setupFieldType(context);
-            DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
-            if (!locale.equals(dateTimeFormatter.locale())) {
-                fieldType().setDateTimeFormatter(dateTimeFormatter.withLocale(locale));
+            @Override
+            public Instant clampToValidRange(Instant instant) {
+                return instant;
             }
-        }
 
-        @Override
-        public DateFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new DateFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-        }
-    }
+            @Override
+            public long parsePointAsMillis(byte[] value) {
+                return LongPoint.decodeDimension(value, 0);
+            }
 
-    public static class TypeParser implements Mapper.TypeParser {
+            @Override
+            public long roundDownToMillis(long value) {
+                return value;
+            }
 
-        public TypeParser() {
-        }
+            @Override
+            public long roundUpToMillis(long value) {
+                return value;
+            }
 
-        @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(name);
-            TypeParsers.parseField(builder, name, node, parserContext);
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
-                Object propNode = entry.getValue();
-                if (propName.equals("null_value")) {
-                    if (propNode == null) {
-                        throw new MapperParsingException("Property [null_value] cannot be null.");
-                    }
-                    builder.nullValue(propNode.toString());
-                    iterator.remove();
-                } else if (propName.equals("ignore_malformed")) {
-                    builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + ".ignore_malformed"));
-                    iterator.remove();
-                } else if (propName.equals("locale")) {
-                    builder.locale(LocaleUtils.parse(propNode.toString()));
-                    iterator.remove();
-                } else if (propName.equals("format")) {
-                    builder.dateTimeFormatter(parseDateTimeFormatter(propNode));
-                    iterator.remove();
-                } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
-                    iterator.remove();
+            @Override
+            protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
+                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
+            }
+        },
+        NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS) {
+            @Override
+            public long convert(Instant instant) {
+                return toLong(instant);
+            }
+
+            @Override
+            public Instant toInstant(long value) {
+                return DateUtils.toInstant(value);
+            }
+
+            @Override
+            public Instant clampToValidRange(Instant instant) {
+                return DateUtils.clampToNanosRange(instant);
+            }
+
+            @Override
+            public long parsePointAsMillis(byte[] value) {
+                return roundDownToMillis(LongPoint.decodeDimension(value, 0));
+            }
+
+            @Override
+            public long roundDownToMillis(long value) {
+                return DateUtils.toMilliSeconds(value);
+            }
+
+            @Override
+            public long roundUpToMillis(long value) {
+                if (value <= 0L) {
+                    // if negative then throws an IAE; if zero then return zero
+                    return DateUtils.toMilliSeconds(value);
+                } else {
+                    return DateUtils.toMilliSeconds(value - 1L) + 1L;
                 }
             }
-            return builder;
+
+            @Override
+            protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
+                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getNanos());
+            }
+        };
+
+        private final String type;
+        private final NumericType numericType;
+
+        Resolution(String type, NumericType numericType) {
+            this.type = type;
+            this.numericType = numericType;
+        }
+
+        public String type() {
+            return type;
+        }
+
+        NumericType numericType() {
+            return numericType;
+        }
+
+        /**
+         * Convert an {@linkplain Instant} into a long value in this resolution.
+         */
+        public abstract long convert(Instant instant);
+
+        /**
+         * Convert a long value in this resolution into an instant.
+         */
+        public abstract Instant toInstant(long value);
+
+        /**
+         * Return the instant that this range can represent that is closest to
+         * the provided instant.
+         */
+        public abstract Instant clampToValidRange(Instant instant);
+
+        /**
+         * Decode the points representation of this field as milliseconds.
+         */
+        public abstract long parsePointAsMillis(byte[] value);
+
+        /**
+         * Round the given raw value down to a number of milliseconds since the epoch.
+         */
+        public abstract long roundDownToMillis(long value);
+
+        /**
+         * Round the given raw value up to a number of milliseconds since the epoch.
+         */
+        public abstract long roundUpToMillis(long value);
+
+        public static Resolution ofOrdinal(int ord) {
+            for (Resolution resolution : values()) {
+                if (ord == resolution.ordinal()) {
+                    return resolution;
+                }
+            }
+            throw new IllegalArgumentException("unknown resolution ordinal [" + ord + "]");
+        }
+
+        protected abstract Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot);
+    }
+
+    private static DateFieldMapper toType(FieldMapper in) {
+        return (DateFieldMapper) in;
+    }
+
+    public static class Builder extends FieldMapper.Builder {
+
+        private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
+        private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
+
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        private final Parameter<String> format;
+        private final Parameter<Locale> locale = new Parameter<>("locale", false, () -> Locale.ROOT,
+            (n, c, o) -> LocaleUtils.parse(o.toString()), m -> toType(m).locale);
+
+        private final Parameter<String> nullValue
+            = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null).acceptsNull();
+        private final Parameter<Boolean> ignoreMalformed;
+
+        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
+        private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+
+        private final Resolution resolution;
+        private final Version indexCreatedVersion;
+        private final ScriptCompiler scriptCompiler;
+
+        public Builder(String name, Resolution resolution, DateFormatter dateFormatter,
+                       ScriptCompiler scriptCompiler,
+                       boolean ignoreMalformedByDefault, Version indexCreatedVersion) {
+            super(name);
+            this.resolution = resolution;
+            this.indexCreatedVersion = indexCreatedVersion;
+            this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
+            this.ignoreMalformed
+                = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
+
+            this.script.precludesParameters(nullValue, ignoreMalformed);
+            addScriptValidation(script, index, docValues);
+
+            DateFormatter defaultFormat = resolution == Resolution.MILLISECONDS ?
+                DEFAULT_DATE_TIME_FORMATTER : DEFAULT_DATE_TIME_NANOS_FORMATTER;
+            this.format = Parameter.stringParam("format", false, m -> toType(m).format, defaultFormat.pattern());
+            if (dateFormatter != null) {
+                this.format.setValue(dateFormatter.pattern());
+                this.locale.setValue(dateFormatter.locale());
+            }
+        }
+
+        private DateFormatter buildFormatter() {
+            try {
+                return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
+            }
+        }
+
+        private FieldValues<Long> scriptValues() {
+            if (script.get() == null) {
+                return null;
+            }
+            DateFieldScript.Factory factory = scriptCompiler.compile(script.get(), DateFieldScript.CONTEXT);
+            return factory == null ? null : (lookup, ctx, doc, consumer) -> factory
+                .newFactory(name, script.get().getParams(), lookup, buildFormatter())
+                .newInstance(ctx)
+                .runForDoc(doc, consumer::accept);
+        }
+
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return List.of(index, docValues, store, format, locale, nullValue, ignoreMalformed, script, onScriptError, meta);
+        }
+
+        private Long parseNullValue(DateFieldType fieldType) {
+            if (nullValue.getValue() == null) {
+                return null;
+            }
+            try {
+                return fieldType.parse(nullValue.getValue());
+            } catch (Exception e) {
+                if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
+                    throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
+                } else {
+                    DEPRECATION_LOGGER.deprecate(DeprecationCategory.MAPPINGS, "date_mapper_null_field",
+                        "Error parsing [" + nullValue.getValue()
+                        + "] as date in [null_value] on field [" + name() + "]); [null_value] will be ignored");
+                    return null;
+                }
+            }
+        }
+
+        @Override
+        public DateFieldMapper build(ContentPath contentPath) {
+            DateFieldType ft = new DateFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), docValues.getValue(),
+                buildFormatter(), resolution, nullValue.getValue(), scriptValues(), meta.getValue());
+            Long nullTimestamp = parseNullValue(ft);
+            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),
+                copyTo.build(), nullTimestamp, resolution, this);
         }
     }
 
+    public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
+        boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
+        return new Builder(n, Resolution.MILLISECONDS, c.getDateFormatter(), c.scriptCompiler(),
+            ignoreMalformedByDefault, c.indexVersionCreated());
+    });
+
+    public static final TypeParser NANOS_PARSER = new TypeParser((n, c) -> {
+        boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
+        return new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), c.scriptCompiler(),
+            ignoreMalformedByDefault, c.indexVersionCreated());
+    });
+
     public static final class DateFieldType extends MappedFieldType {
-        protected DateFormatter dateTimeFormatter;
-        protected DateMathParser dateMathParser;
+        protected final DateFormatter dateTimeFormatter;
+        protected final DateMathParser dateMathParser;
+        protected final Resolution resolution;
+        protected final String nullValue;
+        protected final FieldValues<Long> scriptValues;
 
-        DateFieldType() {
-            super();
-            setTokenized(false);
-            setHasDocValues(true);
-            setOmitNorms(true);
-            setDateTimeFormatter(DEFAULT_DATE_TIME_FORMATTER);
+        public DateFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
+                             DateFormatter dateTimeFormatter, Resolution resolution, String nullValue,
+                             FieldValues<Long> scriptValues, Map<String, String> meta) {
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            this.dateTimeFormatter = dateTimeFormatter;
+            this.dateMathParser = dateTimeFormatter.toDateMathParser();
+            this.resolution = resolution;
+            this.nullValue = nullValue;
+            this.scriptValues = scriptValues;
         }
 
-        DateFieldType(DateFieldType other) {
-            super(other);
-            setDateTimeFormatter(other.dateTimeFormatter);
+        public DateFieldType(String name) {
+            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
         }
 
-        @Override
-        public MappedFieldType clone() {
-            return new DateFieldType(this);
+        public DateFieldType(String name, DateFormatter dateFormatter) {
+            this(name, true, false, true, dateFormatter, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
         }
 
-        @Override
-        public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
-            DateFieldType that = (DateFieldType) o;
-            return Objects.equals(dateTimeFormatter.pattern(), that.dateTimeFormatter.pattern()) &&
-                   Objects.equals(dateTimeFormatter.locale(), that.dateTimeFormatter.locale());
+        public DateFieldType(String name, Resolution resolution) {
+            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
         }
 
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), dateTimeFormatter.pattern(), dateTimeFormatter.locale());
+        public DateFieldType(String name, Resolution resolution, DateFormatter dateFormatter) {
+            this(name, true, false, true, dateFormatter, resolution, null, null, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
-            return CONTENT_TYPE;
-        }
-
-        @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
-            super.checkCompatibility(fieldType, conflicts);
-            DateFieldType other = (DateFieldType) fieldType;
-            if (Objects.equals(dateTimeFormatter().pattern(), other.dateTimeFormatter().pattern()) == false) {
-                conflicts.add("mapper [" + name() + "] has different [format] values");
-            }
-            if (Objects.equals(dateTimeFormatter().locale(), other.dateTimeFormatter().locale()) == false) {
-                conflicts.add("mapper [" + name() + "] has different [locale] values");
-            }
+            return resolution.type();
         }
 
         public DateFormatter dateTimeFormatter() {
             return dateTimeFormatter;
         }
 
-        public void setDateTimeFormatter(DateFormatter dateTimeFormatter) {
-            checkIfFrozen();
-            this.dateTimeFormatter = dateTimeFormatter;
-            this.dateMathParser = dateTimeFormatter.toDateMathParser();
+        public Resolution resolution() {
+            return resolution;
         }
 
         protected DateMathParser dateMathParser() {
             return dateMathParser;
         }
 
-        long parse(String value) {
-            return dateTimeFormatter().parseMillis(value);
+        // Visible for testing.
+        public long parse(String value) {
+            return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant());
+        }
+
+        /**
+         * Format to use to resolve {@link Number}s from the source. Its valid
+         * to send the numbers with up to six digits after the decimal place
+         * and we'll parse them as {@code millis.nanos}. The source
+         * deseralization code isn't particularly careful here and can return
+         * {@link double} instead of the exact string in the {@code _source}.
+         * So we have to *get* that string.
+         * <p>
+         * Nik chose not to use {@link String#format} for this because it feels
+         * a little wasteful. It'd probably be fine but this makes Nik feel a
+         * less bad about the {@code instanceof} and the string allocation.
+         */
+        private static final NumberFormat NUMBER_FORMAT = NumberFormat.getInstance(Locale.ROOT);
+        static {
+            NUMBER_FORMAT.setGroupingUsed(false);
+            NUMBER_FORMAT.setMaximumFractionDigits(6);
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            DateFormatter defaultFormatter = dateTimeFormatter();
+            DateFormatter formatter = format != null
+                ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
+                : defaultFormatter;
+            if (scriptValues != null) {
+                return FieldValues.valueFetcher(scriptValues, v -> format((long)v, formatter), context);
             }
+            return new SourceValueFetcher(name(), context, nullValue) {
+                @Override
+                public String parseSourceValue(Object value) {
+                    String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
+                    // TODO can we emit a warning if we're losing precision here? I'm not sure we can.
+                    return format(parse(date), formatter);
+                }
+            };
+        }
+
+        private String format(long timestamp, DateFormatter formatter) {
+            ZonedDateTime dateTime = resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
+            return formatter.format(dateTime);
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            Query query = rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
-            if (boost() != 1f) {
-                query = new BoostQuery(query, boost());
-            }
-            return query;
+        public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
+            return rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
         }
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, ShapeRelation relation,
-                                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
+                                @Nullable ZoneId timeZone, @Nullable DateMathParser forcedDateParser, SearchExecutionContext context) {
             failIfNotIndexed();
             if (relation == ShapeRelation.DISJOINT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                         "] does not support DISJOINT ranges");
             }
-            DateMathParser parser = forcedDateParser == null
-                    ? dateMathParser
-                    : forcedDateParser;
-            long l, u;
-            if (lowerTerm == null) {
-                l = Long.MIN_VALUE;
-            } else {
-                l = parseToMilliseconds(lowerTerm, !includeLower, timeZone, parser, context);
-                if (includeLower == false) {
-                    ++l;
+            DateMathParser parser;
+            if (forcedDateParser == null) {
+                if (lowerTerm instanceof Number || upperTerm instanceof Number) {
+                    // force epoch_millis
+                    parser = EPOCH_MILLIS_PARSER;
+                } else {
+                    parser = dateMathParser;
                 }
-            }
-            if (upperTerm == null) {
-                u = Long.MAX_VALUE;
             } else {
-                u = parseToMilliseconds(upperTerm, includeUpper, timeZone, parser, context);
-                if (includeUpper == false) {
-                    --u;
+                parser = forcedDateParser;
+            }
+            return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
+                Query query = LongPoint.newRangeQuery(name(), l, u);
+                if (hasDocValues()) {
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                    query = new IndexOrDocValuesQuery(query, dvQuery);
+
+                    if (context.indexSortedOnField(name())) {
+                        query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                    }
                 }
-            }
-            Query query = LongPoint.newRangeQuery(name(), l, u);
-            if (hasDocValues()) {
-                Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
-                query = new IndexOrDocValuesQuery(query, dvQuery);
-            }
-            return query;
+                return query;
+            });
         }
 
-        public long parseToMilliseconds(Object value, boolean roundUp, @Nullable DateTimeZone zone,
-                                        @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
-            DateMathParser dateParser = dateMathParser();
-            if (forcedDateParser != null) {
-                dateParser = forcedDateParser;
-            }
+        public static Query dateRangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            @Nullable ZoneId timeZone,
+            DateMathParser parser,
+            SearchExecutionContext context,
+            Resolution resolution,
+            BiFunction<Long, Long, Query> builder
+        ) {
+            return handleNow(context, nowSupplier -> {
+                long l, u;
+                if (lowerTerm == null) {
+                    l = Long.MIN_VALUE;
+                } else {
+                    l = parseToLong(lowerTerm, includeLower == false, timeZone, parser, nowSupplier, resolution);
+                    if (includeLower == false) {
+                        ++l;
+                    }
+                }
+                if (upperTerm == null) {
+                    u = Long.MAX_VALUE;
+                } else {
+                    u = parseToLong(upperTerm, includeUpper, timeZone, parser, nowSupplier, resolution);
+                    if (includeUpper == false) {
+                        --u;
+                    }
+                }
+                return builder.apply(l, u);
+            });
+        }
 
-            String strValue;
-            if (value instanceof BytesRef) {
-                strValue = ((BytesRef) value).utf8ToString();
-            } else {
-                strValue = value.toString();
-            }
-            return dateParser.parse(strValue, context::nowInMillis, roundUp, DateUtils.dateTimeZoneToZoneId(zone));
+        /**
+         * Handle {@code now} in queries.
+         * @param context context from which to read the current time
+         * @param builder build the query
+         * @return the result of the builder, wrapped in {@link DateRangeIncludingNowQuery} if {@code now} was used.
+         */
+        public static Query handleNow(SearchExecutionContext context, Function<LongSupplier, Query> builder) {
+            boolean[] nowUsed = new boolean[1];
+            LongSupplier nowSupplier = () -> {
+                nowUsed[0] = true;
+                return context.nowInMillis();
+            };
+            Query query = builder.apply(nowSupplier);
+            return nowUsed[0] ? new DateRangeIncludingNowQuery(query) : query;
+        }
+
+        public long parseToLong(Object value, boolean roundUp, @Nullable ZoneId zone, DateMathParser dateParser, LongSupplier now) {
+            dateParser = dateParser == null ? dateMathParser() : dateParser;
+            return parseToLong(value, roundUp, zone, dateParser, now, resolution);
+        }
+
+        public static long parseToLong(
+            Object value,
+            boolean roundUp,
+            @Nullable ZoneId zone,
+            DateMathParser dateParser,
+            LongSupplier now,
+            Resolution resolution
+        ) {
+            return resolution.convert(dateParser.parse(BytesRefs.toString(value), now, roundUp, zone));
         }
 
         @Override
-        public Relation isFieldWithinQuery(IndexReader reader, Object from, Object to, boolean includeLower, boolean includeUpper,
-                                           DateTimeZone timeZone, DateMathParser dateParser,
-                                           QueryRewriteContext context) throws IOException {
+        public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
+            long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
+            TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
+            // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
+            return resolution.distanceFeatureQuery(name(), 1.0f, originLong, pivotTime);
+        }
+
+        @Override
+        public Relation isFieldWithinQuery(IndexReader reader,
+                                           Object from, Object to, boolean includeLower, boolean includeUpper,
+                                           ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
+            if (PointValues.size(reader, name()) == 0) {
+                // no points, so nothing matches
+                return Relation.DISJOINT;
+            }
+
+            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
+            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
+
+            return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
+        }
+
+        public Relation isFieldWithinQuery(long minValue, long maxValue,
+                                           Object from, Object to, boolean includeLower, boolean includeUpper,
+                                           ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
-                dateParser = this.dateMathParser;
+                if (from instanceof Number || to instanceof Number) {
+                    // force epoch_millis
+                    dateParser = EPOCH_MILLIS_PARSER;
+                } else {
+                    dateParser = this.dateMathParser;
+                }
             }
 
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {
-                fromInclusive = parseToMilliseconds(from, !includeLower, timeZone, dateParser, context);
+                fromInclusive = parseToLong(from, includeLower == false, timeZone, dateParser, context::nowInMillis, resolution);
                 if (includeLower == false) {
                     if (fromInclusive == Long.MAX_VALUE) {
                         return Relation.DISJOINT;
@@ -332,7 +574,7 @@ public class DateFieldMapper extends FieldMapper {
 
             long toInclusive = Long.MAX_VALUE;
             if (to != null) {
-                toInclusive = parseToMilliseconds(to, includeUpper, timeZone, dateParser, context);
+                toInclusive = parseToLong(to, includeUpper, timeZone, dateParser, context::nowInMillis, resolution);
                 if (includeUpper == false) {
                     if (toInclusive == Long.MIN_VALUE) {
                         return Relation.DISJOINT;
@@ -340,17 +582,6 @@ public class DateFieldMapper extends FieldMapper {
                     --toInclusive;
                 }
             }
-
-            // This check needs to be done after fromInclusive and toInclusive
-            // are resolved so we can throw an exception if they are invalid
-            // even if there are no points in the shard
-            if (PointValues.size(reader, name()) == 0) {
-                // no points, so nothing matches
-                return Relation.DISJOINT;
-            }
-
-            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
-            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
             if (minValue >= fromInclusive && maxValue <= toInclusive) {
                 return Relation.WITHIN;
@@ -362,9 +593,17 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public Function<byte[], Number> pointReaderIfPossible() {
+            if (isSearchable()) {
+                return resolution()::parsePointAsMillis;
+            }
+            return null;
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(NumericType.DATE);
+            return new SortedNumericIndexFieldData.Builder(name(), resolution.numericType());
         }
 
         @Override
@@ -373,34 +612,70 @@ public class DateFieldMapper extends FieldMapper {
             if (val == null) {
                 return null;
             }
-            return dateTimeFormatter().formatMillis(val);
+            return dateTimeFormatter().format(resolution.toInstant(val).atZone(ZoneOffset.UTC));
         }
 
         @Override
-        public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
+        public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
             DateFormatter dateTimeFormatter = this.dateTimeFormatter;
             if (format != null) {
-                dateTimeFormatter = DateFormatter.forPattern(format);
+                dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
             }
             if (timeZone == null) {
-                timeZone = DateTimeZone.UTC;
+                timeZone = ZoneOffset.UTC;
             }
-            return new DocValueFormat.DateTime(dateTimeFormatter, timeZone);
+            // the resolution here is always set to milliseconds, as aggregations use this formatter mainly and those are always in
+            // milliseconds. The only special case here is docvalue fields, which are handled somewhere else
+            // TODO maybe aggs should force millis because lots so of other places want nanos?
+            return new DocValueFormat.DateTime(dateTimeFormatter, timeZone, Resolution.MILLISECONDS);
         }
     }
 
-    private Explicit<Boolean> ignoreMalformed;
+    private final boolean store;
+    private final boolean indexed;
+    private final boolean hasDocValues;
+    private final Locale locale;
+    private final String format;
+    private final boolean ignoreMalformed;
+    private final Long nullValue;
+    private final String nullValueAsString;
+    private final Resolution resolution;
+
+    private final boolean ignoreMalformedByDefault;
+    private final Version indexCreatedVersion;
+
+    private final Script script;
+    private final ScriptCompiler scriptCompiler;
+    private final FieldValues<Long> scriptValues;
 
     private DateFieldMapper(
             String simpleName,
-            MappedFieldType fieldType,
-            MappedFieldType defaultFieldType,
-            Explicit<Boolean> ignoreMalformed,
-            Settings indexSettings,
+            MappedFieldType mappedFieldType,
             MultiFields multiFields,
-            CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
-        this.ignoreMalformed = ignoreMalformed;
+            CopyTo copyTo,
+            Long nullValue,
+            Resolution resolution,
+            Builder builder) {
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
+        this.store = builder.store.getValue();
+        this.indexed = builder.index.getValue();
+        this.hasDocValues = builder.docValues.getValue();
+        this.locale = builder.locale.getValue();
+        this.format = builder.format.getValue();
+        this.ignoreMalformed = builder.ignoreMalformed.getValue();
+        this.nullValueAsString = builder.nullValue.getValue();
+        this.nullValue = nullValue;
+        this.resolution = resolution;
+        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue();
+        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.script = builder.script.get();
+        this.scriptCompiler = builder.scriptCompiler;
+        this.scriptValues = builder.scriptValues();
+    }
+
+    @Override
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), resolution, null, scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).init(this);
     }
 
     @Override
@@ -410,89 +685,60 @@ public class DateFieldMapper extends FieldMapper {
 
     @Override
     protected String contentType() {
-        return fieldType.typeName();
+        return fieldType().resolution.type();
     }
 
     @Override
-    protected DateFieldMapper clone() {
-        return (DateFieldMapper) super.clone();
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        String dateAsString;
-        if (context.externalValueSet()) {
-            Object dateAsObject = context.externalValue();
-            if (dateAsObject == null) {
-                dateAsString = null;
-            } else {
-                dateAsString = dateAsObject.toString();
-            }
-        } else {
-            dateAsString = context.parser().textOrNull();
-        }
-
-        if (dateAsString == null) {
-            dateAsString = fieldType().nullValueAsString();
-        }
-
-        if (dateAsString == null) {
-            return;
-        }
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        String dateAsString = context.parser().textOrNull();
 
         long timestamp;
-        try {
-            timestamp = fieldType().parse(dateAsString);
-        } catch (IllegalArgumentException e) {
-            if (ignoreMalformed.value()) {
-                context.addIgnoredField(fieldType.name());
+        if (dateAsString == null) {
+            if (nullValue == null) {
                 return;
-            } else {
-                throw e;
+            }
+            timestamp = nullValue;
+        } else {
+            try {
+                timestamp = fieldType().parse(dateAsString);
+            } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException | ArithmeticException e) {
+                if (ignoreMalformed) {
+                    context.addIgnoredField(mappedFieldType.name());
+                    return;
+                } else {
+                    throw e;
+                }
             }
         }
 
-        if (fieldType().indexOptions() != IndexOptions.NONE) {
-            fields.add(new LongPoint(fieldType().name(), timestamp));
+        indexValue(context, timestamp);
+    }
+
+    private void indexValue(DocumentParserContext context, long timestamp) {
+        if (indexed) {
+            context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }
-        if (fieldType().hasDocValues()) {
-            fields.add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
-        } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
-            createFieldNamesField(context, fields);
+        if (hasDocValues) {
+            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
+        } else if (store || indexed) {
+            context.addToFieldNames(fieldType().name());
         }
-        if (fieldType().stored()) {
-            fields.add(new StoredField(fieldType().name(), timestamp));
+        if (store) {
+            context.doc().add(new StoredField(fieldType().name(), timestamp));
         }
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        final DateFieldMapper other = (DateFieldMapper) mergeWith;
-        if (other.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = other.ignoreMalformed;
-        }
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
+        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, v -> indexValue(documentParserContext, v));
     }
 
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
+    public boolean getIgnoreMalformed() {
+        return ignoreMalformed;
+    }
 
-        if (includeDefaults || ignoreMalformed.explicit()) {
-            builder.field("ignore_malformed", ignoreMalformed.value());
-        }
-
-        if (includeDefaults || fieldType().nullValue() != null) {
-            builder.field("null_value", fieldType().nullValueAsString());
-        }
-
-        if (includeDefaults
-                || fieldType().dateTimeFormatter().pattern().equals(DEFAULT_DATE_TIME_FORMATTER.pattern()) == false) {
-            builder.field("format", fieldType().dateTimeFormatter().pattern());
-        }
-        if (includeDefaults
-                || fieldType().dateTimeFormatter().locale() != Locale.ROOT) {
-            builder.field("locale", fieldType().dateTimeFormatter().locale());
-        }
+    public Long getNullValue() {
+        return nullValue;
     }
 }

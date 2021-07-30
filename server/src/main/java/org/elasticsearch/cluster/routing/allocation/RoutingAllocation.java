@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -22,7 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -33,6 +22,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,7 +30,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * The {@link RoutingAllocation} keep the state of the current allocation
@@ -53,7 +42,7 @@ public class RoutingAllocation {
 
     private final RoutingNodes routingNodes;
 
-    private final MetaData metaData;
+    private final Metadata metadata;
 
     private final RoutingTable routingTable;
 
@@ -62,6 +51,8 @@ public class RoutingAllocation {
     private final ImmutableOpenMap<String, ClusterState.Custom> customs;
 
     private final ClusterInfo clusterInfo;
+
+    private final SnapshotShardSizeInfo shardSizeInfo;
 
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
 
@@ -73,11 +64,11 @@ public class RoutingAllocation {
 
     private final long currentNanoTime;
 
-    private final IndexMetaDataUpdater indexMetaDataUpdater = new IndexMetaDataUpdater();
+    private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
     private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
     private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
-        nodesChangedObserver, indexMetaDataUpdater, restoreInProgressUpdater
+        nodesChangedObserver, indexMetadataUpdater, restoreInProgressUpdater
     );
 
 
@@ -89,14 +80,15 @@ public class RoutingAllocation {
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
     public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState, ClusterInfo clusterInfo,
-                             long currentNanoTime) {
+                             SnapshotShardSizeInfo shardSizeInfo, long currentNanoTime) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
-        this.metaData = clusterState.metaData();
+        this.metadata = clusterState.metadata();
         this.routingTable = clusterState.routingTable();
         this.nodes = clusterState.nodes();
         this.customs = clusterState.customs();
         this.clusterInfo = clusterInfo;
+        this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
     }
 
@@ -133,8 +125,8 @@ public class RoutingAllocation {
      * Get metadata of routing nodes
      * @return Metadata of routing nodes
      */
-    public MetaData metaData() {
-        return metaData;
+    public Metadata metadata() {
+        return metadata;
     }
 
     /**
@@ -149,8 +141,13 @@ public class RoutingAllocation {
         return clusterInfo;
     }
 
+    public SnapshotShardSizeInfo snapshotShardSizeInfo() {
+        return shardSizeInfo;
+    }
+
+    @SuppressWarnings("unchecked")
     public <T extends ClusterState.Custom> T custom(String key) {
-        return (T)customs.get(key);
+        return (T) customs.get(key);
     }
 
     public ImmutableOpenMap<String, ClusterState.Custom> getCustoms() {
@@ -185,12 +182,7 @@ public class RoutingAllocation {
         if (ignoredShardToNodes == null) {
             ignoredShardToNodes = new HashMap<>();
         }
-        Set<String> nodes = ignoredShardToNodes.get(shardId);
-        if (nodes == null) {
-            nodes = new HashSet<>();
-            ignoredShardToNodes.put(shardId, nodes);
-        }
-        nodes.add(nodeId);
+        ignoredShardToNodes.computeIfAbsent(shardId, k -> new HashSet<>()).add(nodeId);
     }
 
     /**
@@ -220,14 +212,14 @@ public class RoutingAllocation {
         if (ignore == null) {
             return emptySet();
         }
-        return unmodifiableSet(new HashSet<>(ignore));
+        return Set.copyOf(ignore);
     }
 
     /**
      * Remove the allocation id of the provided shard from the set of in-sync shard copies
      */
     public void removeAllocationId(ShardRouting shardRouting) {
-        indexMetaDataUpdater.removeAllocationId(shardRouting);
+        indexMetadataUpdater.removeAllocationId(shardRouting);
     }
 
     /**
@@ -238,10 +230,10 @@ public class RoutingAllocation {
     }
 
     /**
-     * Returns updated {@link MetaData} based on the changes that were made to the routing nodes
+     * Returns updated {@link Metadata} based on the changes that were made to the routing nodes
      */
-    public MetaData updateMetaDataWithRoutingChanges(RoutingTable newRoutingTable) {
-        return indexMetaDataUpdater.applyChanges(metaData, newRoutingTable);
+    public Metadata updateMetadataWithRoutingChanges(RoutingTable newRoutingTable) {
+        return indexMetadataUpdater.applyChanges(metadata, newRoutingTable);
     }
 
     /**

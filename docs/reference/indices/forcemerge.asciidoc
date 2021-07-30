@@ -1,71 +1,193 @@
 [[indices-forcemerge]]
-== Force Merge
+=== Force merge API
+++++
+<titleabbrev>Force merge</titleabbrev>
+++++
 
-The force merge API allows to force merging of one or more indices through an
-API. The merge relates to the number of segments a Lucene index holds within
-each shard. The force merge operation allows to reduce the number of segments by
-merging them.
+Forces a <<index-modules-merge,merge>> on the shards of one or more indices.
+For data streams, the API forces a merge on the shards of the stream's backing
+indices.
 
-This call will block until the merge is complete. If the http connection is
-lost, the request will continue in the background, and any new requests will
-block until the previous force merge is complete.
+[source,console]
+----
+POST /my-index-000001/_forcemerge
+----
+// TEST[setup:my_index]
 
-WARNING: Force merge should only be called against *read-only indices*. Running 
-force merge against a read-write index can cause very large segments to be produced 
-(>5Gb per segment), and the merge policy will never consider it for merging again until 
-it mostly consists of deleted docs. This can cause very large segments to remain in the shards.
 
-[source,js]
---------------------------------------------------
-POST /twitter/_forcemerge
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+[[forcemerge-api-request]]
+==== {api-request-title}
 
-[float]
-[[forcemerge-parameters]]
-=== Request Parameters
+`POST /<target>/_forcemerge`
 
-The force merge API accepts the following request parameters:
+`POST /_forcemerge`
 
-[horizontal]
-`max_num_segments`:: The number of segments to merge to. To fully
-merge the index, set it to `1`. Defaults to simply checking if a
-merge needs to execute, and if so, executes it.
+[[forcemerge-api-prereqs]]
+==== {api-prereq-title}
 
-`only_expunge_deletes`:: Should the merge process only expunge segments with
-deletes in it. In Lucene, a document is not deleted from a segment, just marked
-as deleted. During a merge process of segments, a new segment is created that
-does not have those deletes. This flag allows to only merge segments that have
-deletes. Defaults to `false`.  Note that this won't override the
-`index.merge.policy.expunge_deletes_allowed` threshold.
+* If the {es} {security-features} are enabled, you must have the `maintenance`
+or `manage` <<privileges-list-indices,index privilege>> for the target data
+stream, index, or alias.
 
-`flush`::  Should a flush be performed after the forced merge. Defaults to
-`true`.
+[[forcemerge-api-desc]]
+==== {api-description-title}
 
-[source,js]
---------------------------------------------------
-POST /kimchy/_forcemerge?only_expunge_deletes=false&max_num_segments=100&flush=true
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT kimchy\n/]
+Use the force merge API to force a <<index-modules-merge,merge>> on the
+shards of one or more indices. Merging reduces the number of segments in each
+shard by merging some of them together, and also frees up the space used by
+deleted documents. Merging normally happens automatically, but sometimes it is
+useful to trigger a merge manually.
 
-[float]
+// tag::force-merge-read-only-warn[]
+WARNING: **Force merge should only be called against an index after you have
+finished writing to it.** Force merge can cause very large (>5GB) segments to
+be produced, and if you continue to write to such an index then the automatic
+merge policy will never consider these segments for future merges until they
+mostly consist of deleted documents. This can cause very large segments to
+remain in the index which can result in increased disk usage and worse search
+performance.
+// end::force-merge-read-only-warn[]
+
+
+[[forcemerge-blocks]]
+===== Blocks during a force merge
+
+Calls to this API block until the merge is complete. If the client connection
+is lost before completion then the force merge process will continue in the
+background. Any new requests to force merge the same indices will also block
+until the ongoing force merge is complete.
+
+
 [[forcemerge-multi-index]]
-=== Multi Index
+===== Force merging multiple indices
 
-The force merge API can be applied to more than one index with a single call, or
-even on `_all` the indices. Multi index operations are executed one shard at a
-time per node. Force merge makes the storage for the shard being merged
-temporarily increase, up to double its size in case `max_num_segments` is set
-to `1`, as all segments need to be rewritten into a new one.
+You can force merge multiple indices with a single request by targeting:
+
+* One or more data streams that contain multiple backing indices
+* Multiple indices
+* One or more aliases
+* All data streams and indices in a cluster
+
+Each targeted shard is force-merged separately using <<modules-threadpool,the
+`force_merge` threadpool>>. By default each node only has a single
+`force_merge` thread which means that the shards on that node are force-merged
+one at a time. If you expand the `force_merge` threadpool on a node then it
+will force merge its shards in parallel.
+
+Force merge makes the storage for the shard being merged temporarily
+increase, up to double its size in case `max_num_segments` parameter is set to
+`1`, as all segments need to be rewritten into a new one.
+
+[[forcemerge-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
+
+[[forcemerge-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+`flush`::
+(Optional, Boolean)
+If `true`,
+{es} performs a <<indices-flush,flush>> on the indices
+after the force merge.
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+`max_num_segments`::
++
+--
+(Optional, integer)
+The number of segments to merge to.
+To fully merge indices,
+set it to `1`.
+
+Defaults to checking if a merge needs to execute.
+If so, executes it.
+--
+
+`only_expunge_deletes`::
++
+--
+(Optional, Boolean)
+If `true`,
+only expunge segments containing document deletions.
+Defaults to `false`.
+
+In Lucene,
+a document is not deleted from a segment;
+just marked as deleted.
+During a merge,
+a new segment is created
+that does not contain those document deletions.
+
+NOTE: This parameter does *not* override the
+`index.merge.policy.expunge_deletes_allowed` setting.
+--
 
 
-[source,js]
---------------------------------------------------
-POST /kimchy,elasticsearch/_forcemerge
+[[forcemerge-api-example]]
+==== {api-examples-title}
 
+
+[[forcemerge-api-specific-ex]]
+===== Force merge a specific data stream or index
+
+[source,console]
+----
+POST /my-index-000001/_forcemerge
+----
+// TEST[continued]
+
+
+[[forcemerge-api-multiple-ex]]
+===== Force merge several data streams or indices
+
+[source,console]
+----
+POST /my-index-000001,my-index-000002/_forcemerge
+----
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
+
+
+[[forcemerge-api-all-ex]]
+===== Force merge all indices
+
+[source,console]
+----
 POST /_forcemerge
+----
+
+
+[[forcemerge-api-time-based-index-ex]]
+===== Data streams and time-based indices
+
+Force-merging is useful for managing a data stream's older backing indices and
+other time-based indices, particularly after a
+<<indices-rollover-index,rollover>>.
+In these cases,
+each index only receives indexing traffic for a certain period of time.
+Once an index receive no more writes,
+its shards can be force-merged to a single segment.
+
+[source,console]
 --------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+POST /.ds-my-data-stream-2099.03.07-000001/_forcemerge?max_num_segments=1
+--------------------------------------------------
+// TEST[setup:my_index]
+// TEST[s/.ds-my-data-stream-2099.03.07-000001/my-index-000001/]
+
+This can be a good idea because single-segment shards can sometimes use simpler
+and more efficient data structures to perform searches.

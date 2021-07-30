@@ -1,126 +1,48 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Constant;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
-import java.util.Set;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
+import java.util.Objects;
 
 /**
  * Represents a regex constant. All regexes are constants.
  */
-public final class ERegex extends AExpression {
+public class ERegex extends AExpression {
 
     private final String pattern;
-    private final int flags;
-    private Constant constant;
+    private final String flags;
 
-    public ERegex(Location location, String pattern, String flagsString) {
-        super(location);
+    public ERegex(int identifier, Location location, String pattern, String flags) {
+        super(identifier, location);
 
-        this.pattern = pattern;
+        this.pattern = Objects.requireNonNull(pattern);
+        this.flags = Objects.requireNonNull(flags);
+    }
 
-        int flags = 0;
+    public String getPattern() {
+        return pattern;
+    }
 
-        for (int c = 0; c < flagsString.length(); c++) {
-            flags |= flagForChar(flagsString.charAt(c));
-        }
-
-        this.flags = flags;
+    public String getFlags() {
+        return flags;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // Do nothing.
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitRegex(this, scope);
     }
 
     @Override
-    void analyze(Locals locals) {
-        if (!read) {
-            throw createError(new IllegalArgumentException("Regex constant may only be read [" + pattern + "]."));
-        }
-
-        try {
-            Pattern.compile(pattern, flags);
-        } catch (PatternSyntaxException e) {
-            throw new Location(location.getSourceName(), location.getOffset() + 1 + e.getIndex()).createError(
-                    new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
-        }
-
-        constant = new Constant(
-            location, MethodWriter.getType(Pattern.class), "regexAt$" + location.getOffset(), this::initializeConstant);
-        actual = Pattern.class;
-    }
-
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-
-        writer.getStatic(WriterConstants.CLASS_TYPE, constant.name, org.objectweb.asm.Type.getType(Pattern.class));
-        globals.addConstantInitializer(constant);
-    }
-
-    private void initializeConstant(MethodWriter writer) {
-        writer.push(pattern);
-        writer.push(flags);
-        writer.invokeStatic(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_COMPILE);
-    }
-
-    private int flagForChar(char c) {
-        switch (c) {
-            case 'c': return Pattern.CANON_EQ;
-            case 'i': return Pattern.CASE_INSENSITIVE;
-            case 'l': return Pattern.LITERAL;
-            case 'm': return Pattern.MULTILINE;
-            case 's': return Pattern.DOTALL;
-            case 'U': return Pattern.UNICODE_CHARACTER_CLASS;
-            case 'u': return Pattern.UNICODE_CASE;
-            case 'x': return Pattern.COMMENTS;
-            default:
-                throw new IllegalArgumentException("Unknown flag [" + c + "]");
-        }
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder f = new StringBuilder();
-        if ((flags & Pattern.CANON_EQ) != 0)                f.append('c');
-        if ((flags & Pattern.CASE_INSENSITIVE) != 0)        f.append('i');
-        if ((flags & Pattern.LITERAL) != 0)                 f.append('l');
-        if ((flags & Pattern.MULTILINE) != 0)               f.append('m');
-        if ((flags & Pattern.DOTALL) != 0)                  f.append('s');
-        if ((flags & Pattern.UNICODE_CHARACTER_CLASS) != 0) f.append('U');
-        if ((flags & Pattern.UNICODE_CASE) != 0)            f.append('u');
-        if ((flags & Pattern.COMMENTS) != 0)                f.append('x');
-
-        String p = "/" + pattern + "/";
-        if (f.length() == 0) {
-            return singleLineToString(p);
-        }
-        return singleLineToString(p, f);
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
     }
 }

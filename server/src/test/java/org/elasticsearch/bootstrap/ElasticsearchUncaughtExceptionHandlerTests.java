@@ -1,32 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
 
 import java.io.IOError;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -36,19 +22,12 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
 
-    private Map<Class<? extends Error>, Integer> expectedStatus;
-
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        Map<Class<? extends Error>, Integer> expectedStatus = new HashMap<>();
-        expectedStatus.put(InternalError.class, 128);
-        expectedStatus.put(OutOfMemoryError.class, 127);
-        expectedStatus.put(StackOverflowError.class, 126);
-        expectedStatus.put(UnknownError.class, 125);
-        expectedStatus.put(IOError.class, 124);
-        this.expectedStatus = Collections.unmodifiableMap(expectedStatus);
-    }
+    private static Map<Class<? extends Error>, Integer> EXPECTED_STATUS = Map.of(
+            InternalError.class, 128,
+            OutOfMemoryError.class, 127,
+            StackOverflowError.class, 126,
+            UnknownError.class, 125,
+            IOError.class, 124);
 
     public void testUncaughtError() throws InterruptedException {
         final Error error = randomFrom(
@@ -89,8 +68,8 @@ public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
         thread.join();
         assertTrue(halt.get());
         final int status;
-        if (expectedStatus.containsKey(error.getClass())) {
-            status = expectedStatus.get(error.getClass());
+        if (EXPECTED_STATUS.containsKey(error.getClass())) {
+            status = EXPECTED_STATUS.get(error.getClass());
         } else {
             status = 1;
         }

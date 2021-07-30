@@ -3,14 +3,16 @@
 :request: DeleteFilterRequest
 :response: AcknowledgedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Delete Filter API
-Delete a {ml} filter.
+=== Delete filters API
+
+Deletes a {ml} filter.
 The API accepts a +{request}+ and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Delete Filter Request
+==== Delete filters request
 
 A +{request}+ object requires a non-null `filterId`.
 
@@ -21,7 +23,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 <1> Constructing a new request referencing an existing filter
 
 [id="{upid}-{api}-response"]
-==== Delete Filter Response
+==== Delete filters response
 
 The returned +{response}+ object indicates the acknowledgement of the request:
 ["source","java",subs="attributes,callouts,macros"]

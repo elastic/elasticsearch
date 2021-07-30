@@ -1,72 +1,31 @@
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
-evaluationDependsOn(xpackModule('core'))
-
-apply plugin: 'elasticsearch.esplugin'
 esplugin {
-    name 'x-pack-monitoring'
-    description 'Elasticsearch Expanded Pack Plugin - Monitoring'
-    classname 'org.elasticsearch.xpack.monitoring.Monitoring'
-    extendedPlugins = ['x-pack-core']
+  name 'x-pack-monitoring'
+  description 'Elasticsearch Expanded Pack Plugin - Monitoring'
+  classname 'org.elasticsearch.xpack.monitoring.Monitoring'
+  extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-monitoring'
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    compileOnly project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
 
-    // monitoring deps
-    compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
-    compile "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}"
+  // monitoring deps
+  api project(':client:rest')
+  api project(':client:sniffer')
 
-    // baz - this goes away after we separate out the actions #27759
-    testCompile "org.elasticsearch.plugin:x-pack-watcher:${version}"
+  // baz - this goes away after we separate out the actions #27759
+  testImplementation project(xpackModule('watcher'))
+
+  testImplementation project(xpackModule('ilm'))
+  testImplementation project(xpackModule('data-streams'))
 }
 
-compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-
-configurations {
-    testArtifacts.extendsFrom testRuntime
-}
-task testJar(type: Jar) {
-    appendix 'test'
-    from sourceSets.test.output
-}
-artifacts {
-    // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
-    archives jar
-    testArtifacts testJar
-}
-
-dependencyLicenses {
-    mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
-    mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
-}
-
-run {
-    plugin xpackModule('core')
-}
-
-// xpack modules are installed in real clusters as the meta plugin, so
-// installing them as individual plugins for integ tests doesn't make sense,
-// so we disable integ tests
-integTest.enabled = false
-
-// Instead we create a separate task to run the
-// tests based on ESIntegTestCase
-task internalClusterTest(type: RandomizedTestingTask,
-                         group: JavaBasePlugin.VERIFICATION_GROUP,
-                         description: 'Multi-node tests',
-                         dependsOn: test.dependsOn) {
-  include '**/*IT.class'
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-check.dependsOn internalClusterTest
-internalClusterTest.mustRunAfter test
-
-// also add an "alias" task to make typing on the command line easier task icTest {
-task icTest {
-  dependsOn internalClusterTest
+tasks.named("dependencyLicenses").configure {
+  mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
+  mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.documentation;
@@ -23,15 +12,15 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.client.tasks.CancelTasksRequest;
+import org.elasticsearch.client.tasks.CancelTasksResponse;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 
@@ -150,25 +139,27 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35514")
     @SuppressWarnings("unused")
     public void testCancelTasks() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
             // tag::cancel-tasks-request
-            CancelTasksRequest request = new CancelTasksRequest();
+            CancelTasksRequest request = new org.elasticsearch.client.tasks.CancelTasksRequest.Builder()
+                .withNodesFiltered(List.of("nodeId1", "nodeId2"))
+                .withActionsFiltered(List.of("cluster:*"))
+                .build();
             // end::cancel-tasks-request
 
             // tag::cancel-tasks-request-filter
-            request.setTaskId(new TaskId("nodeId1", 42)); //<1>
-            request.setActions("cluster:*"); // <2>
-            request.setNodes("nodeId1", "nodeId2"); // <3>
+            CancelTasksRequest byTaskIdRequest = new org.elasticsearch.client.tasks.CancelTasksRequest.Builder() // <1>
+                .withTaskId(new org.elasticsearch.client.tasks.TaskId("myNode",44L)) // <2>
+                .withWaitForCompletion(true) // <3>
+                .build(); // <4>
             // end::cancel-tasks-request-filter
 
         }
 
-        CancelTasksRequest request = new CancelTasksRequest();
-        request.setTaskId(TaskId.EMPTY_TASK_ID);
+        CancelTasksRequest request = new org.elasticsearch.client.tasks.CancelTasksRequest.Builder().build();
 
         // tag::cancel-tasks-execute
         CancelTasksResponse response = client.tasks().cancel(request, RequestOptions.DEFAULT);
@@ -177,14 +168,19 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         assertThat(response, notNullValue());
 
         // tag::cancel-tasks-response-tasks
-        List<TaskInfo> tasks = response.getTasks(); // <1>
+        List<org.elasticsearch.client.tasks.TaskInfo> tasks = response.getTasks(); // <1>
         // end::cancel-tasks-response-tasks
+
+        // tag::cancel-tasks-response-calc
+        Map<String, List<org.elasticsearch.client.tasks.TaskInfo>> perNodeTasks = response.getPerNodeTasks(); // <1>
+        List<org.elasticsearch.client.tasks.TaskGroup> groups = response.getTaskGroups(); // <2>
+        // end::cancel-tasks-response-calc
 
 
         // tag::cancel-tasks-response-failures
-        List<ElasticsearchException> nodeFailures = response.getNodeFailures(); // <1>
-        List<TaskOperationFailure> taskFailures = response.getTaskFailures(); // <2>
-        // end::-tasks-response-failures
+        List<org.elasticsearch.client.tasks.ElasticsearchException> nodeFailures = response.getNodeFailures(); // <1>
+        List<org.elasticsearch.client.tasks.TaskOperationFailure> taskFailures = response.getTaskFailures(); // <2>
+        // end::cancel-tasks-response-failures
 
         assertThat(response.getNodeFailures(), equalTo(emptyList()));
         assertThat(response.getTaskFailures(), equalTo(emptyList()));
@@ -194,7 +190,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
         RestHighLevelClient client = highLevelClient();
         {
-            CancelTasksRequest request = new CancelTasksRequest();
+            CancelTasksRequest request = new org.elasticsearch.client.tasks.CancelTasksRequest.Builder().build();
 
             // tag::cancel-tasks-execute-listener
             ActionListener<CancelTasksResponse> listener =

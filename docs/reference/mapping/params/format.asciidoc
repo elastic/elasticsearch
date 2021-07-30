@@ -9,23 +9,20 @@ Besides the <<built-in-date-formats,built-in formats>>, your own
 <<custom-date-formats,custom formats>> can be specified using the familiar
 `yyyy/MM/dd` syntax:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "date": {
-          "type":   "date",
-          "format": "yyyy-MM-dd"
-        }
+    "properties": {
+      "date": {
+        "type":   "date",
+        "format": "yyyy-MM-dd"
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Many APIs which support date values also support <<date-math,date math>>
 expressions, such as `now-1m/d` -- the current time, minus one month, rounded
@@ -34,8 +31,8 @@ down to the nearest day.
 [[custom-date-formats]]
 ==== Custom date formats
 
-Completely customizable date formats are supported.  The syntax for these is explained
-http://www.joda.org/joda-time/apidocs/org/joda/time/format/DateTimeFormat.html[in the Joda docs].
+Completely customizable date formats are supported. The syntax for these is explained
+https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[DateTimeFormatter docs].
 
 [[built-in-date-formats]]
 ==== Built In Formats
@@ -69,9 +66,16 @@ The following tables lists all the defaults ISO formats supported:
 
 [[strict-date-time]]`date_optional_time` or `strict_date_optional_time`::
 
-    A generic ISO datetime parser where the date is mandatory and the time is
-    optional.
-    http://www.joda.org/joda-time/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateOptionalTimeParser--[Full details here].
+    A generic ISO datetime parser, where the date must include the year at a minimum, and the time
+    (separated by `T`), is optional.
+    Examples: `yyyy-MM-dd'T'HH:mm:ss.SSSZ` or  `yyyy-MM-dd`.
+
+[[strict-date-time-nanos]]`strict_date_optional_time_nanos`::
+
+    A generic ISO datetime parser, where the date must include the year at a minimum, and the time
+    (separated by `T`), is optional. The fraction of a second
+    part has a nanosecond resolution.
+    Examples: `yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ` or  `yyyy-MM-dd`.
 
 `basic_date`::
 
@@ -285,4 +289,3 @@ The following tables lists all the defaults ISO formats supported:
 
     A formatter for a four digit year, two digit month of year, and two digit
     day of month: `yyyy-MM-dd`.
-

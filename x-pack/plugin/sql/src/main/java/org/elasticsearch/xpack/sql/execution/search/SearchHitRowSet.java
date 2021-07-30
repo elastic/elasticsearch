@@ -1,40 +1,50 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
+import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
-import org.elasticsearch.xpack.sql.session.AbstractRowSet;
-import org.elasticsearch.xpack.sql.session.Cursor;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 /**
  * Extracts rows from an array of {@link SearchHit}.
  */
-class SearchHitRowSet extends AbstractRowSet {
+class SearchHitRowSet extends ResultRowSet<HitExtractor> {
     private final SearchHit[] hits;
-    private final Cursor cursor;
-    private final List<HitExtractor> extractors;
+    private final Map<SearchHit, Map<String, SearchHit[]>> flatInnerHits = new HashMap<>();
     private final Set<String> innerHits = new LinkedHashSet<>();
     private final String innerHit;
 
     private final int size;
     private final int[] indexPerLevel;
+    private final Tuple<String, Integer> nextScrollData;
+
     private int row = 0;
 
-    SearchHitRowSet(List<HitExtractor> exts, SearchHit[] hits, int limit, String scrollId) {
+    SearchHitRowSet(List<HitExtractor> exts, BitSet mask, int limit, SearchResponse response) {
+        super(exts, mask);
 
-        this.hits = hits;
-        this.extractors = exts;
+        this.hits = response.getHits().getHits();
 
          // Since the results might contain nested docs, the iteration is similar to that of Aggregation
          // namely it discovers the nested docs and then, for iteration, increments the deepest level first
@@ -53,7 +63,7 @@ class SearchHitRowSet extends AbstractRowSet {
         int sz = hits.length;
 
         int maxDepth = 0;
-        if (!innerHits.isEmpty()) {
+        if (innerHits.isEmpty() == false) {
             if (innerHits.size() > 1) {
                 throw new SqlIllegalArgumentException("Multi-nested docs not yet supported {}", innerHits);
             }
@@ -61,12 +71,13 @@ class SearchHitRowSet extends AbstractRowSet {
 
             sz = 0;
             for (SearchHit hit : hits) {
+                Map<String, SearchHit[]> innerHitsPerPath = new HashMap<>(innerHits.size());
                 for (String ih : innerHits) {
-                    SearchHits sh = hit.getInnerHits().get(ih);
-                    if (sh != null) {
-                        sz += sh.getHits().length;
-                    }
+                    SearchHit[] sh = getAllInnerHits(hit, ih);
+                    innerHitsPerPath.put(ih, sh);
+                    sz += sh.length;
                 }
+                flatInnerHits.put(hit, innerHitsPerPath);
             }
         }
         // page size
@@ -74,34 +85,34 @@ class SearchHitRowSet extends AbstractRowSet {
         indexPerLevel = new int[maxDepth + 1];
         this.innerHit = innerHit;
 
+        String scrollId = response.getScrollId();
+
         if (scrollId == null) {
             /* SearchResponse can contain a null scroll when you start a
              * scroll but all results fit in the first page. */
-            cursor = Cursor.EMPTY;
+            nextScrollData = null;
         } else {
+            TotalHits totalHits = response.getHits().getTotalHits();
+
             // compute remaining limit (only if the limit is specified - that is, positive).
             int remainingLimit = limit < 0 ? limit : limit - size;
             // if the computed limit is zero, or the size is zero it means either there's nothing left or the limit has been reached
-            if (size == 0 || remainingLimit == 0) {
-                cursor = Cursor.EMPTY;
+            if (size == 0 || remainingLimit == 0
+                // or the scroll has ended
+                || totalHits != null && totalHits.value == hits.length) {
+                nextScrollData = null;
             } else {
-                cursor = new ScrollCursor(scrollId, extractors, remainingLimit);
+                nextScrollData = new Tuple<>(scrollId, remainingLimit);
             }
         }
     }
-    
+
     protected boolean isLimitReached() {
-        return cursor == Cursor.EMPTY;
+        return nextScrollData == null;
     }
 
     @Override
-    public int columnCount() {
-        return extractors.size();
-    }
-
-    @Override
-    protected Object getColumn(int column) {
-        HitExtractor e = extractors.get(column);
+    protected Object extractValue(HitExtractor e) {
         int extractorLevel = e.hitName() == null ? 0 : 1;
 
         SearchHit hit = null;
@@ -109,13 +120,54 @@ class SearchHitRowSet extends AbstractRowSet {
         for (int lvl = 0; lvl <= extractorLevel ; lvl++) {
             // TODO: add support for multi-nested doc
             if (hit != null) {
-                SearchHits innerHits = hit.getInnerHits().get(innerHit);
-                sh = innerHits == null ? SearchHits.EMPTY : innerHits.getHits();
+                SearchHit[] innerHits = flatInnerHits.get(hit).get(innerHit);
+                sh = innerHits == null ? SearchHits.EMPTY : innerHits;
             }
             hit = sh[indexPerLevel[lvl]];
         }
 
         return e.extract(hit);
+    }
+
+    private SearchHit[] getAllInnerHits(SearchHit hit, String path) {
+        if (hit == null) {
+            return null;
+        }
+
+        // multiple inner_hits results sections can match the same nested documents, thus we eliminate the duplicates by
+        // using the offset as the "deduplicator" in a HashMap
+        HashMap<Integer, SearchHit> lhm = new HashMap<>();
+        for (Entry<String, SearchHits> entry : hit.getInnerHits().entrySet()) {
+            int endOfPath = entry.getKey().lastIndexOf('_');
+            if (endOfPath >= 0 && entry.getKey().substring(0, endOfPath).equals(path)) {
+                SearchHit[] h = entry.getValue().getHits();
+                for (SearchHit element : h) {
+                    lhm.put(element.getNestedIdentity().getOffset(), element);
+                }
+            }
+        }
+
+        // Then sort the resulting List based on the offset of the same inner hit. Each inner_hit match will have an offset value,
+        // relative to its location in the _source
+        List<SearchHit> sortedList = new ArrayList<>(lhm.values());
+        Collections.sort(sortedList, new NestedHitOffsetComparator());
+
+        return sortedList.toArray(SearchHit[]::new);
+    }
+
+    private class NestedHitOffsetComparator implements Comparator<SearchHit> {
+    @Override
+        public int compare(SearchHit sh1, SearchHit sh2) {
+            if (sh1 == null && sh2 == null) {
+                return 0;
+            } else if (sh1 == null) {
+                return -1;
+            } else if (sh2 == null) {
+                return 1;
+            }
+
+            return Integer.valueOf(sh1.getNestedIdentity().getOffset()).compareTo(Integer.valueOf(sh2.getNestedIdentity().getOffset()));
+        }
     }
 
     @Override
@@ -146,8 +198,8 @@ class SearchHitRowSet extends AbstractRowSet {
                     // TODO: improve this for multi-nested responses
                     String path = lvl == 0 ? innerHit : null;
                     if (path != null) {
-                        SearchHits innerHits = h.getInnerHits().get(path);
-                        sh = innerHits == null ? SearchHits.EMPTY : innerHits.getHits();
+                        SearchHit[] innerHits = flatInnerHits.get(h).get(path);
+                        sh = innerHits == null ? SearchHits.EMPTY : innerHits;
                     }
                 }
             }
@@ -168,8 +220,7 @@ class SearchHitRowSet extends AbstractRowSet {
         return size;
     }
 
-    @Override
-    public Cursor nextPageCursor() {
-        return cursor;
+    Tuple<String, Integer> nextScrollData() {
+        return nextScrollData;
     }
 }

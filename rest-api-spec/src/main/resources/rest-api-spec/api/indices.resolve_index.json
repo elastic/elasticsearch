@@ -1,0 +1,43 @@
+{
+  "indices.resolve_index":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-resolve-index-api.html",
+      "description":"Returns information about any matching indices, aliases, and data streams"
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_resolve/index/{name}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "name":{
+              "type":"list",
+              "description":"A comma-separated list of names or wildcard expressions"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "expand_wildcards":{
+        "type":"enum",
+        "options":[
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default":"open",
+        "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
+      }
+    }
+  }
+}

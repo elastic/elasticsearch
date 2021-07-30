@@ -1,32 +1,99 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-auto-follow]]
-=== Automatically following indices
+=== Manage auto-follow patterns
+To replicate time series indices, you configure an auto-follow pattern so that
+each new index in the series is replicated automatically. Whenever the name of
+a new index on the remote cluster matches the auto-follow pattern, a
+corresponding follower index is added to the local cluster.
 
-beta[]
+NOTE: Auto-follow patterns only match open indices on the remote cluster that
+have all primary shards started. Auto-follow patterns do not match indices that
+can't be used for {ccr-init} such as <<open-index-api-desc,closed indices>> or
+<<searchable-snapshots,{search-snaps}>>. Avoid using an auto-follow pattern
+that matches indices with a <<index-block-settings, read or write block>>. These
+blocks prevent follower indices from replicating such indices.
 
-In time series use cases where you want to follow new indices that are
-periodically created (such as daily Beats indices), manually configuring follower
-indices for each new leader index can be an operational burden. The auto-follow
-functionality in {ccr} is aimed at easing this burden. With the auto-follow
-functionality, you can specify that new indices in a remote cluster that have a 
-name that matches a pattern are automatically followed.
+You can also create auto-follow patterns for data streams. When a new backing
+index is generated on a remote cluster, that index and its data stream are
+automatically followed if the data stream name matches an auto-follow
+pattern. If you create a data stream after creating the auto-follow pattern,
+all backing indices are followed automatically.
 
-==== Managing auto-follow patterns
+The data streams replicated from a remote cluster by CCR are protected from
+local rollovers. The <<promote-data-stream-api,promote data stream API>>
+can be used to turn these data streams into regular data streams.
 
-You can add a new auto-follow pattern configuration with the
-{ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API].  When you create
-a new auto-follow pattern configuration, you are configuring a collection of
-patterns against a single remote cluster. Any time a new index with a name that 
-matches one of the patterns in the collection is created in the remote cluster,
-a follower index is configured in the local cluster. The follower index uses the 
-new index as its leader index.
+Auto-follow patterns are especially useful with
+<<index-lifecycle-management,{ilm-cap}>>, which might continually create
+new indices on the cluster containing the leader index.
 
-You can inspect all configured auto-follow pattern collections with the
-{ref}/ccr-get-auto-follow-pattern.html[get auto-follow pattern API]. To delete a
-configured auto-follow pattern collection, use the
-{ref}/ccr-delete-auto-follow-pattern.html[delete auto-follow pattern API].
+[[ccr-access-ccr-auto-follow]]
+To start using {ccr} auto-follow patterns, access {kib} and go to
+*Management > Stack Management*. In the side navigation, select
+*Cross-Cluster Replication* and choose the *Auto-follow patterns* tab
 
-Since auto-follow functionality is handled automatically in the background on
-your behalf, error reporting is done through logs on the elected master node
-and through the {ref}/ccr-get-stats.html[{ccr} stats API].
+[[ccr-auto-follow-create]]
+==== Create auto-follow patterns
+When you <<ccr-getting-started-auto-follow,create an auto-follow pattern>>,
+you are configuring a collection of patterns against a single remote cluster.
+When an index is created in the remote cluster with a name that matches one of
+the patterns in the collection, a follower index is configured in the local
+cluster. The follower index uses the new index as its leader index.
+
+[%collapsible]
+.Use the API
+====
+Use the <<ccr-put-auto-follow-pattern,create auto-follow pattern API>> to add a
+new auto-follow pattern configuration.
+====
+
+[[ccr-auto-follow-retrieve]]
+==== Retrieve auto-follow patterns
+To view existing auto-follow patterns and make changes to the backing
+patterns, <<ccr-access-ccr-auto-follow,access {kib}>> on your _remote_ cluster.
+
+Select the auto-follow pattern that you want to view details about. From there,
+you can make changes to the auto-follow pattern. You can also view your
+follower indices included in the auto-follow pattern.
+
+[%collapsible]
+.Use the API
+====
+Use the <<ccr-get-auto-follow-pattern,get auto-follow pattern API>> to inspect
+all configured auto-follow pattern collections.
+====
+
+[[ccr-auto-follow-pause]]
+==== Pause and resume auto-follow patterns
+To pause and resume replication of auto-follow pattern collections,
+<<ccr-access-ccr-auto-follow,access {kib}>>, select the auto-follow pattern,
+and pause replication.
+
+To resume replication, select the pattern and choose
+*Manage pattern > Resume replication*.
+
+[%collapsible]
+.Use the API
+====
+Use the <<ccr-pause-auto-follow-pattern,pause auto-follow pattern API>> to
+pause auto-follow patterns.
+Use the <<ccr-resume-auto-follow-pattern,resume auto-follow pattern API>> to
+resume auto-follow patterns.
+====
+
+[[ccr-auto-follow-delete]]
+==== Delete auto-follow patterns
+To delete an auto-follow pattern collection,
+<<ccr-access-ccr-auto-follow,access {kib}>>, select the auto-follow pattern,
+and pause replication.
+
+When the pattern status changes to Paused, choose
+*Manage pattern > Delete pattern*.
+
+[%collapsible]
+.Use the API
+====
+Use the <<ccr-delete-auto-follow-pattern,delete auto-follow pattern API>> to
+delete a configured auto-follow pattern collection.
+====

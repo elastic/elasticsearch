@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-bucket-sort-aggregation]]
-=== Bucket Sort Aggregation
+=== Bucket sort aggregation
+++++
+<titleabbrev>Bucket sort</titleabbrev>
+++++
 
 A parent pipeline aggregation which sorts the buckets of its parent multi-bucket aggregation.
 Zero or more sort fields may be specified together with the corresponding sort order.
@@ -18,25 +21,27 @@ A `bucket_sort` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "bucket_sort": {
-        "sort": [
-            {"sort_field_1": {"order": "asc"}},<1>
-            {"sort_field_2": {"order": "desc"}},
-            "sort_field_3"
-        ],
-        "from": 1,
-        "size": 3
-    }
+  "bucket_sort": {
+    "sort": [
+      { "sort_field_1": { "order": "asc" } },   <1>
+      { "sort_field_2": { "order": "desc" } },
+      "sort_field_3"
+    ],
+    "from": 1,
+    "size": 3
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
 <1> Here, `sort_field_1` is the bucket path to the variable to be used as the primary sort and its order
 is ascending.
 
+[[bucket-sort-params]]
 .`bucket_sort` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
-|`sort` |The list of fields to sort on. See <<search-request-sort,`sort`>> for more details. |Optional |
+|`sort` |The list of fields to sort on. See <<sort-search-results,`sort`>> for more details. |Optional |
 |`from` |Buckets in positions prior to the set value will be truncated. |Optional | `0`
 |`size` |The number of buckets to return. Defaults to all buckets of the parent aggregation. |Optional |
 |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
@@ -45,44 +50,44 @@ is ascending.
 
 The following snippet returns the buckets corresponding to the 3 months with the highest total sales in descending order:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "interval" : "month"
-            },
-            "aggs": {
-                "total_sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                },
-                "sales_bucket_sort": {
-                    "bucket_sort": {
-                        "sort": [
-                          {"total_sales": {"order": "desc"}}<1>
-                        ],
-                        "size": 3<2>
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "total_sales": {
+          "sum": {
+            "field": "price"
+          }
+        },
+        "sales_bucket_sort": {
+          "bucket_sort": {
+            "sort": [
+              { "total_sales": { "order": "desc" } } <1>
+            ],
+            "size": 3                                <2>
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
+
 <1> `sort` is set to use the values of `total_sales` in descending order
 <2> `size` is set to `3` meaning only the top 3 months in `total_sales` will be returned
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 82,
@@ -133,35 +138,34 @@ without specifying `sort`.
 
 The following example simply truncates the result so that only the second bucket is returned:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "interval" : "month"
-            },
-            "aggs": {
-                "bucket_truncate": {
-                    "bucket_sort": {
-                        "from": 1,
-                        "size": 1
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "bucket_truncate": {
+          "bucket_sort": {
+            "from": 1,
+            "size": 1
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,

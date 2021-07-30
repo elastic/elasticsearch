@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.misc.Interval;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.Location;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.util.Check;
 
 import java.util.ArrayList;
@@ -63,26 +66,50 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
         return results;
     }
 
-    static Location source(ParseTree ctx) {
+    static Source source(ParseTree ctx) {
         if (ctx instanceof ParserRuleContext) {
             return source((ParserRuleContext) ctx);
         }
-        return Location.EMPTY;
+        return Source.EMPTY;
     }
 
-    static Location source(TerminalNode terminalNode) {
+    static Source source(TerminalNode terminalNode) {
         Check.notNull(terminalNode, "terminalNode is null");
         return source(terminalNode.getSymbol());
     }
 
-    static Location source(ParserRuleContext parserRuleContext) {
+    static Source source(ParserRuleContext parserRuleContext) {
         Check.notNull(parserRuleContext, "parserRuleContext is null");
-        return source(parserRuleContext.getStart());
+        Token start = parserRuleContext.start;
+        Token stop = parserRuleContext.stop != null ? parserRuleContext.stop : start;
+        Interval interval = new Interval(start.getStartIndex(), stop.getStopIndex());
+        String text = start.getInputStream().getText(interval);
+        return new Source(new Location(start.getLine(), start.getCharPositionInLine()), text);
     }
 
-    static Location source(Token token) {
+    static Source source(Token token) {
         Check.notNull(token, "token is null");
-        return new Location(token.getLine(), token.getCharPositionInLine());
+        String text = token.getInputStream().getText(new Interval(token.getStartIndex(), token.getStopIndex()));
+        return new Source(new Location(token.getLine(), token.getCharPositionInLine()), text);
+    }
+
+    Source source(ParserRuleContext begin, ParserRuleContext end) {
+        Check.notNull(begin, "begin is null");
+        Check.notNull(end, "end is null");
+        Token start = begin.start;
+        Token stop = end.stop != null ? end.stop : begin.stop;
+        Interval interval = new Interval(start.getStartIndex(), stop.getStopIndex());
+        String text = start.getInputStream().getText(interval);
+        return new Source(new Location(start.getLine(), start.getCharPositionInLine()), text);
+    }
+
+    static Source source(TerminalNode begin, ParserRuleContext end) {
+        Check.notNull(begin, "begin is null");
+        Check.notNull(end, "end is null");
+        Token start = begin.getSymbol();
+        Token stop = end.stop != null ? end.stop : start;
+        String text = start.getInputStream().getText(new Interval(start.getStartIndex(), stop.getStopIndex()));
+        return new Source(new Location(start.getLine(), start.getCharPositionInLine()), text);
     }
 
     /**
@@ -106,6 +133,7 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
 
     @Override
     public Object visitTerminal(TerminalNode node) {
-        throw new ParsingException(source(node), "Does not know how to handle {}", node.getText());
+        Source source = source(node);
+        throw new ParsingException(source, "Does not know how to handle {}", source.text());
     }
 }

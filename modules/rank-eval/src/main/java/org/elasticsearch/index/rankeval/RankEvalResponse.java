@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -61,8 +50,22 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         this.failures = new HashMap<>(failures);
     }
 
-    RankEvalResponse() {
-        // only used in RankEvalAction#newResponse()
+    RankEvalResponse(StreamInput in) throws IOException {
+        super(in);
+        this.metricScore = in.readDouble();
+        int partialResultSize = in.readVInt();
+        this.details = new HashMap<>(partialResultSize);
+        for (int i = 0; i < partialResultSize; i++) {
+            String queryId = in.readString();
+            EvalQueryQuality partial = new EvalQueryQuality(in);
+            this.details.put(queryId, partial);
+        }
+        int failuresSize = in.readVInt();
+        this.failures = new HashMap<>(failuresSize);
+        for (int i = 0; i < failuresSize; i++) {
+            String queryId = in.readString();
+            this.failures.put(queryId, in.readException());
+        }
     }
 
     public double getMetricScore() {
@@ -84,7 +87,6 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeDouble(metricScore);
         out.writeVInt(details.size());
         for (String queryId : details.keySet()) {
@@ -95,25 +97,6 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         for (String queryId : failures.keySet()) {
             out.writeString(queryId);
             out.writeException(failures.get(queryId));
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.metricScore = in.readDouble();
-        int partialResultSize = in.readVInt();
-        this.details = new HashMap<>(partialResultSize);
-        for (int i = 0; i < partialResultSize; i++) {
-            String queryId = in.readString();
-            EvalQueryQuality partial = new EvalQueryQuality(in);
-            this.details.put(queryId, partial);
-        }
-        int failuresSize = in.readVInt();
-        this.failures = new HashMap<>(failuresSize);
-        for (int i = 0; i < failuresSize; i++) {
-            String queryId = in.readString();
-            this.failures.put(queryId, in.readException());
         }
     }
 
@@ -150,10 +133,10 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> EvalQueryQuality.fromXContent(p, n),
                 DETAILS_FIELD);
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.nextToken(), p::getTokenLocation);
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.nextToken(), p);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p);
             Tuple<String, ElasticsearchException> tuple = new Tuple<>(n, ElasticsearchException.failureFromXContent(p));
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p);
             return tuple;
         }, FAILURES_FIELD);
 

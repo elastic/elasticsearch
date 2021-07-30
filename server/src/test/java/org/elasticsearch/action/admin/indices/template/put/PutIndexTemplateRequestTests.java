@@ -1,43 +1,35 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
-public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIndexTemplateRequest> {
-    public void testValidateErrorMessage() throws Exception {
+public class PutIndexTemplateRequestTests extends ESTestCase {
+
+    public void testValidateErrorMessage() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         ActionRequestValidationException withoutNameAndPattern = request.validate();
         assertThat(withoutNameAndPattern.getMessage(), containsString("name is missing"));
@@ -53,64 +45,147 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
         assertThat(noError, is(nullValue()));
     }
 
-    @Override
-    protected PutIndexTemplateRequest createTestInstance() {
+    public void testMappingKeyedByType() throws IOException {
+        PutIndexTemplateRequest request1 = new PutIndexTemplateRequest("foo");
+        PutIndexTemplateRequest request2 = new PutIndexTemplateRequest("bar");
+        {
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder.startObject().startObject("properties")
+                .startObject("field1")
+                .field("type", "text")
+                .endObject()
+                .startObject("field2")
+                .startObject("properties")
+                .startObject("field21")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject();
+            request1.mapping(builder);
+            builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder.startObject().startObject("_doc")
+                .startObject("properties")
+                .startObject("field1")
+                .field("type", "text")
+                .endObject()
+                .startObject("field2")
+                .startObject("properties")
+                .startObject("field21")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject();
+            request2.mapping(builder);
+            assertEquals(request1.mappings(), request2.mappings());
+        }
+        {
+            request1 = new PutIndexTemplateRequest("foo");
+            request2 = new PutIndexTemplateRequest("bar");
+            String nakedMapping = "{\"properties\": {\"foo\": {\"type\": \"integer\"}}}";
+            request1.mapping(nakedMapping, XContentType.JSON);
+            request2.mapping("{\"_doc\": " + nakedMapping + "}", XContentType.JSON);
+            assertEquals(request1.mappings(), request2.mappings());
+        }
+        {
+            request1 = new PutIndexTemplateRequest("foo");
+            request2 = new PutIndexTemplateRequest("bar");
+            Map<String, Object> nakedMapping = MapBuilder.<String, Object>newMapBuilder()
+                .put("properties", MapBuilder.<String, Object>newMapBuilder()
+                    .put("bar", MapBuilder.<String, Object>newMapBuilder()
+                        .put("type", "scaled_float")
+                        .put("scaling_factor", 100)
+                        .map())
+                    .map())
+                .map();
+            request1.mapping(nakedMapping);
+            request2.mapping(Map.of("_doc", nakedMapping));
+            assertEquals(request1.mappings(), request2.mappings());
+        }
+    }
+
+    public void testSourceParsing() throws IOException {
+        XContentBuilder indexPatterns = XContentFactory.jsonBuilder().startObject()
+            .array("index_patterns", "index-*", "other-index-*")
+            .field("version", 2)
+            .field("order", 5)
+            .startObject("settings")
+                .field("index.refresh_interval", "-1")
+                .field("index.number_of_replicas", 2)
+            .endObject()
+            .startObject("mappings")
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+            .startObject("aliases")
+                .startObject("my-alias").endObject()
+            .endObject()
+        .endObject();
+
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.name("test");
-        if (randomBoolean()) {
-            request.version(randomInt());
-        }
-        if (randomBoolean()) {
-            request.order(randomInt());
-        }
-        request.patterns(Arrays.asList(generateRandomStringArray(20, 100, false, false)));
-        int numAlias = between(0, 5);
-        for (int i = 0; i < numAlias; i++) {
-            // some ASCII or Latin-1 control characters, especially newline, can lead to
-            // problems with yaml parsers, that's why we filter them here (see #30911)
-            Alias alias = new Alias(randomRealisticUnicodeOfLengthBetween(1, 10).replaceAll("\\p{Cc}", ""));
-            if (randomBoolean()) {
-                alias.indexRouting(randomRealisticUnicodeOfLengthBetween(1, 10));
-            }
-            if (randomBoolean()) {
-                alias.searchRouting(randomRealisticUnicodeOfLengthBetween(1, 10));
-            }
-            request.alias(alias);
-        }
-        if (randomBoolean()) {
-            try {
-                request.mapping("doc", XContentFactory.jsonBuilder().startObject()
-                    .startObject("doc").startObject("properties")
-                    .startObject("field-" + randomInt()).field("type", randomFrom("keyword", "text")).endObject()
-                    .endObject().endObject().endObject());
-            } catch (IOException ex) {
-                throw new UncheckedIOException(ex);
-            }
-        }
-        if (randomBoolean()) {
-            request.settings(Settings.builder().put("setting1", randomLong()).put("setting2", randomTimeValue()).build());
-        }
-        return request;
+        request.source(indexPatterns);
+
+        assertThat(request.patterns(), containsInAnyOrder("index-*", "other-index-*"));
+        assertThat(request.version(), equalTo(2));
+        assertThat(request.order(), equalTo(5));
+
+        Settings settings = Settings.builder()
+            .put("index.refresh_interval", "-1")
+            .put("index.number_of_replicas", 2)
+            .build();
+        assertThat(request.settings(), equalTo(settings));
+
+        assertThat(request.mappings(), containsString("field"));
+
+        Alias alias = new Alias("my-alias");
+        assertThat(request.aliases().size(), equalTo(1));
+        assertThat(request.aliases().iterator().next(), equalTo(alias));
     }
 
-    @Override
-    protected PutIndexTemplateRequest doParseInstance(XContentParser parser) throws IOException {
-        return new PutIndexTemplateRequest().source(parser.map());
-    }
+    public void testSourceValidation() throws IOException {
+        XContentBuilder indexPatterns = XContentFactory.jsonBuilder().startObject()
+            .startObject("index_patterns")
+                .field("my-pattern", "index-*")
+            .endObject()
+        .endObject();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new PutIndexTemplateRequest().source(indexPatterns));
+        assertThat(e.getCause().getMessage(), containsString("Malformed [index_patterns] value"));
 
-    @Override
-    protected void assertEqualInstances(PutIndexTemplateRequest expected, PutIndexTemplateRequest actual) {
-        assertNotSame(expected, actual);
-        assertThat(actual.version(), equalTo(expected.version()));
-        assertThat(actual.order(), equalTo(expected.order()));
-        assertThat(actual.patterns(), equalTo(expected.patterns()));
-        assertThat(actual.aliases(), equalTo(expected.aliases()));
-        assertThat(actual.mappings(), equalTo(expected.mappings()));
-        assertThat(actual.settings(), equalTo(expected.settings()));
-    }
+        XContentBuilder version = XContentFactory.jsonBuilder().startObject()
+            .field("version", "v6.5.4")
+        .endObject();
+        e = expectThrows(IllegalArgumentException.class,() -> new PutIndexTemplateRequest().source(version));
+        assertThat(e.getCause().getMessage(), containsString("Malformed [version] value"));
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+        XContentBuilder settings = XContentFactory.jsonBuilder().startObject()
+            .field("settings", "index.number_of_replicas")
+        .endObject();
+        e = expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest().source(settings));
+        assertThat(e.getCause().getMessage(), containsString("Malformed [settings] section"));
+
+        XContentBuilder mappings = XContentFactory.jsonBuilder().startObject()
+            .startObject("mappings")
+                .field("_doc", "value")
+            .endObject()
+        .endObject();
+        e = expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest().source(mappings));
+        assertThat(e.getCause().getMessage(), containsString("Malformed [mappings] section"));
+
+        XContentBuilder extraField = XContentFactory.jsonBuilder().startObject()
+            .startObject("settings")
+                .field("index.number_of_replicas", 2)
+            .endObject()
+            .field("extra-field", "value")
+        .endObject();
+        e = expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest().source(extraField));
+        assertThat(e.getCause().getMessage(), containsString("unknown key [extra-field] in the template"));
     }
 }

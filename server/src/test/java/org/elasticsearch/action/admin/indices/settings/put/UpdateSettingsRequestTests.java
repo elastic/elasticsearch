@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.settings.put;
@@ -32,7 +21,7 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
 
     @Override
     protected UpdateSettingsRequest createTestInstance() {
-        UpdateSettingsRequest testRequest = UpdateSettingsRequestStreamableTests.createTestItem();
+        UpdateSettingsRequest testRequest = UpdateSettingsRequestSerializationTests.createTestItem();
         if (enclosedSettings) {
             UpdateSettingsRequest requestWithEnclosingSettings = new UpdateSettingsRequest(testRequest.settings()) {
                 public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -72,7 +61,7 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
     @Override
     protected void assertEqualInstances(UpdateSettingsRequest expectedInstance, UpdateSettingsRequest newInstance) {
         // here only the settings should be tested, as this test covers explicitly only the XContent parsing
-        // the rest of the request fields are tested by the StreamableTests
+        // the rest of the request fields are tested by the SerializingTests
         super.assertEqualInstances(new UpdateSettingsRequest(expectedInstance.settings()),
                 new UpdateSettingsRequest(newInstance.settings()));
     }
@@ -81,7 +70,7 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
     protected boolean assertToXContentEquivalence() {
         // if enclosedSettings are used, disable the XContentEquivalence check as the
         // parsed.toXContent is not equivalent to the test instance
-        return !enclosedSettings;
+        return enclosedSettings == false;
     }
 
 }

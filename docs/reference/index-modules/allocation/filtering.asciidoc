@@ -3,12 +3,12 @@
 
 You can use shard allocation filters to control where {es} allocates shards of
 a particular index. These per-index filters are applied in conjunction with
-<<allocation-filtering, cluster-wide allocation filtering>> and
-<<allocation-awareness, allocation awareness>>.
+<<cluster-shard-allocation-filtering, cluster-wide allocation filtering>> and
+<<shard-allocation-awareness, allocation awareness>>.
 
 Shard allocation filters can be based on custom node attributes or the built-in
-`_name`, `host_ip`, `publish_ip`, `_ip`, and `_host` attributes.
-<<index-lifecycle-management, Index lifecycle management>> uses filters based
+`_name`, `_host_ip`, `_publish_ip`, `_ip`, `_host`, `_id`, `_tier` and `_tier_preference`
+attributes. <<index-lifecycle-management, Index lifecycle management>> uses filters based
 on custom node attributes to determine how to reallocate shards when moving
 between phases.
 
@@ -21,7 +21,7 @@ For example, you could use a custom node attribute to indicate a node's
 performance characteristics and use shard allocation filtering to route shards
 for a particular index to the most appropriate class of hardware.
 
-[float]
+[discrete]
 [[index-allocation-filters]]
 ==== Enabling index-level shard allocation filtering
 
@@ -41,7 +41,7 @@ You can also set custom attributes when you start a node:
 +
 [source,sh]
 --------------------------------------------------------
-`./bin/elasticsearch -Enode.attr.size=medium
+./bin/elasticsearch -Enode.attr.size=medium
 --------------------------------------------------------
 
 . Add a routing allocation filter to the index. The `index.routing.allocation`
@@ -49,32 +49,39 @@ settings support three types of filters: `include`, `exclude`, and `require`.
 For example, to tell {es} to allocate shards from the `test` index to either
 `big` or `medium` nodes, use `index.routing.allocation.include`:
 +
-[source,js]
+--
+[source,console]
 ------------------------
 PUT test/_settings
 {
   "index.routing.allocation.include.size": "big,medium"
 }
 ------------------------
-// CONSOLE
 // TEST[s/^/PUT test\n/]
-+
-If you specify multiple filters, all conditions must be satisfied for shards to
-be relocated. For example, to move the `test` index to `big` nodes in `rack1`,
-you could specify:
-+
-[source,js]
+
+If you specify multiple filters the following conditions must be satisfied
+simultaneously by a node in order for shards to be relocated to it:
+
+* If any `require` type conditions are specified, all of them must be satisfied
+* If any `exclude` type conditions are specified, none of them may be satisfied
+* If any `include` type conditions are specified, at least one of them must be
+satisfied
+
+For example, to move the `test` index to `big` nodes in `rack1`, you could
+specify:
+
+[source,console]
 ------------------------
 PUT test/_settings
 {
-  "index.routing.allocation.include.size": "big",
-  "index.routing.allocation.include.rack": "rack1"
+  "index.routing.allocation.require.size": "big",
+  "index.routing.allocation.require.rack": "rack1"
 }
 ------------------------
-// CONSOLE
 // TEST[s/^/PUT test\n/]
+--
 
-[float]
+[discrete]
 [[index-allocation-settings]]
 ==== Index allocation filter settings
 
@@ -101,15 +108,21 @@ The index allocation settings support the following built-in attributes:
 `_publish_ip`:: Match nodes by publish IP address
 `_ip`::         Match either `_host_ip` or `_publish_ip`
 `_host`::       Match nodes by hostname
+`_id`::         Match nodes by node id
+`_tier`::       Match nodes by the node's <<data-tiers, data tier>> role.
+                For more details see <<data-tier-shard-filtering, data tier allocation filtering>>
+
+NOTE: `_tier` filtering is based on <<modules-node, node>> roles. Only
+a subset of roles are <<data-tiers, data tier>> roles, and the generic
+<<data-node, data role>> will match any tier filtering.
 
 You can use wildcards when specifying attribute values, for example:
 
-[source,js]
+[source,console]
 ------------------------
 PUT test/_settings
 {
   "index.routing.allocation.include._ip": "192.168.2.*"
 }
 ------------------------
-// CONSOLE
 // TEST[skip:indexes don't assign]

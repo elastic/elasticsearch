@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring;
 
@@ -13,14 +14,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -91,7 +94,6 @@ public class MonitoringService extends AbstractLifecycleComponent {
 
     MonitoringService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
                       Set<Collector> collectors, Exporters exporters) {
-        super(settings);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.collectors = Objects.requireNonNull(collectors);
@@ -104,6 +106,8 @@ public class MonitoringService extends AbstractLifecycleComponent {
             .addSettingsUpdateConsumer(ELASTICSEARCH_COLLECTION_ENABLED, this::setElasticsearchCollectionEnabled);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED, this::setMonitoringActive);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INTERVAL, this::setInterval);
+
+        HttpExporter.loadSettings(settings);
     }
 
     void setElasticsearchCollectionEnabled(final boolean enabled) {
@@ -219,6 +223,11 @@ public class MonitoringService extends AbstractLifecycleComponent {
                 return;
             }
 
+            if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
+                logger.debug("cluster service not started");
+                return;
+            }
+
             if (semaphore.tryAcquire() == false) {
                 logger.debug("monitoring execution is skipped until previous execution terminated");
                 return;
@@ -234,7 +243,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                     final Collection<MonitoringDoc> results = new ArrayList<>();
                     for (Collector collector : collectors) {
                         if (isStarted() == false) {
-                            // Do not collect more data if the the monitoring service is stopping
+                            // Do not collect more data if the monitoring service is stopping
                             // otherwise some collectors might just fail.
                             return;
                         }

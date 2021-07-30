@@ -3,21 +3,37 @@
 [[sql-client-apps]]
 == SQL Client Applications
 
-beta[]
-
-Thanks to its <<sql-jdbc, JDBC>> interface, a broad range of third-party applications can use {es}'s SQL capabilities.
+Thanks to its <<sql-jdbc, JDBC>> and <<sql-odbc, ODBC>> interfaces, a broad range of third-party applications can use {es}'s SQL capabilities.
 This section lists, in alphabetical order, a number of them and their respective configuration - the list however is by no means comprehensive (feel free to https://www.elastic.co/blog/art-of-pull-request[submit a PR] to improve it):
 as long as the app can use the {es-sql} driver, it can use {es-sql}.
 
 * <<sql-client-apps-dbeaver, DBeaver>>
 * <<sql-client-apps-dbvis, DbVisualizer>>
+* <<sql-client-apps-excel, Microsoft Excel>>
+* <<sql-client-apps-powerbi, Microsoft Power BI Desktop>>
+* <<sql-client-apps-ps1, Microsoft PowerShell>>
+* <<sql-client-apps-microstrat, MicroStrategy Desktop>>
+* <<sql-client-apps-qlik, Qlik Sense Desktop>>
 * <<sql-client-apps-squirrel, SQuirreL SQL>>
 * <<sql-client-apps-workbench, SQL Workbench>>
+* <<sql-client-apps-tableau-desktop, Tableau Desktop>>
+* <<sql-client-apps-tableau-server, Tableau Server>>
 
-NOTE: Each application has its own requirements and license; these are outside the scope of this documentation
+IMPORTANT: Elastic does not endorse, promote or provide support for any of the applications listed. For native Elasticsearch integration in these products, please reach out to their respective vendor.
+
+NOTE: Each application has its own requirements and license these are outside the scope of this documentation
 which covers only the configuration aspect with {es-sql}.
+
+WARNING: The support for applications implementing the ODBC 2.x standard and prior is currently limited.
 
 include::dbeaver.asciidoc[]
 include::dbvis.asciidoc[]
+include::excel.asciidoc[]
+include::powerbi.asciidoc[]
+include::ps1.asciidoc[]
+include::microstrat.asciidoc[]
+include::qlik.asciidoc[]
 include::squirrel.asciidoc[]
 include::workbench.asciidoc[]
+include::tableau-desktop.asciidoc[]
+include::tableau-server.asciidoc[]

@@ -1,72 +1,13 @@
-[[heap-size]]
-=== Setting the heap size
+[[heap-size-settings]]
+[discrete]
+==== Heap size settings
 
-By default, Elasticsearch tells the JVM to use a heap with a minimum and maximum
-size of 1 GB. When moving to production, it is important to configure heap size
-to ensure that Elasticsearch has enough heap available.
+By default, {es} automatically sets the JVM heap size based on a node's
+<<node-roles,roles>> and total memory.
+We recommend the default sizing for most production environments.
 
-Elasticsearch will assign the entire heap specified in
-<<jvm-options,jvm.options>> via the `Xms` (minimum heap size) and `Xmx` (maximum
-heap size) settings.
+NOTE: Automatic heap sizing requires the <<jvm-version,bundled JDK>> or, if using
+a custom JRE location, a Java 14 or later JRE.
 
-The value for these setting depends on the amount of RAM available on your
-server. Good rules of thumb are:
-
-* Set the minimum heap size (`Xms`) and maximum heap size (`Xmx`) to be equal to
-  each other.
-
-* The more heap available to Elasticsearch, the more memory it can use for
-  caching. But note that too much heap can subject you to long garbage
-  collection pauses.
-
-* Set `Xmx` to no more than 50% of your physical RAM, to ensure that there is
-  enough physical RAM left for kernel file system caches.
-
-* Don’t set `Xmx` to above the cutoff that the JVM uses for compressed object
-  pointers (compressed oops); the exact cutoff varies but is near 32 GB. You can
-  verify that you are under the limit by looking for a line in the logs like the
-  following:
-+
-    heap size [1.9gb], compressed ordinary object pointers [true]
-
-* Even better, try to stay below the threshold for zero-based compressed oops;
-  the exact cutoff varies but 26 GB is safe on most systems, but can be as large
-  as 30 GB on some systems. You can verify that you are under the limit by
-  starting Elasticsearch with the JVM options `-XX:+UnlockDiagnosticVMOptions
-  -XX:+PrintCompressedOopsMode` and looking for a line like the following:
-+
---
-    heap address: 0x000000011be00000, size: 27648 MB, zero based Compressed Oops
-
-showing that zero-based compressed oops are enabled instead of
-
-    heap address: 0x0000000118400000, size: 28672 MB, Compressed Oops with base: 0x00000001183ff000
---
-
-Here are examples of how to set the heap size via the jvm.options file:
-
-[source,txt]
-------------------
--Xms2g <1>
--Xmx2g <2>
-------------------
-<1> Set the minimum heap size to 2g.
-<2> Set the maximum heap size to 2g.
-
-It is also possible to set the heap size via an environment variable. This can
-be done by commenting out the `Xms` and `Xmx` settings in the
-<<jvm-options,`jvm.options`>> file and setting these values via `ES_JAVA_OPTS`:
-
-[source,sh]
-------------------
-ES_JAVA_OPTS="-Xms2g -Xmx2g" ./bin/elasticsearch <1>
-ES_JAVA_OPTS="-Xms4000m -Xmx4000m" ./bin/elasticsearch <2>
-------------------
-<1> Set the minimum and maximum heap size to 2 GB.
-<2> Set the minimum and maximum heap size to 4000 MB.
-
-NOTE: Configuring the heap for the <<windows-service,Windows service>> is
-different than the above. The values initially populated for the Windows service
-can be configured as above but are different after the service has been
-installed. Consult the <<windows-service,Windows service documentation>> for
-additional details.
+If needed, you can override the default sizing by manually
+<<set-jvm-heap-size,setting the JVM heap size>>.

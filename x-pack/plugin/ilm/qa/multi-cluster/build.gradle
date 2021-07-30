@@ -1,0 +1,65 @@
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+
+dependencies {
+  testImplementation project(':x-pack:plugin:ccr:qa')
+  testImplementation project(':x-pack:plugin:core')
+  testImplementation project(':x-pack:plugin:ilm')
+}
+
+File repoDir = file("$buildDir/testclusters/repo")
+
+tasks.register('leader-cluster', RestIntegTestTask) {
+  mustRunAfter("precommit")
+    systemProperty 'tests.target_cluster', 'leader'
+    /* To support taking index snapshots, we have to set path.repo setting */
+    systemProperty 'tests.path.repo', repoDir.absolutePath
+}
+
+testClusters.matching { it.name == 'leader-cluster' }.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'path.repo', repoDir.absolutePath
+  setting 'xpack.ccr.enabled', 'true'
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'indices.lifecycle.poll_interval', '1000ms'
+}
+
+tasks.register('follow-cluster', RestIntegTestTask) {
+  dependsOn tasks.findByName('leader-cluster')
+  useCluster testClusters.'leader-cluster'
+  systemProperty 'tests.target_cluster', 'follow'
+  nonInputProperties.systemProperty 'tests.leader_host',
+    "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
+  nonInputProperties.systemProperty 'tests.leader_remote_cluster_seed',
+    "${-> testClusters.'leader-cluster'.getAllTransportPortURI().get(0)}"
+  /* To support taking index snapshots, we have to set path.repo setting */
+  systemProperty 'tests.path.repo', repoDir.absolutePath
+}
+
+testClusters.matching{ it.name == 'follow-cluster' }.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'path.repo', repoDir.absolutePath
+  setting 'xpack.ccr.enabled', 'true'
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'indices.lifecycle.poll_interval', '1000ms'
+  setting 'cluster.remote.leader_cluster.seeds',
+    { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().get(0)}\"" }
+}
+
+tasks.named("check").configure { dependsOn 'follow-cluster' }
+// Security is explicitly disabled for follow-cluster and leader-cluster, do not run these in FIPS mode
+tasks.withType(Test).configureEach {
+  enabled = BuildParams.inFipsJvm == false
+}
+tasks.named("testingConventions").configure {
+  enabled = BuildParams.inFipsJvm == false 
+}

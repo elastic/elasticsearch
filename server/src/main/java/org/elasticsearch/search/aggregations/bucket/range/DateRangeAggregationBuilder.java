@@ -1,75 +1,113 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.internal.SearchContext;
-import org.joda.time.DateTime;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Map;
 
 public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeAggregationBuilder, RangeAggregator.Range> {
     public static final String NAME = "date_range";
+    public static final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        RangeAggregatorSupplier.class
+    );
 
-    private static final ObjectParser<DateRangeAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<DateRangeAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME,  DateRangeAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(DateRangeAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, true);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, true);
         PARSER.declareBoolean(DateRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
         PARSER.declareObjectArray((agg, ranges) -> {
             for (RangeAggregator.Range range : ranges) {
                 agg.addRange(range);
             }
-        }, (p, c) -> DateRangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
+        }, (p, c) -> RangeAggregator.Range.PARSER.parse(p, null), RangeAggregator.RANGES_FIELD);
     }
 
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new DateRangeAggregationBuilder(aggregationName), null);
-    }
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateRangeAggregationBuilder.class);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            REGISTRY_KEY,
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE),
+            RangeAggregator::build,
+            true
+        );
 
-    private static RangeAggregator.Range parseRange(XContentParser parser) throws IOException {
-        return RangeAggregator.Range.fromXContent(parser);
+        builder.register(
+            REGISTRY_KEY,
+            CoreValuesSourceType.BOOLEAN,
+            (
+                String name,
+                AggregatorFactories factories,
+                ValuesSourceConfig valuesSourceConfig,
+                InternalRange.Factory<?, ?> rangeFactory,
+                RangeAggregator.Range[] ranges,
+                boolean keyed,
+                AggregationContext context,
+                Aggregator parent,
+                CardinalityUpperBound cardinality,
+                Map<String, Object> metadata) -> {
+                DEPRECATION_LOGGER.deprecate(
+                    DeprecationCategory.AGGREGATIONS,
+                    "Range-boolean",
+                    "Running Range or DateRange aggregations on [boolean] fields is deprecated"
+                );
+                return RangeAggregator.build(
+                    name,
+                    factories,
+                    valuesSourceConfig,
+                    rangeFactory,
+                    ranges,
+                    keyed,
+                    context,
+                    parent,
+                    cardinality,
+                    metadata
+                );
+            },
+            true
+        );
     }
 
     public DateRangeAggregationBuilder(String name) {
         super(name, InternalDateRange.FACTORY);
     }
 
-    protected DateRangeAggregationBuilder(DateRangeAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected DateRangeAggregationBuilder(DateRangeAggregationBuilder clone,
+                                          AggregatorFactories.Builder factoriesBuilder,
+                                          Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new DateRangeAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new DateRangeAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -82,6 +120,16 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.DATE;
     }
 
     /**
@@ -224,24 +272,24 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      * @param to
      *            the upper bound on the dates, exclusive
      */
-    public DateRangeAggregationBuilder addRange(String key, DateTime from, DateTime to) {
+    public DateRangeAggregationBuilder addRange(String key, ZonedDateTime from, ZonedDateTime to) {
         addRange(new RangeAggregator.Range(key, convertDateTime(from), convertDateTime(to)));
         return this;
     }
 
-    private static Double convertDateTime(DateTime dateTime) {
+    private static Double convertDateTime(ZonedDateTime dateTime) {
         if (dateTime == null) {
             return null;
         } else {
-            return (double) dateTime.getMillis();
+            return (double) dateTime.toInstant().toEpochMilli();
         }
     }
 
     /**
-     * Same as {@link #addRange(String, DateTime, DateTime)} but the key will be
+     * Same as {@link #addRange(String, ZonedDateTime, ZonedDateTime)} but the key will be
      * automatically generated based on <code>from</code> and <code>to</code>.
      */
-    public DateRangeAggregationBuilder addRange(DateTime from, DateTime to) {
+    public DateRangeAggregationBuilder addRange(ZonedDateTime from, ZonedDateTime to) {
         return addRange(null, from, to);
     }
 
@@ -253,16 +301,16 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      * @param to
      *            the upper bound on the dates, exclusive
      */
-    public DateRangeAggregationBuilder addUnboundedTo(String key, DateTime to) {
+    public DateRangeAggregationBuilder addUnboundedTo(String key, ZonedDateTime to) {
         addRange(new RangeAggregator.Range(key, null, convertDateTime(to)));
         return this;
     }
 
     /**
-     * Same as {@link #addUnboundedTo(String, DateTime)} but the key will be
+     * Same as {@link #addUnboundedTo(String, ZonedDateTime)} but the key will be
      * computed automatically.
      */
-    public DateRangeAggregationBuilder addUnboundedTo(DateTime to) {
+    public DateRangeAggregationBuilder addUnboundedTo(ZonedDateTime to) {
         return addUnboundedTo(null, to);
     }
 
@@ -274,22 +322,25 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      * @param from
      *            the lower bound on the distances, inclusive
      */
-    public DateRangeAggregationBuilder addUnboundedFrom(String key, DateTime from) {
+    public DateRangeAggregationBuilder addUnboundedFrom(String key, ZonedDateTime from) {
         addRange(new RangeAggregator.Range(key, convertDateTime(from), null));
         return this;
     }
 
     /**
-     * Same as {@link #addUnboundedFrom(String, DateTime)} but the key will be
+     * Same as {@link #addUnboundedFrom(String, ZonedDateTime)} but the key will be
      * computed automatically.
      */
-    public DateRangeAggregationBuilder addUnboundedFrom(DateTime from) {
+    public DateRangeAggregationBuilder addUnboundedFrom(ZonedDateTime from) {
         return addUnboundedFrom(null, from);
     }
 
     @Override
-    protected DateRangeAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+    protected DateRangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
+                                                    AggregatorFactory parent,
+                                                    AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        RangeAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         // We need to call processRanges here so they are parsed and we know whether `now` has been used before we make
         // the decision of whether to cache the request
         RangeAggregator.Range[] ranges = processRanges(range -> {
@@ -300,16 +351,16 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
             String fromAsString = range.getFromAsString();
             String toAsString = range.getToAsString();
             if (fromAsString != null) {
-                from = parser.parseDouble(fromAsString, false, context.getQueryShardContext()::nowInMillis);
+                from = parser.parseDouble(fromAsString, false, context::nowInMillis);
             } else if (Double.isFinite(from)) {
                 // from/to provided as double should be converted to string and parsed regardless to support
                 // different formats like `epoch_millis` vs. `epoch_second` with numeric input
-                from = parser.parseDouble(Long.toString((long) from), false, context.getQueryShardContext()::nowInMillis);
+                from = parser.parseDouble(Long.toString((long) from), false, context::nowInMillis);
             }
             if (toAsString != null) {
-                to = parser.parseDouble(toAsString, false, context.getQueryShardContext()::nowInMillis);
+                to = parser.parseDouble(toAsString, false, context::nowInMillis);
             } else if (Double.isFinite(to)) {
-                to = parser.parseDouble(Long.toString((long) to), false, context.getQueryShardContext()::nowInMillis);
+                to = parser.parseDouble(Long.toString((long) to), false, context::nowInMillis);
             }
             return new RangeAggregator.Range(range.getKey(), from, fromAsString, to, toAsString);
         });
@@ -317,6 +368,6 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
         return new DateRangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
-                metaData);
+                metadata, aggregatorSupplier);
     }
 }

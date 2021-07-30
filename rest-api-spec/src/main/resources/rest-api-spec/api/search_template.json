@@ -1,78 +1,110 @@
 {
-  "search_template": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html",
-    "methods": ["GET", "POST"],
-    "url": {
-      "path": "/_search/template",
-      "paths": ["/_search/template", "/{index}/_search/template", "/{index}/{type}/_search/template"],
-      "parts": {
-        "index": {
-          "type" : "list",
-          "description" : "A comma-separated list of index names to search; use `_all` or empty string to perform the operation on all indices"
+  "search_template":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html",
+      "description":"Allows to use the Mustache language to pre-render a search definition."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_search/template",
+          "methods":[
+            "GET",
+            "POST"
+          ]
         },
-        "type": {
-          "type" : "list",
-          "description" : "A comma-separated list of document types to search; leave empty to perform the operation on all types"
+        {
+          "path":"/{index}/_search/template",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"list",
+              "description":"A comma-separated list of index names to search; use `_all` or empty string to perform the operation on all indices"
+            }
+          }
         }
+      ]
+    },
+    "params":{
+      "ignore_unavailable":{
+        "type":"boolean",
+        "description":"Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       },
-      "params" : {
-        "ignore_unavailable": {
-          "type" : "boolean",
-          "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
-        },
-        "ignore_throttled": {
-          "type" : "boolean",
-          "description" : "Whether specified concrete, expanded or aliased indices should be ignored when throttled"
-        },
-        "allow_no_indices": {
-          "type" : "boolean",
-          "description" : "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
-        },
-        "expand_wildcards": {
-          "type" : "enum",
-          "options" : ["open","closed","none","all"],
-          "default" : "open",
-          "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
-        },
-        "preference": {
-          "type" : "string",
-          "description" : "Specify the node or shard the operation should be performed on (default: random)"
-        },
-        "routing": {
-          "type" : "list",
-          "description" : "A comma-separated list of specific routing values"
-        },
-        "scroll": {
-          "type" : "time",
-          "description" : "Specify how long a consistent view of the index should be maintained for scrolled search"
-        },
-        "search_type": {
-          "type" : "enum",
-          "options" : ["query_then_fetch", "query_and_fetch", "dfs_query_then_fetch", "dfs_query_and_fetch"],
-          "description" : "Search operation type"
-        },
-        "explain": {
-          "type" : "boolean",
-          "description" : "Specify whether to return detailed information about score computation as part of a hit"
-        },
-        "profile": {
-          "type" : "boolean",
-          "description" : "Specify whether to profile the query execution"
-        },
-        "typed_keys": {
-          "type" : "boolean",
-          "description" : "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
-        },
-        "rest_total_hits_as_int" : {
-          "type" : "boolean",
-          "description" : "Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
-          "default" : false
-        }
+      "ignore_throttled":{
+        "type":"boolean",
+        "description":"Whether specified concrete, expanded or aliased indices should be ignored when throttled"
+      },
+      "allow_no_indices":{
+        "type":"boolean",
+        "description":"Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
+      },
+      "expand_wildcards":{
+        "type":"enum",
+        "options":[
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default":"open",
+        "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      },
+      "preference":{
+        "type":"string",
+        "description":"Specify the node or shard the operation should be performed on (default: random)"
+      },
+      "routing":{
+        "type":"list",
+        "description":"A comma-separated list of specific routing values"
+      },
+      "scroll":{
+        "type":"time",
+        "description":"Specify how long a consistent view of the index should be maintained for scrolled search"
+      },
+      "search_type":{
+        "type":"enum",
+        "options":[
+          "query_then_fetch",
+          "dfs_query_then_fetch"
+        ],
+        "description":"Search operation type"
+      },
+      "explain":{
+        "type":"boolean",
+        "description":"Specify whether to return detailed information about score computation as part of a hit"
+      },
+      "profile":{
+        "type":"boolean",
+        "description":"Specify whether to profile the query execution"
+      },
+      "typed_keys":{
+        "type":"boolean",
+        "description":"Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
+      },
+      "rest_total_hits_as_int":{
+        "type":"boolean",
+        "description":"Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
+        "default":false
+      },
+      "ccs_minimize_roundtrips":{
+        "type":"boolean",
+        "description":"Indicates whether network round-trips should be minimized as part of cross-cluster search requests execution",
+        "default":"true"
       }
     },
-    "body": {
-      "description": "The search definition template and its params",
-      "required" : true
+    "body":{
+      "description":"The search definition template and its params",
+      "required":true
     }
   }
 }

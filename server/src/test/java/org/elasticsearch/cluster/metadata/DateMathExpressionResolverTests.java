@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -25,6 +14,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.DateMathExpressionResolver;
+import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -43,7 +33,8 @@ public class DateMathExpressionResolverTests extends ESTestCase {
 
     private final DateMathExpressionResolver expressionResolver = new DateMathExpressionResolver();
     private final Context context = new Context(
-            ClusterState.builder(new ClusterName("_name")).build(), IndicesOptions.strictExpand()
+        ClusterState.builder(new ClusterName("_name")).build(), IndicesOptions.strictExpand(),
+        SystemIndexAccessLevel.NONE
     );
 
     public void testNormal() throws Exception {
@@ -92,37 +83,37 @@ public class DateMathExpressionResolverTests extends ESTestCase {
     }
 
     public void testExpression_CustomFormat() throws Exception {
-        List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{YYYY.MM.dd}}>"));
+        List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{yyyy.MM.dd}}>"));
         assertThat(results.size(), equalTo(1));
         assertThat(results.get(0),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
     }
 
     public void testExpression_EscapeStatic() throws Exception {
         List<String> result = expressionResolver.resolve(context, Arrays.asList("<.mar\\{v\\}el-{now/d}>"));
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(0),
-            equalTo(".mar{v}el-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".mar{v}el-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
     }
 
     public void testExpression_EscapeDateFormat() throws Exception {
-        List<String> result = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{'\\{year\\}'YYYY}}>"));
+        List<String> result = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{'\\{year\\}'yyyy}}>"));
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(0),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("'{year}'YYYY").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".marvel-" + DateTimeFormat.forPattern("'{year}'yyyy").print(new DateTime(context.getStartTime(), UTC))));
     }
 
     public void testExpression_MixedArray() throws Exception {
         List<String> result = expressionResolver.resolve(context, Arrays.asList(
-                "name1", "<.marvel-{now/d}>", "name2", "<.logstash-{now/M{YYYY.MM}}>"
+                "name1", "<.marvel-{now/d}>", "name2", "<.logstash-{now/M{uuuu.MM}}>"
         ));
         assertThat(result.size(), equalTo(4));
         assertThat(result.get(0), equalTo("name1"));
         assertThat(result.get(1),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
         assertThat(result.get(2), equalTo("name2"));
         assertThat(result.get(3), equalTo(".logstash-" +
-            DateTimeFormat.forPattern("YYYY.MM").print(new DateTime(context.getStartTime(), UTC).withDayOfMonth(1))));
+            DateTimeFormat.forPattern("yyyy.MM").print(new DateTime(context.getStartTime(), UTC).withDayOfMonth(1))));
     }
 
     public void testExpression_CustomTimeZoneInIndexName() throws Exception {
@@ -146,11 +137,12 @@ public class DateMathExpressionResolverTests extends ESTestCase {
             // rounding to today 00:00
             now = DateTime.now(UTC).withHourOfDay(0).withMinuteOfHour(0).withSecondOfMinute(0);
         }
-        Context context = new Context(this.context.getState(), this.context.getOptions(), now.getMillis());
-        List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{YYYY.MM.dd|" + timeZone.getID() + "}}>"));
+        Context context = new Context(this.context.getState(), this.context.getOptions(), now.getMillis(),
+            SystemIndexAccessLevel.NONE, name -> false, name -> false);
+        List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{yyyy.MM.dd|" + timeZone.getID() + "}}>"));
         assertThat(results.size(), equalTo(1));
         logger.info("timezone: [{}], now [{}], name: [{}]", timeZone, now, results.get(0));
-        assertThat(results.get(0), equalTo(".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now.withZone(timeZone))));
+        assertThat(results.get(0), equalTo(".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(now.withZone(timeZone))));
     }
 
     public void testExpressionInvalidUnescaped() throws Exception {

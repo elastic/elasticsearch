@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.validate.query;
@@ -36,7 +25,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
@@ -45,7 +35,7 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -87,6 +77,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             if (ex instanceof IndexNotFoundException ||
                 ex instanceof IndexClosedException) {
                 listener.onFailure(ex);
+                return;
             }
             List<QueryExplanation> explanations = new ArrayList<>();
             explanations.add(new QueryExplanation(null,
@@ -115,14 +106,15 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
 
     @Override
     protected ShardValidateQueryRequest newShardRequest(int numShards, ShardRouting shard, ValidateQueryRequest request) {
-        final AliasFilter aliasFilter = searchService.buildAliasFilter(clusterService.state(), shard.getIndexName(),
-            request.indices());
+        final ClusterState clusterState = clusterService.state();
+        final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
+        final AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, shard.getIndexName(), indicesAndAliases);
         return new ShardValidateQueryRequest(shard.shardId(), aliasFilter, request);
     }
 
     @Override
-    protected ShardValidateQueryResponse newShardResponse() {
-        return new ShardValidateQueryResponse();
+    protected ShardValidateQueryResponse readShardResponse(StreamInput in) throws IOException {
+        return new ShardValidateQueryResponse(in);
     }
 
     @Override
@@ -149,7 +141,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     }
 
     @Override
-    protected ValidateQueryResponse newResponse(ValidateQueryRequest request, AtomicReferenceArray shardsResponses,
+    protected ValidateQueryResponse newResponse(ValidateQueryRequest request, AtomicReferenceArray<?> shardsResponses,
                                                 ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
@@ -192,11 +184,11 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         boolean valid;
         String explanation = null;
         String error = null;
-        ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(request.shardId(), request.types(),
+        ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(request.shardId(),
             request.nowInMillis(), request.filteringAliases());
         SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         try {
-            ParsedQuery parsedQuery = searchContext.getQueryShardContext().toQuery(request.query());
+            ParsedQuery parsedQuery = searchContext.getSearchExecutionContext().toQuery(request.query());
             searchContext.parsedQuery(parsedQuery);
             searchContext.preProcess(request.rewrite());
             valid = true;

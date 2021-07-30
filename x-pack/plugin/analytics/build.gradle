@@ -1,0 +1,17 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+esplugin {
+  name 'x-pack-analytics'
+  description 'Elasticsearch Expanded Pack Plugin - Analytics'
+  classname 'org.elasticsearch.xpack.analytics.AnalyticsPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-analytics'
+
+dependencies {
+  compileOnly project(":server")
+
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  api 'org.apache.commons:commons-math3:3.6.1'
+}
+

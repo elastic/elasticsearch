@@ -1,35 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.ccr;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class FollowConfig {
 
+    static final ParseField SETTINGS = new ParseField("settings");
     static final ParseField MAX_READ_REQUEST_OPERATION_COUNT = new ParseField("max_read_request_operation_count");
     static final ParseField MAX_READ_REQUEST_SIZE = new ParseField("max_read_request_size");
     static final ParseField MAX_OUTSTANDING_READ_REQUESTS = new ParseField("max_outstanding_read_requests");
@@ -41,6 +34,46 @@ public class FollowConfig {
     static final ParseField MAX_RETRY_DELAY_FIELD = new ParseField("max_retry_delay");
     static final ParseField READ_POLL_TIMEOUT = new ParseField("read_poll_timeout");
 
+    private static final ObjectParser<FollowConfig, Void> PARSER = new ObjectParser<>(
+        "follow_config",
+        true,
+        FollowConfig::new);
+
+    static {
+        PARSER.declareObject(FollowConfig::setSettings, (p, c) -> Settings.fromXContent(p), SETTINGS);
+        PARSER.declareInt(FollowConfig::setMaxReadRequestOperationCount, MAX_READ_REQUEST_OPERATION_COUNT);
+        PARSER.declareInt(FollowConfig::setMaxOutstandingReadRequests, MAX_OUTSTANDING_READ_REQUESTS);
+        PARSER.declareField(
+            FollowConfig::setMaxReadRequestSize,
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_READ_REQUEST_SIZE.getPreferredName()),
+            MAX_READ_REQUEST_SIZE,
+            ObjectParser.ValueType.STRING);
+        PARSER.declareInt(FollowConfig::setMaxWriteRequestOperationCount, MAX_WRITE_REQUEST_OPERATION_COUNT);
+        PARSER.declareField(
+            FollowConfig::setMaxWriteRequestSize,
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_REQUEST_SIZE.getPreferredName()),
+            MAX_WRITE_REQUEST_SIZE,
+            ObjectParser.ValueType.STRING);
+        PARSER.declareInt(FollowConfig::setMaxOutstandingWriteRequests, MAX_OUTSTANDING_WRITE_REQUESTS);
+        PARSER.declareInt(FollowConfig::setMaxWriteBufferCount, MAX_WRITE_BUFFER_COUNT);
+        PARSER.declareField(
+            FollowConfig::setMaxWriteBufferSize,
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_BUFFER_SIZE.getPreferredName()),
+            MAX_WRITE_BUFFER_SIZE,
+            ObjectParser.ValueType.STRING);
+        PARSER.declareField(FollowConfig::setMaxRetryDelay,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY_FIELD.getPreferredName()),
+            MAX_RETRY_DELAY_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(FollowConfig::setReadPollTimeout,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), READ_POLL_TIMEOUT.getPreferredName()),
+            READ_POLL_TIMEOUT, ObjectParser.ValueType.STRING);
+    }
+
+    static FollowConfig fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
+    private Settings settings = Settings.EMPTY;
     private Integer maxReadRequestOperationCount;
     private Integer maxOutstandingReadRequests;
     private ByteSizeValue maxReadRequestSize;
@@ -53,6 +86,14 @@ public class FollowConfig {
     private TimeValue readPollTimeout;
 
     FollowConfig() {
+    }
+
+    public Settings getSettings() {
+        return settings;
+    }
+
+    public void setSettings(final Settings settings) {
+        this.settings = Objects.requireNonNull(settings);
     }
 
     public Integer getMaxReadRequestOperationCount() {
@@ -136,6 +177,13 @@ public class FollowConfig {
     }
 
     void toXContentFragment(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        if (settings.isEmpty() == false) {
+            builder.startObject(SETTINGS.getPreferredName());
+            {
+                settings.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
         if (maxReadRequestOperationCount != null) {
             builder.field(MAX_READ_REQUEST_OPERATION_COUNT.getPreferredName(), maxReadRequestOperationCount);
         }

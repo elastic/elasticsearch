@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.graph.action;
 
@@ -17,7 +18,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -36,9 +37,9 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms.Bucket;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -57,7 +58,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 /**
  * Performs a series of elasticsearch queries and aggregations to explore
@@ -85,7 +85,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
     @Inject
     public TransportGraphExploreAction(ThreadPool threadPool, NodeClient client, TransportService transportService,
                                        ActionFilters actionFilters, XPackLicenseState licenseState) {
-        super(GraphExploreAction.NAME, transportService, actionFilters, (Supplier<GraphExploreRequest>)GraphExploreRequest::new);
+        super(GraphExploreAction.NAME, transportService, actionFilters, GraphExploreRequest::new);
         this.threadPool = threadPool;
         this.client = client;
         this.licenseState = licenseState;
@@ -93,7 +93,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
     @Override
     protected void doExecute(Task task, GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
-        if (licenseState.isGraphAllowed()) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.GRAPH)) {
             new AsyncGraphAction(request, listener).start();
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.GRAPH));
@@ -181,7 +181,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             currentHopNumber++;
             Hop currentHop = request.getHop(currentHopNumber);
 
-            final SearchRequest searchRequest = new SearchRequest(request.indices()).types(request.types()).indicesOptions(
+            final SearchRequest searchRequest = new SearchRequest(request.indices()).indicesOptions(
                     request.indicesOptions());
             if (request.routing() != null) {
                 searchRequest.routing(request.routing());
@@ -313,7 +313,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
             // System.out.println(source);
             logger.trace("executing expansion graph search request");
-            client.search(searchRequest, new ActionListener<SearchResponse>() {
+            client.search(searchRequest, new ActionListener.Delegating<>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     // System.out.println(searchResponse);
@@ -515,11 +515,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     }
                     return totalSignalOutput;
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-            }
             });
         }
 
@@ -568,7 +563,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         public synchronized void start() {
             try {
 
-                final SearchRequest searchRequest = new SearchRequest(request.indices()).types(request.types()).indicesOptions(
+                final SearchRequest searchRequest = new SearchRequest(request.indices()).indicesOptions(
                         request.indicesOptions());
                 if (request.routing() != null) {
                     searchRequest.routing(request.routing());
@@ -660,7 +655,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 searchRequest.source(source);
                 // System.out.println(source);
                 logger.trace("executing initial graph search request");
-                client.search(searchRequest, new ActionListener<SearchResponse>() {
+                client.search(searchRequest, new ActionListener.Delegating<>(listener) {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
                         addShardFailures(searchResponse.getShardFailures());
@@ -718,11 +713,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         }
                         return totalSignalStrength;
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
                 });
             } catch (Exception e) {
                 logger.error("unable to execute the graph query", e);
@@ -768,7 +758,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         }
 
         void addShardFailures(ShardOperationFailedException[] failures) {
-            if (!CollectionUtils.isEmpty(failures)) {
+            if (CollectionUtils.isEmpty(failures) == false) {
                 ShardOperationFailedException[] duplicates = new ShardOperationFailedException[shardFailures.length + failures.length];
                 System.arraycopy(shardFailures, 0, duplicates, 0, shardFailures.length);
                 System.arraycopy(failures, 0, duplicates, shardFailures.length, failures.length);

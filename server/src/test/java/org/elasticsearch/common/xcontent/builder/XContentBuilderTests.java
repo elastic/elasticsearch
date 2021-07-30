@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent.builder;
@@ -24,12 +13,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -37,9 +27,13 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
@@ -48,9 +42,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TimeZone;
 
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class XContentBuilderTests extends ESTestCase {
     public void testPrettyWithLfAtEnd() throws Exception {
@@ -393,5 +391,85 @@ public class XContentBuilderTests extends ESTestCase {
         });
         assertThat(e.getMessage(), equalTo("Failed to close the XContentBuilder"));
         assertThat(e.getCause().getMessage(), equalTo("Unclosed object or array found"));
+    }
+
+    private static class TestWritableValue {
+        final Map<String, Byte> values;
+
+        static TestWritableValue randomValue() {
+            int numKeys = randomIntBetween(0, 10);
+            Map<String, Byte> values = new HashMap<>();
+            for (int i = 0; i < numKeys; i++) {
+                values.put(randomAlphaOfLength(10), randomByte());
+            }
+            return new TestWritableValue(values);
+        }
+
+        TestWritableValue(Map<String, Byte> values) {
+            this.values = values;
+        }
+
+        TestWritableValue(InputStream in) throws IOException {
+            final int size = in.read();
+            this.values = new HashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                final int keySize = in.read();
+                final String key = new String(in.readNBytes(keySize), StandardCharsets.ISO_8859_1);
+                final byte value = (byte) in.read();
+                values.put(key, value);
+            }
+        }
+
+        public void writeTo(OutputStream os) throws IOException {
+            os.write((byte) values.size());
+            for (Map.Entry<String, Byte> e : values.entrySet()) {
+                final String k = e.getKey();
+                os.write((byte) k.length());
+                os.write(k.getBytes(StandardCharsets.ISO_8859_1));
+                os.write(e.getValue());
+            }
+        }
+    }
+
+    public void testWritableValue() throws Exception {
+        Map<String, Object> expectedValues = new HashMap<>();
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        int fields = iterations(1, 10);
+        for (int i = 0; i < fields; i++) {
+            String field = "field-" + i;
+            if (randomBoolean()) {
+                final TestWritableValue value = TestWritableValue.randomValue();
+                builder.directFieldAsBase64(field, value::writeTo);
+                expectedValues.put(field, value);
+            } else {
+                Object value = randomFrom(randomInt(), randomAlphaOfLength(10));
+                builder.field(field, value);
+                expectedValues.put(field, value);
+            }
+        }
+        builder.endObject();
+        final BytesReference bytes = BytesReference.bytes(builder);
+        final Map<String, Object> actualValues = XContentHelper.convertToMap(bytes, true).v2();
+        assertThat(actualValues, aMapWithSize(fields));
+        for (Map.Entry<String, Object> e : expectedValues.entrySet()) {
+            if (e.getValue() instanceof TestWritableValue) {
+                final TestWritableValue expectedValue = (TestWritableValue) e.getValue();
+                assertThat(actualValues.get(e.getKey()), instanceOf(String.class));
+                final byte[] decoded = Base64.getDecoder().decode((String) actualValues.get(e.getKey()));
+                final TestWritableValue actualValue = new TestWritableValue(new InputStream() {
+                    int pos = 0;
+
+                    @Override
+                    public int read() {
+                        Objects.checkIndex(pos, decoded.length);
+                        return decoded[pos++];
+                    }
+                });
+                assertThat(actualValue.values, equalTo(expectedValue.values));
+            } else {
+                assertThat(actualValues, hasEntry(e.getKey(), e.getValue()));
+            }
+        }
     }
 }

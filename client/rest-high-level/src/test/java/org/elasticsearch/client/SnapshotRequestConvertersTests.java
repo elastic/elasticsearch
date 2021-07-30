@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -33,7 +22,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -41,7 +30,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -58,7 +46,7 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
 
         GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
         RequestConvertersTests.setRandomMasterTimeout(getRepositoriesRequest, expectedParams);
-        RequestConvertersTests.setRandomLocal(getRepositoriesRequest, expectedParams);
+        RequestConvertersTests.setRandomLocal(getRepositoriesRequest::local, expectedParams);
 
         if (randomBoolean()) {
             String[] entries = new String[]{"a", "b", "c"};
@@ -78,7 +66,8 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
         Path repositoryLocation = PathUtils.get(".");
         PutRepositoryRequest putRepositoryRequest = new PutRepositoryRequest(repository);
         putRepositoryRequest.type(FsRepository.TYPE);
-        putRepositoryRequest.verify(randomBoolean());
+        final boolean verify = randomBoolean();
+        putRepositoryRequest.verify(verify);
 
         putRepositoryRequest.settings(
             Settings.builder()
@@ -90,6 +79,11 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
         Request request = SnapshotRequestConverters.createRepository(putRepositoryRequest);
         assertThat(request.getEndpoint(), equalTo(endpoint));
         assertThat(request.getMethod(), equalTo(HttpPut.METHOD_NAME));
+        if (verify) {
+            assertThat(request.getParameters().get("verify"), nullValue());
+        } else {
+            assertThat(request.getParameters().get("verify"), equalTo("false"));
+        }
         RequestConvertersTests.assertToXContentBody(putRepositoryRequest, request.getEntity());
     }
 
@@ -148,15 +142,16 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
 
     public void testGetSnapshots() {
         Map<String, String> expectedParams = new HashMap<>();
-        String repository = RequestConvertersTests.randomIndicesNames(1, 1)[0];
+        String repository1 = randomAlphaOfLength(10);
+        String repository2 = randomAlphaOfLength(10);
         String snapshot1 = "snapshot1-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
         String snapshot2 = "snapshot2-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
 
-        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s,%s", repository, snapshot1, snapshot2);
+        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s,%s/%s,%s", repository1, repository2, snapshot1, snapshot2);
 
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest();
-        getSnapshotsRequest.repository(repository);
-        getSnapshotsRequest.snapshots(Arrays.asList(snapshot1, snapshot2).toArray(new String[0]));
+        getSnapshotsRequest.repositories(repository1, repository2);
+        getSnapshotsRequest.snapshots(new String[]{snapshot1, snapshot2});
         RequestConvertersTests.setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
 
         if (randomBoolean()) {
@@ -263,7 +258,7 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
 
         DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest();
         deleteSnapshotRequest.repository(repository);
-        deleteSnapshotRequest.snapshot(snapshot);
+        deleteSnapshotRequest.snapshots(snapshot);
         RequestConvertersTests.setRandomMasterTimeout(deleteSnapshotRequest, expectedParams);
 
         Request request = SnapshotRequestConverters.deleteSnapshot(deleteSnapshotRequest);

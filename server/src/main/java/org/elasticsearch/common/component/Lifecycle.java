@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.component;
@@ -32,22 +21,29 @@ package org.elasticsearch.common.component;
  * following logic can be applied:
  * <pre>
  * public void stop() {
- *  if (!lifecycleState.moveToStopped()) {
+ *  if (lifecycleState.moveToStopped() == false) {
  *      return;
  *  }
  * // continue with stop logic
  * }
  * </pre>
  * <p>
+ * NOTE: The Lifecycle class is thread-safe. It is also possible to prevent concurrent state transitions
+ * by locking on the Lifecycle object itself. This is typically useful when chaining multiple transitions.
+ * <p>
  * Note, closed is only allowed to be called when stopped, so make sure to stop the component first.
- * Here is how the logic can be applied:
+ * Here is how the logic can be applied. A lock of the {@code lifecycleState} object is taken so that
+ * another thread cannot move the state from {@code STOPPED} to {@code STARTED} before it has moved to
+ * {@code CLOSED}.
  * <pre>
  * public void close() {
- *  if (lifecycleState.started()) {
- *      stop();
- *  }
- *  if (!lifecycleState.moveToClosed()) {
- *      return;
+ *  synchronized (lifecycleState) {
+ *      if (lifecycleState.started()) {
+ *          stop();
+ *      }
+ *      if (lifecycleState.moveToClosed() == false) {
+ *          return;
+ *      }
  *  }
  *  // perform close logic here
  * }
@@ -116,7 +112,7 @@ public class Lifecycle {
     }
 
 
-    public boolean moveToStarted() throws IllegalStateException {
+    public synchronized boolean moveToStarted() throws IllegalStateException {
         State localState = this.state;
         if (localState == State.INITIALIZED || localState == State.STOPPED) {
             state = State.STARTED;
@@ -145,7 +141,7 @@ public class Lifecycle {
         throw new IllegalStateException("Can't move to stopped with unknown state");
     }
 
-    public boolean moveToStopped() throws IllegalStateException {
+    public synchronized boolean moveToStopped() throws IllegalStateException {
         State localState = state;
         if (localState == State.STARTED) {
             state = State.STOPPED;
@@ -171,7 +167,7 @@ public class Lifecycle {
         return true;
     }
 
-    public boolean moveToClosed() throws IllegalStateException {
+    public synchronized boolean moveToClosed() throws IllegalStateException {
         State localState = state;
         if (localState == State.CLOSED) {
             return false;

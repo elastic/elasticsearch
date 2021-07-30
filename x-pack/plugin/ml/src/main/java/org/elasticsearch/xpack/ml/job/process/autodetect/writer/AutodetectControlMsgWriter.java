@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -23,15 +23,20 @@ import org.elasticsearch.xpack.ml.process.writer.LengthEncodedWriter;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.StringWriter;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
  * A writer for sending control messages to the C++ autodetect process.
  * The data written to outputIndex is length encoded.
  */
 public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
+
+    /**
+     * This must match the code defined in the api::CFieldDataCategorizer C++ class.
+     */
+    private static final String CATEGORIZATION_STOP_ON_WARN_MESSAGE_CODE = "c";
 
     /**
      * This must match the code defined in the api::CAnomalyJob C++ class.
@@ -41,12 +46,12 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
     /**
      * This must match the code defined in the api::CAnomalyJob C++ class.
      */
-    private static final String FORECAST_MESSAGE_CODE = "p";
+    private static final String INTERIM_MESSAGE_CODE = "i";
 
     /**
      * This must match the code defined in the api::CAnomalyJob C++ class.
      */
-    private static final String INTERIM_MESSAGE_CODE = "i";
+    private static final String FORECAST_MESSAGE_CODE = "p";
 
     /**
      * This must match the code defined in the api::CAnomalyJob C++ class.
@@ -77,7 +82,22 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
      * An number to uniquely identify each flush so that subsequent code can
      * wait for acknowledgement of the correct flush.
      */
-    private static AtomicLong ms_FlushNumber = new AtomicLong(1);
+    private static AtomicLong flushIdCounter = new AtomicLong(1);
+
+    /**
+     * This field name must match that in the api::CAnomalyJobConfig C++ class.
+     */
+    private static final String DETECTOR_INDEX = "detector_index";
+
+    /**
+     * This field name must match that in the api::CAnomalyJobConfig C++ class.
+     */
+    private static final String CUSTOM_RULES = "custom_rules";
+
+    /**
+     * This field name must match that in the api::CAnomalyJobConfig C++ class.
+     */
+    private static final String DETECTOR_RULES = "detector_rules";
 
     /**
      * Construct the control message writer with a LengthEncodedWriter
@@ -135,7 +155,7 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
      * autodetect process once it is complete.
      */
     public String writeFlushMessage() throws IOException {
-        String flushId = Long.toString(ms_FlushNumber.getAndIncrement());
+        String flushId = Long.toString(flushIdCounter.getAndIncrement());
         writeMessage(FLUSH_MESSAGE_CODE + flushId);
 
         fillCommandBuffer();
@@ -157,6 +177,12 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
         }
         if (params.getTmpStorage() != null) {
             builder.field("tmp_storage", params.getTmpStorage());
+        }
+        if (params.getMaxModelMemory() != null) {
+            builder.field("max_model_memory", params.getMaxModelMemory());
+        }
+        if (params.getMinAvailableDiskSpace() != null) {
+            builder.field("min_available_disk_space", params.getMinAvailableDiskSpace());
         }
         builder.endObject();
 
@@ -181,51 +207,84 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
     }
 
     public void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) throws IOException {
-        StringWriter configWriter = new StringWriter();
-        configWriter.append(UPDATE_MESSAGE_CODE).append("[modelPlotConfig]\n");
-        new ModelPlotConfigWriter(modelPlotConfig, configWriter).write();
-        writeMessage(configWriter.toString());
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append(UPDATE_MESSAGE_CODE);
+        try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+            jsonBuilder.startObject();
+            jsonBuilder.field(ModelPlotConfig.TYPE_FIELD.getPreferredName(), modelPlotConfig);
+            jsonBuilder.endObject();
+            String msg = Strings.toString(jsonBuilder);
+            stringBuilder.append(msg);
+        }
+        writeMessage(stringBuilder.toString());
+    }
+
+    public void writeCategorizationStopOnWarnMessage(boolean isStopOnWarn) throws IOException {
+        writeMessage(CATEGORIZATION_STOP_ON_WARN_MESSAGE_CODE + isStopOnWarn);
     }
 
     public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException {
         StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append(UPDATE_MESSAGE_CODE).append("[detectorRules]\n");
-        stringBuilder.append("detectorIndex=").append(Integer.toString(detectorIndex)).append("\n");
-
-        stringBuilder.append("rulesJson=");
+        stringBuilder.append(UPDATE_MESSAGE_CODE);
 
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startArray();
-            for (DetectionRule rule : rules) {
-                rule.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            }
-            builder.endArray();
+            builder.startObject();
+            builder.field(DETECTOR_RULES).startObject();
+            builder.field(DETECTOR_INDEX, detectorIndex);
+            builder.field(CUSTOM_RULES, rules);
+            builder.endObject();
+            builder.endObject();
             stringBuilder.append(Strings.toString(builder));
         }
-
         writeMessage(stringBuilder.toString());
     }
 
     public void writeUpdateFiltersMessage(List<MlFilter> filters) throws IOException {
+
         StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append(UPDATE_MESSAGE_CODE).append("[filters]\n");
-        new MlFilterWriter(filters, stringBuilder).write();
+        stringBuilder.append(UPDATE_MESSAGE_CODE);
+        try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+            jsonBuilder.startObject().field(MlFilter.RESULTS_FIELD.getPreferredName(), filters).endObject();
+            String msg = Strings.toString(jsonBuilder);
+            stringBuilder.append(msg);
+        }
         writeMessage(stringBuilder.toString());
     }
 
     public void writeUpdateScheduledEventsMessage(List<ScheduledEvent> events, TimeValue bucketSpan) throws IOException {
         StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append(UPDATE_MESSAGE_CODE).append("[scheduledEvents]\n");
-        if (events.isEmpty()) {
-            stringBuilder.append("clear = true\n");
-        } else {
-            new ScheduledEventsWriter(events, bucketSpan, stringBuilder).write();
+        stringBuilder.append(UPDATE_MESSAGE_CODE);
+
+        List<ScheduledEventToRuleWriter> scheduledEventToRuleWriters = events.stream()
+            .map(x -> new ScheduledEventToRuleWriter(x.getDescription(), x.toDetectionRule(bucketSpan)))
+            .collect(Collectors.toList());
+
+        try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+            jsonBuilder.startObject().field(ScheduledEvent.RESULTS_FIELD.getPreferredName(), scheduledEventToRuleWriters).endObject();
+            String msg = Strings.toString(jsonBuilder);
+            stringBuilder.append(msg);
         }
         writeMessage(stringBuilder.toString());
     }
 
     public void writeStartBackgroundPersistMessage() throws IOException {
         writeMessage(BACKGROUND_PERSIST_MESSAGE_CODE);
+        fillCommandBuffer();
+        lengthEncodedWriter.flush();
+    }
+
+    /**
+     * @param snapshotTimestampMs The snapshot timestamp with MILLISECONDS resolution
+     * @param snapshotId The snapshot ID
+     * @param description The snapshot description
+     */
+    public void writeStartBackgroundPersistMessage(long snapshotTimestampMs, String snapshotId, String description) throws IOException {
+        StringBuilder stringBuilder = new StringBuilder(BACKGROUND_PERSIST_MESSAGE_CODE);
+        stringBuilder.append(snapshotTimestampMs / 1000).append(" ").append(snapshotId);
+        if (description != null) {
+            stringBuilder.append(" ").append(description);
+        }
+        writeMessage(stringBuilder.toString());
         fillCommandBuffer();
         lengthEncodedWriter.flush();
     }

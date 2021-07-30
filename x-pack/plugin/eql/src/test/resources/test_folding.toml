@@ -1,0 +1,520 @@
+[arithmetic]
+description = "Test that math integer and float operations fold as expected."
+
+    [[arithmetic.fold.tests]]
+    expression = "7 + 3"
+    expected = 10
+
+    [[arithmetic.fold.tests]]
+    expression = "7 + -3"
+    expected = 4
+
+    [[arithmetic.fold.tests]]
+    expression = "7 - 3"
+    expected = 4
+
+    [[arithmetic.fold.tests]]
+    expression = "7 - -3"
+    expected = 10
+
+    [[arithmetic.fold.tests]]
+    expression = "7 * 3"
+    expected = 21
+
+    [[arithmetic.fold.tests]]
+    expression = "7 * 3.0"
+    expected = 21.0
+
+    [[arithmetic.fold.tests]]
+    expression = "-7 * 3.0"
+    expected = -21.0
+
+    [[arithmetic.fold.tests]]
+    expression = "7 * -3.0"
+    expected = -21.0
+
+    [[arithmetic.fold.tests]]
+    expression = "7.0 * 3"
+    expected = 21.0
+
+    [[arithmetic.fold.tests]]
+    expression = "7.0 * 3.0"
+    expected = 21.0
+
+    [[arithmetic.fold.tests]]
+    expression = "7 / 3"
+    expected = 2
+
+    [[arithmetic.fold.tests]]
+    expression = "7 / 3.0"
+    expected = 2.33333333333333333
+
+    [[arithmetic.fold.tests]]
+    expression = "7 / 3"
+    expected = 2
+
+    [[arithmetic.fold.tests]]
+    expression = "7.0 / 3.0"
+    expected = 2.33333333333333333
+
+    [[arithmetic.fold.tests]]
+    expression = "7 % 3"
+    expected = 1
+
+    [[arithmetic.fold.tests]]
+    expression = "3 + 4 - 5 * 6 / 7"
+    expected = 3
+
+    [[arithmetic.fold.tests]]
+    expression = "((3 + 4) - 5) * 6 / 7"
+    expected = 1
+
+
+[integer_comparison]
+description = "Check that numeric comparisons are folded."
+
+    [[integer_comparison.fold.tests]]
+    expression = "-3 < 4"
+    expected = true
+
+    [[integer_comparison.fold.tests]]
+    expression = "3 <= 4"
+    expected = true
+
+    [[integer_comparison.fold.tests]]
+    expression = "3 != 4"
+    expected = true
+
+    [[integer_comparison.fold.tests]]
+    expression = "3 == 4"
+    expected = false
+
+    [[integer_comparison.fold.tests]]
+    expression = "3 >= 4"
+    expected = false
+
+    [[integer_comparison.fold.tests]]
+    expression = "3 > 4"
+    expected = false
+
+[float_comparison]
+description = "Check that numeric comparisons are folded."
+
+    [[float_comparison.fold.tests]]
+    expression = "3.0 < 4.0"
+    expected = true
+
+    [[float_comparison.fold.tests]]
+    expression = "3.0 <= 4.0"
+    expected = true
+
+    [[float_comparison.fold.tests]]
+    expression = "-3.0 != 4.0"
+    expected = true
+
+    [[float_comparison.fold.tests]]
+    expression = "-3.0 == 4.0"
+    expected = false
+
+    [[float_comparison.fold.tests]]
+    expression = "3.0 >= 4.0"
+    expected = false
+
+    [[float_comparison.fold.tests]]
+    expression = "3.0 > 4.0"
+    expected = false
+
+
+[int_float_comparison]
+description = "Check that numeric comparisons are folded."
+
+    [[int_float_comparison.fold.tests]]
+    expression = "-3 < 4.0"
+    expected = true
+
+    [[int_float_comparison.fold.tests]]
+    expression = "-3 <= 4.0"
+    expected = true
+
+    [[int_float_comparison.fold.tests]]
+    expression = "3 != 4.0"
+    expected = true
+
+    [[int_float_comparison.fold.tests]]
+    expression = "3 == 4.0"
+    expected = false
+
+    [[int_float_comparison.fold.tests]]
+    expression = "3 >= 4.0"
+    expected = false
+
+    [[int_float_comparison.fold.tests]]
+    expression = "3 > 4.0"
+    expected = false
+
+
+[float_int_comparison]
+description = "Check that numeric comparisons are folded."
+
+    [[float_int_comparison.fold.tests]]
+    expression = "3.0 < 4"
+    expected = true
+
+    [[float_int_comparison.fold.tests]]
+    expression = "3.0 <= 4"
+    expected = true
+
+    [[float_int_comparison.fold.tests]]
+    expression = "3.0 != 4"
+    expected = true
+
+    [[float_int_comparison.fold.tests]]
+    expression = "3.0 == 4"
+    expected = false
+
+    [[float_int_comparison.fold.tests]]
+    expression = "-3.0 >= 4"
+    expected = false
+
+    [[float_int_comparison.fold.tests]]
+    expression = "-3.0 > 4"
+    expected = false
+
+
+[string_case_match_comparison]
+description = "Fold string comparisons"
+
+    [[string_case_match_comparison.fold.tests]]
+    expression = '"Foo" == "Foo"'
+    expected = true
+
+    [[string_case_match_comparison.fold.tests]]
+    expression = '"Foo" != "Foo"'
+    expected = false
+
+    [[string_case_match_comparison.fold.tests]]
+    expression = '"Foo" == "Bar"'
+    expected = false
+
+    [[string_case_match_comparison.fold.tests]]
+    expression = '"Foo" != "Bar"'
+    expected = true
+
+    [[string_case_match_comparison.fold.tests]]
+    expression = '"Foo" <= "Bar"'
+    expected = false
+
+    [[string_case_match_comparison.fold.tests]]
+    expression = '"Foo" > "Bar"'
+    expected = true
+
+[string_case_sensitive_match_comparison]
+description = "Fold string comparisons"
+
+    [[string_case_sensitive_match_comparison.fold.tests]]
+    expression = '"Foo" == "foo"'
+    expected = false
+
+    [[string_case_sensitive_match_comparison.fold.tests]]
+    expression = '"Foo" != "foo"'
+    expected = true
+
+    [[string_case_sensitive_match_comparison.fold.tests]]
+    expression = '"Foo" < "foo"'
+    expected = true
+
+    [[string_case_sensitive_match_comparison.fold.tests]]
+    expression = '"Foo" <= "foo"'
+    expected = true
+
+    [[string_case_sensitive_match_comparison.fold.tests]]
+    expression = '"Foo" >= "foo"'
+    expected = false
+
+    [[string_case_sensitive_match_comparison.fold.tests]]
+    expression = '"Foo" > "foo"'
+    expected = false
+
+    # now flip the order and check
+    [[string_case_sensitive_match_comparison.fold.tests]]
+    expression = '"foo" < "Foo"'
+    expected = false
+
+    [[string_case_sensitive_match_comparison.fold.tests]]
+    expression = '"foo" <= "Foo"'
+    expected = false
+
+    [[string_case_sensitive_match_comparison.fold.tests]]
+    expression = '"foo" >= "Foo"'
+    expected = true
+
+    [[string_case_sensitive_match_comparison.fold.tests]]
+    expression = '"foo" > "Foo"'
+    expected = true
+
+[string_case_insensitive_match_comparison]
+description = "Fold string comparisons"
+case_insensitive = true
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" == "Bar"'
+    expected = false
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" != "Bar"'
+    expected = true
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" == "foo"'
+    expected = true
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" != "foo"'
+    expected = false
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" < "foo"'
+    expected = false
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" <= "foo"'
+    expected = true
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" >= "foo"'
+    expected = true
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" > "foo"'
+    expected = false
+
+    # now flip the order and check
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"foo" < "Foo"'
+    expected = false
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"foo" <= "Foo"'
+    expected = true
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"foo" >= "Foo"'
+    expected = true
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"foo" > "Foo"'
+    expected = false
+
+[arithmetic_comparison]
+description = "Fold arithmetic expressions cast as booleans"
+
+    [[arithmetic_comparison.fold.tests]]
+    expression = '(1 * 2 + 3 * 4 + 10 / 2) == 19'
+    expected = true
+
+    [[arithmetic_comparison.fold.tests]]
+    expression = '(1 * 2 + 3 * 4 + 10 / 2) == (2 + 12 + 5)'
+    expected = true
+
+    [[arithmetic_comparison.fold.tests]]
+    expression = '1 * 2 + 3 * 4 + 10 / 2 == 2 + 12 + 5'
+    expected = true
+
+[in_set]
+description = "Fold constant check in set"
+
+    [[in_set.fold.tests]]
+    expression = "345 in (123, 345)"
+    expected = true
+
+    [[in_set.fold.tests]]
+    expression = "345 not in (123, 456)"
+    expected = true
+
+    [[in_set.fold.tests]]
+    expression = "345 in (123, 456)"
+    expected = false
+
+    [[in_set.fold.tests]]
+    expression = '"foo" not in ("foo", "bar", "baz")'
+    expected = false
+
+    [[in_set.fold.tests]]
+    expression = '"foo" in ("foo", "bar", "baz")'
+    expected = true
+
+    [[in_set.fold.tests]]
+    expression = '"foo" in ("bar", "baz")'
+    expected = false
+
+[or]
+description = "Check that three-value boolean logic works for `or`."
+
+    [[or.fold.tests]]
+    expression = "true or false"
+    expected = true
+
+    [[or.fold.tests]]
+    expression = "true or null"
+    expected = true
+
+    [[or.fold.tests]]
+    expression = "true or true"
+    expected = true
+
+    [[or.fold.tests]]
+    expression = "false or null"
+
+    [[or.fold.tests]]
+    expression = "false or false"
+    expected = false
+
+    [[or.fold.tests]]
+    expression = "false or true"
+    expected = true
+
+    [[or.fold.tests]]
+    expression = "null or false"
+
+    [[or.fold.tests]]
+    expression = "null or null"
+
+    [[or.fold.tests]]
+    expression = "null or true"
+    expected = true
+
+[and]
+description = "Check that three-value boolean logic works for `and`."
+
+    [[and.fold.tests]]
+    expression = "true and false"
+    expected = false
+
+    [[and.fold.tests]]
+    expression = "true and true"
+    expected = true
+
+    [[and.fold.tests]]
+    expression = "false and null "
+    expected = false
+
+    [[and.fold.tests]]
+    expression = "false and false"
+    expected = false
+
+    [[and.fold.tests]]
+    expression = "false and true"
+    expected = false
+
+    [[and.fold.tests]]
+    expression = "null and false"
+    expected = false
+
+    [[and.fold.tests]]
+    expression = "null and null"
+    # expected = null
+
+    [[and.fold.tests]]
+    expression = "null and true"
+    # expected = null
+
+
+[not]
+description = "Check that `not` negates `null` as null`"
+
+    [[not.fold.tests]]
+    expression = "not null"
+    # expected = null
+
+    [[not.fold.tests]]
+    expression = "not true"
+    expected = false
+
+    [[not.fold.tests]]
+    expression = "not false"
+    expected = true
+
+
+[null_comparison]
+description = "Check that any literals compared to `null` fold as `null`."
+
+    [[null_comparison.fold.tests]]
+    expression = "null == null"
+    expected = true
+
+    [[null_comparison.fold.tests]]
+    expression = "null != null"
+    expected = false
+
+    [[null_comparison.loop]]
+
+        [null_comparison.loop.param]
+        type = ["bool", "int", "string", "float"]
+        name = "value"
+
+        [null_comparison.loop.fold]
+            [[null_comparison.loop.fold.tests]]
+            expression = "$value == null"
+            expected = false
+
+            [[null_comparison.loop.fold.tests]]
+            expression = "$value != null"
+            expected = true
+
+            [[null_comparison.loop.fold.tests]]
+            expression = "null == $value"
+            expected = false
+
+            [[null_comparison.loop.fold.tests]]
+            expression = "null != $value"
+            expected = true
+
+    [[null_comparison.loop]]
+
+        [null_comparison.loop.param]
+        type = ["null", "int", "string", "float"]
+        name = "value"
+
+        [null_comparison.loop.fold]
+            [[null_comparison.loop.fold.tests]]
+            expression = "null < $value"
+            # expected = null
+
+            [[null_comparison.loop.fold.tests]]
+            expression = "null <= $value"
+            # expected = null
+
+            [[null_comparison.loop.fold.tests]]
+            expression = "null >= $value"
+            # expected = null
+
+            [[null_comparison.loop.fold.tests]]
+            expression = "null > $value"
+            # expected = null
+
+            [[null_comparison.loop.fold.tests]]
+            expression = "$value < null"
+            # expected = null
+
+            [[null_comparison.loop.fold.tests]]
+            expression = "$value <= null"
+            # expected = null
+
+            [[null_comparison.loop.fold.tests]]
+            expression = "$value >= null"
+            # expected = null
+
+            [[null_comparison.loop.fold.tests]]
+            expression = "$value > null"
+            # expected = null
+
+[complex]
+description = "Test recurisve folding for more complex expressions."
+
+    [[complex.fold.tests]]
+    expression = '(100 * 10) - ("hello":length())'
+    expected = 995
+
+    [[complex.fold.tests]]
+    expression = 'concat((100 * 10) - ("hello":length()) == 995, "...")'
+    expected = "true..."

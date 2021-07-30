@@ -3,62 +3,57 @@
 [[sql-translate]]
 == SQL Translate API
 
-beta[]
-
 The SQL Translate API accepts SQL in a JSON document and translates it
-into native Elasticsearch queries. For example:
+into native {es} queries. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_sql/translate
 {
-    "query": "SELECT * FROM library ORDER BY page_count DESC",
-    "fetch_size": 10
+  "query": "SELECT * FROM library ORDER BY page_count DESC",
+  "fetch_size": 10
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:library]
 
 Which returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-    "size" : 10,
-    "docvalue_fields" : [
-        {
-            "field": "page_count",
-            "format": "use_field_mapping"
-        },
-        {
-            "field": "release_date",
-            "format": "epoch_millis"
-        }
-    ],
-    "_source": {
-        "includes": [
-            "author",
-            "name"
-        ],
-        "excludes": []
+  "size": 10,
+  "_source": false,
+  "fields": [
+    {
+      "field": "author"
     },
-    "sort" : [
-        {
-            "page_count" : {
-                "order" : "desc",
-                "missing" : "_first",
-                "unmapped_type" : "short"
-            }
-        }
-    ]
+    {
+      "field": "name"
+    },
+    {
+      "field": "page_count"
+    },
+    {
+      "field": "release_date",
+      "format": "strict_date_optional_time_nanos"
+    }
+  ],
+  "sort": [
+    {
+      "page_count": {
+        "order": "desc",
+        "missing": "_first",
+        "unmapped_type": "short"
+      }
+    }
+  ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 Which is the request that SQL will run to provide the results.
-In this case, SQL will use the <<search-request-scroll,scroll>>
+In this case, SQL will use the <<scroll-search-results,scroll>>
 API. If the result contained an aggregation then SQL would use
 the normal <<search-request-body,search>> API.
 
-The request body accepts all of the <<sql-rest-fields,fields>> that
-the <<sql-rest,SQL REST API>> accepts except `cursor`.
+The request body accepts the same <<sql-search-api-request-body,parameters>> as
+the <<sql-search-api,SQL search API>>, excluding `cursor`.

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -25,11 +14,11 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -44,7 +33,7 @@ import java.util.List;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Objects.requireNonNull;
-import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
+import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
@@ -78,7 +67,13 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         Status.declareFields(PARSER);
     }
 
-    public BulkByScrollResponse() {
+    public BulkByScrollResponse(StreamInput in) throws IOException {
+        super(in);
+        took = in.readTimeValue();
+        status = new BulkByScrollTask.Status(in);
+        bulkFailures = in.readList(Failure::new);
+        searchFailures = in.readList(ScrollableHitSource.SearchFailure::new);
+        timedOut = in.readBoolean();
     }
 
     public BulkByScrollResponse(TimeValue took, BulkByScrollTask.Status status, List<Failure> bulkFailures,
@@ -186,22 +181,11 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeTimeValue(took);
         status.writeTo(out);
         out.writeList(bulkFailures);
         out.writeList(searchFailures);
         out.writeBoolean(timedOut);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        took = in.readTimeValue();
-        status = new BulkByScrollTask.Status(in);
-        bulkFailures = in.readList(Failure::new);
-        searchFailures = in.readList(ScrollableHitSource.SearchFailure::new);
-        timedOut = in.readBoolean();
     }
 
     @Override
@@ -227,10 +211,9 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     }
 
     private static Object parseFailure(XContentParser parser) throws IOException {
-       ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+       ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser);
        Token token;
        String index = null;
-       String type = null;
        String id = null;
        Integer status = null;
        Integer shardId = null;
@@ -238,7 +221,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
        ElasticsearchException bulkExc = null;
        ElasticsearchException searchExc = null;
        while ((token = parser.nextToken()) != Token.END_OBJECT) {
-           ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
+           ensureExpectedToken(Token.FIELD_NAME, token, parser);
            String name = parser.currentName();
            token = parser.nextToken();
            if (token == Token.START_ARRAY) {
@@ -246,10 +229,10 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
            } else if (token == Token.START_OBJECT) {
                switch (name) {
                    case SearchFailure.REASON_FIELD:
-                       bulkExc = ElasticsearchException.fromXContent(parser);
+                       searchExc = ElasticsearchException.fromXContent(parser);
                        break;
                    case Failure.CAUSE_FIELD:
-                       searchExc = ElasticsearchException.fromXContent(parser);
+                       bulkExc = ElasticsearchException.fromXContent(parser);
                        break;
                    default:
                        parser.skipChildren();
@@ -259,9 +242,6 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
                    // This field is the same as SearchFailure.index
                    case Failure.INDEX_FIELD:
                        index = parser.text();
-                       break;
-                   case Failure.TYPE_FIELD:
-                       type = parser.text();
                        break;
                    case Failure.ID_FIELD:
                        id = parser.text();
@@ -288,9 +268,13 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
            }
        }
        if (bulkExc != null) {
-           return new Failure(index, type, id, bulkExc, RestStatus.fromCode(status));
+           return new Failure(index, id, bulkExc, RestStatus.fromCode(status));
        } else if (searchExc != null) {
-           return new SearchFailure(searchExc, index, shardId, nodeId);
+           if (status == null) {
+               return new SearchFailure(searchExc, index, shardId, nodeId);
+           } else {
+               return new SearchFailure(searchExc, index, shardId, nodeId, RestStatus.fromCode(status));
+           }
        } else {
            throw new ElasticsearchParseException("failed to parse failures array. At least one of {reason,cause} must be present");
        }

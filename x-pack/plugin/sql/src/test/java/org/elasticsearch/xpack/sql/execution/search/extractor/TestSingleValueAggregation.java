@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
@@ -12,7 +13,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 public class TestSingleValueAggregation extends InternalAggregation {
@@ -21,7 +21,7 @@ public class TestSingleValueAggregation extends InternalAggregation {
     private final Object value;
 
     TestSingleValueAggregation(String name, List<String> path, Object value) {
-        super(name, emptyList(), emptyMap());
+        super(name, emptyMap());
         this.path = path;
         this.value = value;
     }
@@ -37,8 +37,13 @@ public class TestSingleValueAggregation extends InternalAggregation {
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return true;
     }
 
     @Override
@@ -54,13 +59,4 @@ public class TestSingleValueAggregation extends InternalAggregation {
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    protected int doHashCode() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    protected boolean doEquals(Object obj) {
-        throw new UnsupportedOperationException();
-    }
 }

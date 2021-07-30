@@ -1,20 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.scheduler;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.Calendar;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
@@ -24,6 +23,7 @@ import java.util.StringTokenizer;
 import java.util.TimeZone;
 import java.util.TreeSet;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 
 
@@ -199,8 +199,8 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArg
  * @author Refactoring from CronTrigger to CronExpression by Aaron Craven
  */
 public class Cron implements ToXContentFragment {
-    protected static final TimeZone UTC = DateTimeZone.UTC.toTimeZone();
-    protected static final DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss");
+    protected static final TimeZone UTC = TimeZone.getTimeZone(ZoneOffset.UTC);
+    protected static final DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     private static final int SECOND = 0;
     private static final int MINUTE = 1;
@@ -214,30 +214,28 @@ public class Cron implements ToXContentFragment {
     private static final Integer ALL_SPEC = ALL_SPEC_INT;
     private static final Integer NO_SPEC = NO_SPEC_INT;
 
-    private static final Map<String, Integer> monthMap = new HashMap<>(20);
-    private static final Map<String, Integer> dayMap = new HashMap<>(60);
-    static {
-        monthMap.put("JAN", 0);
-        monthMap.put("FEB", 1);
-        monthMap.put("MAR", 2);
-        monthMap.put("APR", 3);
-        monthMap.put("MAY", 4);
-        monthMap.put("JUN", 5);
-        monthMap.put("JUL", 6);
-        monthMap.put("AUG", 7);
-        monthMap.put("SEP", 8);
-        monthMap.put("OCT", 9);
-        monthMap.put("NOV", 10);
-        monthMap.put("DEC", 11);
+    private static final Map<String, Integer> MONTH_MAP = Map.ofEntries(
+        entry("JAN", 0),
+        entry("FEB", 1),
+        entry("MAR", 2),
+        entry("APR", 3),
+        entry("MAY", 4),
+        entry("JUN", 5),
+        entry("JUL", 6),
+        entry("AUG", 7),
+        entry("SEP", 8),
+        entry("OCT", 9),
+        entry("NOV", 10),
+        entry("DEC", 11));
 
-        dayMap.put("SUN", 1);
-        dayMap.put("MON", 2);
-        dayMap.put("TUE", 3);
-        dayMap.put("WED", 4);
-        dayMap.put("THU", 5);
-        dayMap.put("FRI", 6);
-        dayMap.put("SAT", 7);
-    }
+    private static final Map<String, Integer> DAY_MAP = Map.of(
+        "SUN", 1,
+        "MON", 2,
+        "TUE", 3,
+        "WED", 4,
+        "THU", 5,
+        "FRI", 6,
+        "SAT", 7);
 
     private final String expression;
 
@@ -309,7 +307,7 @@ public class Cron implements ToXContentFragment {
 
         boolean gotOne = false;
         // loop until we've computed the next time, or we've past the endTime
-        while (!gotOne) {
+        while (gotOne == false) {
 
             if(cl.get(Calendar.YEAR) > 2999) { // prevent endless loop...
                 return -1;
@@ -383,12 +381,12 @@ public class Cron implements ToXContentFragment {
             int tmon = mon;
 
             // get day...................................................
-            boolean dayOfMSpec = !daysOfMonth.contains(NO_SPEC);
-            boolean dayOfWSpec = !daysOfWeek.contains(NO_SPEC);
-            if (dayOfMSpec && !dayOfWSpec) { // get day by day of month rule
+            boolean dayOfMSpec = daysOfMonth.contains(NO_SPEC) == false;
+            boolean dayOfWSpec = daysOfWeek.contains(NO_SPEC) == false;
+            if (dayOfMSpec && dayOfWSpec == false) { // get day by day of month rule
                 st = daysOfMonth.tailSet(day);
                 if (lastdayOfMonth) {
-                    if(!nearestWeekday) {
+                    if(nearestWeekday == false) {
                         t = day;
                         day = getLastDayOfMonth(mon, cl.get(Calendar.YEAR));
                         day -= lastdayOffset;
@@ -498,7 +496,7 @@ public class Cron implements ToXContentFragment {
                     // are 1-based
                     continue;
                 }
-            } else if (dayOfWSpec && !dayOfMSpec) { // get day by day of week rule
+            } else if (dayOfWSpec && dayOfMSpec == false) { // get day by day of week rule
                 if (lastdayOfWeek) { // are we looking for the last XXX day of
                     // the month?
                     int dow = daysOfWeek.first(); // desired
@@ -625,7 +623,7 @@ public class Cron implements ToXContentFragment {
                         continue;
                     }
                 }
-            } else { // dayOfWSpec && !dayOfMSpec
+            } else { // dayOfWSpec && dayOfMSpec == false
                 return -1;
 //                throw new UnsupportedOperationException(
 //                        "Support for specifying both a day-of-week AND a day-of-month parameter is not implemented.");
@@ -696,7 +694,7 @@ public class Cron implements ToXContentFragment {
             cl.set(Calendar.YEAR, year);
 
             gotOne = true;
-        } // while( !done )
+        } // while( done == false )
 
         return cl.getTimeInMillis();
     }
@@ -867,11 +865,11 @@ public class Cron implements ToXContentFragment {
             TreeSet<Integer> dom = getSet(DAY_OF_MONTH);
 
             // Copying the logic from the UnsupportedOperationException below
-            boolean dayOfMSpec = !dom.contains(NO_SPEC);
-            boolean dayOfWSpec = !dow.contains(NO_SPEC);
+            boolean dayOfMSpec = dom.contains(NO_SPEC) == false;
+            boolean dayOfWSpec = dow.contains(NO_SPEC) == false;
 
-            if (!dayOfMSpec || dayOfWSpec) {
-                if (!dayOfWSpec || dayOfMSpec) {
+            if (dayOfMSpec == false || dayOfWSpec) {
+                if (dayOfWSpec == false || dayOfMSpec) {
                     throw illegalArgument("support for specifying both a day-of-week AND a day-of-month parameter is not implemented.");
                 }
             }
@@ -888,7 +886,7 @@ public class Cron implements ToXContentFragment {
             return i;
         }
         char c = s.charAt(i);
-        if ((c >= 'A') && (c <= 'Z') && (!s.equals("L")) && (!s.equals("LW")) && (!s.matches("^L-[0-9]*[W]?"))) {
+        if ((c >= 'A') && (c <= 'Z') && (s.equals("L") == false) && (s.equals("LW") == false) && (s.matches("^L-[0-9]*[W]?") == false)) {
             String sub = s.substring(i, i + 3);
             int sval = -1;
             int eval = -1;
@@ -957,7 +955,7 @@ public class Cron implements ToXContentFragment {
             if (type != DAY_OF_WEEK && type != DAY_OF_MONTH) {
                 throw illegalArgument("'?' can only be specified for Day-of-Month or Day-of-Week. at pos [{}]", i);
             }
-            if (type == DAY_OF_WEEK && !lastdayOfMonth) {
+            if (type == DAY_OF_WEEK && lastdayOfMonth == false) {
                 int val = daysOfMonth.last();
                 if (val == NO_SPEC_INT) {
                     throw illegalArgument("'?' can only be specified for Day-of-Month -OR- Day-of-Week. at pos [{}]", i);
@@ -1202,7 +1200,7 @@ public class Cron implements ToXContentFragment {
         while (itr.hasNext()) {
             Integer iVal = itr.next();
             String val = iVal.toString();
-            if (!first) {
+            if (first == false) {
                 buf.append(",");
             }
             buf.append(val);
@@ -1214,7 +1212,7 @@ public class Cron implements ToXContentFragment {
 
     private static int skipWhiteSpace(int i, String s) {
         for (; i < s.length() && (s.charAt(i) == ' ' || s.charAt(i) == '\t'); i++) {
-            ;
+            // intentionally empty
         }
 
         return i;
@@ -1222,7 +1220,7 @@ public class Cron implements ToXContentFragment {
 
     private static int findNextWhiteSpace(int i, String s) {
         for (; i < s.length() && (s.charAt(i) != ' ' || s.charAt(i) != '\t'); i++) {
-            ;
+            // intentionally empty
         }
 
         return i;
@@ -1414,7 +1412,7 @@ public class Cron implements ToXContentFragment {
     }
 
     private int getMonthNumber(String s) {
-        Integer integer = monthMap.get(s);
+        Integer integer = MONTH_MAP.get(s);
 
         if (integer == null) {
             return -1;
@@ -1424,7 +1422,7 @@ public class Cron implements ToXContentFragment {
     }
 
     private int getDayOfWeekNumber(String s) {
-        Integer integer = dayMap.get(s);
+        Integer integer = DAY_MAP.get(s);
 
         if (integer == null) {
             return -1;

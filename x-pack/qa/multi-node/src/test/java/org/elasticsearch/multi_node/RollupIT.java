@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.multi_node;
 
@@ -14,13 +15,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.common.xcontent.ObjectPath;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -32,9 +33,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class RollupIT extends ESRestTestCase {
 
@@ -69,7 +70,7 @@ public class RollupIT extends ESRestTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
-                builder.startObject("mappings").startObject("_doc")
+                builder.startObject("mappings")
                     .startObject("properties")
                     .startObject("timestamp")
                     .field("type", "date")
@@ -77,7 +78,6 @@ public class RollupIT extends ESRestTestCase {
                     .endObject()
                     .startObject("value")
                     .field("type", "integer")
-                    .endObject()
                     .endObject()
                     .endObject().endObject();
             }
@@ -92,7 +92,7 @@ public class RollupIT extends ESRestTestCase {
         // index documents for the rollup job
         final StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
-            bulk.append("{\"index\":{\"_index\":\"rollup-docs\",\"_type\":\"_doc\"}}\n");
+            bulk.append("{\"index\":{\"_index\":\"rollup-docs\"}}\n");
             ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochSecond(1531221196 + (60*i)), ZoneId.of("UTC"));
             String date = zdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
             bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");
@@ -115,7 +115,7 @@ public class RollupIT extends ESRestTestCase {
             + "\"groups\":{"
             + "    \"date_histogram\":{"
             + "        \"field\":\"timestamp\","
-            + "        \"interval\":\"5m\""
+            + "        \"fixed_interval\":\"5m\""
             + "      }"
             + "},"
             + "\"metrics\":["
@@ -159,7 +159,7 @@ public class RollupIT extends ESRestTestCase {
             "    \"date_histo\": {\n" +
             "      \"date_histogram\": {\n" +
             "        \"field\": \"timestamp\",\n" +
-            "        \"interval\": \"60m\",\n" +
+            "        \"fixed_interval\": \"60m\",\n" +
             "        \"format\": \"date_time\"\n" +
             "      },\n" +
             "      \"aggs\": {\n" +
@@ -208,7 +208,7 @@ public class RollupIT extends ESRestTestCase {
         Map<String, Object> getRollupJobResponse = toMap(client().performRequest(getRollupJobRequest));
         Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
         if (job != null) {
-            assertThat(ObjectPath.eval("status.job_state", job), isOneOf(states));
+            assertThat(ObjectPath.eval("status.job_state", job), is(oneOf(states)));
         }
 
         // check that the rollup job is started using the Tasks API
@@ -220,7 +220,7 @@ public class RollupIT extends ESRestTestCase {
         Map<String, Object> taskResponseNode = (Map<String, Object>) taskResponseNodes.values().iterator().next();
         Map<String, Object> taskResponseTasks = (Map<String, Object>) taskResponseNode.get("tasks");
         Map<String, Object> taskResponseStatus = (Map<String, Object>) taskResponseTasks.values().iterator().next();
-        assertThat(ObjectPath.eval("status.job_state", taskResponseStatus), isOneOf(states));
+        assertThat(ObjectPath.eval("status.job_state", taskResponseStatus), is(oneOf(states)));
 
         // check that the rollup job is started using the Cluster State API
         final Request clusterStateRequest = new Request("GET", "_cluster/state/metadata");
@@ -234,7 +234,7 @@ public class RollupIT extends ESRestTestCase {
 
                 final String jobStateField = "task.xpack/rollup/job.state.job_state";
                 assertThat("Expected field [" + jobStateField + "] to be started or indexing in " + task.get("id"),
-                    ObjectPath.eval(jobStateField, task), isOneOf(states));
+                    ObjectPath.eval(jobStateField, task), is(oneOf(states)));
                 break;
             }
         }
@@ -252,7 +252,7 @@ public class RollupIT extends ESRestTestCase {
 
             Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
             if (job != null) {
-                assertThat(ObjectPath.eval("status.job_state", job), isOneOf(expectedStates));
+                assertThat(ObjectPath.eval("status.job_state", job), is(oneOf(expectedStates)));
             }
         }, 30L, TimeUnit.SECONDS);
     }

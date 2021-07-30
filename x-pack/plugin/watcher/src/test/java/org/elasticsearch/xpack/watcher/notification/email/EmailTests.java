@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
@@ -10,9 +11,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +32,7 @@ public class EmailTests extends ESTestCase {
         Email.AddressList possibleList = new Email.AddressList(addresses);
         Email.AddressList replyTo = randomFrom(possibleList, null);
         Email.Priority priority = randomFrom(Email.Priority.values());
-        DateTime sentDate = new DateTime(randomInt(), DateTimeZone.UTC);
+        ZonedDateTime sentDate = Instant.ofEpochMilli(randomInt()).atZone(ZoneOffset.UTC);
         Email.AddressList to = randomFrom(possibleList, null);
         Email.AddressList cc = randomFrom(possibleList, null);
         Email.AddressList bcc = randomFrom(possibleList, null);

@@ -1,41 +1,42 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
-    testCompile project(':x-pack:plugin:ccr:qa:')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(xpackModule('ccr'))
+  testImplementation project(':x-pack:plugin:ccr:qa:')
 }
 
-task leaderClusterTest(type: RestIntegTestTask) {
-    mustRunAfter(precommit)
-}
+testClusters {
+  'leader-cluster' {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
+  }
 
-leaderClusterTestCluster {
-    numNodes = 1
-    clusterName = 'leader-cluster'
-}
-
-leaderClusterTestRunner {
-    systemProperty 'tests.target_cluster', 'leader'
-}
-
-task followClusterTest(type: RestIntegTestTask) {}
-
-followClusterTestCluster {
-    dependsOn leaderClusterTestRunner
-    numNodes = 1
-    clusterName = 'follow-cluster'
+  'follow-cluster' {
+    testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
-    setting 'cluster.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
+    setting 'cluster.remote.leader_cluster.seeds',
+            { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().join(",")}\"" }
+  }
 }
 
-followClusterTestRunner {
-    systemProperty 'tests.target_cluster', 'follow'
-    systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-    finalizedBy 'leaderClusterTestCluster#stop'
+tasks.register('leader-cluster', RestIntegTestTask) {
+  mustRunAfter("precommit")
+  systemProperty 'tests.target_cluster', 'leader'
 }
 
-check.dependsOn followClusterTest
-test.enabled = false
+tasks.register('follow-cluster', RestIntegTestTask) {
+  dependsOn 'leader-cluster'
+  useCluster testClusters.'leader-cluster'
+  systemProperty 'tests.target_cluster', 'follow'
+  nonInputProperties.systemProperty 'tests.leader_host',
+    { "${testClusters.'follow-cluster'.getAllHttpSocketURI().get(0)}" }
+}
+
+tasks.named("check").configure { dependsOn "follow-cluster" }

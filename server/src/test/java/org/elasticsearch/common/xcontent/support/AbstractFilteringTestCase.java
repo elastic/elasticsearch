@@ -1,36 +1,30 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent.support;
 
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static java.util.stream.Collectors.toSet;
 
 /**
  * Tests for {@link XContent} filtering.
@@ -44,7 +38,7 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
     protected abstract void testFilter(Builder expected, Builder actual, Set<String> includes, Set<String> excludes) throws IOException;
 
     /** Sample test case **/
-    private static final Builder SAMPLE = builder -> builder.startObject()
+    protected static final Builder SAMPLE = builder -> builder.startObject()
             .field("title", "My awesome book")
                 .field("pages", 456)
                 .field("price", 27.99)
@@ -484,70 +478,70 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
         testFilter(expected, SAMPLE, singleton("authors.*name"), emptySet());
     }
 
-    public void testSimpleArrayOfObjectsExclusive() throws Exception {
-        final Builder expected = builder -> builder.startObject()
-                                                            .field("title", "My awesome book")
-                                                            .field("pages", 456)
-                                                            .field("price", 27.99)
-                                                            .field("timestamp", 1428582942867L)
-                                                            .nullField("default")
-                                                            .startArray("tags")
-                                                                .value("elasticsearch")
-                                                                .value("java")
-                                                            .endArray()
-                                                            .startObject("properties")
-                                                                .field("weight", 0.8d)
-                                                                .startObject("language")
-                                                                    .startObject("en")
-                                                                        .field("lang", "English")
-                                                                        .field("available", true)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "The Book Shop")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                        .field("street", "Hampton St")
-                                                                                        .field("city", "London")
-                                                                                    .endObject()
-                                                                                    .startObject()
-                                                                                        .field("name", "address #2")
-                                                                                        .field("street", "Queen St")
-                                                                                        .field("city", "Stornoway")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Sussex Books House")
-                                                                            .endObject()
-                                                                        .endArray()
+    protected static final Builder SIMPLE_ARRAY_OF_OBJECTS_EXCLUSIVE = builder -> builder.startObject()
+                                            .field("title", "My awesome book")
+                                            .field("pages", 456)
+                                            .field("price", 27.99)
+                                            .field("timestamp", 1428582942867L)
+                                            .nullField("default")
+                                            .startArray("tags")
+                                                .value("elasticsearch")
+                                                .value("java")
+                                            .endArray()
+                                            .startObject("properties")
+                                                .field("weight", 0.8d)
+                                                .startObject("language")
+                                                    .startObject("en")
+                                                        .field("lang", "English")
+                                                        .field("available", true)
+                                                        .startArray("distributors")
+                                                            .startObject()
+                                                                .field("name", "The Book Shop")
+                                                                .startArray("addresses")
+                                                                    .startObject()
+                                                                        .field("name", "address #1")
+                                                                        .field("street", "Hampton St")
+                                                                        .field("city", "London")
                                                                     .endObject()
-                                                                    .startObject("fr")
-                                                                        .field("lang", "French")
-                                                                        .field("available", false)
-                                                                        .startArray("distributors")
-                                                                            .startObject()
-                                                                                .field("name", "La Maison du Livre")
-                                                                                .startArray("addresses")
-                                                                                    .startObject()
-                                                                                        .field("name", "address #1")
-                                                                                        .field("street", "Rue Mouffetard")
-                                                                                        .field("city", "Paris")
-                                                                                    .endObject()
-                                                                                .endArray()
-                                                                            .endObject()
-                                                                            .startObject()
-                                                                                .field("name", "Thetra")
-                                                                            .endObject()
-                                                                        .endArray()
+                                                                    .startObject()
+                                                                        .field("name", "address #2")
+                                                                        .field("street", "Queen St")
+                                                                        .field("city", "Stornoway")
                                                                     .endObject()
-                                                                .endObject()
+                                                                .endArray()
                                                             .endObject()
-                                                       .endObject();
+                                                            .startObject()
+                                                                .field("name", "Sussex Books House")
+                                                            .endObject()
+                                                        .endArray()
+                                                    .endObject()
+                                                    .startObject("fr")
+                                                        .field("lang", "French")
+                                                        .field("available", false)
+                                                        .startArray("distributors")
+                                                            .startObject()
+                                                                .field("name", "La Maison du Livre")
+                                                                .startArray("addresses")
+                                                                    .startObject()
+                                                                        .field("name", "address #1")
+                                                                        .field("street", "Rue Mouffetard")
+                                                                        .field("city", "Paris")
+                                                                    .endObject()
+                                                                .endArray()
+                                                            .endObject()
+                                                            .startObject()
+                                                                .field("name", "Thetra")
+                                                            .endObject()
+                                                        .endArray()
+                                                    .endObject()
+                                                .endObject()
+                                            .endObject()
+                                       .endObject();
 
-        testFilter(expected, SAMPLE, emptySet(), singleton("authors"));
-        testFilter(expected, SAMPLE, emptySet(), singleton("authors.*"));
-        testFilter(expected, SAMPLE, emptySet(), singleton("authors.*name"));
+    public void testSimpleArrayOfObjectsExclusive() throws Exception {
+        testFilter(SIMPLE_ARRAY_OF_OBJECTS_EXCLUSIVE, SAMPLE, emptySet(), singleton("authors"));
+        testFilter(SIMPLE_ARRAY_OF_OBJECTS_EXCLUSIVE, SAMPLE, emptySet(), singleton("authors.*"));
+        testFilter(SIMPLE_ARRAY_OF_OBJECTS_EXCLUSIVE, SAMPLE, emptySet(), singleton("authors.*name"));
     }
 
     public void testSimpleArrayOfObjectsPropertyInclusive() throws Exception {
@@ -1426,5 +1420,28 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
                     .field("photosCount", 2)
                 .endObject();
         testFilter(expected, sample, singleton("photosCount"), emptySet());
+    }
+
+    public void testManyFilters() throws IOException, URISyntaxException {
+        Builder deep = builder -> builder.startObject()
+            .startObject("system")
+            .startObject("process")
+            .startObject("cgroup")
+            .startObject("memory")
+            .startObject("stats")
+            .startObject("mapped_file")
+            .field("bytes", 100)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        Set<String> manyFilters = Files.readAllLines(
+            PathUtils.get(AbstractFilteringTestCase.class.getResource("many_filters.txt").toURI()),
+            StandardCharsets.UTF_8
+        ).stream().filter(s -> false == s.startsWith("#")).collect(toSet());
+        testFilter(deep, deep, manyFilters, emptySet());
     }
 }

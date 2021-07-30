@@ -19,13 +19,13 @@ require that system limits are specified in a
 
 On Linux systems, `ulimit` can be used to change resource limits on a
 temporary basis. Limits usually need to be set as `root` before switching to
-the user that will run Elasticsearch.  For example, to set the number of
+the user that will run Elasticsearch. For example, to set the number of
 open file handles (`ulimit -n`) to 65,536, you can do the following:
 
 [source,sh]
 --------------------------------
 sudo su  <1>
-ulimit -n 65536 <2>
+ulimit -n 65535 <2>
 su elasticsearch <3>
 --------------------------------
 <1> Become `root`.
@@ -41,12 +41,12 @@ You can consult all currently applied limits with `ulimit -a`.
 
 On Linux systems, persistent limits can be set for a particular user by
 editing the `/etc/security/limits.conf` file. To set the maximum number of
-open files for the `elasticsearch` user to 65,536, add the following line to
+open files for the `elasticsearch` user to 65,535, add the following line to
 the `limits.conf` file:
 
 [source,sh]
 --------------------------------
-elasticsearch  -  nofile  65536
+elasticsearch  -  nofile  65535
 --------------------------------
 
 This change will only take effect the next time the `elasticsearch` user opens
@@ -55,7 +55,7 @@ a new session.
 [NOTE]
 .Ubuntu and `limits.conf`
 ===============================
-Ubuntu ignores the `limits.conf` file for processes started by `init.d`.  To
+Ubuntu ignores the `limits.conf` file for processes started by `init.d`. To
 enable the `limits.conf` file, edit `/etc/pam.d/su` and uncomment the
 following line:
 
@@ -68,22 +68,20 @@ following line:
 [[sysconfig]]
 ==== Sysconfig file
 
-When using the RPM or Debian packages, system settings and environment
-variables can be specified in the system configuration file, which is located
-in:
+When using the RPM or Debian packages, environment variables can be specified
+in the system configuration file, which is located in:
 
 [horizontal]
 RPM::     `/etc/sysconfig/elasticsearch`
 Debian::  `/etc/default/elasticsearch`
 
-However, for systems which uses `systemd`, system limits need to be specified
-via <<systemd,systemd>>.
+However, system limits need to be specified via <<systemd,systemd>>.
 
 [[systemd]]
 ==== Systemd configuration
 
 When using the RPM or Debian packages on systems that use
-https://en.wikipedia.org/wiki/Systemd[systemd], system limits must be
+{wikipedia}/Systemd[systemd], system limits must be
 specified via systemd.
 
 The systemd service file (`/usr/lib/systemd/system/elasticsearch.service`)

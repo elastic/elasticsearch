@@ -1,14 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.Strings;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,10 +27,15 @@ import java.util.function.Predicate;
 public class ExpressionModel {
 
     public static final Predicate<FieldExpression.FieldValue> NULL_PREDICATE = field -> field.getValue() == null;
-    private Map<String, Tuple<Object, Predicate<FieldExpression.FieldValue>>> fields;
+
+    private static final Logger logger = LogManager.getLogger();
+
+    private final Map<String, Object> fieldValues;
+    private final Map<String, Predicate<FieldExpression.FieldValue>> fieldPredicates;
 
     public ExpressionModel() {
-        this.fields = new HashMap<>();
+        this.fieldValues = new HashMap<>();
+        this.fieldPredicates = new HashMap<>();
     }
 
     /**
@@ -41,7 +51,8 @@ public class ExpressionModel {
      * Defines a field using a supplied predicate.
      */
     public ExpressionModel defineField(String name, Object value, Predicate<FieldExpression.FieldValue> predicate) {
-        this.fields.put(name, new Tuple<>(value, predicate));
+        this.fieldValues.put(name, value);
+        this.fieldPredicates.put(name, predicate);
         return this;
     }
 
@@ -49,14 +60,17 @@ public class ExpressionModel {
      * Returns {@code true} if the named field, matches <em>any</em> of the provided values.
      */
     public boolean test(String field, List<FieldExpression.FieldValue> values) {
-        final Tuple<Object, Predicate<FieldExpression.FieldValue>> tuple = this.fields.get(field);
-        final Predicate<FieldExpression.FieldValue> predicate;
-        if (tuple == null) {
-            predicate = NULL_PREDICATE;
-        } else {
-            predicate = tuple.v2();
+        final Predicate<FieldExpression.FieldValue> predicate = this.fieldPredicates.getOrDefault(field, NULL_PREDICATE);
+        boolean isMatch = values.stream().anyMatch(predicate);
+        if (isMatch == false && predicate == NULL_PREDICATE && fieldPredicates.containsKey(field) == false) {
+            logger.debug(() -> new ParameterizedMessage("Attempt to test field [{}] against value(s) [{}]," +
+                " but the field [{}] does not have a value on this object;" +
+                " known fields are [{}]",
+                field, Strings.collectionToCommaDelimitedString(values),
+                field, Strings.collectionToCommaDelimitedString(fieldPredicates.keySet())));
         }
-        return values.stream().anyMatch(predicate);
+
+        return isMatch;
     }
 
     /**
@@ -103,4 +117,12 @@ public class ExpressionModel {
         return Numbers.toLongExact(left) == Numbers.toLongExact(right);
     }
 
+    public Map<String, Object> asMap() {
+        return Collections.unmodifiableMap(fieldValues);
+    }
+
+    @Override
+    public String toString() {
+        return fieldValues.toString();
+    }
 }

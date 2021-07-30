@@ -1,15 +1,13 @@
 [role="xpack"]
 [[license-settings]]
-=== {xpack} License Settings
-++++
-<titleabbrev>License Settings</titleabbrev>
-++++
+=== License settings
 
 You can configure this licensing setting in the `elasticsearch.yml` file.
 For more information, see
-{xpack-ref}/license-management.html[{xpack} License Management].
+{kibana-ref}/managing-licenses.html[License management].
 
 `xpack.license.self_generated.type`::
+(<<static-cluster-setting,Static>>)
 Set to `basic` (default) to enable basic {xpack} features. +
 +
 --

@@ -1,26 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfigTests;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimitsTests;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfigTests;
 
 import java.util.Collections;
 import java.util.Date;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.randomValidJobId;
 
-public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
+public class JobBuilderTests extends AbstractWireSerializingTestCase<Job.Builder> {
     @Override
     protected Job.Builder createTestInstance() {
         Job.Builder builder = new Job.Builder();
@@ -44,12 +44,10 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
         }
         if (randomBoolean()) {
             DataDescription.Builder dataDescription = new DataDescription.Builder();
-            dataDescription.setFormat(randomFrom(DataDescription.DataFormat.values()));
             builder.setDataDescription(dataDescription);
         }
         if (randomBoolean()) {
-            builder.setModelPlotConfig(new ModelPlotConfig(randomBoolean(),
-                    randomAlphaOfLength(10)));
+            builder.setModelPlotConfig(ModelPlotConfigTests.createRandomized());
         }
         if (randomBoolean()) {
             builder.setRenormalizationWindowDays(randomNonNegativeLong());
@@ -61,7 +59,13 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
             builder.setModelSnapshotRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
+            builder.setDailyModelSnapshotRetentionAfterDays(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
             builder.setResultsRetentionDays(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            builder.setSystemAnnotationsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             builder.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10),
@@ -81,8 +85,4 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
         return Job.Builder::new;
     }
 
-    @Override
-    protected Job.Builder doParseInstance(XContentParser parser) {
-        return Job.STRICT_PARSER.apply(parser, null);
-    }
 }

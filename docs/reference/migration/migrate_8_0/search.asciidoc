@@ -1,0 +1,204 @@
+[discrete]
+[[breaking_80_search_changes]]
+==== Search changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+[[id-field-data]]
+.Aggregating and sorting on `_id` is disallowed by default.
+[%collapsible]
+====
+*Details* +
+Previously, it was possible to aggregate and sort on the built-in `_id` field
+by loading an expensive data structure called fielddata. This was deprecated
+in 7.6 and is now disallowed by default in 8.0.
+
+*Impact* +
+Aggregating and sorting on `_id` should be avoided. As an alternative, the
+`_id` field's contents can be duplicated into another field with docvalues
+enabled (note that this does not apply to auto-generated IDs).
+====
+
+[[max_clause_count_change]]
+.The `indices.query.bool.max_clause_count` setting now limits all query clauses.
+[%collapsible]
+====
+*Details* +
+Previously, the `indices.query.bool.max_clause_count` would apply to the number
+of clauses of a single `bool` query. It now applies to the total number of
+clauses of the rewritten query. In order to reduce chances of breaks, its
+default value has been bumped from 1024 to 4096.
+
+*Impact* +
+Queries with many clauses should be avoided whenever possible. If you had bumped
+this setting already in order to accomodate for some heavy queries, you might
+need to bump it further so that these heavy queries keep working.
+====
+
+.Search-related REST API endpoints containing mapping types have been removed.
+[%collapsible]
+====
+*Details* +
+The `/{index}/{type}/_search`, `/{index}/{type}/_msearch`, `/{index}/{type}/_search/template` and `/{index}/{type}/_msearch/template` REST endpoints have been removed in favour of `/{index}/_search`, `/{index}/_msearch`, `/{index}/_search/template` and `/{index}/_msearch/template`; since indexes no longer contain types, these typed endpoints are obsolete..
+
+The `/{index}/{type}/_termvectors`, `/{index}/{type}/{id}/_termvectors` and `/{index}/{type}/_mtermvectors` REST endpoints have been removed in favour of `/{index}/_termvectors`, `/{index}/{id}/_termvectors` and `/{index}/_mtermvectors`; since indexes no longer contain types, these typed endpoints are obsolete..
+
+The `/{index}/{type}/{doc}` and `/{index}/{type}/_mget` REST endpoints have been removed in favour of `/{index}/_doc/{doc}` and `/{index}/_mget`; since indexes no longer contain types, these typed endpoints are obsolete.
+
+*Impact* +
+Use the replacement REST API endpoints. Requests submitted to API endpoints that
+contain a mapping type will return an error.
+====
+
+.The `common` query has been removed.
+[%collapsible]
+====
+*Details* +
+The `common` query, deprecated in 7.x, has been removed in 8.0.
+The same functionality can be achieved by the `match` query if the total number of hits is not tracked.
+
+*Impact* +
+Discontinue use of the `common` query. Search requests containing a `common`
+query will return an error.
+====
+
+.The `cutoff_frequency` parameter has been removed from the `match` and `multi_match` query.
+[%collapsible]
+====
+*Details* +
+The `cutoff_frequency` parameter, deprecated in 7.x, has been removed in 8.0 from `match` and `multi_match` queries.
+The same functionality can be achieved without any configuration provided that the total number of hits is not tracked.
+
+*Impact* +
+Discontinue use of the `cutoff_frequency` parameter. Search requests containing
+this parameter in a `match` or `multi_match` query will return an error.
+====
+
+.The `nested_filter` and `nested_path` properties have been removed from the search API's `sort` request body parameter.
+[%collapsible]
+====
+*Details* +
+The `nested_filter` and `nested_path` options, deprecated in 6.x, have been removed in favor of the `nested` context.
+
+*Impact* +
+Discontinue use of the `sort` request body parameter's `nested_filter` and
+`nested_path` properties. Requests containing these properties will return an
+error.
+====
+
+.Search and get requests are now routed to shards using adaptive replica selection by default.
+[%collapsible]
+====
+*Details* +
+{es} will no longer prefer using shards in the same location (with the same awareness attribute values) to process
+`_search` and `_get` requests. Adaptive replica selection (activated by default in this version) will route requests
+more efficiently using the service time of prior inter-node communications.
+
+*Impact* +
+No action needed.
+====
+
+.The `sparse_vector` field data type has been removed.
+[%collapsible]
+====
+*Details* +
+The `sparse_vector` field type was deprecated in 7.6 and is now removed in
+8.0. We have not seen much interest in this experimental field type, and don't
+see a clear use case as it's currently designed. If you have feedback or
+suggestions around sparse vector functionality, please let us know through
+GitHub or the 'discuss' forums.
+
+*Impact* +
+Discontinue use of the `sparse_vector` field data type. Requests containing
+a mapping for this field data type will return an error.
+====
+
+.Vector functions using `(query, doc['field'])` are no longer supported.
+[%collapsible]
+====
+*Details* +
+The vector functions of the form `function(query, doc['field'])` were
+deprecated in 7.6, and are now removed in 8.x. The form
+`function(query, 'field')` should be used instead. For example,
+`cosineSimilarity(query, doc['field'])` is replaced by
+`cosineSimilarity(query, 'field')`.
+
+*Impact* +
+Use the `function(query, 'field')` form. Discontinue use of the `function(query,
+doc['field'])` form. Requests containing the `function(query,
+doc['field'])` form will return an error.
+====
+
+.The search API's `indices_boost` request body parameter no longer accepts object values.
+[%collapsible]
+====
+*Details* +
+The `indices_boost` option in the search request used to accept the boosts
+both as an object and as an array. The object format has been deprecated since
+5.2 and is now removed in 8.0.
+
+*Impact* +
+Use only array values in the `indices_boost` parameter. Requests containing an
+object value in the `indices_boost` parameter will return an error.
+====
+
+.The search API's `use_field_mapping` request body parameter has been removed.
+[%collapsible]
+====
+*Details* +
+In 7.0, we began formatting `docvalue_fields` by default using each field's
+mapping definition. To ease the transition from 6.x, we added the format
+option `use_field_mapping`. This parameter was deprecated in 7.0, and is now
+removed in 8.0.
+
+*Impact* +
+Discontinue use of the `use_field_mapping` request body parameter. Requests
+containing this parameter will return an error.
+====
+
+
+.The search API's `from` request body and url parameter cannot be negative.
+[%collapsible]
+====
+*Details* +
+Search request used to accept `-1` as a `from` in the search body and the url,
+treating it as the default value of 0. Other negative values got rejected with
+an error already. We now also reject `-1` as an invalid value.
+
+*Impact* +
+Change any use of `-1` as `from` parameter in request body or url parameters by either
+setting it to `0` or omitting it entirely. Requests containing negative values will
+return an error.
+====
+
+.Range queries on date fields treat numeric values alwas as milliseconds-since-epoch.
+[%collapsible]
+====
+*Details* +
+Range queries on date fields used to misinterpret small numbers (e.g. four digits like 1000)
+as a year when no additional format was set, but would interpret other numeric values as
+milliseconds since epoch. We now treat all numeric values in absence of a specific `format`
+parameter as milliseconds since epoch. If you want to query for years instead, with a missing
+`format` you now need to quote the input value (e.g. "1984").
+
+*Impact* +
+If you query date fields without a specified `format`, check if the values in your queries are
+actually meant to be milliseconds-since-epoch and use a numeric value in this case. If not, use
+a string value which gets parsed by either the date format set on the field in the mappings or
+by `strict_date_optional_time` by default.
+====
+
+.The `geo_bounding_box` query's `type` parameter has been removed.
+[%collapsible]
+====
+*Details* +
+The `geo_bounding_box` query's `type` parameter was deprecated in 7.14.0 and has
+been removed in 8.0.0. This parameter is a no-op and has no effect on the query.
+
+*Impact* +
+Discontinue use of the `type` parameter. `geo_bounding_box` queries that include
+this parameter will return an error.
+====
+//end::notable-breaking-changes[]

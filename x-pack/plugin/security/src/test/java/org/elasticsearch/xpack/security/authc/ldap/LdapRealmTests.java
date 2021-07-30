@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -17,6 +20,10 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -29,11 +36,14 @@ import org.elasticsearch.xpack.core.security.authc.ldap.LdapSessionFactorySettin
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapUserSearchSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -42,6 +52,8 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
+import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
 
@@ -51,9 +63,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -88,14 +102,15 @@ public class LdapRealmTests extends LdapTestCase {
         threadPool = new TestThreadPool("ldap realm tests");
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         defaultGlobalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        sslService = new SSLService(defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings));
+        sslService = new SSLService(TestEnvironment.newEnvironment(defaultGlobalSettings));
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
     }
 
     @After
     public void shutdown() throws InterruptedException {
-        resourceWatcherService.stop();
+        resourceWatcherService.close();
         terminate(threadPool);
     }
 
@@ -105,6 +120,7 @@ public class LdapRealmTests extends LdapTestCase {
         Settings settings = Settings.builder()
             .put(defaultGlobalSettings)
             .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER, RealmSettings.ORDER_SETTING), 0)
             .build();
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService, threadPool);
@@ -136,6 +152,7 @@ public class LdapRealmTests extends LdapTestCase {
         Settings settings = Settings.builder()
                 .put(defaultGlobalSettings)
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+                .put(getFullSettingKey(REALM_IDENTIFIER, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
 
@@ -163,6 +180,7 @@ public class LdapRealmTests extends LdapTestCase {
         Settings settings = Settings.builder()
                 .put(defaultGlobalSettings)
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put(getFullSettingKey(REALM_IDENTIFIER, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
 
@@ -181,7 +199,7 @@ public class LdapRealmTests extends LdapTestCase {
         assertThat(future.actionGet().getStatus(), is(AuthenticationResult.Status.SUCCESS));
 
         //verify one and only one session -> caching is working
-        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), anyActionListener());
     }
 
     public void testAuthenticateCachingRefresh() throws Exception {
@@ -190,6 +208,7 @@ public class LdapRealmTests extends LdapTestCase {
         Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put(defaultGlobalSettings)
+                .put(getFullSettingKey(REALM_IDENTIFIER, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
 
@@ -207,7 +226,7 @@ public class LdapRealmTests extends LdapTestCase {
         future.actionGet();
 
         //verify one and only one session -> caching is working
-        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), anyActionListener());
 
         roleMapper.notifyRefresh();
 
@@ -216,7 +235,7 @@ public class LdapRealmTests extends LdapTestCase {
         future.actionGet();
 
         //we need to session again
-        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), anyActionListener());
     }
 
     public void testAuthenticateNoncaching() throws Exception {
@@ -226,6 +245,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(defaultGlobalSettings)
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put(getFullSettingKey(REALM_IDENTIFIER, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), -1)
+                .put(getFullSettingKey(REALM_IDENTIFIER, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
 
@@ -243,7 +263,7 @@ public class LdapRealmTests extends LdapTestCase {
         future.actionGet();
 
         //verify two and only two binds -> caching is disabled
-        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), anyActionListener());
     }
 
     public void testDelegatedAuthorization() throws Exception {
@@ -257,6 +277,7 @@ public class LdapRealmTests extends LdapTestCase {
             // maybe disable caching
             builder.put(getFullSettingKey(REALM_IDENTIFIER, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), -1);
         }
+        builder.put(getFullSettingKey(REALM_IDENTIFIER, RealmSettings.ORDER_SETTING), 0);
 
         final Settings realmSettings = builder.build();
         final Environment env = TestEnvironment.newEnvironment(defaultGlobalSettings);
@@ -266,8 +287,12 @@ public class LdapRealmTests extends LdapTestCase {
         final DnRoleMapper roleMapper = buildGroupAsRoleMapper(resourceWatcherService);
         final LdapRealm ldap = new LdapRealm(config, ldapFactory, roleMapper, threadPool);
 
-        final MockLookupRealm mockLookup = new MockLookupRealm(new RealmConfig(new RealmConfig.RealmIdentifier("mock", "mock_lookup"),
-            defaultGlobalSettings, env, threadPool.getThreadContext()));
+        RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("mock", "mock_lookup");
+        final MockLookupRealm mockLookup = new MockLookupRealm(new RealmConfig(
+            realmIdentifier,
+            Settings.builder().put(defaultGlobalSettings)
+                .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+            env, threadPool.getThreadContext()));
 
         ldap.initialize(Arrays.asList(ldap, mockLookup), licenseState);
         mockLookup.initialize(Arrays.asList(ldap, mockLookup), licenseState);
@@ -294,14 +319,17 @@ public class LdapRealmTests extends LdapTestCase {
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = Settings.builder()
                 .put(defaultGlobalSettings)
+
                 .putList(getFullSettingKey(identifier, URLS_SETTING), ldapUrls())
                 .putList(getFullSettingKey(identifier.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), userTemplate)
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
                 .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+                .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = getRealmConfig(identifier, settings);
-        SessionFactory sessionFactory = LdapRealm.sessionFactory(config, new SSLService(settings, config.env()), threadPool);
+        final SSLService ssl = new SSLService(config.env());
+        SessionFactory sessionFactory = LdapRealm.sessionFactory(config, ssl, threadPool);
         assertThat(sessionFactory, is(instanceOf(LdapSessionFactory.class)));
     }
 
@@ -319,9 +347,10 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
                 .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+                .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         final RealmConfig config = getRealmConfig(identifier, settings);
-        SessionFactory sessionFactory = LdapRealm.sessionFactory(config, new SSLService(config.settings(), config.env()), threadPool);
+        SessionFactory sessionFactory = LdapRealm.sessionFactory(config, new SSLService(config.env()), threadPool);
         try {
             assertThat(sessionFactory, is(instanceOf(LdapUserSearchSessionFactory.class)));
         } finally {
@@ -340,6 +369,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), "")
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
                 .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+                .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = getRealmConfig(identifier, settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -359,6 +389,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), "")
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
                 .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+                .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = getRealmConfig(identifier, settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -395,6 +426,75 @@ public class LdapRealmTests extends LdapTestCase {
     }
 
     /**
+     * This tests template role mappings (see
+     * {@link TemplateRoleName}) with an LDAP realm, using a additional
+     * metadata field (see {@link LdapMetadataResolverSettings#ADDITIONAL_METADATA_SETTING}).
+     */
+    public void testLdapRealmWithTemplatedRoleMapping() throws Exception {
+        String groupSearchBase = "o=sevenSeas";
+        String userTemplate = VALID_USER_TEMPLATE;
+        Settings settings = Settings.builder()
+                .put(defaultGlobalSettings)
+                .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put(getFullSettingKey(REALM_IDENTIFIER.getName(),
+                        LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING.apply(LdapRealmSettings.LDAP_TYPE)), "uid")
+                .build();
+        RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
+
+        SecurityIndexManager mockSecurityIndex = mock(SecurityIndexManager.class);
+        when(mockSecurityIndex.isAvailable()).thenReturn(true);
+        when(mockSecurityIndex.isIndexUpToDate()).thenReturn(true);
+
+        Client mockClient = mock(Client.class);
+        when(mockClient.threadPool()).thenReturn(threadPool);
+
+        final ScriptService scriptService = new ScriptService(defaultGlobalSettings,
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+        NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(defaultGlobalSettings, mockClient, mockSecurityIndex,
+            scriptService) {
+            @Override
+            protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
+                listener.onResponse(
+                    Arrays.asList(
+                        this.buildMapping("m1", new BytesArray("{" +
+                            "\"role_templates\":[{\"template\":{\"source\":\"_user_{{metadata.uid}}\"}}]," +
+                            "\"enabled\":true," +
+                            "\"rules\":{ \"any\":[" +
+                            " { \"field\":{\"realm.name\":\"ldap1\"}}," +
+                            " { \"field\":{\"realm.name\":\"ldap2\"}}" +
+                            "]}}")),
+                        this.buildMapping("m2", new BytesArray("{" +
+                            "\"roles\":[\"should_not_happen\"]," +
+                            "\"enabled\":true," +
+                            "\"rules\":{ \"all\":[" +
+                            " { \"field\":{\"realm.name\":\"ldap1\"}}," +
+                            " { \"field\":{\"realm.name\":\"ldap2\"}}" +
+                            "]}}")),
+                        this.buildMapping("m3", new BytesArray("{" +
+                            "\"roles\":[\"sales_admin\"]," +
+                            "\"enabled\":true," +
+                            "\"rules\":" +
+                            " { \"field\":{\"dn\":\"*,ou=people,o=sevenSeas\"}}" +
+                            "}"))
+                    )
+                );
+            }
+        };
+        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService, threadPool);
+        LdapRealm ldap = new LdapRealm(config, ldapFactory,
+            roleMapper, threadPool);
+        ldap.initialize(Collections.singleton(ldap), licenseState);
+
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", new SecureString(PASSWORD)), future);
+        final AuthenticationResult result = future.actionGet();
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        User user = result.getUser();
+        assertThat(user, notNullValue());
+        assertThat(user.roles(), arrayContainingInAnyOrder("_user_hhornblo", "sales_admin"));
+    }
+
+    /**
      * The contract for {@link Realm} implementations is that they should log-and-return-null (and
      * not call {@link ActionListener#onFailure(Exception)}) if there is an internal exception that prevented them from performing an
      * authentication.
@@ -408,6 +508,7 @@ public class LdapRealmTests extends LdapTestCase {
         Settings settings = Settings.builder()
             .put(defaultGlobalSettings)
             .put(buildLdapSettings(new String[]{url.toString()}, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER, RealmSettings.ORDER_SETTING), 0)
             .build();
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService, threadPool);
@@ -449,7 +550,7 @@ public class LdapRealmTests extends LdapTestCase {
 
         RealmConfig config = getRealmConfig(identifier, settings.build());
 
-        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, new SSLService(config.settings(), config.env()), threadPool);
+        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, new SSLService(config.env()), threadPool);
         LdapRealm realm = new LdapRealm(config, ldapFactory, new DnRoleMapper(config, resourceWatcherService), threadPool);
         realm.initialize(Collections.singleton(realm), licenseState);
 

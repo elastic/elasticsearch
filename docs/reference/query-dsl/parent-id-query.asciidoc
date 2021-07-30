@@ -1,70 +1,112 @@
 [[query-dsl-parent-id-query]]
-=== Parent Id Query
+=== Parent ID query
+++++
+<titleabbrev>Parent ID</titleabbrev>
+++++
 
-The `parent_id` query can be used to find child documents which belong to a particular parent.
-Given the following mapping definition:
+Returns child documents <<parent-join,joined>> to a specific parent document.
+You can use a <<parent-join,join>> field mapping to create parent-child
+relationships between documents in the same index.
 
-[source,js]
---------------------------------------------
-PUT my_index
+[[parent-id-query-ex-request]]
+==== Example request
+
+[[parent-id-index-setup]]
+===== Index setup
+To use the `parent_id` query, your index must include a <<parent-join,join>>
+field mapping. To see how you can set up an index for the `parent_id` query, try
+the following example.
+
+. Create an index with a <<parent-join,join>> field mapping.
++
+--
+[source,console]
+----
+PUT /my-index-000001
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "relations": {
-            "my_parent": "my_child"
-          }
+    "properties": {
+      "my-join-field": {
+        "type": "join",
+        "relations": {
+          "my-parent": "my-child"
         }
       }
     }
   }
 }
 
-PUT my_index/_doc/1?refresh
-{
-  "text": "This is a parent document",
-  "my_join_field": "my_parent"
-}
+----
+// TESTSETUP
+--
 
-PUT my_index/_doc/2?routing=1&refresh
+. Index a parent document with an ID of `1`.
++
+--
+[source,console]
+----
+PUT /my-index-000001/_doc/1?refresh
 {
-  "text": "This is a child document",
+  "text": "This is a parent document.",
+  "my-join-field": "my-parent"
+}
+----
+--
+
+. Index a child document of the parent document.
++
+--
+[source,console]
+----
+PUT /my-index-000001/_doc/2?routing=1&refresh
+{
+  "text": "This is a child document.",
   "my_join_field": {
-    "name": "my_child",
+    "name": "my-child",
     "parent": "1"
   }
 }
+----
+--
 
---------------------------------------------
-// CONSOLE
-// TESTSETUP
+[[parent-id-query-ex-query]]
+===== Example query
 
-[source,js]
---------------------------------------------------
-GET /my_index/_search
+The following search returns child documents for a parent document with an ID of
+`1`.
+
+[source,console]
+----
+GET /my-index-000001/_search
 {
   "query": {
-    "parent_id": {
-      "type": "my_child",
-      "id": "1"
-    }
+      "parent_id": {
+          "type": "my-child",
+          "id": "1"
+      }
   }
 }
---------------------------------------------------
-// CONSOLE
+----
 
+[[parent-id-top-level-params]]
+==== Top-level parameters for `parent_id`
 
-==== Parameters
+`type`::
+(Required, string) Name of the child relationship mapped for the
+<<parent-join,join>> field.
 
-This query has two required parameters:
+`id`::
+(Required, string) ID of the parent document. The query will return child
+documents of this parent document.
 
-[horizontal]
-`type`::  The **child** type name, as specified in the <<parent-join,`join` field>>.
-`id`::    The ID of the parent document.
+`ignore_unmapped`::
++
+--
+(Optional, Boolean) Indicates whether to ignore an unmapped `type` and not
+return any documents instead of an error. Defaults to `false`.
 
-`ignore_unmapped`::  When set to `true` this will ignore an unmapped `type` and will not match any
-documents for this query. This can be useful when querying multiple indexes
-which might have different mappings. When set to `false` (the default value)
-the query will throw an exception if the `type` is not mapped.
+If `false`, {es} returns an error if the `type` is unmapped.
+
+You can use this parameter to query multiple indices that may not contain the
+`type`.
+--

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.plugin;
@@ -21,10 +22,11 @@ import java.io.IOException;
 import java.util.List;
 
 public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeStatsResponse> implements ToXContentObject {
-    
-    public SqlStatsResponse() {
+
+    public SqlStatsResponse(StreamInput in) throws IOException {
+        super(in);
     }
-    
+
     public SqlStatsResponse(ClusterName clusterName, List<NodeStatsResponse> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
@@ -36,7 +38,7 @@ public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeSta
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeStatsResponse> nodes) throws IOException {
-        out.writeStreamableList(nodes);
+        out.writeList(nodes);
     }
 
     @Override
@@ -51,30 +53,26 @@ public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeSta
     }
 
     public static class NodeStatsResponse extends BaseNodeResponse implements ToXContentObject {
-        
+
         private Counters stats;
-        
-        public NodeStatsResponse() {
+
+        public NodeStatsResponse(StreamInput in) throws IOException {
+            super(in);
+            if (in.readBoolean()) {
+                stats = new Counters(in);
+            }
         }
 
         public NodeStatsResponse(DiscoveryNode node) {
             super(node);
         }
-        
+
         public Counters getStats() {
             return stats;
         }
 
         public void setStats(Counters stats) {
             this.stats = stats;
-        }
-        
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            if (in.readBoolean()) {
-                stats = Counters.read(in);
-            }
         }
 
         @Override
@@ -95,11 +93,9 @@ public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeSta
             builder.endObject();
             return builder;
         }
-        
+
         static SqlStatsResponse.NodeStatsResponse readNodeResponse(StreamInput in) throws IOException {
-            SqlStatsResponse.NodeStatsResponse node = new SqlStatsResponse.NodeStatsResponse();
-            node.readFrom(in);
-            return node;
+            return new SqlStatsResponse.NodeStatsResponse(in);
         }
 
     }

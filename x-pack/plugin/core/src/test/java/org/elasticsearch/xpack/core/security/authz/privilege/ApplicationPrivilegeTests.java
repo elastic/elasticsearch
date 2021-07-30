@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
@@ -10,6 +11,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 
 import java.util.Arrays;
@@ -22,9 +24,11 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.iterableWithSize;
 
 public class ApplicationPrivilegeTests extends ESTestCase {
 
@@ -57,6 +61,12 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         // these should all be OK
         for (String app : Arrays.asList("app", "app1", "myApp", "myApp-:;$#%()+='.", "myApp_:;$#%()+='.", appNameWithSpecialChars)) {
             assertNoException(app, () -> ApplicationPrivilege.validateApplicationName(app));
+            assertNoException(app, () -> ApplicationPrivilege.validateApplicationNameOrWildcard(app));
+        }
+
+        // wildcards in the suffix
+        for (String app : Arrays.asList("app1-*", "app1-foo*", "app1-.*", "app1-.foo.*", appNameWithSpecialChars + "*")) {
+            assertValidationFailure(app, "application name", () -> ApplicationPrivilege.validateApplicationName(app));
             assertNoException(app, () -> ApplicationPrivilege.validateApplicationNameOrWildcard(app));
         }
     }
@@ -101,16 +111,23 @@ public class ApplicationPrivilegeTests extends ESTestCase {
     }
 
     public void testGetPrivilegeByName() {
-        final ApplicationPrivilegeDescriptor descriptor = descriptor("my-app", "read", "data:read/*", "action:login");
+        final ApplicationPrivilegeDescriptor myRead = descriptor("my-app", "read", "data:read/*", "action:login");
         final ApplicationPrivilegeDescriptor myWrite = descriptor("my-app", "write", "data:write/*", "action:login");
         final ApplicationPrivilegeDescriptor myAdmin = descriptor("my-app", "admin", "data:read/*", "action:*");
         final ApplicationPrivilegeDescriptor yourRead = descriptor("your-app", "read", "data:read/*", "action:login");
-        final Set<ApplicationPrivilegeDescriptor> stored = Sets.newHashSet(descriptor, myWrite, myAdmin, yourRead);
+        final Set<ApplicationPrivilegeDescriptor> stored = Sets.newHashSet(myRead, myWrite, myAdmin, yourRead);
 
-        assertEqual(ApplicationPrivilege.get("my-app", Collections.singleton("read"), stored), descriptor);
-        assertEqual(ApplicationPrivilege.get("my-app", Collections.singleton("write"), stored), myWrite);
+        final Set<ApplicationPrivilege> myAppRead = ApplicationPrivilege.get("my-app", Collections.singleton("read"), stored);
+        assertThat(myAppRead, iterableWithSize(1));
+        assertPrivilegeEquals(myAppRead.iterator().next(), myRead);
 
-        final ApplicationPrivilege readWrite = ApplicationPrivilege.get("my-app", Sets.newHashSet("read", "write"), stored);
+        final Set<ApplicationPrivilege> myAppWrite = ApplicationPrivilege.get("my-app", Collections.singleton("write"), stored);
+        assertThat(myAppWrite, iterableWithSize(1));
+        assertPrivilegeEquals(myAppWrite.iterator().next(), myWrite);
+
+        final Set<ApplicationPrivilege> myReadWrite = ApplicationPrivilege.get("my-app", Sets.newHashSet("read", "write"), stored);
+        assertThat(myReadWrite, Matchers.hasSize(1));
+        final ApplicationPrivilege readWrite = myReadWrite.iterator().next();
         assertThat(readWrite.getApplication(), equalTo("my-app"));
         assertThat(readWrite.name(), containsInAnyOrder("read", "write"));
         assertThat(readWrite.getPatterns(), arrayContainingInAnyOrder("data:read/*", "data:write/*", "action:login"));
@@ -124,10 +141,10 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         }
     }
 
-    private void assertEqual(ApplicationPrivilege myReadPriv, ApplicationPrivilegeDescriptor myRead) {
-        assertThat(myReadPriv.getApplication(), equalTo(myRead.getApplication()));
-        assertThat(getPrivilegeName(myReadPriv), equalTo(myRead.getName()));
-        assertThat(Sets.newHashSet(myReadPriv.getPatterns()), equalTo(myRead.getActions()));
+    private void assertPrivilegeEquals(ApplicationPrivilege privilege, ApplicationPrivilegeDescriptor descriptor) {
+        assertThat(privilege.getApplication(), equalTo(descriptor.getApplication()));
+        assertThat(privilege.name(), contains(descriptor.getName()));
+        assertThat(Sets.newHashSet(privilege.getPatterns()), equalTo(descriptor.getActions()));
     }
 
     private ApplicationPrivilegeDescriptor descriptor(String application, String name, String... actions) {

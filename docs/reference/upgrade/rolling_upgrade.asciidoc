@@ -1,24 +1,53 @@
 [[rolling-upgrades]]
 == Rolling upgrades
 
-A rolling upgrade allows an Elasticsearch cluster to be upgraded one node at
+A rolling upgrade allows an {es} cluster to be upgraded one node at
 a time so upgrading does not interrupt service. Running multiple versions of
-Elasticsearch in the same cluster beyond the duration of an upgrade is
+{es} in the same cluster beyond the duration of an upgrade is
 not supported, as shards cannot be replicated from upgraded nodes to nodes
 running the older version.
 
-Rolling upgrades can be performed between minor versions. Elasticsearch
-6.x supports rolling upgrades from *Elasticsearch 5.6*.
-Upgrading from earlier 5.x versions requires a <<restart-upgrade,
-full cluster restart>>. You must <<reindex-upgrade,reindex to upgrade>> from
-versions prior to 5.x.
+We strongly recommend that when you upgrade you divide your cluster's nodes
+into the following two groups and upgrade the groups in this order:
 
-WARNING: If the {es} {security-features} are enabled on your 5.x cluster, before
-you can do a rolling upgrade you must encrypt the internode-communication with
-SSL/TLS, which requires a full cluster restart. For more information about this
-requirement and the associated bootstrap check, see <<bootstrap-checks-tls>>.
+. Nodes that are not <<master-node,master-eligible>>. You can retrieve a list
+of these nodes with `GET /_nodes/_all,master:false` or by finding all the nodes
+configured with `node.master: false`.
 
-To perform a rolling upgrade:
+. Master-eligible nodes, which are the remaining nodes. You can retrieve a list
+of these nodes with `GET /_nodes/master:true`.
+
+You may upgrade the nodes within each of these groups in any order.
+
+Upgrading the nodes in this order ensures that the master-ineligible nodes are
+always running a version at least as new as the master-eligible nodes. Newer
+nodes can always join a cluster with an older master, but older nodes cannot
+always join a cluster with a newer master. By upgrading the master-eligible
+nodes last you ensure that all the master-ineligible nodes will be able to join
+the cluster whether the master-eligible nodes have been upgraded or not. If you
+upgrade any master-eligible nodes before the master-ineligible nodes then there
+is a risk that the older nodes will leave the cluster and will not be able to
+rejoin until they have been upgraded.
+
+Rolling upgrades are supported:
+
+* Between minor versions
+* {stack-ref-68}/upgrading-elastic-stack.html[From 5.6 to 6.8]
+* {stack-ref-70}/upgrading-elastic-stack.html[From 6.8 to 7.0]
+* From {prev-major-version} to {version}
+ifeval::[ "{version}" != "{minor-version}.0" ]
+* From any version since {minor-version}.0 to {version}
+endif::[]
+
+Upgrading directly to {version} from 6.6 or earlier requires a
+<<restart-upgrade, full cluster restart>>.
+
+include::preparing_to_upgrade.asciidoc[]
+
+[discrete]
+=== Upgrading your cluster
+
+To perform a rolling upgrade to {version}:
 
 . *Disable shard allocation*.
 +
@@ -26,19 +55,24 @@ To perform a rolling upgrade:
 include::disable-shard-alloc.asciidoc[]
 --
 
-. *Stop non-essential indexing and perform a synced flush.* (Optional)
+. *Stop non-essential indexing and perform a flush.* (Optional)
 +
 --
 While you can continue indexing during the upgrade, shard recovery
 is much faster if you temporarily stop non-essential indexing and perform a
-<<indices-synced-flush, synced-flush>>.
+<<indices-flush, flush>>.
 
-include::synced-flush.asciidoc[]
-
+[source,console]
+--------------------------------------------------
+POST /_flush
+--------------------------------------------------
 --
 
-. *Stop any machine learning jobs that are running.* See
-{xpack-ref}/stopping-ml.html[Stopping Machine Learning].
+. *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
++
+--
+include::close-ml.asciidoc[]
+--
 
 . [[upgrade-node]] *Shut down a single node*.
 +
@@ -49,19 +83,27 @@ include::shut-down-node.asciidoc[]
 . *Upgrade the node you shut down.*
 +
 --
-include::remove-xpack.asciidoc[]
---
-+
---
 include::upgrade-node.asciidoc[]
 include::set-paths-tip.asciidoc[]
+
+[[rolling-upgrades-bootstrapping]]
+NOTE: You should leave `cluster.initial_master_nodes` unset while performing a
+rolling upgrade. Each upgraded node is joining an existing cluster so there is
+no need for <<modules-discovery-bootstrap-cluster,cluster bootstrapping>>. You
+must configure <<built-in-hosts-providers,either `discovery.seed_hosts` or
+`discovery.seed_providers`>> on every node.
 --
 
 . *Upgrade any plugins.*
 +
 Use the `elasticsearch-plugin` script to install the upgraded version of each
-installed Elasticsearch plugin. All plugins must be upgraded when you upgrade
+installed {es} plugin. All plugins must be upgraded when you upgrade
 a node.
+
+. If you use {es} {security-features} to define realms, verify that your realm
+settings are up-to-date. The format of realm settings changed in version 7.0, in
+particular, the placement of the realm type changed. See
+<<realm-settings,Realm settings>>.
 
 . *Start the upgraded node.*
 +
@@ -70,21 +112,21 @@ a node.
 Start the newly-upgraded node and confirm that it joins the cluster by checking
 the log file or by submitting a `_cat/nodes` request:
 
-[source,sh]
+[source,console]
 --------------------------------------------------
 GET _cat/nodes
 --------------------------------------------------
-// CONSOLE
 --
 
 . *Reenable shard allocation.*
 +
 --
 
-Once the node has joined the cluster, remove the `cluster.routing.allocation.enable`
-setting to enable shard allocation and start using the node:
+For data nodes, once the node has joined the cluster, remove the
+`cluster.routing.allocation.enable` setting to enable shard allocation and start
+using the node:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _cluster/settings
 {
@@ -93,7 +135,6 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
-// CONSOLE
 --
 
 . *Wait for the node to recover.*
@@ -103,14 +144,13 @@ PUT _cluster/settings
 Before upgrading the next node, wait for the cluster to finish shard allocation.
 You can check progress by submitting a <<cat-health,`_cat/health`>> request:
 
-[source,sh]
+[source,console]
 --------------------------------------------------
-GET _cat/health
+GET _cat/health?v=true
 --------------------------------------------------
-// CONSOLE
 
-Wait for the `status` column to switch from `yellow` to `green`. Once the
-node is `green`, all primary and replica shards have been allocated.
+Wait for the `status` column to switch to `green`. Once the node is `green`, all
+primary and replica shards have been allocated.
 
 [IMPORTANT]
 ====================================================
@@ -130,15 +170,14 @@ As soon as another node is upgraded, the replicas can be assigned and the
 status will change to `green`.
 ====================================================
 
-Shards that were not <<indices-synced-flush,sync-flushed>> might take longer to
-recover.  You can monitor the recovery status of individual shards by
+Shards that were not <<indices-flush,flushed>> might take longer to
+recover. You can monitor the recovery status of individual shards by
 submitting a <<cat-recovery,`_cat/recovery`>> request:
 
-[source,sh]
+[source,console]
 --------------------------------------------------
 GET _cat/recovery
 --------------------------------------------------
-// CONSOLE
 
 If you stopped indexing, it is safe to resume indexing as soon as
 recovery completes.
@@ -148,26 +187,59 @@ recovery completes.
 +
 --
 
-When  the node has recovered and the cluster is stable, repeat these steps
-for each node that needs to be updated.
+When the node has recovered and the cluster is stable, repeat these steps
+for each node that needs to be updated. You can monitor the health of the cluster
+with a <<cat-health,`_cat/health`>> request:
+
+[source,console]
+--------------------------------------------------
+GET /_cat/health?v=true
+--------------------------------------------------
+
+And check which nodes have been upgraded with a <<cat-nodes,`_cat/nodes`>> request:
+
+[source,console]
+--------------------------------------------------
+GET /_cat/nodes?h=ip,name,version&v=true
+--------------------------------------------------
 
 --
 
 . *Restart machine learning jobs.*
++
+--
+include::open-ml.asciidoc[]
+--
+
 
 [IMPORTANT]
 ====================================================
 
 During a rolling upgrade, the cluster continues to operate normally. However,
 any new functionality is disabled or operates in a backward compatible mode
-until all nodes in the cluster are upgraded. New functionality
-becomes operational once the upgrade is complete and all nodes are running the
-new version. Once that has happened, there's no way to return to operating
-in a backward compatible mode. Nodes running the previous major version will
-not be allowed to join the fully-updated cluster.
+until all nodes in the cluster are upgraded. New functionality becomes
+operational once the upgrade is complete and all nodes are running the new
+version. Once that has happened, there's no way to return to operating in a
+backward compatible mode. Nodes running the previous version will not be
+allowed to join the fully-updated cluster.
 
 In the unlikely case of a network malfunction during the upgrade process that
-isolates all remaining old nodes from the cluster, you must take the
-old nodes offline and upgrade them to enable them to join the cluster.
+isolates all remaining old nodes from the cluster, you must take the old nodes
+offline and upgrade them to enable them to join the cluster.
+
+If you stop half or more of the master-eligible nodes all at once during the
+upgrade then the cluster will become unavailable, meaning that the upgrade is
+no longer a _rolling_ upgrade. If this happens, you should upgrade and restart
+all of the stopped master-eligible nodes to allow the cluster to form again, as
+if performing a <<restart-upgrade,full-cluster restart upgrade>>. It may also
+be necessary to upgrade all of the remaining old nodes before they can join the
+cluster after it re-forms.
+
+Similarly, if you run a testing/development environment with only one master
+node, the master node should be upgraded last. Restarting a single master node
+forces the cluster to be reformed. The new cluster will initially only have the
+upgraded master node and will thus reject the older nodes when they re-join the
+cluster. Nodes that have already been upgraded will successfully re-join the
+upgraded master.
 
 ====================================================

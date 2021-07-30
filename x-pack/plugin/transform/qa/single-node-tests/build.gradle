@@ -1,0 +1,14 @@
+
+apply plugin: 'elasticsearch.java-rest-test'
+
+dependencies {
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(path: xpackModule('transform'))
+}
+
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  user username: "x_pack_rest_user", password: "x-pack-test-password"
+}

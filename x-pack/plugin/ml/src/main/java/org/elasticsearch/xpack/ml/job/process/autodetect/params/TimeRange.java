@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
@@ -9,7 +10,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.util.Objects;
 
@@ -84,7 +85,7 @@ public class TimeRange {
         private TimeRange createTimeRange(String start, String end) {
             Long epochStart = null;
             Long epochEnd = null;
-            if (!start.isEmpty()) {
+            if (start.isEmpty() == false) {
                 epochStart = paramToEpochIfValidOrThrow(START_PARAM, start) / MILLISECONDS_IN_SECOND;
                 epochEnd = paramToEpochIfValidOrThrow(END_PARAM, end) / MILLISECONDS_IN_SECOND;
                 if (end.isEmpty() || epochEnd.equals(epochStart)) {
@@ -95,7 +96,7 @@ public class TimeRange {
                     throw new IllegalArgumentException(msg);
                 }
             } else {
-                if (!end.isEmpty()) {
+                if (end.isEmpty() == false) {
                     epochEnd = paramToEpochIfValidOrThrow(END_PARAM, end) / MILLISECONDS_IN_SECOND;
                 }
             }

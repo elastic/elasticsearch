@@ -1,32 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -87,34 +72,12 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
         }
     }
 
-    public void testHistogramOrderBwc() throws IOException {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            BucketOrder order = createTestInstance();
-            Version bwcVersion = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
-                VersionUtils.getPreviousVersion(Version.V_6_0_0_alpha2));
-            boolean bwcOrderFlag = randomBoolean();
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(bwcVersion);
-                InternalOrder.Streams.writeHistogramOrder(order, out, bwcOrderFlag);
-                try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(bwcVersion);
-                    BucketOrder actual = InternalOrder.Streams.readHistogramOrder(in, bwcOrderFlag);
-                    BucketOrder expected = order;
-                    if (order instanceof CompoundOrder) {
-                        expected = ((CompoundOrder) order).orderElements.get(0);
-                    }
-                    assertEquals(expected, actual);
-                }
-            }
-        }
-    }
-
     public void testAggregationOrderEqualsAndHashCode() {
         String path = randomAlphaOfLength(10);
         boolean asc = randomBoolean();
         BucketOrder o1 = BucketOrder.aggregation(path, asc);
         BucketOrder o2 = BucketOrder.aggregation(path + "test", asc);
-        BucketOrder o3 = BucketOrder.aggregation(path, !asc);
+        BucketOrder o3 = BucketOrder.aggregation(path, asc == false);
         BucketOrder o4 = BucketOrder.aggregation(path, asc);
         assertNotEquals(o1, o2);
         assertNotEquals(o1.hashCode(), o2.hashCode());

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.shard;
@@ -26,19 +15,21 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
@@ -46,9 +37,12 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -71,11 +65,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.hamcrest.Matchers.arrayContaining;
 
 /**
  * Tests how {@linkplain RefreshListeners} interacts with {@linkplain InternalEngine}.
@@ -86,6 +82,7 @@ public class RefreshListenersTests extends ESTestCase {
     private volatile int maxListeners;
     private ThreadPool threadPool;
     private Store store;
+    private MeanMetric refreshMetric;
 
     @Before
     public void setupListeners() throws Exception {
@@ -93,13 +90,13 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = randomIntBetween(1, 1000);
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new TestThreadPool(getTestName());
+        refreshMetric = new MeanMetric();
         listeners = new RefreshListeners(
                 () -> maxListeners,
                 () -> engine.refresh("too-many-listeners"),
-                // Immediately run listeners rather than adding them to the listener thread pool like IndexShard does to simplify the test.
-                Runnable::run,
                 logger,
-                threadPool.getThreadContext());
+                threadPool.getThreadContext(),
+                refreshMetric);
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
@@ -115,19 +112,35 @@ public class RefreshListenersTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
-        store.createEmpty(Version.CURRENT.luceneVersion);
+        store.createEmpty();
         final long primaryTerm = randomNonNegativeLong();
         final String translogUUID =
             Translog.createEmptyTranslog(translogConfig.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm);
         store.associateIndexWithNewTranslog(translogUUID);
-        EngineConfig config = new EngineConfig(shardId, allocationId, threadPool,
-            indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
-            eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-            TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), Collections.emptyList(), null,
-            new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, () -> primaryTerm,
-            EngineTestCase.tombstoneDocSupplier());
+        EngineConfig config = new EngineConfig(
+                shardId,
+                threadPool,
+                indexSettings,
+                null,
+                store,
+                newMergePolicy(),
+                iwc.getAnalyzer(),
+                iwc.getSimilarity(),
+                new CodecService(null, logger),
+                eventListener,
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                translogConfig,
+                TimeValue.timeValueMinutes(5),
+                Collections.singletonList(listeners),
+                Collections.emptyList(),
+                null,
+                new NoneCircuitBreakerService(),
+                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                () -> RetentionLeases.EMPTY,
+                () -> primaryTerm,
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
         engine = new InternalEngine(config);
-        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
     }
@@ -279,7 +292,7 @@ public class RefreshListenersTests extends ESTestCase {
                 if (immediate) {
                     assertNotNull(listener.forcedRefresh.get());
                 } else {
-                    assertBusy(() -> assertNotNull(listener.forcedRefresh.get()));
+                    assertBusy(() -> assertNotNull(listener.forcedRefresh.get()), 1, TimeUnit.MINUTES);
                 }
                 assertFalse(listener.forcedRefresh.get());
                 listener.assertNoError();
@@ -314,19 +327,21 @@ public class RefreshListenersTests extends ESTestCase {
 
                         DummyRefreshListener listener = new DummyRefreshListener();
                         listeners.addOrNotify(index.getTranslogLocation(), listener);
-                        assertBusy(() -> assertNotNull("listener never called", listener.forcedRefresh.get()));
+                        assertBusy(() -> assertNotNull("listener never called", listener.forcedRefresh.get()), 1, TimeUnit.MINUTES);
                         if (threadCount < maxListeners) {
                             assertFalse(listener.forcedRefresh.get());
                         }
                         listener.assertNoError();
 
-                        Engine.Get get = new Engine.Get(false, false, "test", threadId, new Term(IdFieldMapper.NAME, threadId));
-                        try (Engine.GetResult getResult = engine.get(get, engine::acquireSearcher)) {
+                        Engine.Get get = new Engine.Get(false, false, threadId);
+                        MapperService mapperService = EngineTestCase.createMapperService();
+                        try (Engine.GetResult getResult = engine.get(get, mapperService.mappingLookup(), mapperService.documentParser(),
+                            EngineTestCase.randomSearcherWrapper())) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
                             org.apache.lucene.document.Document document =
                                     getResult.docIdAndVersion().reader.document(getResult.docIdAndVersion().docId);
-                            assertEquals(new String[] {testFieldValue}, document.getValues("test"));
+                            assertThat(document.getValues("test"), arrayContaining(testFieldValue));
                         }
                     } catch (Exception t) {
                         throw new RuntimeException("failure on the [" + iteration + "] iteration of thread [" + threadId + "]", t);
@@ -342,14 +357,49 @@ public class RefreshListenersTests extends ESTestCase {
         refresher.cancel();
     }
 
+    public void testDisallowAddListeners() throws Exception {
+        assertEquals(0, listeners.pendingCount());
+        DummyRefreshListener listener = new DummyRefreshListener();
+        assertFalse(listeners.addOrNotify(index("1").getTranslogLocation(), listener));
+        engine.refresh("I said so");
+        assertFalse(listener.forcedRefresh.get());
+        listener.assertNoError();
+
+        try (Releasable releaseable1 = listeners.forceRefreshes()) {
+            listener = new DummyRefreshListener();
+            assertTrue(listeners.addOrNotify(index("1").getTranslogLocation(), listener));
+            assertTrue(listener.forcedRefresh.get());
+            listener.assertNoError();
+            assertEquals(0, listeners.pendingCount());
+
+            try (Releasable releaseable2 = listeners.forceRefreshes()) {
+                listener = new DummyRefreshListener();
+                assertTrue(listeners.addOrNotify(index("1").getTranslogLocation(), listener));
+                assertTrue(listener.forcedRefresh.get());
+                listener.assertNoError();
+                assertEquals(0, listeners.pendingCount());
+            }
+
+            listener = new DummyRefreshListener();
+            assertTrue(listeners.addOrNotify(index("1").getTranslogLocation(), listener));
+            assertTrue(listener.forcedRefresh.get());
+            listener.assertNoError();
+            assertEquals(0, listeners.pendingCount());
+        }
+
+        assertFalse(listeners.addOrNotify(index("1").getTranslogLocation(), new DummyRefreshListener()));
+        assertEquals(1, listeners.pendingCount());
+    }
+
     private Engine.IndexResult index(String id) throws IOException {
         return index(id, "test");
     }
 
     private Engine.IndexResult index(String id, String testFieldValue) throws IOException {
-        Document document = new Document();
+        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+        LuceneDocument document = new LuceneDocument();
         document.add(new TextField("test", testFieldValue, Field.Store.YES));
-        Field idField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
+        Field idField = new Field(uid.field(), uid.bytes(), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(idField);
@@ -358,9 +408,8 @@ public class RefreshListenersTests extends ESTestCase {
         document.add(seqID.seqNoDocValue);
         document.add(seqID.primaryTerm);
         BytesReference source = new BytesArray(new byte[] { 1 });
-        ParsedDocument doc = new ParsedDocument(versionField, seqID, id, "test", null, Arrays.asList(document), source, XContentType.JSON,
-            null);
-        Engine.Index index = new Engine.Index(new Term("_id", doc.id()), engine.config().getPrimaryTermSupplier().getAsLong(), doc);
+        ParsedDocument doc = new ParsedDocument(versionField, seqID, id, null, Arrays.asList(document), source, XContentType.JSON, null);
+        Engine.Index index = new Engine.Index(uid, engine.config().getPrimaryTermSupplier().getAsLong(), doc);
         return engine.index(index);
     }
 

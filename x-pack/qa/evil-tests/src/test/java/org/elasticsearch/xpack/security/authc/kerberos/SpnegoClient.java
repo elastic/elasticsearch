@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.kerberos;
@@ -9,7 +10,7 @@ package org.elasticsearch.xpack.security.authc.kerberos;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.SecureString;
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
@@ -17,17 +18,6 @@ import org.ietf.jgss.GSSException;
 import org.ietf.jgss.GSSManager;
 import org.ietf.jgss.GSSName;
 import org.ietf.jgss.Oid;
-
-import java.io.IOException;
-import java.security.AccessController;
-import java.security.Principal;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
 
 import javax.security.auth.Subject;
 import javax.security.auth.callback.Callback;
@@ -39,6 +29,16 @@ import javax.security.auth.login.AppConfigurationEntry;
 import javax.security.auth.login.Configuration;
 import javax.security.auth.login.LoginContext;
 import javax.security.auth.login.LoginException;
+
+import java.io.IOException;
+import java.security.AccessController;
+import java.security.Principal;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * This class is used as a Spnego client during testing and handles SPNEGO
@@ -196,16 +196,17 @@ class SpnegoClient implements AutoCloseable {
 
         @Override
         public AppConfigurationEntry[] getAppConfigurationEntry(final String name) {
-            final Map<String, String> options = new HashMap<>();
-            options.put("principal", principal);
-            options.put("storeKey", Boolean.TRUE.toString());
-            options.put("isInitiator", Boolean.TRUE.toString());
-            options.put("debug", Boolean.TRUE.toString());
-            // Refresh Krb5 config during tests as the port keeps changing for kdc server
-            options.put("refreshKrb5Config", Boolean.TRUE.toString());
 
-            return new AppConfigurationEntry[] { new AppConfigurationEntry(SUN_KRB5_LOGIN_MODULE,
-                    AppConfigurationEntry.LoginModuleControlFlag.REQUIRED, Collections.unmodifiableMap(options)) };
+            return new AppConfigurationEntry[]{new AppConfigurationEntry(
+                    SUN_KRB5_LOGIN_MODULE,
+                    AppConfigurationEntry.LoginModuleControlFlag.REQUIRED,
+                    Map.of(
+                            "principal", principal,
+                            "storeKey", Boolean.TRUE.toString(),
+                            "isInitiator", Boolean.TRUE.toString(),
+                            "debug", Boolean.TRUE.toString(),
+                            // refresh Krb5 config during tests as the port keeps changing for kdc server
+                            "refreshKrb5Config", Boolean.TRUE.toString()))};
         }
     }
 

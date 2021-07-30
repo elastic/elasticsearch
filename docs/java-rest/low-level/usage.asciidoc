@@ -13,8 +13,8 @@ The javadoc for the low level REST client can be found at {rest-client-javadoc}/
 === Maven Repository
 
 The low-level Java REST client is hosted on
-http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
-Central]. The minimum Java version required is `1.7`.
+https://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
+Central]. The minimum Java version required is `1.8`.
 
 The low-level REST client is subject to the same release cycle as
 Elasticsearch. Replace the version with the desired client version, first
@@ -57,7 +57,7 @@ dependencies {
 === Dependencies
 
 The low-level Java REST client internally uses the
-http://hc.apache.org/httpcomponents-asyncclient-dev/[Apache Http Async Client]
+https://hc.apache.org/httpcomponents-asyncclient-dev/[Apache Http Async Client]
  to send http requests. It depends on the following artifacts, namely the async
  http client and its own transitive dependencies:
 
@@ -182,15 +182,6 @@ prevent having to specify them with each single request
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-max-retry-timeout]
---------------------------------------------------
-<1> Set the timeout that should be honoured in case multiple attempts are made
-for the same request. The default value is 30 seconds, same as the default
-socket timeout. In case the socket timeout is customized, the maximum retry
-timeout should be adjusted accordingly
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-failure-listener]
 --------------------------------------------------
 <1> Set a listener that gets notified every time a node fails,  in case actions
@@ -221,7 +212,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-client
 --------------------------------------------------
 <1> Set a callback that allows to modify the http client configuration
 (e.g. encrypted communication over ssl, or anything that the
-http://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
+https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
  allows to set)
 
 
@@ -233,7 +224,7 @@ Once the `RestClient` has been created, requests can be sent by calling either
 will block the calling thread and return the `Response` when the request is
 successful or throw an exception if it fails. `performRequestAsync` is
 asynchronous and accepts a `ResponseListener` argument that it calls with a
-`Response` when the request is successful or with an `Exception` if it4 fails.
+`Response` when the request is successful or with an `Exception` if it fails.
 
 This is synchronous:
 
@@ -301,7 +292,7 @@ header because the client will automatically set that from the `HttpEntity`
 attached to the request.
 
 You can set the `NodeSelector` which controls which nodes will receive
-requests. `NodeSelector.NOT_MASTER_ONLY` is a good choice.
+requests. `NodeSelector.SKIP_DEDICATED_MASTERS` is a good choice.
 
 You can also customize the response consumer used to buffer the asynchronous
 responses. The default consumer will buffer up to 100MB of response on the
@@ -328,7 +319,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-options-cus
 
 The client is quite happy to execute many actions in parallel. The following
 example indexes many documents in parallel. In a real world scenario you'd
-probably want to use the `_bulk` API instead, but the example is illustative.
+probably want to use the `_bulk` API instead, but the example is illustrative.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -337,6 +328,28 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-async-examp
 <1> Process the returned response
 <2> Handle the returned exception, due to communication error or a response
 with status code that indicates an error
+
+==== Cancelling asynchronous requests
+
+The `performRequestAsync` method returns a `Cancellable` that exposes a single
+public method called `cancel`. Such method can be called to cancel the on-going
+request. Cancelling a request will result in aborting the http request through
+the underlying http client. On the server side, this does not automatically
+translate to the execution of that request being cancelled, which needs to be
+specifically implemented in the API itself.
+
+The use of the `Cancellable` instance is optional and you can safely ignore this
+if you don't need it. A typical usecase for this would be using this together with 
+frameworks like Rx Java or the Kotlin's `suspendCancellableCoRoutine`. Cancelling
+no longer needed requests is a good way to avoid putting unnecessary 
+load on Elasticsearch.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-async-cancel]
+--------------------------------------------------
+<1> Process the returned response, in case it was ready before the request got cancelled
+<2> Handle the returned exception, which will most likely be a `CancellationException` as the request got cancelled
 
 [[java-rest-low-usage-responses]]
 === Reading responses
@@ -388,7 +401,7 @@ https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/Ht
 `HttpEntity#getContent` method comes handy which returns an `InputStream`
 reading from the previously buffered response body. As an alternative, it is
 possible to provide a custom
-http://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
+https://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
  that controls how bytes are read and buffered.
 
 [[java-rest-low-usage-logging]]

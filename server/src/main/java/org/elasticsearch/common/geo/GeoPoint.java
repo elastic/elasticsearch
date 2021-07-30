@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo;
@@ -25,21 +14,26 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.geo.GeoUtils.EffectivePoint;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Locale;
 
-import static org.elasticsearch.common.geo.GeoHashUtils.mortonEncode;
-import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
+public class GeoPoint implements ToXContentFragment {
 
-public final class GeoPoint implements ToXContentFragment {
-
-    private double lat;
-    private double lon;
+    protected double lat;
+    protected double lon;
 
     public GeoPoint() {
     }
@@ -80,14 +74,16 @@ public final class GeoPoint implements ToXContentFragment {
     }
 
     public GeoPoint resetFromString(String value) {
-        return resetFromString(value, false);
+        return resetFromString(value, false, EffectivePoint.BOTTOM_LEFT);
     }
 
-    public GeoPoint resetFromString(String value, final boolean ignoreZValue) {
-        if (value.contains(",")) {
+    public GeoPoint resetFromString(String value, final boolean ignoreZValue, EffectivePoint effectivePoint) {
+        if (value.toLowerCase(Locale.ROOT).contains("point")) {
+            return resetFromWKT(value, ignoreZValue);
+        } else if (value.contains(",")) {
             return resetFromCoordinates(value, ignoreZValue);
         }
-        return resetFromGeoHash(value);
+        return parseGeoHash(value, effectivePoint);
     }
 
 
@@ -115,10 +111,42 @@ public final class GeoPoint implements ToXContentFragment {
         return reset(lat, lon);
     }
 
+    private GeoPoint resetFromWKT(String value, boolean ignoreZValue) {
+        Geometry geometry;
+        try {
+            geometry = WellKnownText.fromWKT(GeographyValidator.instance(ignoreZValue), false, value);
+        } catch (Exception e) {
+            throw new ElasticsearchParseException("Invalid WKT format", e);
+        }
+        if (geometry.type() != ShapeType.POINT) {
+            throw new ElasticsearchParseException("[geo_point] supports only POINT among WKT primitives, " +
+                "but found " + geometry.type());
+        }
+        Point point = (Point) geometry;
+        return reset(point.getY(), point.getX());
+    }
+
+    GeoPoint parseGeoHash(String geohash, EffectivePoint effectivePoint) {
+        if (effectivePoint == EffectivePoint.BOTTOM_LEFT) {
+            return resetFromGeoHash(geohash);
+        } else {
+            Rectangle rectangle = Geohash.toBoundingBox(geohash);
+            switch (effectivePoint) {
+                case TOP_LEFT:
+                    return reset(rectangle.getMaxY(), rectangle.getMinX());
+                case TOP_RIGHT:
+                    return reset(rectangle.getMaxY(), rectangle.getMaxX());
+                case BOTTOM_RIGHT:
+                    return reset(rectangle.getMinY(), rectangle.getMaxX());
+                default:
+                    throw new IllegalArgumentException("Unsupported effective point " + effectivePoint);
+            }
+        }
+    }
 
     public GeoPoint resetFromIndexHash(long hash) {
-        lon = GeoHashUtils.decodeLongitude(hash);
-        lat = GeoHashUtils.decodeLatitude(hash);
+        lon = Geohash.decodeLongitude(hash);
+        lat = Geohash.decodeLatitude(hash);
         return this;
     }
 
@@ -143,11 +171,11 @@ public final class GeoPoint implements ToXContentFragment {
     public GeoPoint resetFromGeoHash(String geohash) {
         final long hash;
         try {
-            hash = mortonEncode(geohash);
+            hash = Geohash.mortonEncode(geohash);
         } catch (IllegalArgumentException ex) {
             throw new ElasticsearchParseException(ex.getMessage(), ex);
         }
-        return this.reset(GeoHashUtils.decodeLatitude(hash), GeoHashUtils.decodeLongitude(hash));
+        return this.reset(Geohash.decodeLatitude(hash), Geohash.decodeLongitude(hash));
     }
 
     public GeoPoint resetFromGeoHash(long geohashLong) {
@@ -172,11 +200,11 @@ public final class GeoPoint implements ToXContentFragment {
     }
 
     public String geohash() {
-        return stringEncode(lon, lat);
+        return Geohash.stringEncode(lon, lat);
     }
 
     public String getGeohash() {
-        return stringEncode(lon, lat);
+        return Geohash.stringEncode(lon, lat);
     }
 
     @Override
@@ -208,11 +236,6 @@ public final class GeoPoint implements ToXContentFragment {
         return lat + ", " + lon;
     }
 
-    public static GeoPoint parseFromLatLon(String latLon) {
-        GeoPoint point = new GeoPoint(latLon);
-        return point;
-    }
-
     public static GeoPoint fromGeohash(String geohash) {
         return new GeoPoint().resetFromGeoHash(geohash);
     }
@@ -228,8 +251,8 @@ public final class GeoPoint implements ToXContentFragment {
 
     public static double assertZValue(final boolean ignoreZValue, double zValue) {
         if (ignoreZValue == false) {
-            throw new ElasticsearchParseException("Exception parsing coordinates: found Z value [{}] but [{}] "
-                + "parameter is [{}]", zValue, IGNORE_Z_VALUE, ignoreZValue);
+            throw new ElasticsearchParseException("Exception parsing coordinates: found Z value [{}] but [ignore_z_value] "
+                + "parameter is [{}]", zValue, ignoreZValue);
         }
         return zValue;
     }

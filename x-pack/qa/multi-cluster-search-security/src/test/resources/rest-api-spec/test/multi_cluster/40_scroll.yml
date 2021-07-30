@@ -11,21 +11,16 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "s3krit",
+              "password": "s3krit-password",
               "roles" : [ "x_cluster_role" ]
             }
-  - do:
+  - do:  # Remote indices only CCS does not require any privileges on the local cluster
       security.put_role:
         name: "x_cluster_role"
         body:  >
             {
-              "cluster": ["all"],
-              "indices": [
-                {
-                  "names": ["local_index", "my_remote_cluster:test_i*", "my_remote_cluster:aliased_test_index", "test_remote_cluster:test_i*", "my_remote_cluster:secure_alias"],
-                  "privileges": ["read"]
-                }
-              ]
+              "cluster": [],
+              "indices": []
             }
 ---
 teardown:
@@ -41,7 +36,7 @@ teardown:
 "Scroll on the mixed cluster":
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: my_remote_cluster:test_index
@@ -52,6 +47,9 @@ teardown:
           query:
             match_all: {}
 
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
   - set: {_scroll_id: scroll_id}
   - match: {hits.total:      6    }
   - length: {hits.hits:      4    }
@@ -61,18 +59,19 @@ teardown:
   - match: {hits.hits.3._source.filter_field: 0 }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       scroll:
         rest_total_hits_as_int: true
         body: { "scroll_id": "$scroll_id", "scroll": "1m"}
 
+  - is_false: _clusters
   - match: {hits.total:      6    }
   - length: {hits.hits:      2    }
   - match: {hits.hits.0._source.filter_field: 1 }
   - match: {hits.hits.1._source.filter_field: 1 }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       scroll:
         rest_total_hits_as_int: true
         scroll_id: $scroll_id
@@ -82,14 +81,14 @@ teardown:
   - length: {hits.hits:      0    }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       clear_scroll:
         scroll_id: $scroll_id
 
 ---
 "Steal Scroll ID on the mixed cluster":
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: my_remote_cluster:test_index
@@ -100,6 +99,9 @@ teardown:
           query:
             match_all: {}
 
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
   - set: {_scroll_id: scroll_id}
   - match: {hits.total:      6    }
   - length: {hits.hits:      4    }
@@ -115,7 +117,7 @@ teardown:
         body: { "scroll_id": "$scroll_id", "scroll": "1m"}
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       catch: missing
       clear_scroll:
         scroll_id: $scroll_id

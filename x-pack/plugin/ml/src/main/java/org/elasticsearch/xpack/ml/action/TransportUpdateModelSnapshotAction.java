@@ -1,10 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -23,7 +26,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -36,6 +38,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportUpdateModelSnapshotAction extends HandledTransportAction<UpdateModelSnapshotAction.Request,
         UpdateModelSnapshotAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportUpdateModelSnapshotAction.class);
 
     private final JobResultsProvider jobResultsProvider;
     private final Client client;
@@ -76,12 +80,11 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<U
         if (request.getRetain() != null) {
             updatedSnapshotBuilder.setRetain(request.getRetain());
         }
-        return new Result(target.index, updatedSnapshotBuilder.build());
+        return new Result<>(target.index, updatedSnapshotBuilder.build());
     }
 
     private void indexModelSnapshot(Result<ModelSnapshot> modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
-        IndexRequest indexRequest = new IndexRequest(modelSnapshot.index, ElasticsearchMappings.DOC_TYPE,
-                ModelSnapshot.documentId(modelSnapshot.result));
+        IndexRequest indexRequest = new IndexRequest(modelSnapshot.index).id(ModelSnapshot.documentId(modelSnapshot.result));
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             modelSnapshot.result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             indexRequest.source(builder);

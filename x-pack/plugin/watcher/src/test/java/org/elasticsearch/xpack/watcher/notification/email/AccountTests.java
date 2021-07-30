@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
@@ -116,8 +117,9 @@ public class AccountTests extends ESTestCase {
         String password = null;
         if (randomBoolean()) {
             password = randomAlphaOfLength(8);
-            smtpBuilder.put("password", password);
-            smtpProps.put("mail.smtp.password", password);
+            final MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString("smtp." + Account.SECURE_PASSWORD_SETTING.getKey(), password);
+            builder.setSecureSettings(secureSettings);
         }
         for (int i = 0; i < 5; i++) {
             String name = randomAlphaOfLength(5);
@@ -140,7 +142,7 @@ public class AccountTests extends ESTestCase {
 
         Settings settings = builder.build();
 
-        Account.Config config = new Account.Config(accountName, settings);
+        Account.Config config = new Account.Config(accountName, settings, null, logger);
 
         assertThat(config.profile, is(profile));
         assertThat(config.defaults, equalTo(emailDefaults));
@@ -157,12 +159,14 @@ public class AccountTests extends ESTestCase {
     }
 
     public void testSend() throws Exception {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("smtp." + Account.SECURE_PASSWORD_SETTING.getKey(), EmailServer.PASSWORD);
         Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
                 .put("smtp.user", EmailServer.USERNAME)
-                .put("smtp.password", EmailServer.PASSWORD)
-                .build()), null, logger);
+                .setSecureSettings(secureSettings)
+                .build(), null, logger), null, logger);
 
         Email email = Email.builder()
                 .id("_id")
@@ -186,18 +190,20 @@ public class AccountTests extends ESTestCase {
 
         account.send(email, null, Profile.STANDARD);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting for email too long");
         }
     }
 
     public void testSendCCAndBCC() throws Exception {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("smtp." + Account.SECURE_PASSWORD_SETTING.getKey(), EmailServer.PASSWORD);
         Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
                 .put("smtp.user", EmailServer.USERNAME)
-                .put("smtp.password", EmailServer.PASSWORD)
-                .build()), null, logger);
+                .setSecureSettings(secureSettings)
+                .build(), null, logger), null, logger);
 
         Email email = Email.builder()
                 .id("_id")
@@ -226,7 +232,7 @@ public class AccountTests extends ESTestCase {
 
         account.send(email, null, Profile.STANDARD);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting for email too long");
         }
     }
@@ -235,7 +241,7 @@ public class AccountTests extends ESTestCase {
         Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
-                .build()), null, logger);
+                .build(), null, logger), null, logger);
 
         Email email = Email.builder()
                 .id("_id")
@@ -250,7 +256,7 @@ public class AccountTests extends ESTestCase {
 
         account.send(email, new Authentication(EmailServer.USERNAME, new Secret(EmailServer.PASSWORD.toCharArray())), Profile.STANDARD);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting for email too long");
         }
     }
@@ -259,7 +265,7 @@ public class AccountTests extends ESTestCase {
         Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
-                .build()), null, logger);
+                .build(), null, logger), null, logger);
 
         Properties mailProperties = account.getConfig().smtp.properties;
         assertThat(mailProperties.get("mail.smtp.connectiontimeout"), is(String.valueOf(TimeValue.timeValueMinutes(2).millis())));
@@ -274,7 +280,7 @@ public class AccountTests extends ESTestCase {
                 .put("smtp.connection_timeout", TimeValue.timeValueMinutes(4))
                 .put("smtp.write_timeout", TimeValue.timeValueMinutes(6))
                 .put("smtp.timeout", TimeValue.timeValueMinutes(8))
-                .build()), null, logger);
+                .build(), null, logger), null, logger);
 
         Properties mailProperties = account.getConfig().smtp.properties;
 
@@ -289,33 +295,8 @@ public class AccountTests extends ESTestCase {
                     .put("smtp.host", "localhost")
                     .put("smtp.port", server.port())
                     .put("smtp.connection_timeout", 4000)
-                    .build()), null, logger);
+                    .build(), null, logger), null, logger);
         });
     }
 
-    public void testEnsurePasswordSetAsSecureSetting() {
-        String password = "password";
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("smtp.secure_password", password);
-
-        Settings settings = Settings.builder()
-            .put("smtp.host", "localhost")
-            .put("smtp.port", server.port())
-            .put("smtp.connection_timeout", TimeValue.timeValueMinutes(4))
-            .setSecureSettings(secureSettings)
-            .build();
-
-        Account.Config config = new Account.Config("default", settings);
-        assertThat(config.smtp.password.getChars(), equalTo(password.toCharArray()));
-
-        settings = Settings.builder()
-            .put("smtp.host", "localhost")
-            .put("smtp.port", server.port())
-            .put("smtp.connection_timeout", TimeValue.timeValueMinutes(4))
-            .put("smtp.password", password)
-            .build();
-
-        config = new Account.Config("default", settings);
-        assertThat(config.smtp.password.getChars(), equalTo(password.toCharArray()));
-    }
 }

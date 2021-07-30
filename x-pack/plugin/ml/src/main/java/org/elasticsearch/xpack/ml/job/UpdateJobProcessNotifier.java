@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job;
 
@@ -13,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -115,8 +116,8 @@ public class UpdateJobProcessNotifier {
             return;
         }
 
-        Request request = new Request(update.getJobId(), update.getModelPlotConfig(), update.getDetectorUpdates(), update.getFilter(),
-                update.isUpdateScheduledEvents());
+        Request request = new Request(update.getJobId(), update.getModelPlotConfig(), update.getPerPartitionCategorizationConfig(),
+            update.getDetectorUpdates(), update.getFilter(), update.isUpdateScheduledEvents());
 
         executeAsyncWithOrigin(client, ML_ORIGIN, UpdateProcessAction.INSTANCE, request,
                 new ActionListener<Response>() {
@@ -135,13 +136,14 @@ public class UpdateJobProcessNotifier {
 
                     @Override
                     public void onFailure(Exception e) {
-                        if (e instanceof ResourceNotFoundException) {
+                        Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        if (cause instanceof ResourceNotFoundException) {
                             logger.debug("Remote job [{}] not updated as it has been deleted", update.getJobId());
-                        } else if (e.getMessage().contains("because job [" + update.getJobId() + "] is not open")
-                                && e instanceof ElasticsearchStatusException) {
+                        } else if (cause.getMessage().contains("because job [" + update.getJobId() + "] is not open")
+                                && cause instanceof ElasticsearchStatusException) {
                             logger.debug("Remote job [{}] not updated as it is no longer open", update.getJobId());
                         } else {
-                            logger.error("Failed to update remote job [" + update.getJobId() + "]", e);
+                            logger.error("Failed to update remote job [" + update.getJobId() + "]", cause);
                         }
                         updateHolder.listener.onFailure(e);
                         executeProcessUpdates(updatesIterator);

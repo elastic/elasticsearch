@@ -1,0 +1,4 @@
+testClusters.matching { it.name == "integTest" }.configureEach {
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+}

@@ -1,203 +1,221 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.geo.LatLonGeometry;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.SimpleFeatureFactory;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.common.xcontent.support.MapXContentParser;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointDVIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.GeoPointFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.FieldValues;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
+import java.io.UncheckedIOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.index.mapper.TypeParsers.parseField;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Field Mapper for geo_point types.
  *
  * Uses lucene 6 LatLonPoint encoding
  */
-public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapperParser {
+public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoint> {
+
     public static final String CONTENT_TYPE = "geo_point";
 
-    public static class Names {
-        public static final String IGNORE_MALFORMED = "ignore_malformed";
-        public static final ParseField IGNORE_Z_VALUE = new ParseField("ignore_z_value");
-        public static final String NULL_VALUE = "null_value";
+    private static Builder builder(FieldMapper in) {
+        return ((GeoPointFieldMapper)in).builder;
     }
 
-    public static class Defaults {
-        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
-        public static final GeoPointFieldType FIELD_TYPE = new GeoPointFieldType();
-        public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
+    public static class Builder extends FieldMapper.Builder {
 
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setHasDocValues(true);
-            FIELD_TYPE.setDimensions(2, Integer.BYTES);
-            FIELD_TYPE.freeze();
-        }
-    }
+        final Parameter<Explicit<Boolean>> ignoreMalformed;
+        final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
+        final Parameter<GeoPoint> nullValue;
+        final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
+        final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
+        final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
+        private final Parameter<Script> script = Parameter.scriptParam(m -> builder(m).script.get());
+        private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> builder(m).onScriptError.get(), script);
+        final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-    public static class Builder extends FieldMapper.Builder<Builder, GeoPointFieldMapper> {
-        protected Boolean ignoreMalformed;
-        private Boolean ignoreZValue;
+        private final ScriptCompiler scriptCompiler;
 
-        public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
-        }
-
-        public Builder ignoreMalformed(boolean ignoreMalformed) {
-            this.ignoreMalformed = ignoreMalformed;
-            return builder;
-        }
-
-        protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
-            if (ignoreMalformed != null) {
-                return new Explicit<>(ignoreMalformed, true);
-            }
-            if (context.indexSettings() != null) {
-                return new Explicit<>(IGNORE_MALFORMED_SETTING.get(context.indexSettings()), false);
-            }
-            return GeoPointFieldMapper.Defaults.IGNORE_MALFORMED;
+        public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault) {
+            super(name);
+            this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
+            this.nullValue = nullValueParam(
+                m -> builder(m).nullValue.get(),
+                (n, c, o) -> parseNullValue(o, ignoreZValue.get().value(), ignoreMalformed.get().value()),
+                () -> null).acceptsNull();
+            this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
+            this.script.precludesParameters(nullValue, ignoreMalformed, ignoreZValue);
+            addScriptValidation(script, indexed, hasDocValues);
         }
 
-        protected Explicit<Boolean> ignoreZValue(BuilderContext context) {
-            if (ignoreZValue != null) {
-                return new Explicit<>(ignoreZValue, true);
-            }
-            return Defaults.IGNORE_Z_VALUE;
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return Arrays.asList(hasDocValues, indexed, stored, ignoreMalformed, ignoreZValue, nullValue, script, onScriptError, meta);
         }
 
-        public Builder ignoreZValue(final boolean ignoreZValue) {
-            this.ignoreZValue = ignoreZValue;
+        public Builder docValues(boolean hasDocValues) {
+            this.hasDocValues.setValue(hasDocValues);
             return this;
         }
 
-        public GeoPointFieldMapper build(BuilderContext context, String simpleName, MappedFieldType fieldType,
-                                         MappedFieldType defaultFieldType, Settings indexSettings,
-                                         MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                                         Explicit<Boolean> ignoreZValue, CopyTo copyTo) {
-            setupFieldType(context);
-            return new GeoPointFieldMapper(simpleName, fieldType, defaultFieldType, indexSettings, multiFields,
-                ignoreMalformed, ignoreZValue, copyTo);
+        private static GeoPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
+            if (nullValue == null) {
+                return null;
+            }
+            GeoPoint point = new GeoPoint();
+            GeoUtils.parseGeoPoint(nullValue, point, ignoreZValue);
+            if (ignoreMalformed == false) {
+                if (point.lat() > 90.0 || point.lat() < -90.0) {
+                    throw new IllegalArgumentException("illegal latitude value [" + point.lat() + "]");
+                }
+                if (point.lon() > 180.0 || point.lon() < -180) {
+                    throw new IllegalArgumentException("illegal longitude value [" + point.lon() + "]");
+                }
+            } else {
+                GeoUtils.normalizePoint(point);
+            }
+            return point;
+        }
+
+        private FieldValues<GeoPoint> scriptValues() {
+            if (this.script.get() == null) {
+                return null;
+            }
+            GeoPointFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), GeoPointFieldScript.CONTEXT);
+            return factory == null ? null : (lookup, ctx, doc, consumer) -> factory
+                .newFactory(name, script.get().getParams(), lookup)
+                .newInstance(ctx)
+                .runGeoPointForDoc(doc, consumer);
         }
 
         @Override
-        public GeoPointFieldMapper build(BuilderContext context) {
-            return build(context, name, fieldType, defaultFieldType, context.indexSettings(),
-                multiFieldsBuilder.build(this, context), ignoreMalformed(context),
-                ignoreZValue(context), copyTo);
+        public FieldMapper build(ContentPath contentPath) {
+            Parser<GeoPoint> geoParser = new GeoPointParser(
+                name,
+                GeoPoint::new,
+                (parser, point) -> {
+                    GeoUtils.parseGeoPoint(parser, point, ignoreZValue.get().value());
+                    return point;
+                },
+                nullValue.get(),
+                ignoreZValue.get().value(),
+                ignoreMalformed.get().value());
+            GeoPointFieldType ft = new GeoPointFieldType(
+                buildFullName(contentPath),
+                indexed.get(),
+                stored.get(),
+                hasDocValues.get(),
+                geoParser,
+                scriptValues(),
+                meta.get());
+            if (this.script.get() == null) {
+                return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),
+                    copyTo.build(), geoParser, this);
+            }
+            return new GeoPointFieldMapper(name, ft, geoParser, this);
         }
+
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            Builder builder = new GeoPointFieldMapper.Builder(name);
-            parseField(builder, name, node, parserContext);
-            Object nullValue = null;
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
-                Object propNode = entry.getValue();
+    public static TypeParser PARSER
+        = new TypeParser((n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings())));
 
-                if (propName.equals(Names.IGNORE_MALFORMED)) {
-                    builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + "." + Names.IGNORE_MALFORMED));
-                    iterator.remove();
-                } else if (propName.equals(Names.IGNORE_Z_VALUE.getPreferredName())) {
-                    builder.ignoreZValue(XContentMapValues.nodeBooleanValue(propNode,
-                            name + "." + Names.IGNORE_Z_VALUE.getPreferredName()));
-                    iterator.remove();
-                } else if (propName.equals(Names.NULL_VALUE)) {
-                    if (propNode == null) {
-                        throw new MapperParsingException("Property [null_value] cannot be null.");
-                    }
-                    nullValue = propNode;
-                    iterator.remove();
-                }
-            }
+    private final Builder builder;
+    private final FieldValues<GeoPoint> scriptValues;
 
-            if (nullValue != null) {
-                boolean ignoreZValue = builder.ignoreZValue == null ? Defaults.IGNORE_Z_VALUE.value() : builder.ignoreZValue;
-                boolean ignoreMalformed = builder.ignoreMalformed == null ? Defaults.IGNORE_MALFORMED.value() : builder.ignoreZValue;
-                GeoPoint point = GeoUtils.parseGeoPoint(nullValue, ignoreZValue);
-                if (ignoreMalformed == false) {
-                    if (point.lat() > 90.0 || point.lat() < -90.0) {
-                        throw new IllegalArgumentException("illegal latitude value [" + point.lat() + "]");
-                    }
-                    if (point.lon() > 180.0 || point.lon() < -180) {
-                        throw new IllegalArgumentException("illegal longitude value [" + point.lon() + "]");
-                    }
-                } else {
-                    GeoUtils.normalizePoint(point);
-                }
-                builder.nullValue(point);
-            }
-            return builder;
-        }
+    public GeoPointFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                               MultiFields multiFields, CopyTo copyTo,
+                               Parser<GeoPoint> parser,
+                               Builder builder) {
+        super(simpleName, mappedFieldType, multiFields,
+            builder.ignoreMalformed.get(), builder.ignoreZValue.get(), builder.nullValue.get(),
+            copyTo, parser);
+        this.builder = builder;
+        this.scriptValues = null;
     }
 
-    protected Explicit<Boolean> ignoreMalformed;
-    protected Explicit<Boolean> ignoreZValue;
-
-    public GeoPointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                               Settings indexSettings, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                               Explicit<Boolean> ignoreZValue, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
-        this.ignoreMalformed = ignoreMalformed;
-        this.ignoreZValue = ignoreZValue;
+    public GeoPointFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                               Parser<GeoPoint> parser, Builder builder) {
+        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty(), parser, builder.onScriptError.get());
+        this.builder = builder;
+        this.scriptValues = builder.scriptValues();
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        GeoPointFieldMapper gpfmMergeWith = (GeoPointFieldMapper) mergeWith;
-        if (gpfmMergeWith.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = gpfmMergeWith.ignoreMalformed;
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), builder.scriptCompiler, builder.ignoreMalformed.getDefaultValue().value()).init(this);
+    }
+
+    @Override
+    protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
+        if (fieldType().isSearchable()) {
+            context.doc().add(new LatLonPoint(fieldType().name(), geometry.lat(), geometry.lon()));
         }
-        if (gpfmMergeWith.ignoreZValue.explicit()) {
-            this.ignoreZValue = gpfmMergeWith.ignoreZValue;
+        if (fieldType().hasDocValues()) {
+            context.doc().add(new LatLonDocValuesField(fieldType().name(), geometry.lat(), geometry.lon()));
+        } else if (fieldType().isStored() || fieldType().isSearchable()) {
+            context.addToFieldNames(fieldType().name());
         }
+        if (fieldType().isStored()) {
+            context.doc().add(new StoredField(fieldType().name(), geometry.toString()));
+        }
+        // TODO phase out geohash (which is currently used in the CompletionSuggester)
+        multiFields.parse(this, context.switchParser(MapXContentParser.wrapObject(geometry.geohash())));
+    }
+
+    @Override
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
+        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, point -> {
+            try {
+                index(documentParserContext, point);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);  // only thrown by MultiFields which is always null
+            }
+        });
     }
 
     @Override
@@ -205,17 +223,19 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         return CONTENT_TYPE;
     }
 
-    @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
-    }
+    public static class GeoPointFieldType extends AbstractGeometryFieldType<GeoPoint> implements GeoShapeQueryable {
 
-    public static class GeoPointFieldType extends MappedFieldType {
-        public GeoPointFieldType() {
+        private final FieldValues<GeoPoint> scriptValues;
+
+        private GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                                  Parser<GeoPoint> parser, FieldValues<GeoPoint> scriptValues, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, parser, meta);
+            this.scriptValues = scriptValues;
         }
 
-        GeoPointFieldType(GeoPointFieldType ref) {
-            super(ref);
+        // only used in test
+        public GeoPointFieldType(String name) {
+            this(name, true, false, true, null, null, Collections.emptyMap());
         }
 
         @Override
@@ -224,178 +244,105 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         }
 
         @Override
-        public MappedFieldType clone() {
-            return new GeoPointFieldType(this);
+        protected  Function<List<GeoPoint>, List<Object>> getFormatter(String format) {
+            return GeoFormatterFactory.getFormatter(format, p -> new Point(p.getLon(), p.getLat()),
+                (z, x, y, extent) -> {
+                    final SimpleFeatureFactory featureFactory = new SimpleFeatureFactory(z, x, y, extent);
+                    return points -> List.of(featureFactory.points(points));
+                });
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            failIfNoDocValues();
-            return new AbstractLatLonPointDVIndexFieldData.Builder();
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (scriptValues == null) {
+                return super.valueFetcher(context, format);
+            }
+            Function<List<GeoPoint>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
+            return FieldValues.valueListFetcher(scriptValues, formatter, context);
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+            final LatLonGeometry[] luceneGeometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, shape, relation);
+            if (luceneGeometries.length == 0) {
+                return new MatchNoDocsQuery();
+            }
+            final ShapeField.QueryRelation luceneRelation;
+            if (shape.type() == ShapeType.POINT && relation == ShapeRelation.INTERSECTS) {
+                // For point queries and intersects, lucene does not match points that are encoded to Integer.MAX_VALUE.
+                // We use contains instead.
+                luceneRelation = ShapeField.QueryRelation.CONTAINS;
+            } else {
+                luceneRelation = relation.getLuceneRelation();
+            }
+            Query query = LatLonPoint.newGeometryQuery(fieldName, luceneRelation, luceneGeometries);
             if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+                Query dvQuery = LatLonDocValuesField.newSlowGeometryQuery(fieldName, luceneRelation, luceneGeometries);
+                query = new IndexOrDocValuesQuery(query, dvQuery);
             }
+            return query;
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead: ["
-                + name() + "]");
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues();
+            return new AbstractLatLonPointIndexFieldData.Builder(name(), CoreValuesSourceType.GEOPOINT);
+        }
+
+        @Override
+        public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
+            GeoPoint originGeoPoint;
+            if (origin instanceof GeoPoint) {
+                originGeoPoint = (GeoPoint) origin;
+            } else if (origin instanceof String) {
+                originGeoPoint = GeoUtils.parseFromString((String) origin);
+            } else {
+                throw new IllegalArgumentException("Illegal type ["+ origin.getClass() + "] for [origin]! " +
+                    "Must be of type [geo_point] or [string] for geo_point fields!");
+            }
+            double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
+            // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
+            return LatLonPoint.newDistanceFeatureQuery(name(), 1.0f, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
         }
     }
 
-    protected void parse(ParseContext context, GeoPoint point) throws IOException {
+    /** GeoPoint parser implementation */
+    private static class GeoPointParser extends PointParser<GeoPoint> {
 
-        if (ignoreMalformed.value() == false) {
-            if (point.lat() > 90.0 || point.lat() < -90.0) {
-                throw new IllegalArgumentException("illegal latitude value [" + point.lat() + "] for " + name());
-            }
-            if (point.lon() > 180.0 || point.lon() < -180) {
-                throw new IllegalArgumentException("illegal longitude value [" + point.lon() + "] for " + name());
-            }
-        } else {
-            if (isNormalizable(point.lat()) && isNormalizable(point.lon())) {
-                GeoUtils.normalizePoint(point);
+        GeoPointParser(String field,
+                       Supplier<GeoPoint> pointSupplier,
+                       CheckedBiFunction<XContentParser, GeoPoint, GeoPoint, IOException> objectParser,
+                       GeoPoint nullValue,
+                       boolean ignoreZValue,
+                       boolean ignoreMalformed) {
+            super(field, pointSupplier, objectParser, nullValue, ignoreZValue, ignoreMalformed);
+        }
+
+        protected GeoPoint validate(GeoPoint in) {
+            if (ignoreMalformed == false) {
+                if (in.lat() > 90.0 || in.lat() < -90.0) {
+                    throw new IllegalArgumentException("illegal latitude value [" + in.lat() + "] for " + field);
+                }
+                if (in.lon() > 180.0 || in.lon() < -180) {
+                    throw new IllegalArgumentException("illegal longitude value [" + in.lon() + "] for " + field);
+                }
             } else {
-                throw new ElasticsearchParseException("cannot normalize the point - not a number");
-            }
-        }
-        if (fieldType().indexOptions() != IndexOptions.NONE) {
-            context.doc().add(new LatLonPoint(fieldType().name(), point.lat(), point.lon()));
-        }
-        if (fieldType().stored()) {
-            context.doc().add(new StoredField(fieldType().name(), point.toString()));
-        }
-        if (fieldType.hasDocValues()) {
-            context.doc().add(new LatLonDocValuesField(fieldType().name(), point.lat(), point.lon()));
-        } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
-            List<IndexableField> fields = new ArrayList<>(1);
-            createFieldNamesField(context, fields);
-            for (IndexableField field : fields) {
-                context.doc().add(field);
-            }
-        }
-        // if the mapping contains multifields then use the geohash string
-        if (multiFields.iterator().hasNext()) {
-            multiFields.parse(this, context.createExternalValueContext(point.geohash()));
-        }
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        context.path().add(simpleName());
-
-        try {
-            GeoPoint sparse = context.parseExternalValue(GeoPoint.class);
-
-            if (sparse != null) {
-                parse(context, sparse);
-            } else {
-                sparse = new GeoPoint();
-                XContentParser.Token token = context.parser().currentToken();
-                if (token == XContentParser.Token.START_ARRAY) {
-                    token = context.parser().nextToken();
-                    if (token == XContentParser.Token.START_ARRAY) {
-                        // its an array of array of lon/lat [ [1.2, 1.3], [1.4, 1.5] ]
-                        while (token != XContentParser.Token.END_ARRAY) {
-                            parseGeoPointIgnoringMalformed(context, sparse);
-                            token = context.parser().nextToken();
-                        }
-                    } else {
-                        // its an array of other possible values
-                        if (token == XContentParser.Token.VALUE_NUMBER) {
-                            double lon = context.parser().doubleValue();
-                            context.parser().nextToken();
-                            double lat = context.parser().doubleValue();
-                            token = context.parser().nextToken();
-                            if (token == XContentParser.Token.VALUE_NUMBER) {
-                                GeoPoint.assertZValue(ignoreZValue.value(), context.parser().doubleValue());
-                            } else if (token != XContentParser.Token.END_ARRAY) {
-                                throw new ElasticsearchParseException("[{}] field type does not accept > 3 dimensions", CONTENT_TYPE);
-                            }
-                            parse(context, sparse.reset(lat, lon));
-                        } else {
-                            while (token != XContentParser.Token.END_ARRAY) {
-                                if (token == XContentParser.Token.VALUE_STRING) {
-                                    parseGeoPointStringIgnoringMalformed(context, sparse);
-                                } else {
-                                    parseGeoPointIgnoringMalformed(context, sparse);
-                                }
-                                token = context.parser().nextToken();
-                            }
-                        }
-                    }
-                } else if (token == XContentParser.Token.VALUE_STRING) {
-                    parseGeoPointStringIgnoringMalformed(context, sparse);
-                } else if (token == XContentParser.Token.VALUE_NULL) {
-                    if (fieldType.nullValue() != null) {
-                        parse(context, (GeoPoint) fieldType.nullValue());
-                    }
+                if (isNormalizable(in.lat()) && isNormalizable(in.lon())) {
+                    GeoUtils.normalizePoint(in);
                 } else {
-                    parseGeoPointIgnoringMalformed(context, sparse);
+                    throw new ElasticsearchParseException("cannot normalize the point - not a number");
                 }
             }
-        } catch (Exception ex) {
-            throw new MapperParsingException("failed to parse field [{}] of type [{}]", ex, fieldType().name(), fieldType().typeName());
+            return in;
         }
 
-        context.path().remove();
-    }
-
-    /**
-     * Parses geopoint represented as an object or an array, ignores malformed geopoints if needed
-     */
-    private void parseGeoPointIgnoringMalformed(ParseContext context, GeoPoint sparse) throws IOException {
-        try {
-            parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse));
-        } catch (ElasticsearchParseException e) {
-            if (ignoreMalformed.value() == false) {
-                throw e;
-            }
-            context.addIgnoredField(fieldType.name());
-        }
-    }
-
-    /**
-     * Parses geopoint represented as a string and ignores malformed geopoints if needed
-     */
-    private void parseGeoPointStringIgnoringMalformed(ParseContext context, GeoPoint sparse) throws IOException {
-        try {
-            parse(context, sparse.resetFromString(context.parser().text(), ignoreZValue.value()));
-        } catch (ElasticsearchParseException e) {
-            if (ignoreMalformed.value() == false) {
-                throw e;
-            }
-            context.addIgnoredField(fieldType.name());
-        }
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-        if (includeDefaults || ignoreMalformed.explicit()) {
-            builder.field(Names.IGNORE_MALFORMED, ignoreMalformed.value());
-        }
-        if (includeDefaults || ignoreZValue.explicit()) {
-            builder.field(Names.IGNORE_Z_VALUE.getPreferredName(), ignoreZValue.value());
+        private boolean isNormalizable(double coord) {
+            return Double.isNaN(coord) == false && Double.isInfinite(coord) == false;
         }
 
-        if (includeDefaults || fieldType().nullValue() != null) {
-            builder.field(Names.NULL_VALUE, fieldType().nullValue());
+        @Override
+        protected void reset(GeoPoint in, double x, double y) {
+            in.reset(y, x);
         }
-    }
-
-    public Explicit<Boolean> ignoreZValue() {
-        return ignoreZValue;
-    }
-
-    private boolean isNormalizable(double coord) {
-        return Double.isNaN(coord) == false && Double.isInfinite(coord) == false;
     }
 }

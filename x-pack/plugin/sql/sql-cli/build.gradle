@@ -1,4 +1,4 @@
-import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 /*
  * This project is named sql-cli because it is in the "org.elasticsearch.plugin"
@@ -8,6 +8,7 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
  */
 
 apply plugin: 'elasticsearch.build'
+apply plugin: 'com.github.johnrengelman.shadow'
 /* We don't use the 'application' plugin because it builds a zip and tgz which
  * we don't want. */
 
@@ -16,125 +17,59 @@ archivesBaseName = 'elasticsearch-sql-cli'
 description = 'Command line interface to Elasticsearch that speaks SQL'
 
 dependencies {
-    compile "org.jline:jline:3.8.2"
-    compile xpackProject('plugin:sql:sql-client')
-    compile xpackProject('plugin:sql:sql-action')
-    compile "org.elasticsearch:elasticsearch-cli:${version}"
 
-    runtime "org.fusesource.jansi:jansi:1.16"
-    runtime "org.elasticsearch:jna:${versions.jna}"
+  // select just the parts of JLine that are needed
+  api "org.jline:jline-terminal:${jlineVersion}"
+  api( "org.jline:jline-terminal-jna:${jlineVersion}") {
+    exclude group: "net.java.dev.jna"
+  }
+  api "org.jline:jline-reader:${jlineVersion}"
+  api "org.jline:jline-style:${jlineVersion}"
 
-    testCompile "org.elasticsearch.test:framework:${version}"
+  api xpackProject('plugin:sql:sql-client')
+  api xpackProject('plugin:sql:sql-action')
+  api project(":libs:elasticsearch-cli")
+  api project(':libs:elasticsearch-x-content')
+  runtimeOnly "org.elasticsearch:jna:${versions.jna}"
+  testImplementation project(":test:framework")
 }
 
-dependencyLicenses {
-    mapping from: /elasticsearch-cli.*/, to: 'elasticsearch'
-    mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
-    mapping from: /jackson-.*/, to: 'jackson'
-    mapping from: /lucene-.*/, to: 'lucene'
-    mapping from: /sql-action.*/, to: 'elasticsearch'
-    mapping from: /sql-client.*/, to: 'elasticsearch'
-    ignoreSha 'elasticsearch-cli'
-    ignoreSha 'elasticsearch-core'
-    ignoreSha 'elasticsearch'
-    ignoreSha 'sql-action'
-    ignoreSha 'sql-client'
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /sql-action.*/, to: 'elasticsearch'
+  mapping from: /sql-client.*/, to: 'elasticsearch'
+  mapping from: /jline-.*/, to: 'jline'
 }
 
-/*
- * Bundle all dependencies into the main jar and mark it as executable it
- * can be easilly shipped around and used.
- */
-jar {
-    from({
-        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
-        configurations.runtime.collect { it.isDirectory() ? it : zipTree(it) }
-    }) {
-        // We don't need the META-INF from the things we bundle. For now.
-        exclude 'META-INF/*'
+tasks.named("shadowJar").configure {
+  manifest {
+    attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'
+  }
+}
+
+tasks.named('forbiddenApisMain').configure {
+  //sql does not depend on server, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
+  signaturesFiles += files('src/forbidden/cli-signatures.txt')
+}
+
+tasks.register("runcli") {
+  description = 'Run the CLI and connect to elasticsearch running on 9200'
+  dependsOn "shadowJar"
+  doLast {
+    List command = ["${BuildParams.runtimeJavaHome}/bin/java"]
+    if ('true'.equals(System.getProperty('debug', 'false'))) {
+      command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
     }
-    manifest {
-        attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'
-    }
-}
+    command += ['-jar', shadowJar.archivePath.absolutePath]
+    logger.info("running the cli with: ${command}")
 
-/*
- * Build a jar that doesn't include the dependencies bundled that we can
- * include with QA tests along side Elasticsearch without breaking
- * jarhell.
- */
-configurations {
-    nodeps
-}
-task nodepsJar(type: Jar) {
-    appendix 'nodeps'
-    from sourceSets.main.output
-}
-artifacts  {
-    nodeps nodepsJar
-}
-
-
-tasks.withType(CheckForbiddenApis) {
-    signaturesFiles += files('src/forbidden/cli-signatures.txt')
-}
-
-thirdPartyAudit.excludes = [
-    // jLine's optional dependencies
-    'org.apache.sshd.client.SshClient',
-    'org.apache.sshd.client.auth.keyboard.UserInteraction',
-    'org.apache.sshd.client.channel.ChannelShell',
-    'org.apache.sshd.client.channel.ClientChannel',
-    'org.apache.sshd.client.channel.ClientChannelEvent',
-    'org.apache.sshd.client.future.AuthFuture',
-    'org.apache.sshd.client.future.ConnectFuture',
-    'org.apache.sshd.client.future.OpenFuture',
-    'org.apache.sshd.client.session.ClientSession',
-    'org.apache.sshd.common.Factory',
-    'org.apache.sshd.common.channel.PtyMode',
-    'org.apache.sshd.common.config.keys.FilePasswordProvider',
-    'org.apache.sshd.common.util.io.NoCloseInputStream',
-    'org.apache.sshd.common.util.io.NoCloseOutputStream',
-    'org.apache.sshd.server.Command',
-    'org.apache.sshd.server.Environment',
-    'org.apache.sshd.server.ExitCallback',
-    'org.apache.sshd.server.SessionAware',
-    'org.apache.sshd.server.Signal',
-    'org.apache.sshd.server.SshServer',
-    'org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider',
-    'org.apache.sshd.server.scp.ScpCommandFactory$Builder',
-    'org.apache.sshd.server.session.ServerSession',
-    'org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory$Builder',
-    'org.mozilla.universalchardet.UniversalDetector',
-    'org.fusesource.jansi.internal.Kernel32$FOCUS_EVENT_RECORD',
-    'org.fusesource.jansi.internal.Kernel32$MOUSE_EVENT_RECORD',
-]
-
-task runcli {
-    description = 'Run the CLI and connect to elasticsearch running on 9200'
-    dependsOn 'assemble'
-    doLast {
-        List command = [new File(project.runtimeJavaHome, 'bin/java').absolutePath]
-        if ('true'.equals(System.getProperty('debug', 'false'))) {
-        command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
-        }
-        command += ['-jar', jar.archivePath.absolutePath]
-        logger.info("running the cli with: ${command}")
-
-        new ProcessBuilder(command)
-            .redirectOutput(ProcessBuilder.Redirect.INHERIT)
-            .redirectInput(ProcessBuilder.Redirect.INHERIT)
-            .redirectError(ProcessBuilder.Redirect.INHERIT)
-            .start()
-            .waitFor()
-    }
-}
-
-// Use the jar for testing so we can get the proper version information
-test {
-    classpath -= compileJava.outputs.files
-    classpath -= configurations.compile
-    classpath -= configurations.runtime
-    classpath += jar.outputs.files
-    dependsOn jar
+    new ProcessBuilder(command)
+      .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+      .redirectInput(ProcessBuilder.Redirect.INHERIT)
+      .redirectError(ProcessBuilder.Redirect.INHERIT)
+      .start()
+      .waitFor()
+  }
 }

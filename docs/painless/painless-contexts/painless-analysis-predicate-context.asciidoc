@@ -30,7 +30,7 @@ analysis chain matches a predicate.
 `token.type` (`String`, read-only)::
         The type of the current token
 
-`token.keyword` ('boolean`, read-only)::
+`token.keyword` (`boolean`, read-only)::
         Whether or not the current token is marked as a keyword
 
 *Return*
@@ -40,4 +40,4 @@ analysis chain matches a predicate.
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+The standard <<painless-api-reference-shared, Painless API>> is available.

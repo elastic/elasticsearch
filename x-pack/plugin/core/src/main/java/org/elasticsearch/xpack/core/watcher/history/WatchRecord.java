@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.history;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionResult;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
+import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -55,13 +56,14 @@ public abstract class WatchRecord implements ToXContentObject {
     // only emitted to xcontent in "debug" mode
     protected final Map<String, Object> vars;
 
-    @Nullable protected final ExecutableInput input;
+    @Nullable protected final ExecutableInput<? extends Input, ? extends Input.Result> input;
     @Nullable protected final ExecutableCondition condition;
     @Nullable protected final Map<String,Object> metadata;
     @Nullable protected final WatchExecutionResult executionResult;
 
-    private WatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state, Map<String, Object> vars, ExecutableInput input,
-                        ExecutableCondition condition, Map<String, Object> metadata, Watch watch, WatchExecutionResult executionResult,
+    private WatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state, Map<String, Object> vars,
+                        ExecutableInput<? extends Input, ? extends Input.Result> input, ExecutableCondition condition,
+                        Map<String, Object> metadata, Watch watch, WatchExecutionResult executionResult,
                         String nodeId, String user) {
         this.id = id;
         this.triggerEvent = triggerEvent;
@@ -131,7 +133,7 @@ public abstract class WatchRecord implements ToXContentObject {
         return id.watchId();
     }
 
-    public ExecutableInput input() { return input; }
+    public ExecutableInput<? extends Input, ? extends Input.Result> input() { return input; }
 
     public ExecutionState state() {
         return state;
@@ -155,6 +157,7 @@ public abstract class WatchRecord implements ToXContentObject {
         builder.field(WATCH_ID.getPreferredName(), id.watchId());
         builder.field(NODE.getPreferredName(), nodeId);
         builder.field(STATE.getPreferredName(), state.id());
+        builder.field("@timestamp", triggerEvent.triggeredTime());
 
         if (user != null) {
             builder.field(USER.getPreferredName(), user);
@@ -166,7 +169,7 @@ public abstract class WatchRecord implements ToXContentObject {
         builder.field(TRIGGER_EVENT.getPreferredName());
         triggerEvent.recordXContent(builder, params);
 
-        if (!vars.isEmpty() && WatcherParams.debug(params)) {
+        if (vars.isEmpty() == false && WatcherParams.debug(params)) {
             builder.field(VARS.getPreferredName(), vars);
         }
 
@@ -271,9 +274,8 @@ public abstract class WatchRecord implements ToXContentObject {
 
     public static class ExceptionWatchRecord extends WatchRecord {
 
-        private static final Map<String, String> STACK_TRACE_ENABLED_PARAMS = MapBuilder.<String, String>newMapBuilder()
-                .put(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false")
-                .immutableMap();
+        private static final Map<String, String> STACK_TRACE_ENABLED_PARAMS =
+                Map.of(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false");
 
         @Nullable private final Exception exception;
 

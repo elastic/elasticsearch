@@ -1,0 +1,383 @@
+---
+setup:
+  - do:
+      indices.create:
+          index:  eql_test
+          body:
+            mappings:
+              runtime:
+                day_of_week:
+                  type: keyword
+                  script:
+                    source: "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: eql_test
+              _id:    1
+          - event:
+              - category: process
+            "@timestamp": 2020-02-03T12:34:56Z
+            user: SYSTEM
+            id: 123
+            valid: false
+          - index:
+              _index: eql_test
+              _id:    2
+          - event:
+              - category: process
+            "@timestamp": 2020-02-04T12:34:56Z
+            user: SYSTEM
+            id: 123
+            valid: true
+          - index:
+              _index: eql_test
+              _id:    3
+          - event:
+              - category: process
+            "@timestamp": 2020-02-05T12:34:56Z
+            user: SYSTEM
+            id: 123
+            valid: true
+
+---
+# Testing round-trip and the basic shape of the response
+"Execute some EQL.":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'process where user == "SYSTEM"'
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 3}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.user: "SYSTEM"}
+  - match: {hits.events.0._id: "1"}
+  - match: {hits.events.1._id: "2"}
+  - match: {hits.events.2._id: "3"}
+
+---
+"Execute EQL events query with fields filtering":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'process where user == "SYSTEM"'
+          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 3}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.user: "SYSTEM"}
+  - match: {hits.events.0._id: "1"}
+  - match: {hits.events.0.fields.@timestamp: ["1580733296000"]}
+  - match: {hits.events.0.fields.id: [123]}
+  - match: {hits.events.0.fields.valid: [false]}
+  - match: {hits.events.0.fields.day_of_week: ["Monday"]}
+  - match: {hits.events.1._id: "2"}
+  - match: {hits.events.1.fields.@timestamp: ["1580819696000"]}
+  - match: {hits.events.1.fields.id: [123]}
+  - match: {hits.events.1.fields.valid: [true]}
+  - match: {hits.events.1.fields.day_of_week: ["Tuesday"]}
+  - match: {hits.events.2._id: "3"}
+  - match: {hits.events.2.fields.@timestamp: ["1580906096000"]}
+  - match: {hits.events.2.fields.id: [123]}
+  - match: {hits.events.2.fields.valid: [true]}
+  - match: {hits.events.2.fields.day_of_week: ["Wednesday"]}
+
+---
+"Execute EQL events query with wildcard (*) fields filtering.":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'process where user == "SYSTEM"'
+          fields: [{"field":"*"}]
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 3}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._id: "1"}
+  - match: {hits.events.0.fields:{"valid":[false],"@timestamp":["2020-02-03T12:34:56.000Z"],"event.category":["process"],"event.category.keyword":["process"],"id":[123],"user.keyword":["SYSTEM"],"user":["SYSTEM"],"day_of_week":["Monday"]}}
+  - match: {hits.events.1._id: "2"}
+  - match: {hits.events.1.fields:{"valid":[true],"@timestamp":["2020-02-04T12:34:56.000Z"],"event.category":["process"],"event.category.keyword":["process"],"id":[123],"user.keyword":["SYSTEM"],"user":["SYSTEM"],"day_of_week":["Tuesday"]}}
+  - match: {hits.events.2._id: "3"}
+  - match: {hits.events.2.fields:{"valid":[true],"@timestamp":["2020-02-05T12:34:56.000Z"],"event.category":["process"],"event.category.keyword":["process"],"id":[123],"user.keyword":["SYSTEM"],"user":["SYSTEM"],"day_of_week":["Wednesday"]}}
+
+---
+"Execute EQL events query with filter_path":
+  - do:
+      eql.search:
+        index: eql_test
+        filter_path: "hits.events._source.event.category,hits.events.fields.user,hits.events.fields.id"
+        body:
+          query: 'process where user == "SYSTEM"'
+          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","user"]
+
+  - match: {hits.events.0._source.event.0.category: "process"}
+  - match: {hits.events.0.fields.id: [123]}
+  - match: {hits.events.0.fields.user: ["SYSTEM"]}
+  - match: {hits.events.1._source.event.0.category: "process"}
+  - match: {hits.events.1.fields.id: [123]}
+  - match: {hits.events.1.fields.user: ["SYSTEM"]}
+  - match: {hits.events.2._source.event.0.category: "process"}
+  - match: {hits.events.2.fields.id: [123]}
+  - match: {hits.events.2.fields.user: ["SYSTEM"]}
+
+---
+"Execute EQL sequence with string key.":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence by user [process where user == "SYSTEM"] [process where true]'
+  - match: {timed_out: false}
+  - match: {hits.total.value: 2}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.1._id: "2"}
+  - match: {hits.sequences.1.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.1.events.0._id: "2"}
+  - match: {hits.sequences.1.events.1._id: "3"}
+
+---
+"Execute EQL sequence with numeric key.":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence by id [process where user == "SYSTEM"] [process where true]'
+  - match: {timed_out: false}
+  - match: {hits.total.value: 2}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: 123}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.1._id: "2"}
+  - match: {hits.sequences.1.join_keys.0: 123}
+  - match: {hits.sequences.1.events.0._id: "2"}
+  - match: {hits.sequences.1.events.1._id: "3"}
+
+---
+"Execute EQL sequence by default ignores unavailable index.":
+  - do:
+      eql.search:
+        index: eql_test,non_existing
+        body:
+          query: 'sequence by valid [process where user == "SYSTEM"] [process where true]'
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: true}
+  - match: {hits.sequences.0.events.0._id: "2"}
+  - match: {hits.sequences.0.events.1._id: "3"}
+
+---
+"Execute EQL sequence by default ignores unavailable index pattern.":
+  - do:
+      eql.search:
+        index: eql_test,non_existing*
+        body:
+          query: 'sequence by valid [process where user == "SYSTEM"] [process where true]'
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: true}
+  - match: {hits.sequences.0.events.0._id: "2"}
+  - match: {hits.sequences.0.events.1._id: "3"}
+
+---
+"Execute EQL sequence with boolean key.":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence by valid [process where user == "SYSTEM"] [process where true]'
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: true}
+  - match: {hits.sequences.0.events.0._id: "2"}
+  - match: {hits.sequences.0.events.1._id: "3"}
+
+---
+"Execute EQL sequence with fields filtering.":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence by user [process where user == "SYSTEM"] [process where true]'
+          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
+  - match: {timed_out: false}
+  - match: {hits.total.value: 2}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.0.fields.@timestamp: ["1580733296000"]}
+  - match: {hits.sequences.0.events.0.fields.id: [123]}
+  - match: {hits.sequences.0.events.0.fields.valid: [false]}
+  - match: {hits.sequences.0.events.0.fields.day_of_week: ["Monday"]}
+  - match: {hits.sequences.0.events.1._id: "2"}
+  - match: {hits.sequences.0.events.1.fields.@timestamp: ["1580819696000"]}
+  - match: {hits.sequences.0.events.1.fields.id: [123]}
+  - match: {hits.sequences.0.events.1.fields.valid: [true]}
+  - match: {hits.sequences.0.events.1.fields.day_of_week: ["Tuesday"]}
+  - match: {hits.sequences.1.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.1.events.0._id: "2"}
+  - match: {hits.sequences.1.events.0.fields.@timestamp: ["1580819696000"]}
+  - match: {hits.sequences.1.events.0.fields.id: [123]}
+  - match: {hits.sequences.1.events.0.fields.valid: [true]}
+  - match: {hits.sequences.1.events.0.fields.day_of_week: ["Tuesday"]}
+  - match: {hits.sequences.1.events.1._id: "3"}
+  - match: {hits.sequences.1.events.1.fields.@timestamp: ["1580906096000"]}
+  - match: {hits.sequences.1.events.1.fields.id: [123]}
+  - match: {hits.sequences.1.events.1.fields.valid: [true]}
+  - match: {hits.sequences.1.events.1.fields.day_of_week: ["Wednesday"]}
+
+---
+"Execute EQL sequence with wildcard (*) fields filtering.":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence by user [process where user == "SYSTEM"] [process where true]'
+          fields: [{"field":"*"}]
+  - match: {timed_out: false}
+  - match: {hits.total.value: 2}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.0.fields:{"valid":[false],"@timestamp":["2020-02-03T12:34:56.000Z"],"event.category":["process"],"event.category.keyword":["process"],"id":[123],"user.keyword":["SYSTEM"],"user":["SYSTEM"],"day_of_week":["Monday"]}}
+  - match: {hits.sequences.0.events.1._id: "2"}
+  - match: {hits.sequences.0.events.1.fields:{"valid":[true],"@timestamp":["2020-02-04T12:34:56.000Z"],"event.category":["process"],"event.category.keyword":["process"],"id":[123],"user.keyword":["SYSTEM"],"user":["SYSTEM"],"day_of_week":["Tuesday"]}}
+  - match: {hits.sequences.1.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.1.events.0._id: "2"}
+  - match: {hits.sequences.1.events.0.fields:{"valid":[true],"@timestamp":["2020-02-04T12:34:56.000Z"],"event.category":["process"],"event.category.keyword":["process"],"id":[123],"user.keyword":["SYSTEM"],"user":["SYSTEM"],"day_of_week":["Tuesday"]}}
+  - match: {hits.sequences.1.events.1._id: "3"}
+  - match: {hits.sequences.1.events.1.fields:{"valid":[true],"@timestamp":["2020-02-05T12:34:56.000Z"],"event.category":["process"],"event.category.keyword":["process"],"id":[123],"user.keyword":["SYSTEM"],"user":["SYSTEM"],"day_of_week":["Wednesday"]}}
+
+---
+"Execute EQL sequence with custom format for timestamp field.":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence by user [process where user == "SYSTEM"] [process where true]'
+          fields: [{"field":"@timestamp","format":"yyyy"},{"field":"day_of_week"}]
+  - match: {timed_out: false}
+  - match: {hits.total.value: 2}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.0.fields:{"@timestamp":["2020"],"day_of_week":["Monday"]}}
+  - match: {hits.sequences.0.events.1._id: "2"}
+  - match: {hits.sequences.0.events.1.fields:{"@timestamp":["2020"],"day_of_week":["Tuesday"]}}
+  - match: {hits.sequences.1.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.1.events.0._id: "2"}
+  - match: {hits.sequences.1.events.0.fields:{"@timestamp":["2020"],"day_of_week":["Tuesday"]}}
+  - match: {hits.sequences.1.events.1._id: "3"}
+  - match: {hits.sequences.1.events.1.fields:{"@timestamp":["2020"],"day_of_week":["Wednesday"]}}
+
+---
+"Execute EQL sequence with filter_path":
+  - do:
+      eql.search:
+        index: eql_test
+        filter_path: "hits.sequences.join_keys,hits.sequences.events.fields.valid"
+        body:
+          query: 'sequence by user [process where user == "SYSTEM"] [process where true]'
+          fields: ["id","valid"]
+  - match: {hits.sequences.0.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.0.events.0.fields.valid: [false]}
+  - match: {hits.sequences.0.events.1.fields.valid: [true]}
+  - match: {hits.sequences.1.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.1.events.0.fields.valid: [true]}
+  - match: {hits.sequences.1.events.1.fields.valid: [true]}
+
+---
+"Execute some EQL in async mode.":
+  - do:
+      eql.search:
+        index: eql_test
+        wait_for_completion_timeout: "0ms"
+        keep_on_completion: true
+        body:
+          query: 'process where user == "SYSTEM"'
+
+  - is_true: id
+  - set: {id: id}
+
+  - do:
+      eql.get:
+        id: $id
+        wait_for_completion_timeout: "10s"
+
+  - match: {is_running: false}
+  - match: {is_partial: false}
+  - match: {timed_out: false}
+  - match: {hits.total.value: 3}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.user: "SYSTEM"}
+
+  - do:
+      eql.delete:
+        id: $id
+  - match: {acknowledged: true}
+
+  - do:
+      catch: missing
+      eql.delete:
+        id: $id
+
+---
+"EQL status API":
+
+  - do:
+      eql.search:
+        index: eql_test
+        keep_on_completion: true
+        wait_for_completion_timeout: "0ms"
+        body:
+          query: 'process where user == "SYSTEM"'
+  - is_true: id
+  - set: { id: id }
+
+  # status for eql search that may be completed or not
+  - do:
+      eql.get_status:
+        id: $id
+  - match: { id: $id }
+  - set: { is_running: run_status }
+  - match: { is_partial: $run_status }
+  - is_true: expiration_time_in_millis
+
+  # wait for the certain completion
+  - do:
+      eql.get:
+        id: $id
+        wait_for_completion_timeout: "10s"
+
+  # status for completed eql search
+  - do:
+      eql.get_status:
+        id: $id
+  - match: { id: $id }
+  - match: { is_running: false }
+  - match: { is_partial: false }
+  - is_false: start_time_in_millis
+  - is_true: expiration_time_in_millis
+  - match: { completion_status: 200 }
+
+  - do:
+      eql.delete:
+        id: $id
+  - match: { acknowledged: true }
+
+  # status for a deleted/missing eql search
+  - do:
+      catch: missing
+      eql.get_status:
+        id: $id

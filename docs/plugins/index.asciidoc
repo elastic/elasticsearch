@@ -14,7 +14,7 @@ must be installed on every node in the cluster. After installation, each
 node must be restarted before the plugin becomes visible.
 
 NOTE: A full cluster restart is required for installing plugins that have
-custom cluster state metadata, such as X-Pack. It is still possible to upgrade
+custom cluster state metadata. It is still possible to upgrade
 such plugins with a rolling restart.
 
 This documentation distinguishes two categories of plugins:
@@ -33,26 +33,22 @@ Issues and bug reports can usually be reported on the community plugin's web sit
 
 For advice on writing your own plugin, see <<plugin-authors>>.
 
-IMPORTANT: Site plugins -- plugins containing HTML, CSS and Javascript -- are
+IMPORTANT: Site plugins -- plugins containing HTML, CSS and JavaScript -- are
 no longer supported.
 
 include::plugin-script.asciidoc[]
 
 include::api.asciidoc[]
 
-include::alerting.asciidoc[]
-
 include::analysis.asciidoc[]
 
 include::discovery.asciidoc[]
 
+include::filesystem.asciidoc[]
+
 include::ingest.asciidoc[]
 
-include::management.asciidoc[]
-
 include::mapper.asciidoc[]
-
-include::security.asciidoc[]
 
 include::repository.asciidoc[]
 

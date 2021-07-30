@@ -1,72 +1,275 @@
 [[query-dsl-nested-query]]
-=== Nested Query
+=== Nested query
+++++
+<titleabbrev>Nested</titleabbrev>
+++++
 
-Nested query allows to query nested objects / docs (see
-<<nested,nested mapping>>). The
-query is executed against the nested objects / docs as if they were
-indexed as separate docs (they are, internally) and resulting in the
-root parent doc (or parent nested mapping). Here is a sample mapping we
-will work with:
+Wraps another query to search <<nested,nested>> fields.
 
-[source,js]
---------------------------------------------------
-PUT /my_index
+The `nested` query searches nested field objects as if they were indexed as
+separate documents. If an object matches the search, the `nested` query returns
+the root parent document.
+
+[[nested-query-ex-request]]
+==== Example request
+
+[[nested-query-index-setup]]
+===== Index setup
+
+To use the `nested` query, your index must include a <<nested,nested>> field
+mapping. For example:
+
+[source,console]
+----
+PUT /my-index-000001
 {
-    "mappings": {
-        "_doc" : {
-            "properties" : {
-                "obj1" : {
-                    "type" : "nested"
-                }
-            }
+  "mappings": {
+    "properties": {
+      "obj1": {
+        "type": "nested"
+      }
+    }
+  }
+}
+
+----
+
+[[nested-query-ex-query]]
+===== Example query
+
+[source,console]
+----
+GET /my-index-000001/_search
+{
+  "query": {
+    "nested": {
+      "path": "obj1",
+      "query": {
+        "bool": {
+          "must": [
+            { "match": { "obj1.name": "blue" } },
+            { "range": { "obj1.count": { "gt": 5 } } }
+          ]
         }
+      },
+      "score_mode": "avg"
+    }
+  }
+}
+----
+// TEST[continued]
+
+[[nested-top-level-params]]
+==== Top-level parameters for `nested`
+
+`path`::
+(Required, string) Path to the nested object you wish to search.
+
+`query`::
++
+--
+(Required, query object) Query you wish to run on nested objects in the `path`.
+If an object matches the search, the `nested` query returns the root parent
+document.
+
+You can search nested fields using dot notation that includes the complete path,
+such as `obj1.name`.
+
+Multi-level nesting is automatically supported, and detected, resulting in an
+inner nested query to automatically match the relevant nesting level, rather
+than root, if it exists within another nested query.
+
+See <<multi-level-nested-query-ex>> for an example.
+--
+
+`score_mode`::
++
+--
+(Optional, string) Indicates how scores for matching child objects affect the
+root parent document's <<relevance-scores,relevance score>>. Valid values
+are:
+
+`avg` (Default)::
+Use the mean relevance score of all matching child objects.
+
+`max`::
+Uses the highest relevance score of all matching child objects.
+
+`min`::
+Uses the lowest relevance score of all matching child objects.
+
+`none`::
+Do not use the relevance scores of matching child objects. The query assigns
+parent documents a score of `0`.
+
+`sum`::
+Add together the relevance scores of all matching child objects.
+--
+
+`ignore_unmapped`::
++
+--
+(Optional, Boolean) Indicates whether to ignore an unmapped `path` and not
+return any documents instead of an error. Defaults to `false`.
+
+If `false`, {es} returns an error if the `path` is an unmapped field.
+
+You can use this parameter to query multiple indices that may not contain the
+field `path`.
+--
+
+[[nested-query-notes]]
+==== Notes
+
+[[multi-level-nested-query-ex]]
+===== Multi-level nested queries
+
+To see how multi-level nested queries work,
+first you need an index that has nested fields.
+The following request defines mappings for the `drivers` index
+with nested `make` and `model` fields.
+
+[source,console]
+----
+PUT /drivers
+{
+  "mappings": {
+    "properties": {
+      "driver": {
+        "type": "nested",
+        "properties": {
+          "last_name": {
+            "type": "text"
+          },
+          "vehicle": {
+            "type": "nested",
+            "properties": {
+              "make": {
+                "type": "text"
+              },
+              "model": {
+                "type": "text"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
+
+Next, index some documents to the `drivers` index.
+
+[source,console]
+----
+PUT /drivers/_doc/1
+{
+  "driver" : {
+        "last_name" : "McQueen",
+        "vehicle" : [
+            {
+                "make" : "Powell Motors",
+                "model" : "Canyonero"
+            },
+            {
+                "make" : "Miller-Meteor",
+                "model" : "Ecto-1"
+            }
+        ]
     }
 }
 
---------------------------------------------------
-// CONSOLE
-// TESTSETUP
-
-And here is a sample nested query usage:
-
-[source,js]
---------------------------------------------------
-GET /_search
+PUT /drivers/_doc/2?refresh
 {
-    "query": {
-        "nested" : {
-            "path" : "obj1",
-            "score_mode" : "avg",
-            "query" : {
-                "bool" : {
-                    "must" : [
-                    { "match" : {"obj1.name" : "blue"} },
-                    { "range" : {"obj1.count" : {"gt" : 5}} }
-                    ]
-                }
+  "driver" : {
+        "last_name" : "Hudson",
+        "vehicle" : [
+            {
+                "make" : "Mifune",
+                "model" : "Mach Five"
+            },
+            {
+                "make" : "Miller-Meteor",
+                "model" : "Ecto-1"
             }
-        }
+        ]
     }
 }
---------------------------------------------------
-// CONSOLE
+----
+// TEST[continued]
 
-The query `path` points to the nested object path, and the `query`
-includes the query that will run on the nested docs matching the
-direct path, and joining with the root parent docs. Note that any
-fields referenced inside the query must use the complete path (fully
-qualified).
+You can now use a multi-level nested query
+to match documents based on the `make` and `model` fields.
 
-The `score_mode` allows to set how inner children matching affects
-scoring of parent. It defaults to `avg`, but can be `sum`, `min`,
-`max` and `none`.
+[source,console]
+----
+GET /drivers/_search
+{
+  "query": {
+    "nested": {
+      "path": "driver",
+      "query": {
+        "nested": {
+          "path": "driver.vehicle",
+          "query": {
+            "bool": {
+              "must": [
+                { "match": { "driver.vehicle.make": "Powell Motors" } },
+                { "match": { "driver.vehicle.model": "Canyonero" } }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
 
-There is also an `ignore_unmapped` option which, when set to `true` will
-ignore an unmapped `path` and will not match any documents for this query.
-This can be useful when querying multiple indexes which might have different
-mappings. When set to `false` (the default value) the query will throw an
-exception if the `path` is not mapped.
+The search request returns the following response:
 
-Multi level nesting is automatically supported, and detected, resulting
-in an inner nested query to automatically match the relevant nesting
-level (and not root) if it exists within another nested query.
+[source,console-result]
+----
+{
+  "took" : 5,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 3.7349272,
+    "hits" : [
+      {
+        "_index" : "drivers",
+        "_id" : "1",
+        "_score" : 3.7349272,
+        "_source" : {
+          "driver" : {
+            "last_name" : "McQueen",
+            "vehicle" : [
+              {
+                "make" : "Powell Motors",
+                "model" : "Canyonero"
+              },
+              {
+                "make" : "Miller-Meteor",
+                "model" : "Ecto-1"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took" : 5/"took": $body.took/]

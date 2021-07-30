@@ -1,30 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.path;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.function.BiFunction;
@@ -57,7 +43,7 @@ public class PathTrie<T> {
         WILDCARD_NODES_ALLOWED
     }
 
-    static EnumSet<TrieMatchingMode> EXPLICIT_OR_ROOT_WILDCARD =
+    private static final EnumSet<TrieMatchingMode> EXPLICIT_OR_ROOT_WILDCARD =
             EnumSet.of(TrieMatchingMode.EXPLICIT_NODES_ONLY, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED);
 
     public interface Decoder {
@@ -79,17 +65,15 @@ public class PathTrie<T> {
     public class TrieNode {
         private transient String key;
         private transient T value;
-        private boolean isWildcard;
         private final String wildcard;
 
         private transient String namedWildcard;
 
         private Map<String, TrieNode> children;
 
-        public TrieNode(String key, T value, String wildcard) {
+        private TrieNode(String key, T value, String wildcard) {
             this.key = key;
             this.wildcard = wildcard;
-            this.isWildcard = (key.equals(wildcard));
             this.value = value;
             this.children = emptyMap();
             if (isNamedWildcard(key)) {
@@ -99,9 +83,14 @@ public class PathTrie<T> {
             }
         }
 
-        public void updateKeyWithNamedWildcard(String key) {
+        private void updateKeyWithNamedWildcard(String key) {
             this.key = key;
-            namedWildcard = key.substring(key.indexOf('{') + 1, key.indexOf('}'));
+            String newNamedWildcard = key.substring(key.indexOf('{') + 1, key.indexOf('}'));
+            if (namedWildcard != null && newNamedWildcard.equals(namedWildcard) == false) {
+                throw new IllegalArgumentException("Trying to use conflicting wildcard names for same path: "
+                    + namedWildcard + " and " + newNamedWildcard);
+            }
+            namedWildcard = newNamedWildcard;
         }
 
         private void addInnerChild(String key, TrieNode child) {
@@ -110,7 +99,7 @@ public class PathTrie<T> {
             children = unmodifiableMap(newChildren);
         }
 
-        public synchronized void insert(String[] path, int index, T value) {
+        private synchronized void insert(String[] path, int index, T value) {
             if (index >= path.length)
                 return;
 
@@ -145,7 +134,7 @@ public class PathTrie<T> {
             node.insert(path, index + 1, value);
         }
 
-        public synchronized void insertOrUpdate(String[] path, int index, T value, BiFunction<T, T, T> updater) {
+        private synchronized void insertOrUpdate(String[] path, int index, T value, BiFunction<T, T, T> updater) {
             if (index >= path.length)
                 return;
 
@@ -256,7 +245,7 @@ public class PathTrie<T> {
             }
 
             T nodeValue = node.retrieve(path, index + 1, params, trieMatchingMode);
-            if (nodeValue == null && !usedWildcard && trieMatchingMode != TrieMatchingMode.EXPLICIT_NODES_ONLY) {
+            if (nodeValue == null && usedWildcard == false && trieMatchingMode != TrieMatchingMode.EXPLICIT_NODES_ONLY) {
                 node = children.get(wildcard);
                 if (node != null) {
                     put(params, node, token);
@@ -354,40 +343,22 @@ public class PathTrie<T> {
      * of parameters.
      */
     public Iterator<T> retrieveAll(String path, Supplier<Map<String, String>> paramSupplier) {
-        return new PathTrieIterator<>(this, path, paramSupplier);
-    }
+        return new Iterator<>() {
 
-    class PathTrieIterator<T> implements Iterator<T> {
+            private int mode;
 
-        private final List<TrieMatchingMode> modes;
-        private final Supplier<Map<String, String>> paramSupplier;
-        private final PathTrie<T> trie;
-        private final String path;
-
-        PathTrieIterator(PathTrie trie, String path, Supplier<Map<String, String>> paramSupplier) {
-            this.path = path;
-            this.trie = trie;
-            this.paramSupplier = paramSupplier;
-            this.modes = new ArrayList<>(Arrays.asList(TrieMatchingMode.EXPLICIT_NODES_ONLY,
-                TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED,
-                TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED,
-                TrieMatchingMode.WILDCARD_NODES_ALLOWED));
-            assert TrieMatchingMode.values().length == 4 : "missing trie matching mode";
-        }
-
-        @Override
-        public boolean hasNext() {
-            return modes.isEmpty() == false;
-        }
-
-        @Override
-        public T next() {
-            if (modes.isEmpty()) {
-                throw new NoSuchElementException("called next() without validating hasNext()! no more modes available");
+            @Override
+            public boolean hasNext() {
+                return mode < TrieMatchingMode.values().length;
             }
-            TrieMatchingMode mode = modes.remove(0);
-            Map<String, String> params = paramSupplier.get();
-            return trie.retrieve(path, params, mode);
-        }
+
+            @Override
+            public T next() {
+                if (hasNext() == false) {
+                    throw new NoSuchElementException("called next() without validating hasNext()! no more modes available");
+                }
+                return retrieve(path, paramSupplier.get(), TrieMatchingMode.values()[mode++]);
+            }
+        };
     }
 }

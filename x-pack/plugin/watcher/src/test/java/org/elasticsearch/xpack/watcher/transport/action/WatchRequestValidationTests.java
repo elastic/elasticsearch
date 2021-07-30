@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transport.action;
 
@@ -63,7 +64,7 @@ public class WatchRequestValidationTests extends ESTestCase {
     }
 
     public void testDeleteWatchNullId() {
-        ActionRequestValidationException e = new DeleteWatchRequest(null).validate();
+        ActionRequestValidationException e = new DeleteWatchRequest().validate();
         assertThat(e, is(notNullValue()));
         assertThat(e.validationErrors(), hasItem("watch id is missing"));
     }

@@ -1,27 +1,23 @@
 [[docs-multi-termvectors]]
-== Multi termvectors API
+=== Multi term vectors API
+++++
+<titleabbrev>Multi term vectors</titleabbrev>
+++++
 
-Multi termvectors API allows to get multiple termvectors at once. The
-documents from which to retrieve the term vectors are specified by an index and id.
-But the documents could also be artificially provided in the request itself.
+Retrieves multiple term vectors with a single request. 
 
-The response includes a `docs`
-array with all the fetched termvectors, each element having the structure
-provided by the <<docs-termvectors,termvectors>>
-API. Here is an example:
-
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_mtermvectors
 {
    "docs": [
       {
-         "_index": "twitter",
+         "_index": "my-index-000001",
          "_id": "2",
          "term_statistics": true
       },
       {
-         "_index": "twitter",
+         "_index": "my-index-000001",
          "_id": "1",
          "fields": [
             "message"
@@ -30,17 +26,76 @@ POST /_mtermvectors
    ]
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-See the <<docs-termvectors,termvectors>> API for a description of possible parameters.
+[[docs-multi-termvectors-api-request]]
+==== {api-request-title}
 
-The `_mtermvectors` endpoint can also be used against an index (in which case it
-is not required in the body):
+`POST /_mtermvectors`
 
-[source,js]
+`POST /<index>/_mtermvectors`
+
+[[docs-multi-termvectors-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
+
+[[docs-multi-termvectors-api-desc]]
+==== {api-description-title}
+
+You can specify existing documents by index and ID or 
+provide artificial documents in the body of the request.  
+You can specify the index in the request body or request URI.
+
+The response contains a `docs` array with all the fetched termvectors. 
+Each element has the structure provided by the <<docs-termvectors,termvectors>>
+API. 
+
+See the <<docs-termvectors,termvectors>> API for more information about the information
+that can be included in the response.  
+
+[[docs-multi-termvectors-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Optional, string) Name of the index that contains the documents.
+
+[[docs-multi-termvectors-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=field_statistics]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=offsets]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=payloads]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=positions]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=term_statistics]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
+
+[discrete]
+[[docs-multi-termvectors-api-example]]
+==== {api-examples-title}
+
+If you specify an index in the request URI, the index does not need to be specified for each documents
+in the request body:
+
+[source,console]
 --------------------------------------------------
-POST /twitter/_mtermvectors
+POST /my-index-000001/_mtermvectors
 {
    "docs": [
       {
@@ -56,52 +111,50 @@ POST /twitter/_mtermvectors
    ]
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-If all requested documents are on same index and also the parameters are the same, the request can be simplified:
+If all requested documents are in same index and the parameters are the same, you can use the
+following simplified syntax:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /twitter/_mtermvectors
+POST /my-index-000001/_mtermvectors
 {
-    "ids" : ["1", "2"],
-    "parameters": {
-    	"fields": [
-         	"message"
-      	],
-      	"term_statistics": true
-    }
+  "ids": [ "1", "2" ],
+  "parameters": {
+    "fields": [
+      "message"
+    ],
+    "term_statistics": true
+  }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-Additionally, just like for the <<docs-termvectors,termvectors>>
-API, term vectors could be generated for user provided documents.
-The mapping used is determined by `_index`.
+[[docs-multi-termvectors-artificial-doc]]
+===== Artificial documents
 
-[source,js]
+You can also use `mtermvectors` to generate term vectors for _artificial_ documents provided
+in the body of the request. The mapping used is determined by the specified `_index`.
+
+[source,console]
 --------------------------------------------------
 POST /_mtermvectors
 {
    "docs": [
       {
-         "_index": "twitter",
+         "_index": "my-index-000001",
          "doc" : {
-            "user" : "John Doe",
-            "message" : "twitter test test test"
+            "message" : "test test test"
          }
       },
       {
-         "_index": "twitter",
+         "_index": "my-index-000001",
          "doc" : {
-           "user" : "Jane Doe",
-           "message" : "Another twitter test ..."
+           "message" : "Another test ..."
          }
       }
    ]
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]

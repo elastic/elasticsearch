@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.watch;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -19,9 +20,11 @@ import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,34 +33,50 @@ import java.util.Objects;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.parseDate;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.readDate;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.readOptionalDate;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.writeDate;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.writeOptionalDate;
-import static org.joda.time.DateTimeZone.UTC;
 
-public class WatchStatus implements ToXContentObject, Streamable {
+public class WatchStatus implements ToXContentObject, Writeable {
 
     public static final String INCLUDE_STATE = "include_state";
 
     private State state;
 
     @Nullable private ExecutionState executionState;
-    @Nullable private DateTime lastChecked;
-    @Nullable private DateTime lastMetCondition;
+    @Nullable private ZonedDateTime lastChecked;
+    @Nullable private ZonedDateTime lastMetCondition;
     @Nullable private long version;
     @Nullable private Map<String, String> headers;
     private Map<String, ActionStatus> actions;
 
-    // for serialization
-    private WatchStatus() {
+    public WatchStatus(StreamInput in) throws IOException {
+        version = in.readLong();
+        lastChecked = readOptionalDate(in);
+        lastMetCondition = readOptionalDate(in);
+        int count = in.readInt();
+        Map<String, ActionStatus> actions = new HashMap<>(count);
+        for (int i = 0; i < count; i++) {
+            actions.put(in.readString(), ActionStatus.readFrom(in));
+        }
+        this.actions = unmodifiableMap(actions);
+        state = new State(in.readBoolean(), Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC));
+        boolean executionStateExists = in.readBoolean();
+        if (executionStateExists) {
+            executionState = ExecutionState.resolve(in.readString());
+        }
+        if (in.readBoolean()) {
+            headers = in.readMap(StreamInput::readString, StreamInput::readString);
+        } else {
+            headers = Collections.emptyMap();
+        }
     }
 
-    public WatchStatus(DateTime now, Map<String, ActionStatus> actions) {
+    public WatchStatus(ZonedDateTime now, Map<String, ActionStatus> actions) {
         this(-1, new State(true, now), null, null, null, actions, Collections.emptyMap());
     }
 
-    public WatchStatus(long version, State state, ExecutionState executionState, DateTime lastChecked, DateTime lastMetCondition,
+    public WatchStatus(long version, State state, ExecutionState executionState, ZonedDateTime lastChecked, ZonedDateTime lastMetCondition,
                        Map<String, ActionStatus> actions, Map<String, String> headers) {
         this.version = version;
         this.lastChecked = lastChecked;
@@ -76,8 +95,12 @@ public class WatchStatus implements ToXContentObject, Streamable {
         return lastChecked != null;
     }
 
-    public DateTime lastChecked() {
+    public ZonedDateTime lastChecked() {
         return lastChecked;
+    }
+
+    public ZonedDateTime lastMetCondition() {
+        return lastMetCondition;
     }
 
     public ActionStatus actionStatus(String actionId) {
@@ -134,7 +157,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
      *
      * @param metCondition  indicates whether the watch's condition was met.
      */
-    public void onCheck(boolean metCondition, DateTime timestamp) {
+    public void onCheck(boolean metCondition, ZonedDateTime timestamp) {
         lastChecked = timestamp;
         if (metCondition) {
             lastMetCondition = timestamp;
@@ -145,7 +168,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
         }
     }
 
-    public void onActionResult(String actionId, DateTime timestamp, Action.Result result) {
+    public void onActionResult(String actionId, ZonedDateTime timestamp, Action.Result result) {
         ActionStatus status = actions.get(actionId);
         status.update(timestamp, result);
     }
@@ -159,7 +182,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
      *
      * @return {@code true} if the state of changed due to the ack, {@code false} otherwise.
      */
-    boolean onAck(DateTime timestamp, String... actionIds) {
+    boolean onAck(ZonedDateTime timestamp, String... actionIds) {
         boolean changed = false;
         boolean containsAll = false;
         for (String actionId : actionIds) {
@@ -185,7 +208,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
         return changed;
     }
 
-    boolean setActive(boolean active, DateTime now) {
+    boolean setActive(boolean active, ZonedDateTime now) {
         boolean change = this.state.active != active;
         if (change) {
             this.state = new State(active, now);
@@ -217,45 +240,16 @@ public class WatchStatus implements ToXContentObject, Streamable {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        version = in.readLong();
-        lastChecked = readOptionalDate(in, UTC);
-        lastMetCondition = readOptionalDate(in, UTC);
-        int count = in.readInt();
-        Map<String, ActionStatus> actions = new HashMap<>(count);
-        for (int i = 0; i < count; i++) {
-            actions.put(in.readString(), ActionStatus.readFrom(in));
-        }
-        this.actions = unmodifiableMap(actions);
-        state = new State(in.readBoolean(), readDate(in, UTC));
-        boolean executionStateExists = in.readBoolean();
-        if (executionStateExists) {
-            executionState = ExecutionState.resolve(in.readString());
-        }
-        if (in.readBoolean()) {
-            headers = in.readMap(StreamInput::readString, StreamInput::readString);
-        } else {
-            headers = Collections.emptyMap();
-        }
-    }
-
-    public static WatchStatus read(StreamInput in) throws IOException {
-        WatchStatus status = new WatchStatus();
-        status.readFrom(in);
-        return status;
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (params.paramAsBoolean(INCLUDE_STATE, true)) {
             builder.field(Field.STATE.getPreferredName(), state, params);
         }
         if (lastChecked != null) {
-            builder.timeField(Field.LAST_CHECKED.getPreferredName(), lastChecked);
+            writeDate(Field.LAST_CHECKED.getPreferredName(), builder, lastChecked);
         }
         if (lastMetCondition != null) {
-            builder.timeField(Field.LAST_MET_CONDITION.getPreferredName(), lastMetCondition);
+            writeDate(Field.LAST_MET_CONDITION.getPreferredName(), builder, lastMetCondition);
         }
         if (actions != null) {
             builder.startObject(Field.ACTIONS.getPreferredName());
@@ -277,8 +271,8 @@ public class WatchStatus implements ToXContentObject, Streamable {
     public static WatchStatus parse(String watchId, WatcherXContentParser parser) throws IOException {
         State state = null;
         ExecutionState executionState = null;
-        DateTime lastChecked = null;
-        DateTime lastMetCondition = null;
+        ZonedDateTime lastChecked = null;
+        ZonedDateTime lastMetCondition = null;
         Map<String, ActionStatus> actions = null;
         long version = -1;
         Map<String, String> headers = Collections.emptyMap();
@@ -304,14 +298,14 @@ public class WatchStatus implements ToXContentObject, Streamable {
                 }
             } else if (Field.LAST_CHECKED.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token.isValue()) {
-                    lastChecked = parseDate(currentFieldName, parser, UTC);
+                    lastChecked = parseDate(currentFieldName, parser, ZoneOffset.UTC);
                 } else {
                     throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a date " +
                             "value, found [{}] instead", watchId, currentFieldName, token);
                 }
             } else if (Field.LAST_MET_CONDITION.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token.isValue()) {
-                    lastMetCondition = parseDate(currentFieldName, parser, UTC);
+                    lastMetCondition = parseDate(currentFieldName, parser, ZoneOffset.UTC);
                 } else {
                     throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a date " +
                             "value, found [{}] instead", watchId, currentFieldName, token);
@@ -361,9 +355,9 @@ public class WatchStatus implements ToXContentObject, Streamable {
     public static class State implements ToXContentObject {
 
         final boolean active;
-        final DateTime timestamp;
+        final ZonedDateTime timestamp;
 
-        public State(boolean active, DateTime timestamp) {
+        public State(boolean active, ZonedDateTime timestamp) {
             this.active = active;
             this.timestamp = timestamp;
         }
@@ -372,7 +366,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
             return active;
         }
 
-        public DateTime getTimestamp() {
+        public ZonedDateTime getTimestamp() {
             return timestamp;
         }
 
@@ -389,7 +383,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
                 throw new ElasticsearchParseException("expected an object but found [{}] instead", parser.currentToken());
             }
             boolean active = true;
-            DateTime timestamp = DateTime.now(UTC);
+            ZonedDateTime timestamp = ZonedDateTime.now(ZoneOffset.UTC);
             String currentFieldName = null;
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -398,7 +392,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
                 } else if (Field.ACTIVE.match(currentFieldName, parser.getDeprecationHandler())) {
                     active = parser.booleanValue();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timestamp = parseDate(currentFieldName, parser, UTC);
+                    timestamp = parseDate(currentFieldName, parser, ZoneOffset.UTC);
                 } else {
                     parser.skipChildren();
                 }

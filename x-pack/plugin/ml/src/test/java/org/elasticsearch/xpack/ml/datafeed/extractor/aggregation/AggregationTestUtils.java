@@ -1,15 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.Avg;
+import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
@@ -37,6 +44,32 @@ public final class AggregationTestUtils {
         return bucket;
     }
 
+    static CompositeAggregation.Bucket createCompositeBucket(long timestamp,
+                                                             String dateValueSource,
+                                                             long docCount,
+                                                             List<Aggregation> subAggregations,
+                                                             List<Tuple<String, String>> termValues) {
+        CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
+        when(bucket.getDocCount()).thenReturn(docCount);
+        Aggregations aggs = createAggs(subAggregations);
+        when(bucket.getAggregations()).thenReturn(aggs);
+        Map<String, Object> bucketKey = new HashMap<>();
+        bucketKey.put(dateValueSource, timestamp);
+        for (Tuple<String, String> termValue : termValues) {
+            bucketKey.put(termValue.v1(), termValue.v2());
+        }
+        when(bucket.getKey()).thenReturn(bucketKey);
+        return bucket;
+    }
+
+    static SingleBucketAggregation createSingleBucketAgg(String name, long docCount, List<Aggregation> subAggregations) {
+        SingleBucketAggregation singleBucketAggregation = mock(SingleBucketAggregation.class);
+        when(singleBucketAggregation.getName()).thenReturn(name);
+        when(singleBucketAggregation.getDocCount()).thenReturn(docCount);
+        when(singleBucketAggregation.getAggregations()).thenReturn(createAggs(subAggregations));
+        return singleBucketAggregation;
+    }
+
     static Histogram.Bucket createHistogramBucket(long timestamp, long docCount) {
         return createHistogramBucket(timestamp, docCount, Collections.emptyList());
     }
@@ -53,12 +86,38 @@ public final class AggregationTestUtils {
         return histogram;
     }
 
+    @SuppressWarnings("unchecked")
+    static CompositeAggregation createCompositeAggregation(String name, List<CompositeAggregation.Bucket> buckets) {
+        CompositeAggregation compositeAggregation = mock(CompositeAggregation.class);
+        when((List<CompositeAggregation.Bucket>)compositeAggregation.getBuckets()).thenReturn(buckets);
+        when(compositeAggregation.getName()).thenReturn(name);
+        return compositeAggregation;
+
+    }
+
     static Max createMax(String name, double value) {
         Max max = mock(Max.class);
         when(max.getName()).thenReturn(name);
         when(max.value()).thenReturn(value);
         when(max.getValue()).thenReturn(value);
         return max;
+    }
+
+    static Avg createAvg(String name, double value) {
+        Avg avg = mock(Avg.class);
+        when(avg.getName()).thenReturn(name);
+        when(avg.value()).thenReturn(value);
+        when(avg.getValue()).thenReturn(value);
+        return avg;
+    }
+
+    static GeoCentroid createGeoCentroid(String name, long count, double lat, double lon) {
+        GeoCentroid centroid = mock(GeoCentroid.class);
+        when(centroid.count()).thenReturn(count);
+        when(centroid.getName()).thenReturn(name);
+        GeoPoint point = count > 0 ? new GeoPoint(lat, lon) : null;
+        when(centroid.centroid()).thenReturn(point);
+        return centroid;
     }
 
     static NumericMetricsAggregation.SingleValue createSingleValue(String name, double value) {
@@ -84,7 +143,7 @@ public final class AggregationTestUtils {
                 for (Map.Entry<String, Double> keyValue : term.values.entrySet()) {
                     numericAggs.add(createSingleValue(keyValue.getKey(), keyValue.getValue()));
                 }
-                if (!numericAggs.isEmpty()) {
+                if (numericAggs.isEmpty() == false) {
                     Aggregations aggs = createAggs(numericAggs);
                     when(bucket.getAggregations()).thenReturn(aggs);
                 }

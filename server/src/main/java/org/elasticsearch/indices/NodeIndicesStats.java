@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
@@ -22,13 +11,14 @@ package org.elasticsearch.indices;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -51,21 +41,34 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Global information on indices stats running on a specific node.
  */
-public class NodeIndicesStats implements Streamable, ToXContentFragment {
+public class NodeIndicesStats implements Writeable, ToXContentFragment {
 
-    private CommonStats stats;
-    private Map<Index, List<IndexShardStats>> statsByShard;
+    private final CommonStats stats;
+    private final Map<Index, List<IndexShardStats>> statsByShard;
 
-    NodeIndicesStats() {
+    public NodeIndicesStats(StreamInput in) throws IOException {
+        stats = new CommonStats(in);
+
+        statsByShard = new HashMap<>();
+        int entries = in.readVInt();
+        for (int i = 0; i < entries; i++) {
+            Index index = new Index(in);
+            int indexShardListSize = in.readVInt();
+            List<IndexShardStats> indexShardStats = new ArrayList<>(indexShardListSize);
+            for (int j = 0; j < indexShardListSize; j++) {
+                indexShardStats.add(new IndexShardStats(in));
+            }
+            statsByShard.put(index, indexShardStats);
+        }
     }
 
     public NodeIndicesStats(CommonStats oldStats, Map<Index, List<IndexShardStats>> statsByShard) {
-        //this.stats = stats;
-        this.statsByShard = statsByShard;
+        this.statsByShard = Objects.requireNonNull(statsByShard);
 
         // make a total common stats from old ones and current ones
         this.stats = oldStats;
@@ -158,42 +161,20 @@ public class NodeIndicesStats implements Streamable, ToXContentFragment {
         return stats.getRecoveryStats();
     }
 
-    public static NodeIndicesStats readIndicesStats(StreamInput in) throws IOException {
-        NodeIndicesStats stats = new NodeIndicesStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        stats = new CommonStats(in);
-        if (in.readBoolean()) {
-            int entries = in.readVInt();
-            statsByShard = new HashMap<>();
-            for (int i = 0; i < entries; i++) {
-                Index index = new Index(in);
-                int indexShardListSize = in.readVInt();
-                List<IndexShardStats> indexShardStats = new ArrayList<>(indexShardListSize);
-                for (int j = 0; j < indexShardListSize; j++) {
-                    indexShardStats.add(IndexShardStats.readIndexShardStats(in));
-                }
-                statsByShard.put(index, indexShardStats);
-            }
-        }
+    @Nullable
+    public BulkStats getBulk() {
+        return stats.getBulk();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
-        out.writeBoolean(statsByShard != null);
-        if (statsByShard != null) {
-            out.writeVInt(statsByShard.size());
-            for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
-                entry.getKey().writeTo(out);
-                out.writeVInt(entry.getValue().size());
-                for (IndexShardStats indexShardStats : entry.getValue()) {
-                    indexShardStats.writeTo(out);
-                }
+        out.writeVInt(statsByShard.size());
+        for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
+            entry.getKey().writeTo(out);
+            out.writeVInt(entry.getValue().size());
+            for (IndexShardStats indexShardStats : entry.getValue()) {
+                indexShardStats.writeTo(out);
             }
         }
     }
@@ -203,7 +184,7 @@ public class NodeIndicesStats implements Streamable, ToXContentFragment {
         final String level = params.param("level", "node");
         final boolean isLevelValid =
             "indices".equalsIgnoreCase(level) || "node".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level);
-        if (!isLevelValid) {
+        if (isLevelValid == false) {
             throw new IllegalArgumentException("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]");
         }
 
@@ -243,7 +224,7 @@ public class NodeIndicesStats implements Streamable, ToXContentFragment {
     private Map<Index, CommonStats> createStatsByIndex() {
         Map<Index, CommonStats> statsMap = new HashMap<>();
         for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
-            if (!statsMap.containsKey(entry.getKey())) {
+            if (statsMap.containsKey(entry.getKey()) == false) {
                 statsMap.put(entry.getKey(), new CommonStats());
             }
 
@@ -255,6 +236,10 @@ public class NodeIndicesStats implements Streamable, ToXContentFragment {
         }
 
         return statsMap;
+    }
+
+    public List<IndexShardStats> getShardStats(Index index) {
+        return statsByShard.get(index);
     }
 
     static final class Fields {

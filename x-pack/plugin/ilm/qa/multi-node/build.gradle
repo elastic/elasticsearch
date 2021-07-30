@@ -1,20 +1,37 @@
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+import org.elasticsearch.gradle.util.GradleUtils
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-    testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-integTestCluster {
-    numNodes = 4
-    clusterName = 'ilm'
-    
-    setting 'xpack.ilm.enabled', 'true'
-    setting 'xpack.security.enabled', 'false'
-    setting 'xpack.watcher.enabled', 'false'
-    setting 'xpack.monitoring.enabled', 'false'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'indices.lifecycle.poll_interval', '1000ms'
+File repoDir = file("$buildDir/testclusters/repo")
 
+tasks.named("javaRestTest").configure {
+  /* To support taking index snapshots, we have to set path.repo setting */
+  systemProperty 'tests.path.repo', repoDir
+  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+}
+
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 4
+
+  setting 'path.repo', repoDir.absolutePath
+  setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'indices.lifecycle.poll_interval', '1000ms'
+  setting 'logger.org.elasticsearch.xpack.core.ilm', 'TRACE'
+  setting 'logger.org.elasticsearch.xpack.ilm', 'TRACE'
+  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
 }

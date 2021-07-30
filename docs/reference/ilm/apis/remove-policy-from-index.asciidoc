@@ -1,45 +1,56 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-remove-policy]]
-=== Remove Policy from Index API
+=== Remove policy from index API
 ++++
-<titleabbrev>Remove Policy</titleabbrev>
+<titleabbrev>Remove policy</titleabbrev>
 ++++
 
-beta[]
-
-Removes the assigned lifecycle policy from an index.
-
-==== Request
-
-`POST <index>/_ilm/remove`
-
-==== Description
-
-Removes the assigned lifecycle policy and stops managing the specified index.
-If an index pattern is specified, removes the assigned policies from all matching
+Removes assigned lifecycle policies from an index or a data stream's backing
 indices.
 
-==== Path Parameters
+[[ilm-remove-policy-request]]
+==== {api-request-title}
 
-`index` (required)::
-  (string) Identifier for the index.
+`POST <target>/_ilm/remove`
 
-==== Request Parameters
+[[ilm-remove-policy-prereqs]]
+==== {api-prereq-title}
 
-include::{docdir}/rest-api/timeoutparms.asciidoc[]
+* If the {es} {security-features} are enabled, you must have the `manage_ilm`
+privileges on the indices being managed to use this API. For more information,
+see <<security-privileges>>.
 
-==== Authorization
+[[ilm-remove-policy-desc]]
+==== {api-description-title}
 
-include::ilm-cluster-mgt-privilege.asciidoc[]
+For indices, the remove lifecycle policy API removes the assigned lifecycle
+policy and stops managing the specified index.
 
-==== Examples
+For data streams, the API removes any assigned lifecycle policies from 
+the stream's backing indices and stops managing the indices.
 
-The following example removes the assigned policy from `my_index`.
+[[ilm-remove-policy-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Required, string) Comma-separated list of data streams, indices, and aliases to
+target. Supports wildcards (`*`). To target all data streams and indices, use
+`*` or `_all`.
+
+[[ilm-remove-policy-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[[ilm-remove-policy-example]]
+==== {api-examples-title}
+
+The following example removes the assigned policy from `my-index-000001`.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -63,33 +74,28 @@ PUT _ilm/policy/my_policy
   }
 }
 
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "index.lifecycle.name": "my_policy"
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST my_index/_ilm/remove
+POST my-index-000001/_ilm/remove
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 If the request succeeds, you receive the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "has_failures" : false,
   "failed_indexes" : []
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE

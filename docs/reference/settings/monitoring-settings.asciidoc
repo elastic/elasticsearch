@@ -1,135 +1,134 @@
 [role="xpack"]
 [[monitoring-settings]]
-===  Monitoring settings in Elasticsearch
+=== Monitoring settings in {es}
 ++++
 <titleabbrev>Monitoring settings</titleabbrev>
 ++++
 
-By default, monitoring is enabled but data collection is disabled. To enable
-data collection, use the `xpack.monitoring.collection.enabled` setting.
+By default, {es} {monitor-features} are enabled but data collection is disabled.
+To enable data collection, use the `xpack.monitoring.collection.enabled` setting.
 
-You can configure these monitoring settings in the `elasticsearch.yml` file.
-Some of them can also be set across the cluster by using the
-<<cluster-update-settings,cluster update settings API>>.
-
-TIP: Cluster settings take precedence over settings in the `elasticsearch.yml`
-file.
+Except where noted otherwise, these settings can be dynamically updated on a
+live cluster with the <<cluster-update-settings,cluster-update-settings>> API.
 
 To adjust how monitoring data is displayed in the monitoring UI, configure
 {kibana-ref}/monitoring-settings-kb.html[`xpack.monitoring` settings] in
-`kibana.yml`. To control how monitoring data is collected from
-Logstash, configure
-{logstash-ref}/configuring-logstash.html#monitoring-settings[`xpack.monitoring` settings]
-in `logstash.yml`.
+`kibana.yml`. To control how monitoring data is collected from {ls},
+configure monitoring settings in `logstash.yml`.
 
-For more information, see
-{xpack-ref}/xpack-monitoring.html[Monitoring the Elastic Stack].
+For more information, see <<monitor-elasticsearch-cluster>>.
 
-[float]
+[discrete]
 [[general-monitoring-settings]]
-==== General Monitoring Settings
+==== General monitoring settings
+
 `xpack.monitoring.enabled`::
-Set to `true` (default) to enable {es} {monitoring} for {es} on the node. 
-+
---
-NOTE: To enable data collection, you must also set `xpack.monitoring.collection.enabled` 
-to `true`. Its default value is `false`. 
---
+deprecated:[7.8.0,Basic License features should always be enabled]
+(<<static-cluster-setting,Static>>) This deprecated setting has no effect.
 
-[float]
+[discrete]
 [[monitoring-collection-settings]]
-==== Monitoring Collection Settings
+==== Monitoring collection settings
 
+[[monitoring-settings-description]]
+// tag::monitoring-settings-description-tag[]
 The `xpack.monitoring.collection` settings control how data is collected from
-your Elasticsearch nodes.
+your {es} nodes.
+// end::monitoring-settings-description-tag[]
 
-`xpack.monitoring.collection.enabled` (<<cluster-update-settings,Dynamic>>)::
+`xpack.monitoring.collection.enabled`::
+(<<cluster-update-settings,Dynamic>>) Set to `true` to enable the collection of
+monitoring data. When this setting is `false` (default), {es} monitoring data is
+not collected and all monitoring data from other sources such as {kib}, Beats,
+and {ls} is ignored.
 
-added[6.3.0] Set to `true` to enable the collection of monitoring data. When
-this setting is `false` (default), {es} monitoring data is not collected and
-all monitoring data from other sources such as {kib}, Beats, and Logstash is
-ignored.
-
-`xpack.monitoring.collection.interval` (<<cluster-update-settings,Dynamic>>):: 
-
-Setting to `-1` to disable data collection is no longer supported beginning with
-7.0.0. deprecated[6.3.0, Use `xpack.monitoring.collection.enabled` set to
-`false` instead.]
+[[xpack-monitoring-collection-interval]]
+// tag::monitoring-collection-interval-tag[]
+`xpack.monitoring.collection.interval` {ess-icon}::
+deprecated:[6.3.0,"Use `xpack.monitoring.collection.enabled` set to `false` instead."] 
+(<<cluster-update-settings,Dynamic>>) Setting to `-1` to disable data collection
+is no longer supported beginning with 7.0.0.
 +
 Controls how often data samples are collected. Defaults to `10s`. If you
 modify the collection interval, set the `xpack.monitoring.min_interval_seconds`
 option in `kibana.yml` to the same value.
+// end::monitoring-collection-interval-tag[]
 
-`xpack.monitoring.elasticsearch.collection.enabled` (<<cluster-update-settings,Dynamic>>)::
-
-Controls whether statistics about your {es} cluster should be collected. Defaults to `true`.
-This is different from xpack.monitoring.collection.enabled, which allows you to enable or disable
-all monitoring collection. However, this setting simply disables the collection of Elasticsearch
-data while still allowing other data (e.g., Kibana, Logstash, Beats, or APM Server monitoring data)
-to pass through this cluster.
+`xpack.monitoring.elasticsearch.collection.enabled`::
+(<<cluster-update-settings,Dynamic>>) Controls whether statistics about your
+{es} cluster should be collected. Defaults to `true`. This is different from 
+`xpack.monitoring.collection.enabled`, which allows you to enable or disable all
+monitoring collection. However, this setting simply disables the collection of
+{es} data while still allowing other data (e.g., {kib}, {ls}, Beats, or APM
+Server monitoring data) to pass through this cluster.
 
 `xpack.monitoring.collection.cluster.stats.timeout`::
+(<<cluster-update-settings,Dynamic>>) Timeout for collecting the cluster
+statistics, in <<time-units,time units>>. Defaults to `10s`.
 
-Sets the timeout for collecting the cluster statistics. Defaults to `10s`.
+`xpack.monitoring.collection.node.stats.timeout`::
+(<<cluster-update-settings,Dynamic>>) Timeout for collecting the node statistics,
+in <<time-units,time units>>. Defaults to `10s`.
 
-`xpack.monitoring.collection.indices` (<<cluster-update-settings,Dynamic>>)::
-
-Controls which indices Monitoring collects data from. Defaults to all indices. Specify the index names
-as a comma-separated list, for example `test1,test2,test3`. Names can include wildcards, for
-example `test*`. You can explicitly include or exclude indices by prepending
-`+` to include the index, or `-` to exclude the index. For example, to include all indices that
-start with `test` except `test3`, you could specify `+test*,-test3`.
+`xpack.monitoring.collection.indices`::
+(<<cluster-update-settings,Dynamic>>) Controls which indices the
+{monitor-features} collect data from. Defaults to all indices. Specify the index
+names as a comma-separated list, for example `test1,test2,test3`. Names can
+include wildcards, for example `test*`. You can explicitly exclude indices by
+prepending `-`. For example `test*,-test3` will monitor all indexes that start
+with `test` except for `test3`. System indices like .security* or .kibana*
+always start with a `.` and generally should be monitored. Consider adding `.*`
+to the list of indices ensure monitoring of system indices. For example:
+`.*,test*,-test3`
 
 `xpack.monitoring.collection.index.stats.timeout`::
-
-Sets the timeout for collecting index statistics. Defaults to `10s`.
+(<<cluster-update-settings,Dynamic>>) Timeout for collecting index statistics,
+in <<time-units,time units>>. Defaults to `10s`.
 
 `xpack.monitoring.collection.index.recovery.active_only`::
-
-Controls whether or not all recoveries are collected. Set to `true` to
-collect only active recoveries. Defaults to `false`.
+(<<cluster-update-settings,Dynamic>>) Controls whether or not all recoveries are
+collected. Set to `true` to collect only active recoveries. Defaults to `false`.
 
 `xpack.monitoring.collection.index.recovery.timeout`::
+(<<cluster-update-settings,Dynamic>>) Timeout for collecting the recovery
+information, in <<time-units,time units>>. Defaults to `10s`.
 
-Sets the timeout for collecting the recovery information. Defaults to `10s`.
-
-`xpack.monitoring.history.duration`::
-
-Sets the retention duration beyond which the indices created by a Monitoring
-exporter are automatically deleted. Defaults to `7d` (7 days).
+[[xpack-monitoring-history-duration]]
+// tag::monitoring-history-duration-tag[]
+`xpack.monitoring.history.duration` {ess-icon}::
+(<<cluster-update-settings,Dynamic>>) Retention duration beyond which the
+indices created by a monitoring exporter are automatically deleted, in
+<<time-units,time units>>. Defaults to `7d` (7 days).
 +
 --
 This setting has a minimum value of `1d` (1 day) to ensure that something is
-being monitored, and it cannot be disabled.
+being monitored and it cannot be disabled.
 
-IMPORTANT: This setting currently only impacts `local`-type exporters. Indices created using
-the `http` exporter will not be deleted automatically.
+IMPORTANT: This setting currently impacts only `local`-type exporters. Indices
+created using the `http` exporter are not deleted automatically.
 
-If both {monitoring} and {watcher} are enabled, you can use this setting to
-affect the {watcher} cleaner service too. For more information, see the
-`xpack.watcher.history.cleaner_service.enabled` setting in the
-<<notification-settings>>.
 --
 
+// end::monitoring-history-duration-tag[]
+
 `xpack.monitoring.exporters`::
+(<<static-cluster-setting,Static>>) Configures where the agent stores monitoring
+data. By default, the agent uses a local exporter that indexes monitoring data
+on the cluster where it is installed. Use an HTTP exporter to send data to a
+separate monitoring cluster. For more information, see
+<<local-exporter-settings,Local exporter settings>>,
+<<http-exporter-settings,HTTP exporter settings>>, and <<how-monitoring-works>>.
 
-Configures where the agent stores monitoring data. By default, the agent uses a
-local exporter that indexes monitoring data on the cluster where it is installed.
-Use an HTTP exporter to send data to a separate monitoring cluster. For more
-information, see <<local-exporter-settings,Local Exporter Settings>>,
-<<http-exporter-settings,HTTP Exporter Settings>>, and
-{xpack-ref}/how-monitoring-works.html[How Monitoring Works].
-
-[float]
+[discrete]
 [[local-exporter-settings]]
-==== Local Exporter Settings
+==== Local exporter settings
 
-The `local` exporter is the default exporter used by Monitoring. As the name is
-meant to imply, it exports data to the _local_ cluster, which means that there
-is not much needed to be configured.
+The `local` exporter is the default exporter used by {monitor-features}. As the
+name is meant to imply, it exports data to the _local_ cluster, which means that
+there is not much needed to be configured.
 
-If you do not supply _any_ exporters, then Monitoring will automatically create
-one for you. If any exporter is provided, then no default is added.
+If you do not supply _any_ exporters, then the {monitor-features} automatically
+create one for you. If any exporter is provided, then no default is added.
 
 [source,yaml]
 ----------------------------------
@@ -138,25 +137,28 @@ xpack.monitoring.exporters.my_local:
 ----------------------------------
 
 `type`::
-
 The value for a Local exporter must always be `local` and it is required.
 
 `use_ingest`::
-
-Whether to supply a placeholder pipeline to the cluster and a pipeline processor with
-every bulk request. The default value is `true`. If disabled, then it means that it will not
-use pipelines, which means that a future release cannot automatically upgrade bulk requests
-to future-proof them.
+Whether to supply a placeholder pipeline to the cluster and a pipeline processor
+with every bulk request. The default value is `true`. If disabled, then it means
+that it will not use pipelines, which means that a future release cannot
+automatically upgrade bulk requests to future-proof them.
 
 `cluster_alerts.management.enabled`::
 
 Whether to create cluster alerts for this cluster. The default value is `true`.
-To use this feature, {watcher} must be enabled.  If you have a basic license,
+To use this feature, {watcher} must be enabled. If you have a basic license,
 cluster alerts are not displayed.
 
-[float]
+`wait_master.timeout`::
+Time to wait for the master node to setup `local` exporter for monitoring, in
+<<time-units,time units>>. After that wait period, the non-master nodes warn the
+user for possible missing configuration. Defaults to `30s`.
+
+[discrete]
 [[http-exporter-settings]]
-==== HTTP Exporter Settings
+==== HTTP exporter settings
 
 The following lists settings that can be supplied with the `http` exporter.
 All settings are shown as what follows the name you select for your exporter:
@@ -169,15 +171,15 @@ xpack.monitoring.exporters.my_remote:
 ----------------------------------
 
 `type`::
-
 The value for an HTTP exporter must always be `http` and it is required.
 
 `host`::
-
-Host supports multiple formats, both as an array or as a single value. Supported formats include
-`hostname`, `hostname:port`, `http://hostname` `http://hostname:port`, `https://hostname`, and
-`https://hostname:port`. Hosts cannot be assumed. The default scheme is always `http` and the default
-port is always `9200` if not supplied as part of the `host` string.
+Host supports multiple formats, both as an array or as a single value. Supported
+formats include `hostname`, `hostname:port`,
+`http://hostname` `http://hostname:port`, `https://hostname`, and
+`https://hostname:port`. Hosts cannot be assumed. The default scheme is always
+`http` and the default port is always `9200` if not supplied as part of the
+`host` string.
 +
 [source,yaml]
 ----------------------------------
@@ -197,37 +199,32 @@ xpack.monitoring.exporters:
 ----------------------------------
 
 `auth.username`::
+The username is required if `auth.secure_password` is supplied.
 
-The username is required if a `auth.password` is supplied.
-
-`auth.password`::
-
-The password for the `auth.username`.
+`auth.secure_password`::
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>) The
+password for the `auth.username`.
 
 `connection.timeout`::
-
-The amount of time that the HTTP connection is supposed to wait for a socket to open for the
-request. The default value is `6s`.
+Amount of time that the HTTP connection is supposed to wait for a socket to open
+for the request, in <<time-units,time units>>. The default value is `6s`.
 
 `connection.read_timeout`::
-
-The amount of time that the HTTP connection is supposed to wait for a socket to
-send back a response. The default value is `10 * connection.timeout` (`60s` if neither are set).
+Amount of time that the HTTP connection is supposed to wait for a socket to
+send back a response, in <<time-units,time units>>. The default value is
+`10 * connection.timeout` (`60s` if neither are set).
 
 `ssl`::
-
-Each HTTP exporter can define its own TLS / SSL settings or inherit them. See the
-<<ssl-monitoring-settings, TLS / SSL section below>>.
+Each HTTP exporter can define its own TLS / SSL settings or inherit them. See
+<<ssl-monitoring-settings>>.
 
 `proxy.base_path`::
-
-The base path to prefix any outgoing request, such as `/base/path` (e.g., bulk requests would
-then be sent as `/base/path/_bulk`). There is no default value.
+The base path to prefix any outgoing request, such as `/base/path` (e.g., bulk
+requests would then be sent as `/base/path/_bulk`). There is no default value.
 
 `headers`::
-
-Optional headers that are added to every request, which can assist with routing requests through
-proxies.
+Optional headers that are added to every request, which can assist with routing
+requests through proxies.
 +
 [source,yaml]
 ----------------------------------
@@ -237,35 +234,32 @@ xpack.monitoring.exporters.my_remote:
     X-My-Header: abc123
 ----------------------------------
 +
-Array-based headers are sent `n` times where `n` is the size of the array. `Content-Type`
-and `Content-Length` cannot be set. Any headers created by the Monitoring agent will override
-anything defined here.
+Array-based headers are sent `n` times where `n` is the size of the array.
+`Content-Type` and `Content-Length` cannot be set. Any headers created by the
+monitoring agent will override anything defined here.
 
 `index.name.time_format`::
-
-A mechanism for changing the default date suffix for the, by default, daily Monitoring indices.
-The default value is `YYYY.MM.DD`, which is why the indices are created daily.
+A mechanism for changing the default date suffix for the, by default, daily
+monitoring indices. The default value is `yyyy.MM.dd`, which is why the indices
+are created daily.
 
 `use_ingest`::
-
-Whether to supply a placeholder pipeline to the monitoring cluster and a pipeline processor with
-every bulk request. The default value is `true`. If disabled, then it means that it will not
-use pipelines, which means that a future release cannot automatically upgrade bulk requests
-to future-proof them.
+Whether to supply a placeholder pipeline to the monitoring cluster and a
+pipeline processor with every bulk request. The default value is `true`. If
+disabled, then it means that it will not use pipelines, which means that a
+future release cannot automatically upgrade bulk requests to future-proof them.
 
 `cluster_alerts.management.enabled`::
-
 Whether to create cluster alerts for this cluster. The default value is `true`.
-To use this feature, {watcher} must be enabled.  If you have a basic license,
+To use this feature, {watcher} must be enabled. If you have a basic license,
 cluster alerts are not displayed.
 
 `cluster_alerts.management.blacklist`::
-
 Prevents the creation of specific cluster alerts. It also removes any applicable
-watches that already exist in the current cluster. +
+watches that already exist in the current cluster.
 +
 --
-You can add any of the following watch identifiers to the blacklist:
+You can add any of the following watch identifiers to the list of blocked alerts:
 
 * `elasticsearch_cluster_status`
 * `elasticsearch_version_mismatch`
@@ -282,5 +276,6 @@ For example: `["elasticsearch_version_mismatch","xpack_license_expiration"]`.
 :component:              {monitoring}
 :verifies:
 :server!:
+:ssl-context:            monitoring
 
 include::ssl-settings.asciidoc[]

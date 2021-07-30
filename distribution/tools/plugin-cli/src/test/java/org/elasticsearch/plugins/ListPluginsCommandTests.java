@@ -1,32 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
-
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
@@ -39,6 +19,14 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 @LuceneTestCase.SuppressFileSystems("*")
 public class ListPluginsCommandTests extends ESTestCase {
 
@@ -50,9 +38,7 @@ public class ListPluginsCommandTests extends ESTestCase {
         super.setUp();
         home = createTempDir();
         Files.createDirectories(home.resolve("plugins"));
-        Settings settings = Settings.builder()
-                .put("path.home", home)
-                .build();
+        Settings settings = Settings.builder().put("path.home", home).build();
         env = TestEnvironment.newEnvironment(settings);
     }
 
@@ -69,7 +55,7 @@ public class ListPluginsCommandTests extends ESTestCase {
             @Override
             protected Environment createEnv(Map<String, String> settings) throws UserException {
                 Settings.Builder builder = Settings.builder().put("path.home", home);
-                settings.forEach((k,v) -> builder.put(k, v));
+                settings.forEach((k, v) -> builder.put(k, v));
                 final Settings realSettings = builder.build();
                 return new Environment(realSettings, home.resolve("config"));
             }
@@ -83,33 +69,39 @@ public class ListPluginsCommandTests extends ESTestCase {
         return terminal;
     }
 
-    private static String buildMultiline(String... args){
+    private static String buildMultiline(String... args) {
         return Arrays.stream(args).collect(Collectors.joining("\n", "", "\n"));
     }
 
-    private static void buildFakePlugin(
-            final Environment env,
-            final String description,
-            final String name,
-            final String classname) throws IOException {
+    private static void buildFakePlugin(final Environment env, final String description, final String name, final String classname)
+        throws IOException {
         buildFakePlugin(env, description, name, classname, false);
     }
 
     private static void buildFakePlugin(
-            final Environment env,
-            final String description,
-            final String name,
-            final String classname,
-            final boolean hasNativeController) throws IOException {
+        final Environment env,
+        final String description,
+        final String name,
+        final String classname,
+        final boolean hasNativeController
+    ) throws IOException {
         PluginTestUtil.writePluginProperties(
             env.pluginsFile().resolve(name),
-            "description", description,
-            "name", name,
-            "version", "1.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
-            "java.version", "1.8",
-            "classname", classname,
-            "has.native.controller", Boolean.toString(hasNativeController));
+            "description",
+            description,
+            "name",
+            name,
+            "version",
+            "1.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            "1.8",
+            "classname",
+            classname,
+            "has.native.controller",
+            Boolean.toString(hasNativeController)
+        );
     }
 
     public void testPluginsDirMissing() throws Exception {
@@ -141,19 +133,23 @@ public class ListPluginsCommandTests extends ESTestCase {
         String[] params = { "-v" };
         MockTerminal terminal = listPlugins(home, params);
         assertEquals(
-                buildMultiline(
-                        "Plugins directory: " + env.pluginsFile(),
-                        "fake_plugin",
-                        "- Plugin information:",
-                        "Name: fake_plugin",
-                        "Description: fake desc",
-                        "Version: 1.0",
-                        "Elasticsearch Version: " + Version.CURRENT.toString(),
-                        "Java Version: 1.8",
-                        "Native Controller: false",
-                        "Extended Plugins: []",
-                        " * Classname: org.fake"),
-                terminal.getOutput());
+            buildMultiline(
+                "Plugins directory: " + env.pluginsFile(),
+                "fake_plugin",
+                "- Plugin information:",
+                "Name: fake_plugin",
+                "Description: fake desc",
+                "Version: 1.0",
+                "Elasticsearch Version: " + Version.CURRENT.toString(),
+                "Java Version: 1.8",
+                "Native Controller: false",
+                "Licensed: false",
+                "Type: isolated",
+                "Extended Plugins: []",
+                " * Classname: org.fake"
+            ),
+            terminal.getOutput()
+        );
     }
 
     public void testPluginWithNativeController() throws Exception {
@@ -171,9 +167,13 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "Elasticsearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: true",
+                "Licensed: false",
+                "Type: isolated",
                 "Extended Plugins: []",
-                " * Classname: org.fake"),
-            terminal.getOutput());
+                " * Classname: org.fake"
+            ),
+            terminal.getOutput()
+        );
     }
 
     public void testPluginWithVerboseMultiplePlugins() throws Exception {
@@ -182,29 +182,35 @@ public class ListPluginsCommandTests extends ESTestCase {
         String[] params = { "-v" };
         MockTerminal terminal = listPlugins(home, params);
         assertEquals(
-                buildMultiline(
-                        "Plugins directory: " + env.pluginsFile(),
-                        "fake_plugin1",
-                        "- Plugin information:",
-                        "Name: fake_plugin1",
-                        "Description: fake desc 1",
-                        "Version: 1.0",
-                        "Elasticsearch Version: " + Version.CURRENT.toString(),
-                        "Java Version: 1.8",
-                        "Native Controller: false",
-                        "Extended Plugins: []",
-                        " * Classname: org.fake",
-                        "fake_plugin2",
-                        "- Plugin information:",
-                        "Name: fake_plugin2",
-                        "Description: fake desc 2",
-                        "Version: 1.0",
-                        "Elasticsearch Version: " + Version.CURRENT.toString(),
-                        "Java Version: 1.8",
-                        "Native Controller: false",
-                        "Extended Plugins: []",
-                        " * Classname: org.fake2"),
-                terminal.getOutput());
+            buildMultiline(
+                "Plugins directory: " + env.pluginsFile(),
+                "fake_plugin1",
+                "- Plugin information:",
+                "Name: fake_plugin1",
+                "Description: fake desc 1",
+                "Version: 1.0",
+                "Elasticsearch Version: " + Version.CURRENT.toString(),
+                "Java Version: 1.8",
+                "Native Controller: false",
+                "Licensed: false",
+                "Type: isolated",
+                "Extended Plugins: []",
+                " * Classname: org.fake",
+                "fake_plugin2",
+                "- Plugin information:",
+                "Name: fake_plugin2",
+                "Description: fake desc 2",
+                "Version: 1.0",
+                "Elasticsearch Version: " + Version.CURRENT.toString(),
+                "Java Version: 1.8",
+                "Native Controller: false",
+                "Licensed: false",
+                "Type: isolated",
+                "Extended Plugins: []",
+                " * Classname: org.fake2"
+            ),
+            terminal.getOutput()
+        );
     }
 
     public void testPluginWithoutVerboseMultiplePlugins() throws Exception {
@@ -215,42 +221,45 @@ public class ListPluginsCommandTests extends ESTestCase {
         assertEquals(buildMultiline("fake_plugin1", "fake_plugin2"), output);
     }
 
-    public void testPluginWithoutDescriptorFile() throws Exception{
+    public void testPluginWithoutDescriptorFile() throws Exception {
         final Path pluginDir = env.pluginsFile().resolve("fake1");
         Files.createDirectories(pluginDir);
         NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> listPlugins(home));
         assertEquals(pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES).toString(), e.getFile());
     }
 
-    public void testPluginWithWrongDescriptorFile() throws Exception{
+    public void testPluginWithWrongDescriptorFile() throws Exception {
         final Path pluginDir = env.pluginsFile().resolve("fake1");
         PluginTestUtil.writePluginProperties(pluginDir, "description", "fake desc");
-        IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> listPlugins(home));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> listPlugins(home));
         final Path descriptorPath = pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES);
-        assertEquals(
-                "property [name] is missing in [" + descriptorPath.toString() + "]",
-                e.getMessage());
+        assertEquals("property [name] is missing in [" + descriptorPath.toString() + "]", e.getMessage());
     }
 
     public void testExistingIncompatiblePlugin() throws Exception {
-        PluginTestUtil.writePluginProperties(env.pluginsFile().resolve("fake_plugin1"),
-            "description", "fake desc 1",
-            "name", "fake_plugin1",
-            "version", "1.0",
-            "elasticsearch.version", Version.fromString("1.0.0").toString(),
-            "java.version", System.getProperty("java.specification.version"),
-            "classname", "org.fake1");
+        PluginTestUtil.writePluginProperties(
+            env.pluginsFile().resolve("fake_plugin1"),
+            "description",
+            "fake desc 1",
+            "name",
+            "fake_plugin1",
+            "version",
+            "1.0",
+            "elasticsearch.version",
+            Version.fromString("1.0.0").toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "org.fake1"
+        );
         buildFakePlugin(env, "fake desc 2", "fake_plugin2", "org.fake2");
 
         MockTerminal terminal = listPlugins(home);
-        String message = "plugin [fake_plugin1] was built for Elasticsearch version 1.0 but version " + Version.CURRENT + " is required";
-        assertEquals(
-                "fake_plugin1\n" + "WARNING: " + message + "\n" + "fake_plugin2\n",
-                terminal.getOutput());
+        String message = "plugin [fake_plugin1] was built for Elasticsearch version 1.0.0 but version " + Version.CURRENT + " is required";
+        assertEquals("fake_plugin1\nfake_plugin2\n", terminal.getOutput());
+        assertEquals("WARNING: " + message + "\n", terminal.getErrorOutput());
 
-        String[] params = {"-s"};
+        String[] params = { "-s" };
         terminal = listPlugins(home, params);
         assertEquals("fake_plugin1\nfake_plugin2\n", terminal.getOutput());
     }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster;
@@ -23,9 +12,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
@@ -44,6 +34,7 @@ public class ClusterStateObserver {
     private final Predicate<ClusterState> MATCH_ALL_CHANGES_PREDICATE = state -> true;
 
     private final ClusterApplierService clusterApplierService;
+    private final ThreadPool threadPool;
     private final ThreadContext contextHolder;
     volatile TimeValue timeOutValue;
 
@@ -52,7 +43,7 @@ public class ClusterStateObserver {
     final TimeoutClusterStateListener clusterStateListener = new ObserverClusterStateListener();
     // observingContext is not null when waiting on cluster state changes
     final AtomicReference<ObservingContext> observingContext = new AtomicReference<>(null);
-    volatile Long startTimeNS;
+    volatile Long startTimeMS;
     volatile boolean timedOut;
 
 
@@ -81,10 +72,11 @@ public class ClusterStateObserver {
     public ClusterStateObserver(ClusterState initialState, ClusterApplierService clusterApplierService, @Nullable TimeValue timeout,
                                 Logger logger, ThreadContext contextHolder) {
         this.clusterApplierService = clusterApplierService;
+        this.threadPool = clusterApplierService.threadPool();
         this.lastObservedState = new AtomicReference<>(new StoredState(initialState));
         this.timeOutValue = timeout;
         if (timeOutValue != null) {
-            this.startTimeNS = System.nanoTime();
+            this.startTimeMS = threadPool.relativeTimeInMillis();
         }
         this.logger = logger;
         this.contextHolder = contextHolder;
@@ -134,7 +126,7 @@ public class ClusterStateObserver {
         if (timeOutValue == null) {
             timeOutValue = this.timeOutValue;
             if (timeOutValue != null) {
-                long timeSinceStartMS = TimeValue.nsecToMSec(System.nanoTime() - startTimeNS);
+                long timeSinceStartMS = threadPool.relativeTimeInMillis() - startTimeMS;
                 timeoutTimeLeftMS = timeOutValue.millis() - timeSinceStartMS;
                 if (timeoutTimeLeftMS <= 0L) {
                     // things have timeout while we were busy -> notify
@@ -150,7 +142,7 @@ public class ClusterStateObserver {
                 timeoutTimeLeftMS = null;
             }
         } else {
-            this.startTimeNS = System.nanoTime();
+            this.startTimeMS = threadPool.relativeTimeInMillis();
             this.timeOutValue = timeOutValue;
             timeoutTimeLeftMS = timeOutValue.millis();
             timedOut = false;
@@ -167,7 +159,7 @@ public class ClusterStateObserver {
         } else {
             logger.trace("observer: sampled state rejected by predicate ({}). adding listener to ClusterService", newState);
             final ObservingContext context = new ObservingContext(listener, statePredicate);
-            if (!observingContext.compareAndSet(null, context)) {
+            if (observingContext.compareAndSet(null, context) == false) {
                 throw new ElasticsearchException("already waiting for a cluster state change");
             }
             clusterApplierService.addTimeoutListener(timeoutTimeLeftMS == null ?
@@ -240,7 +232,7 @@ public class ClusterStateObserver {
             ObservingContext context = observingContext.getAndSet(null);
             if (context != null) {
                 clusterApplierService.removeTimeoutListener(this);
-                long timeSinceStartMS = TimeValue.nsecToMSec(System.nanoTime() - startTimeNS);
+                long timeSinceStartMS = threadPool.relativeTimeInMillis() - startTimeMS;
                 logger.trace("observer: timeout notification from cluster service. timeout setting [{}], time since start [{}]",
                     timeOutValue, new TimeValue(timeSinceStartMS));
                 // update to latest, in case people want to retry
@@ -248,6 +240,11 @@ public class ClusterStateObserver {
                 timedOut = true;
                 context.listener.onTimeout(timeOutValue);
             }
+        }
+
+        @Override
+        public String toString() {
+            return "ClusterStateObserver[" + observingContext.get() + "]";
         }
     }
 
@@ -290,6 +287,11 @@ public class ClusterStateObserver {
             this.listener = listener;
             this.statePredicate = statePredicate;
         }
+
+        @Override
+        public String toString() {
+            return "ObservingContext[" + listener + "]";
+        }
     }
 
     private static final class ContextPreservingListener implements Listener {
@@ -321,6 +323,11 @@ public class ClusterStateObserver {
             try (ThreadContext.StoredContext context  = contextSupplier.get()) {
                 delegate.onTimeout(timeout);
             }
+        }
+
+        @Override
+        public String toString() {
+            return "ContextPreservingListener[" + delegate + "]";
         }
     }
 }

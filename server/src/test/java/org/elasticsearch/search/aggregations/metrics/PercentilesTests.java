@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -47,8 +35,7 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
         }
         if (randomBoolean()) {
             factory.numberOfSignificantValueDigits(randomIntBetween(0, 5));
-        }
-        if (randomBoolean()) {
+        } else if (randomBoolean()) {
             factory.compression(randomIntBetween(1, 50000));
         }
         String field = randomNumericField();
@@ -71,6 +58,21 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
         assertEquals("[percents] must not be empty: [testAgg]", ex.getMessage());
     }
 
+    public void testOutOfRangePercentilesThrows() throws IOException {
+        PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("testAgg");
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> builder.percentiles(-0.4));
+        assertEquals("percent must be in [0,100], got [-0.4]: [testAgg]", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> builder.percentiles(104));
+        assertEquals("percent must be in [0,100], got [104.0]: [testAgg]", ex.getMessage());
+    }
+
+    public void testDuplicatePercentilesThrows() throws IOException {
+        PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("testAgg");
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> builder.percentiles(5, 42, 10, 99, 42, 87));
+        assertEquals("percent [42.0] has been specified twice: [testAgg]", ex.getMessage());
+    }
+
     public void testExceptionMultipleMethods() throws IOException {
         final String illegalAgg = "{\n" +
             "       \"percentiles\": {\n" +
@@ -88,7 +90,7 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         XContentParseException e = expectThrows(XContentParseException.class,
-                () -> PercentilesAggregationBuilder.parse("myPercentiles", parser));
-        assertThat(ExceptionsHelper.detailedMessage(e), containsString("[percentiles] failed to parse field [hdr]"));
+                () -> PercentilesAggregationBuilder.PARSER.parse(parser, "myPercentiles"));
+        assertThat(e.getMessage(), containsString("[percentiles] failed to parse field [hdr]"));
     }
 }

@@ -1,98 +1,146 @@
 [[indices-stats]]
-== Indices Stats
+=== Index stats API
+++++
+<titleabbrev>Index stats</titleabbrev>
+++++
 
-Indices level stats provide statistics on different operations happening
-on an index. The API provides statistics on the index level scope
-(though most stats can also be retrieved using node level scope).
+Returns statistics for one or more indices. For data streams, the API retrieves
+statistics for the stream's backing indices.
 
-The following returns high level aggregation and index level stats for
-all indices:
+[source,console]
+----
+GET /my-index-000001/_stats
+----
+// TEST[setup:my_index]
 
-[source,js]
---------------------------------------------------
-GET /_stats
---------------------------------------------------
-// CONSOLE
 
-Specific index stats can be retrieved using:
+[[index-stats-api-request]]
+==== {api-request-title}
 
-[source,js]
+`GET /<target>/_stats/<index-metric>`
+
+`GET /<target>/_stats`
+
+`GET /_stats`
+
+[[index-stats-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-indices,index privilege>> for the target data stream,
+index, or alias.
+
+[[index-stats-api-desc]]
+==== {api-description-title}
+
+Use the index stats API to get high-level aggregation and statistics for one or
+more data streams and indices.
+
+By default,
+the returned statistics are index-level
+with `primaries` and `total` aggregations.
+`primaries` are the values for only the primary shards.
+`total` are the accumulated values for both primary and replica shards.
+
+To get shard-level statistics,
+set the `level` parameter to `shards`.
+
+[NOTE]
+====
+When moving to another node,
+the shard-level statistics for a shard are cleared.
+Although the shard
+is no longer part of the node,
+that node retains any node-level statistics
+to which the shard contributed.
+====
+
+
+[[index-stats-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-metric]
+
+
+[[index-stats-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
+
+`forbid_closed_indices`::
+(Optional, Boolean)
+If `true`, statistics are *not* collected from closed indices.
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=groups]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=level]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
+
+
+[[index-stats-api-example]]
+==== {api-examples-title}
+
+
+[[index-stats-api-multiple-ex]]
+===== Get statistics for multiple data streams and indices
+
+[source,console]
 --------------------------------------------------
 GET /index1,index2/_stats
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT index1\nPUT index2\n/]
 
-By default, all stats are returned, returning only specific stats can be
-specified as well in the URI. Those stats can be any of:
 
-[horizontal]
-`docs`:: 		The number of docs / deleted docs (docs not yet merged out).
-				Note, affected by refreshing the index.
+[[index-stats-api-all-ex]]
+===== Get statistics for all data streams and indices in a cluster
 
-`store`:: 		The size of the index.
-
-`indexing`:: 	Indexing statistics, can be combined with a comma
-				separated list of `types` to provide document type level stats.
-
-`get`:: 		Get statistics, including missing stats.
-
-`search`:: 		Search statistics including suggest statistics.
-                You can include statistics for custom groups by adding
-                an extra `groups` parameter (search operations can be associated with one or more
-                groups). The `groups` parameter accepts a comma separated list of group names.
-                Use `_all` to return statistics for all groups.
-
-`segments`::    Retrieve the memory use of the open segments. Optionally, setting the `include_segment_file_sizes` flag, report the aggregated disk usage of each one of the Lucene index files.
-
-`completion`::  Completion suggest statistics.
-`fielddata`::   Fielddata statistics.
-`flush`::       Flush statistics.
-`merge`::       Merge statistics.
-`request_cache`:: <<shard-request-cache,Shard request cache>> statistics.
-`refresh`::     Refresh statistics.
-`warmer`::      Warmer statistics.
-`translog`::    Translog statistics.
-
-Some statistics allow per field granularity which accepts a list
-comma-separated list of included fields. By default all fields are included:
-
-[horizontal]
-`fields`::
-
-    List of fields to be included in the statistics. This is used as the
-    default list unless a more specific field list is provided (see below).
-
-`completion_fields`::
-
-    List of fields to be included in the Completion Suggest statistics.
-
-`fielddata_fields`::
-
-    List of fields to be included in the Fielddata statistics.
-
-
-Here are some samples:
-
-[source,js]
+[source,console]
 --------------------------------------------------
-# Get back stats for merge and refresh only for all indices
+GET /_stats
+--------------------------------------------------
+// TEST[setup:my_index]
+
+
+[[index-stats-api-specific-stats-ex]]
+===== Get specific statistics
+
+The following request returns
+only the `merge` and `refresh` statistics
+for all indices.
+
+[source,console]
+--------------------------------------------------
 GET /_stats/merge,refresh
-# Get back stats for type1 and type2 documents for the my_index index
-GET /my_index/_stats/indexing?types=type1,type2
-# Get back just search stats for group1 and group2
+--------------------------------------------------
+// TEST[setup:my_index]
+
+
+[[index-stats-api-specific-groups-ex]]
+===== Get statistics for specific search groups
+
+The following request returns
+only search statistics
+for the `group1` and `group2` search groups.
+
+[source,console]
+--------------------------------------------------
 GET /_stats/search?groups=group1,group2
 --------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT my_index\n/]
-
-The stats returned are aggregated on the index level, with
-`primaries` and `total` aggregations, where `primaries` are the values for only the
-primary shards, and `total` are the cumulated values for both primary and replica shards.
-
-In order to get back shard level stats, set the `level` parameter to `shards`.
-
-Note, as shards move around the cluster, their stats will be cleared as
-they are created on other nodes. On the other hand, even though a shard
-"left" a node, that node will still retain the stats that shard
-contributed to.
+// TEST[setup:my_index]

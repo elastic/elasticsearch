@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.Scheme;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser.EmailAttachment;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -38,7 +40,7 @@ public class EmailAttachmentParsersTests extends ESTestCase {
     private WatchExecutionContext ctx = mock(WatchExecutionContext.class);
 
     public void testThatCustomParsersCanBeRegistered() throws Exception {
-        Map<String, EmailAttachmentParser> parsers = new HashMap<>();
+        Map<String, EmailAttachmentParser<? extends EmailAttachment>> parsers = new HashMap<>();
         parsers.put("test", new TestEmailAttachmentParser());
         EmailAttachmentsParser parser = new EmailAttachmentsParser(parsers);
 
@@ -61,15 +63,17 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         EmailAttachments attachments = parser.parse(xContentParser);
         assertThat(attachments.getAttachments(), hasSize(2));
 
-        List<EmailAttachmentParser.EmailAttachment> emailAttachments = new ArrayList<>(attachments.getAttachments());
-        EmailAttachmentParser.EmailAttachment emailAttachment = emailAttachments.get(0);
+        List<EmailAttachment> emailAttachments = new ArrayList<>(attachments.getAttachments());
+        EmailAttachment emailAttachment = emailAttachments.get(0);
         assertThat(emailAttachment, instanceOf(TestEmailAttachment.class));
 
-        Attachment attachment = parsers.get("test").toAttachment(ctx, new Payload.Simple(), emailAttachment);
+        @SuppressWarnings("unchecked")
+        EmailAttachmentParser<EmailAttachment> testParser = (EmailAttachmentParser<EmailAttachment>) parsers.get("test");
+        Attachment attachment = testParser.toAttachment(ctx, new Payload.Simple(), emailAttachment);
         assertThat(attachment.name(), is("my-id"));
         assertThat(attachment.contentType(), is("personalContentType"));
 
-        assertThat(parsers.get("test").toAttachment(ctx, new Payload.Simple(), emailAttachments.get(1)).id(), is("my-other-id"));
+        assertThat(testParser.toAttachment(ctx, new Payload.Simple(), emailAttachments.get(1)).id(), is("my-other-id"));
     }
 
     public void testThatUnknownParserThrowsException() throws IOException {
@@ -89,7 +93,7 @@ public class EmailAttachmentParsersTests extends ESTestCase {
     }
 
     public void testThatToXContentSerializationWorks() throws Exception {
-        List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>();
+        List<EmailAttachment> attachments = new ArrayList<>();
         attachments.add(new DataAttachment("my-name.json", org.elasticsearch.xpack.watcher.notification.email.DataAttachment.JSON));
 
         HttpRequestTemplate requestTemplate = HttpRequestTemplate.builder("localhost", 80).scheme(Scheme.HTTP).path("/").build();
@@ -149,7 +153,7 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         }
     }
 
-    public static class TestEmailAttachment implements EmailAttachmentParser.EmailAttachment {
+    public static class TestEmailAttachment implements EmailAttachment {
 
         private final String value;
         private final String id;

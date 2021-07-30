@@ -1,0 +1,24 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<tdr class='elasticsearch-jdbc'>
+    <connection-resolver>
+    <connection-builder>
+      <script file='connectionBuilder.js'/>
+    </connection-builder>
+    <connection-normalizer>
+      <required-attributes>
+        <attribute-list>
+          <attr>class</attr>
+          <attr>server</attr>
+          <attr>port</attr>
+          <attr>username</attr>
+          <attr>password</attr>
+          <attr>sslmode</attr>
+          <attr>warehouse</attr>
+        </attribute-list>
+      </required-attributes>
+    </connection-normalizer>
+    <connection-properties>
+      <script file='connectionProperties.js'/>
+    </connection-properties>
+    </connection-resolver>
+</tdr>

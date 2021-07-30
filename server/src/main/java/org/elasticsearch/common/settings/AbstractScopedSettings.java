@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
@@ -25,7 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.ArrayList;
@@ -55,7 +44,7 @@ public abstract class AbstractScopedSettings {
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
     private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
 
-    protected final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger;
 
     private final Settings settings;
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
@@ -70,6 +59,7 @@ public abstract class AbstractScopedSettings {
             final Set<Setting<?>> settingsSet,
             final Set<SettingUpgrader<?>> settingUpgraders,
             final Setting.Property scope) {
+        this.logger = LogManager.getLogger(this.getClass());
         this.settings = settings;
         this.lastSettingsApplied = Settings.EMPTY;
 
@@ -110,13 +100,14 @@ public abstract class AbstractScopedSettings {
         }
     }
 
-    protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other) {
+    protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other, Logger logger) {
+        this.logger = logger;
         this.settings = nodeSettings;
         this.lastSettingsApplied = scopeSettings;
         this.scope = other.scope;
         complexMatchers = other.complexMatchers;
         keySettings = other.keySettings;
-        settingUpgraders = Collections.unmodifiableMap(new HashMap<>(other.settingUpgraders));
+        settingUpgraders = Map.copyOf(other.settingUpgraders);
         settingUpdaters.addAll(other.settingUpdaters);
     }
 
@@ -193,7 +184,6 @@ public abstract class AbstractScopedSettings {
         } catch (Exception ex) {
             logger.warn("failed to apply settings", ex);
             throw ex;
-        } finally {
         }
         return lastSettingsApplied = newSettings;
     }
@@ -221,6 +211,18 @@ public abstract class AbstractScopedSettings {
      */
     public synchronized void addSettingsUpdateConsumer(Consumer<Settings> consumer, List<? extends Setting<?>> settings) {
         addSettingsUpdater(Setting.groupedSettingsUpdater(consumer, settings));
+    }
+
+    /**
+     * Adds a settings consumer that is only executed if any setting in the supplied list of settings is changed. In that case all the
+     * settings are specified in the argument are returned.  The validator is run across all specified settings before the settings are
+     * applied.
+     *
+     * Also automatically adds empty consumers for all settings in order to activate logging
+     */
+    public synchronized void addSettingsUpdateConsumer(Consumer<Settings> consumer, List<? extends Setting<?>> settings,
+                                                       Consumer<Settings> validator) {
+        addSettingsUpdater(Setting.groupedSettingsUpdater(consumer, settings, validator));
     }
 
     /**
@@ -296,6 +298,55 @@ public abstract class AbstractScopedSettings {
         });
     }
 
+    /**
+     * Adds a affix settings consumer that accepts the settings for a group of settings. The consumer is only
+     * notified if at least one of the settings change.
+     * <p>
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
+     * </p>
+     */
+    @SuppressWarnings("rawtypes")
+    public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
+        List<SettingUpdater> affixUpdaters = new ArrayList<>(settings.size());
+        for (Setting.AffixSetting<?> setting : settings) {
+            ensureSettingIsRegistered(setting);
+            affixUpdaters.add(setting.newAffixUpdater((a,b)-> {}, logger, (a,b)-> {}));
+        }
+
+        addSettingsUpdater(new SettingUpdater<Map<String, Settings>>() {
+
+            @Override
+            public boolean hasChanged(Settings current, Settings previous) {
+                return affixUpdaters.stream().anyMatch(au -> au.hasChanged(current, previous));
+            }
+
+            @Override
+            public Map<String, Settings> getValue(Settings current, Settings previous) {
+                Set<String> namespaces = new HashSet<>();
+                for (Setting.AffixSetting<?> setting : settings) {
+                    SettingUpdater affixUpdaterA = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) ->{});
+                    affixUpdaterA.apply(current, previous);
+                }
+                Map<String, Settings> namespaceToSettings = new HashMap<>(namespaces.size());
+                for (String namespace : namespaces) {
+                    Set<String> concreteSettings = new HashSet<>(settings.size());
+                    for (Setting.AffixSetting<?> setting : settings) {
+                        concreteSettings.add(setting.getConcreteSettingForNamespace(namespace).getKey());
+                    }
+                    namespaceToSettings.put(namespace, current.filter(concreteSettings::contains));
+                }
+                return namespaceToSettings;
+            }
+
+            @Override
+            public void apply(Map<String, Settings> values, Settings current, Settings previous) {
+                for (Map.Entry<String, Settings> entry : values.entrySet()) {
+                    consumer.accept(entry.getKey(), entry.getValue());
+                }
+            }
+        });
+    }
+
     private void ensureSettingIsRegistered(Setting.AffixSetting<?> setting) {
         final Setting<?> registeredSetting = this.complexMatchers.get(setting.getKey());
         if (setting != registeredSetting) {
@@ -363,47 +414,47 @@ public abstract class AbstractScopedSettings {
      * Validates that all settings are registered and valid.
      *
      * @param settings             the settings to validate
-     * @param validateDependencies true if dependent settings should be validated
+     * @param validateValues       true if values should be validated, otherwise only keys are validated
      * @see Setting#getSettingsDependencies(String)
      */
-    public final void validate(final Settings settings, final boolean validateDependencies) {
-        validate(settings, validateDependencies, false, false);
+    public final void validate(final Settings settings, final boolean validateValues) {
+        validate(settings, validateValues, false, false);
     }
 
     /**
      * Validates that all settings are registered and valid.
      *
      * @param settings                       the settings to validate
-     * @param validateDependencies           true if dependent settings should be validated
+     * @param validateValues                 true if values should be validated, otherwise only keys are validated
      * @param validateInternalOrPrivateIndex true if internal index settings should be validated
      * @see Setting#getSettingsDependencies(String)
      */
-    public final void validate(final Settings settings, final boolean validateDependencies, final boolean validateInternalOrPrivateIndex) {
-        validate(settings, validateDependencies, false, false, validateInternalOrPrivateIndex);
+    public final void validate(final Settings settings, final boolean validateValues, final boolean validateInternalOrPrivateIndex) {
+        validate(settings, validateValues, false, false, validateInternalOrPrivateIndex);
     }
 
     /**
      * Validates that all settings are registered and valid.
      *
      * @param settings               the settings
-     * @param validateDependencies   true if dependent settings should be validated
+     * @param validateValues         true if values should be validated, otherwise only keys are validated
      * @param ignorePrivateSettings  true if private settings should be ignored during validation
      * @param ignoreArchivedSettings true if archived settings should be ignored during validation
      * @see Setting#getSettingsDependencies(String)
      */
     public final void validate(
             final Settings settings,
-            final boolean validateDependencies,
+            final boolean validateValues,
             final boolean ignorePrivateSettings,
             final boolean ignoreArchivedSettings) {
-        validate(settings, validateDependencies, ignorePrivateSettings, ignoreArchivedSettings, false);
+        validate(settings, validateValues, ignorePrivateSettings, ignoreArchivedSettings, false);
     }
 
     /**
      * Validates that all settings are registered and valid.
      *
      * @param settings                       the settings
-     * @param validateDependencies           true if dependent settings should be validated
+     * @param validateValues                 true if values should be validated, otherwise only keys are validated
      * @param ignorePrivateSettings          true if private settings should be ignored during validation
      * @param ignoreArchivedSettings         true if archived settings should be ignored during validation
      * @param validateInternalOrPrivateIndex true if index internal settings should be validated
@@ -411,7 +462,7 @@ public abstract class AbstractScopedSettings {
      */
     public final void validate(
             final Settings settings,
-            final boolean validateDependencies,
+            final boolean validateValues,
             final boolean ignorePrivateSettings,
             final boolean ignoreArchivedSettings,
             final boolean validateInternalOrPrivateIndex) {
@@ -425,7 +476,7 @@ public abstract class AbstractScopedSettings {
                 continue;
             }
             try {
-                validate(key, settings, validateDependencies, validateInternalOrPrivateIndex);
+                validate(key, settings, validateValues, validateInternalOrPrivateIndex);
             } catch (final RuntimeException ex) {
                 exceptions.add(ex);
             }
@@ -438,11 +489,11 @@ public abstract class AbstractScopedSettings {
      *
      * @param key the key of the setting to validate
      * @param settings the settings
-     * @param validateDependencies true if dependent settings should be validated
+     * @param validateValue true if value should be validated, otherwise only keys are validated
      * @throws IllegalArgumentException if the setting is invalid
      */
-    void validate(final String key, final Settings settings, final boolean validateDependencies) {
-        validate(key, settings, validateDependencies, false);
+    void validate(final String key, final Settings settings, final boolean validateValue) {
+        validate(key, settings, validateValue, false);
     }
 
     /**
@@ -450,13 +501,13 @@ public abstract class AbstractScopedSettings {
      *
      * @param key                            the key of the setting to validate
      * @param settings                       the settings
-     * @param validateDependencies           true if dependent settings should be validated
+     * @param validateValue                  true if value should be validated, otherwise only keys are validated
      * @param validateInternalOrPrivateIndex true if internal index settings should be validated
      * @throws IllegalArgumentException if the setting is invalid
      */
     void validate(
-            final String key, final Settings settings, final boolean validateDependencies, final boolean validateInternalOrPrivateIndex) {
-        Setting setting = getRaw(key);
+            final String key, final Settings settings, final boolean validateValue, final boolean validateInternalOrPrivateIndex) {
+        Setting<?> setting = getRaw(key);
         if (setting == null) {
             LevenshteinDistance ld = new LevenshteinDistance();
             List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
@@ -482,20 +533,24 @@ public abstract class AbstractScopedSettings {
             }
             throw new IllegalArgumentException(msg);
         } else  {
-            Set<Setting<?>> settingsDependencies = setting.getSettingsDependencies(key);
+            Set<Setting.SettingDependency> settingsDependencies = setting.getSettingsDependencies(key);
             if (setting.hasComplexMatcher()) {
                 setting = setting.getConcreteSetting(key);
             }
-            if (validateDependencies && settingsDependencies.isEmpty() == false) {
-                for (final Setting<?> settingDependency : settingsDependencies) {
-                    if (settingDependency.existsOrFallbackExists(settings) == false) {
+            if (validateValue && settingsDependencies.isEmpty() == false) {
+                for (final Setting.SettingDependency settingDependency : settingsDependencies) {
+                    final Setting<?> dependency = settingDependency.getSetting();
+                    // validate the dependent setting is set
+                    if (dependency.existsOrFallbackExists(settings) == false) {
                         final String message = String.format(
                                 Locale.ROOT,
                                 "missing required setting [%s] for setting [%s]",
-                                settingDependency.getKey(),
+                                dependency.getKey(),
                                 setting.getKey());
                         throw new IllegalArgumentException(message);
                     }
+                    // validate the dependent setting value
+                    settingDependency.validate(setting.getKey(), setting.get(settings), dependency.get(settings));
                 }
             }
             // the only time that validateInternalOrPrivateIndex should be true is if this call is coming via the update settings API
@@ -509,7 +564,9 @@ public abstract class AbstractScopedSettings {
                 }
             }
         }
-        setting.get(settings);
+        if (validateValue) {
+            setting.get(settings);
+        }
     }
 
     /**
@@ -723,7 +780,7 @@ public abstract class AbstractScopedSettings {
             } else if (get(key) == null) {
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
             } else if (isDelete == false && canUpdate.test(key)) {
-                validate(key, toApply, false); // we might not have a full picture here do to a dependency validation
+                get(key).validateWithoutDependencies(toApply); // we might not have a full picture here do to a dependency validation
                 settingsBuilder.copy(key, toApply);
                 updates.copy(key, toApply);
                 changed |= toApply.get(key).equals(target.get(key)) == false;

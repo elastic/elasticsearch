@@ -1,345 +1,171 @@
-import org.elasticsearch.gradle.test.NodeInfo
-import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-import java.nio.charset.StandardCharsets
-import java.util.regex.Matcher
-
-// Apply the java plugin to this project so the sources can be edited in an IDE
-apply plugin: 'elasticsearch.build'
-test.enabled = false
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('security'), configuration: 'runtime')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts') // to be moved in a later commit
+  testImplementation project(':x-pack:qa')
+  testImplementation project(':client:rest-high-level')
 }
 
-Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-
-    // wait up to two minutes
-    final long stopTime = System.currentTimeMillis() + (2 * 60000L);
-    Exception lastException = null;
-    int lastResponseCode = 0
-
-    while (System.currentTimeMillis() < stopTime) {
-
-        lastException = null;
-        // we use custom wait logic here as the elastic user is not available immediately and ant.get will fail when a 401 is returned
-        HttpURLConnection httpURLConnection = null;
-        try {
-            // TODO this sucks having to hardcode number of nodes, but node.config.numNodes isn't necessarily accurate for rolling
-            httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=3&wait_for_status=yellow").openConnection();
-            httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                    Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
-            httpURLConnection.setRequestMethod("GET");
-            httpURLConnection.setConnectTimeout(1000);
-            httpURLConnection.setReadTimeout(30000); // read needs to wait for nodes!
-            httpURLConnection.connect();
-            lastResponseCode = httpURLConnection.getResponseCode()
-            if (lastResponseCode == 200) {
-                tmpFile.withWriter StandardCharsets.UTF_8.name(), {
-                    it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
-                }
-                break;
-            }
-        } catch (Exception e) {
-            logger.debug("failed to call cluster health", e)
-            lastException = e
-        } finally {
-            if (httpURLConnection != null) {
-                httpURLConnection.disconnect();
-            }
-        }
-
-        // did not start, so wait a bit before trying again
-        Thread.sleep(500L);
-    }
-    if (tmpFile.exists() == false) {
-        final String message = "final attempt of calling cluster health failed [lastResponseCode=${lastResponseCode}]"
-        if (lastException != null) {
-            logger.error(message, lastException)
-        } else {
-            logger.error(message + " [no exception]")
-        }
-    }
-    return tmpFile.exists()
+restResources {
+  restApi {
+    include '*'
+  }
 }
 
-Project mainProject = project
-
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
-
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/system_key'
 }
 
-/**
- * Subdirectories of this project are test rolling upgrades with various
- * configuration options based on their name.
- */
-subprojects {
-  Matcher m = project.name =~ /with(out)?-system-key/
-  if (false == m.matches()) {
-    throw new InvalidUserDataException("Invalid project name [${project.name}]")
-  }
-  boolean withSystemKey = m.group(1) == null
+String outputDir = "${buildDir}/generated-resources/${project.name}"
 
-  apply plugin: 'elasticsearch.standalone-test'
+tasks.register("copyTestNodeKeyMaterial", Copy) {
+  from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+    'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt')
+  into outputDir
+}
 
-  // Use resources from the rolling-upgrade project in subdirectories
-  sourceSets {
-    test {
-      java {
-        srcDirs = ["${mainProject.projectDir}/src/test/java"]
-      }
-      resources {
-        srcDirs = ["${mainProject.projectDir}/src/test/resources"]
-      }
-    }
-  }
+for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
+  String baseName = "v${bwcVersion}"
 
-  forbiddenPatterns {
-    exclude '**/system_key'
-  }
+  // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
+  String searchableSnapshotRepository = "${buildDir}/cluster/shared/searchable-snapshots-repo/${baseName}"
 
-  String outputDir = "${buildDir}/generated-resources/${project.name}"
+  testClusters {
+    "${baseName}" {
+      testDistribution = "DEFAULT"
+      versions = [bwcVersion.toString(), project.version]
+      numberOfNodes = 3
 
-  // This is a top level task which we will add dependencies to below.
-  // It is a single task that can be used to backcompat tests against all versions.
-  task bwcTest {
-    description = 'Runs backwards compatibility tests.'
-    group = 'verification'
-  }
-
-  String output = "${buildDir}/generated-resources/${project.name}"
-  task copyTestNodeKeystore(type: Copy) {
-    from project(':x-pack:plugin:core')
-            .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
-    into outputDir
-  }
-
-  for (Version version : bwcVersions.wireCompatible) {
-    String baseName = "v${version}"
-
-    Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
-      mustRunAfter(precommit)
-    }
-
-    configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-      dependsOn copyTestNodeKeystore
-      if (version.before('6.3.0')) {
-          String depVersion = version;
-          if (project.bwcVersions.unreleased.contains(version)) {
-              depVersion += "-SNAPSHOT"
-          }
-          mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${depVersion}"
-      }
-      String usersCli = version.before('6.3.0') ? 'bin/x-pack/users' : 'bin/elasticsearch-users'
-      setupCommand 'setupTestUser', usersCli, 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-      bwcVersion = version
-      numBwcNodes = 3
-      numNodes = 3
-      clusterName = 'rolling-upgrade'
-      waitCondition = waitWithAuth
-      setting 'xpack.monitoring.exporters._http.type', 'http'
-      setting 'xpack.monitoring.exporters._http.enabled', 'false'
-      setting 'xpack.monitoring.exporters._http.auth.username', 'test_user'
-      setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
+      setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+      setting 'path.repo', "['${buildDir}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"
       setting 'xpack.license.self_generated.type', 'trial'
       setting 'xpack.security.enabled', 'true'
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.security.authc.token.enabled', 'true'
+      setting 'xpack.security.authc.token.timeout', '60m'
+      setting 'xpack.security.authc.api_key.enabled', 'true'
       setting 'xpack.security.audit.enabled', 'true'
-      setting 'xpack.security.audit.outputs', 'index'
-      setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      setting 'xpack.ssl.keystore.password', 'testnode'
-      dependsOn copyTestNodeKeystore
-      extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
-      if (version.onOrAfter('7.0.0')) {
-          setting 'xpack.security.authc.realms.file.file1.order', '0'
-          setting 'xpack.security.authc.realms.native.native1.order', '1'
+      setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+      setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+      keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+
+      if (bwcVersion.onOrAfter('7.0.0')) {
+        setting 'xpack.security.authc.realms.file.file1.order', '0'
+        setting 'xpack.security.authc.realms.native.native1.order', '1'
       } else {
-          setting 'xpack.security.authc.realms.file1.type', 'file'
-          setting 'xpack.security.authc.realms.file1.order', '0'
-          setting 'xpack.security.authc.realms.native1.type', 'native'
-          setting 'xpack.security.authc.realms.native1.order', '1'
+        setting 'xpack.security.authc.realms.file1.type', 'file'
+        setting 'xpack.security.authc.realms.file1.order', '0'
+        setting 'xpack.security.authc.realms.native1.type', 'native'
+        setting 'xpack.security.authc.realms.native1.order', '1'
+      }
+      if (bwcVersion.onOrAfter('6.6.0')) {
+        setting 'ccr.auto_follow.wait_for_metadata_timeout', '1s'
       }
 
-      if (withSystemKey) {
-        if (version.onOrAfter('5.1.0') && version.before('6.0.0')) {
-          // The setting didn't exist until 5.1.0
-          setting 'xpack.security.system_key.required', 'true'
-        }
-        if (version.onOrAfter('6.0.0')) {
-            keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
-        } else {
-            String systemKeyFile = version.before('6.3.0') ? 'x-pack/system_key' : 'system_key'
-            extraConfigFile systemKeyFile, "${mainProject.projectDir}/src/test/resources/system_key"
-            keystoreSetting 'xpack.security.authc.token.passphrase', 'token passphrase'
-        }
-        setting 'xpack.watcher.encrypt_sensitive_data', 'true'
+      user username: "test_user", password: "x-pack-test-password"
+
+      extraConfigFile 'testnode.pem', file("$outputDir/testnode.pem")
+      extraConfigFile 'testnode.crt', file("$outputDir/testnode.crt")
+
+      keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
+      setting 'xpack.watcher.encrypt_sensitive_data', 'true'
+
+      // Old versions of the code contain an invalid assertion that trips
+      // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing
+      // the assertion, but this is impossible for released versions.
+      // However, released versions run without assertions, so end users won't
+      // be suffering the effects.  This argument effectively removes the
+      // incorrect assertion from the older versions used in the BWC tests.
+      if (bwcVersion.before('5.6.9') || (bwcVersion.onOrAfter('6.0.0') && bwcVersion.before('6.2.4'))) {
+        jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
       }
-    }
+      setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
 
-    Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
-    oldClusterTestRunner.configure {
-      systemProperty 'tests.rest.suite', 'old_cluster'
-    }
-
-    Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure getOtherUnicastHostAddresses ->
-      configure(extensions.findByName("${baseName}#${name}")) {
-        dependsOn lastRunner, "${baseName}#oldClusterTestCluster#node${stopNode}.stop"
-        setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-        clusterName = 'rolling-upgrade'
-        otherUnicastHostAddresses = { getOtherUnicastHostAddresses() }
-        minimumMasterNodes = { 2 }
-        autoSetInitialMasterNodes = false
-        /* Override the data directory so the new node always gets the node we
-        * just stopped's data directory. */
-        dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
-        waitCondition = waitWithAuth
-        setting 'xpack.monitoring.exporters._http.type', 'http'
-        setting 'xpack.monitoring.exporters._http.enabled', 'false'
-        setting 'xpack.monitoring.exporters._http.auth.username', 'test_user'
-        setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
-        setting 'xpack.license.self_generated.type', 'trial'
-        setting 'xpack.security.enabled', 'true'
-        setting 'xpack.security.transport.ssl.enabled', 'true'
-        setting 'xpack.ssl.keystore.path', 'testnode.jks'
-        keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
-        setting 'node.attr.upgraded', 'true'
-        setting 'xpack.security.authc.token.enabled', 'true'
-        setting 'xpack.security.audit.enabled', 'true'
-        setting 'xpack.security.audit.outputs', 'index'
-        setting 'node.name', "upgraded-node-${stopNode}"
-        dependsOn copyTestNodeKeystore
-        extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
-        if (withSystemKey) {
-          setting 'xpack.watcher.encrypt_sensitive_data', 'true'
-          keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
-        }
-        if (version.before('6.0.0')) {
-          keystoreSetting 'xpack.security.authc.token.passphrase', 'token passphrase'
-        }
-      }
-    }
-
-    Task oneThirdUpgradedTest = tasks.create(name: "${baseName}#oneThirdUpgradedTest", type: RestIntegTestTask)
-
-    configureUpgradeCluster("oneThirdUpgradedTestCluster", oldClusterTestRunner, 0,
-      // Use all running nodes as seed nodes so there is no race between pinging and the tests
-      { [oldClusterTest.nodes.get(1).transportUri(), oldClusterTest.nodes.get(2).transportUri()] })
-
-    Task oneThirdUpgradedTestRunner = tasks.getByName("${baseName}#oneThirdUpgradedTestRunner")
-    oneThirdUpgradedTestRunner.configure {
-      systemProperty 'tests.rest.suite', 'mixed_cluster'
-      systemProperty 'tests.first_round', 'true'
-      // We only need to run these tests once so we may as well do it when we're two thirds upgraded
-      systemProperty 'tests.rest.blacklist', [
-          'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
-          'mixed_cluster/30_ml_jobs_crud/Create a job in the mixed cluster and write some data',
-          'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
-        ].join(',')
-      finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
-    }
-
-    Task twoThirdsUpgradedTest = tasks.create(name: "${baseName}#twoThirdsUpgradedTest", type: RestIntegTestTask)
-
-    configureUpgradeCluster("twoThirdsUpgradedTestCluster", oneThirdUpgradedTestRunner, 1,
-      // Use all running nodes as seed nodes so there is no race between pinging and the tests
-      { [oldClusterTest.nodes.get(2).transportUri(), oneThirdUpgradedTest.nodes.get(0).transportUri()] })
-
-    Task twoThirdsUpgradedTestRunner = tasks.getByName("${baseName}#twoThirdsUpgradedTestRunner")
-    twoThirdsUpgradedTestRunner.configure {
-      systemProperty 'tests.rest.suite', 'mixed_cluster'
-      systemProperty 'tests.first_round', 'false'
-      finalizedBy "${baseName}#oldClusterTestCluster#node2.stop"
-    }
-
-    Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
-
-    configureUpgradeCluster("upgradedClusterTestCluster", twoThirdsUpgradedTestRunner, 2,
-      // Use all running nodes as seed nodes so there is no race between pinging and the tests
-      { [oneThirdUpgradedTest.nodes.get(0).transportUri(), twoThirdsUpgradedTest.nodes.get(0).transportUri()] })
-
-    Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
-    upgradedClusterTestRunner.configure {
-      systemProperty 'tests.rest.suite', 'upgraded_cluster'
-      /*
-       * Force stopping all the upgraded nodes after the test runner
-       * so they are alive during the test.
-       */
-      finalizedBy "${baseName}#oneThirdUpgradedTestCluster#stop"
-      finalizedBy "${baseName}#twoThirdsUpgradedTestCluster#stop"
-
-      // migration tests should only run when the original/old cluster nodes where versions < 5.2.0.
-      // this stinks but we do the check here since our rest tests do not support conditionals
-      // otherwise we could check the index created version
-      String versionStr = project.extensions.findByName("${baseName}#oldClusterTestCluster").properties.get('bwcVersion')
-      String[] versionParts = versionStr.split('\\.')
-      if (versionParts[0].equals("5")) {
-          Integer minor = Integer.parseInt(versionParts[1])
-          if (minor >= 2) {
-              systemProperty 'tests.rest.blacklist', '/20_security/Verify default password migration results in upgraded cluster'
-          }
-      }
-    }
-
-    Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
-      dependsOn = [upgradedClusterTest]
-    }
-
-    if (project.bwc_tests_enabled) {
-      bwcTest.dependsOn(versionBwcTest)
-    }
-  }
-
-  test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
-
-  // basic integ tests includes testing bwc against the most recent version
-  task integTest {
-    if (project.bwc_tests_enabled) {
-      for (final def version : bwcVersions.unreleasedWireCompatible) {
-        dependsOn "v${version}#bwcTest"
+      if (bwcVersion.onOrAfter('7.12.0')) {
+        setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
       }
     }
   }
-  check.dependsOn(integTest)
 
-  dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    testCompile project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    testCompile project(path: xpackModule('watcher'))
-  }
-
-  compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
-
-  // copy x-pack plugin info so it is on the classpath and security manager has the right permissions
-  task copyXPackRestSpec(type: Copy) {
-    dependsOn(project.configurations.restSpec, 'processTestResources')
-    from project(xpackProject('plugin').path).sourceSets.test.resources
-    include 'rest-api-spec/api/**'
-    into project.sourceSets.test.output.resourcesDir
-  }
-
-  task copyXPackPluginProps(type: Copy) {
-    dependsOn(copyXPackRestSpec)
-    from project(xpackModule('core')).file('src/main/plugin-metadata')
-    from project(xpackModule('core')).tasks.pluginProperties
-    into outputDir
-  }
-  project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
-
-  repositories {
-    maven {
-      url "https://artifacts.elastic.co/maven"
+  tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
+    useCluster testClusters."${baseName}"
+    mustRunAfter("precommit")
+    dependsOn "copyTestNodeKeyMaterial"
+    doFirst {
+      delete("${buildDir}/cluster/shared/repo/${baseName}")
+      delete("${searchableSnapshotRepository}")
     }
-    maven {
-      url "https://snapshots.elastic.co/maven"
+
+    systemProperty 'tests.rest.suite', 'old_cluster'
+    systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
+    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+  }
+
+  String oldVersion = bwcVersion.toString().replace('-SNAPSHOT', '')
+  tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
+    dependsOn "${baseName}#oldClusterTest"
+    useCluster testClusters."${baseName}"
+    doFirst {
+      testClusters."${baseName}".nextNodeToNextVersion()
     }
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    systemProperty 'tests.rest.suite', 'mixed_cluster'
+    systemProperty 'tests.first_round', 'true'
+    systemProperty 'tests.upgrade_from_version', oldVersion
+    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
+    // We only need to run these tests once so we may as well do it when we're two thirds upgraded
+    systemProperty 'tests.rest.blacklist', [
+      'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
+      'mixed_cluster/30_ml_jobs_crud/Create a job in the mixed cluster and write some data',
+      'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
+      'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed without aggs in mixed cluster',
+      'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster',
+      'mixed_cluster/80_transform_jobs_crud/Test put batch transform on mixed cluster',
+      'mixed_cluster/80_transform_jobs_crud/Test put continuous transform on mixed cluster',
+      'mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster',
+      'mixed_cluster/110_enrich/Enrich stats query smoke test for mixed cluster',
+      'mixed_cluster/120_api_key/Test API key authentication will work in a mixed cluster',
+      'mixed_cluster/120_api_key/Create API key with metadata in a mixed cluster'
+    ].join(',')
+  }
+
+  tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
+    dependsOn "${baseName}#oneThirdUpgradedTest"
+    useCluster testClusters."${baseName}"
+    doFirst {
+      testClusters."${baseName}".nextNodeToNextVersion()
+    }
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    systemProperty 'tests.rest.suite', 'mixed_cluster'
+    systemProperty 'tests.first_round', 'false'
+    systemProperty 'tests.upgrade_from_version', oldVersion
+    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
+  }
+
+  tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
+    dependsOn "${baseName}#twoThirdsUpgradedTest"
+    useCluster testClusters."${baseName}"
+    doFirst {
+      testClusters."${baseName}".nextNodeToNextVersion()
+    }
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    systemProperty 'tests.rest.suite', 'upgraded_cluster'
+    systemProperty 'tests.upgrade_from_version', oldVersion
+    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
+  }
+
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn "${baseName}#upgradedClusterTest"
   }
 }

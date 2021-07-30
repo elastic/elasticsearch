@@ -1,49 +1,54 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.monitoring.exporter;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
-import org.joda.time.format.DateTimeFormatter;
-import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 public final class MonitoringTemplateUtils {
 
     private static final String TEMPLATE_FILE = "/monitoring-%s.json";
-    private static final String TEMPLATE_VERSION_PROPERTY = Pattern.quote("${monitoring.template.version}");
+    private static final String TEMPLATE_VERSION_PROPERTY = "monitoring.template.version";
 
     /**
      * The last version of X-Pack that updated the templates and pipelines.
      * <p>
      * It may be possible for this to diverge between templates and pipelines, but for now they're the same.
+     *
+     * Note that the templates were last updated in 7.11.0, but the versions were not updated, meaning that upgrades
+     * to 7.11.0 would not have updated the templates. See https://github.com/elastic/elasticsearch/pull/69317.
      */
-    public static final int LAST_UPDATED_VERSION = Version.V_7_0_0.id;
+    public static final int LAST_UPDATED_VERSION = Version.V_7_14_0.id;
 
     /**
      * Current version of templates used in their name to differentiate from breaking changes (separate from product version).
+     * Version 7 has the same structure as version 6, but uses the `_doc` type.
      */
-    public static final String TEMPLATE_VERSION = "6";
+    public static final String TEMPLATE_VERSION = "7";
     /**
      * The previous version of templates, which we still support via the REST /_monitoring/bulk endpoint because
      * nothing changed for those documents.
      */
-    public static final String OLD_TEMPLATE_VERSION = "2";
+    public static final String OLD_TEMPLATE_VERSION = "6";
 
     /**
      * IDs of templates that can be used with {@linkplain #loadTemplate(String) loadTemplate}.
      */
-    public static final String[] TEMPLATE_IDS = { "alerts", "es", "kibana", "logstash", "beats" };
+    public static final String[] TEMPLATE_IDS = { "alerts-7", "es", "kibana", "logstash", "beats" };
 
     /**
      * IDs of templates that can be used with {@linkplain #createEmptyTemplate(String) createEmptyTemplate} that are not managed by a
@@ -53,7 +58,7 @@ public final class MonitoringTemplateUtils {
      * instances will attempt to create a named template based on the templates that they expect (e.g., ".monitoring-es-2") and not the
      * ones that we are creating.
      */
-    public static final String[] OLD_TEMPLATE_IDS = { "data", "es", "kibana", "logstash", "alerts" };
+    public static final String[] OLD_TEMPLATE_IDS = { "data", "es", "kibana", "logstash" }; //excluding alerts since 6.x watches use it
 
     /**
      * IDs of pipelines that can be used with
@@ -98,7 +103,7 @@ public final class MonitoringTemplateUtils {
      * @see #OLD_TEMPLATE_VERSION
      */
     public static String createEmptyTemplate(final String id) {
-        // e.g., { "index_patterns": [ ".monitoring-data-2*" ], "version": 6000002 }
+        // e.g., { "index_patterns": [ ".monitoring-data-6*" ], "version": 6000002 }
         return "{\"index_patterns\":[\".monitoring-" + id + "-" + OLD_TEMPLATE_VERSION + "*\"],\"version\":" + LAST_UPDATED_VERSION + "}";
     }
 
@@ -119,7 +124,7 @@ public final class MonitoringTemplateUtils {
      * The expectation is that you will call either {@link Strings#toString(XContentBuilder)} or
      * {@link BytesReference#bytes(XContentBuilder)}}.
      *
-     * @param id The API version (e.g., "2") to use
+     * @param id The API version (e.g., "6") to use
      * @param type The type of data you want to format for the request
      * @return Never {@code null}. Always an ended-object.
      * @throws IllegalArgumentException if {@code apiVersion} is unrecognized
@@ -130,7 +135,7 @@ public final class MonitoringTemplateUtils {
             case TEMPLATE_VERSION:
                 return emptyPipeline(type);
             case OLD_TEMPLATE_VERSION:
-                return pipelineForApiVersion2(type);
+                return pipelineForApiVersion6(type);
         }
 
         throw new IllegalArgumentException("unrecognized pipeline API version [" + id + "]");
@@ -138,13 +143,6 @@ public final class MonitoringTemplateUtils {
 
     /**
      * Create a pipeline to upgrade documents from {@link MonitoringTemplateUtils#OLD_TEMPLATE_VERSION}
-     * <pre><code>
-     * {
-     *   "description" : "This pipeline upgrades documents ...",
-     *   "version": 6000001,
-     *   "processors": [ ]
-     * }
-     * </code></pre>
      * The expectation is that you will call either {@link Strings#toString(XContentBuilder)} or
      * {@link BytesReference#bytes(XContentBuilder)}}.
      *
@@ -152,81 +150,39 @@ public final class MonitoringTemplateUtils {
      * @return Never {@code null}. Always an ended-object.
      * @see #LAST_UPDATED_VERSION
      */
-    static XContentBuilder pipelineForApiVersion2(final XContentType type) {
+    static XContentBuilder pipelineForApiVersion6(final XContentType type) {
         try {
-            // For now: We prepend the API version to the string so that it's easy to parse in the future; if we ever add metadata
-            //  to pipelines, then it would better serve this use case
             return XContentBuilder.builder(type.xContent()).startObject()
                     .field("description", "This pipeline upgrades documents from the older version of the Monitoring API to " +
-                                                "the newer version (" + TEMPLATE_VERSION + ") by fixing breaking " +
-                                                "changes in those older documents before they are indexed from the older version (" +
-                                                OLD_TEMPLATE_VERSION + ").")
+                        "the newer version (" + TEMPLATE_VERSION + ") by fixing breaking " +
+                        "changes in those older documents before they are indexed from the older version (" +
+                        OLD_TEMPLATE_VERSION + ").")
                     .field("version", LAST_UPDATED_VERSION)
                     .startArray("processors")
                         .startObject()
-                            // Drop the .monitoring-data-2 index and effectively drop unnecessary data (duplicate or simply unused)
+                            // remove the type
                             .startObject("script")
-                                .field("source",
-                                       "boolean legacyIndex = ctx._index == '.monitoring-data-2';" +
-                                       "if (legacyIndex || ctx._index.startsWith('.monitoring-es-2')) {" +
-                                         "if (ctx._type == 'cluster_info') {" +
-                                           "ctx._type = 'cluster_stats';" +
-                                           "ctx._id = null;" +
-                                         "} else if (legacyIndex || ctx._type == 'cluster_stats' || ctx._type == 'node') {" +
-                                           "String index = ctx._index;" +
-                                           "Object clusterUuid = ctx.cluster_uuid;" +
-                                           "Object timestamp = ctx.timestamp;" +
-
-                                           "ctx.clear();" +
-
-                                           "ctx._id = 'xpack_monitoring_2_drop_bucket';" +
-                                           "ctx._index = index;" +
-                                           "ctx._type = 'legacy_data';" +
-                                           "ctx.timestamp = timestamp;" +
-                                           "ctx.cluster_uuid = clusterUuid;" +
-                                         "}" +
-                                         "if (legacyIndex) {" +
-                                           "ctx._index = '<.monitoring-es-" + TEMPLATE_VERSION + "-{now}>';" +
-                                         "}" +
-                                       "}")
+                                .field("source","ctx._type = null" )
                             .endObject()
                         .endObject()
                         .startObject()
-                            .startObject("rename")
-                                .field("field", "_type")
-                                .field("target_field", "type")
-                            .endObject()
-                        .endObject()
-                        .startObject()
-                            .startObject("set")
-                                .field("field", "_type")
-                                .field("value", "doc")
-                            .endObject()
-                        .endObject()
-                        .startObject()
+                            // ensure the data lands in the correct index
                             .startObject("gsub")
                                 .field("field", "_index")
-                                .field("pattern", "(.monitoring-\\w+-)2(-.+)")
+                                .field("pattern", "(.monitoring-\\w+-)6(-.+)")
                                 .field("replacement", "$1" + TEMPLATE_VERSION + "$2")
                             .endObject()
                         .endObject()
                     .endArray()
-                    .endObject();
+                .endObject();
         } catch (final IOException e) {
             throw new RuntimeException("Failed to create pipeline to upgrade from older version [" + OLD_TEMPLATE_VERSION +
-                                       "] to the newer version [" + TEMPLATE_VERSION + "].", e);
+                "] to the newer version [" + TEMPLATE_VERSION + "].", e);
         }
     }
 
     /**
      * Create an empty pipeline.
-     * <pre><code>
-     * {
-     *   "description" : "This is a placeholder pipeline ...",
-     *   "version": 6000001,
-     *   "processors": [ ]
-     * }
-     * </code></pre>
      * The expectation is that you will call either {@link Strings#toString(XContentBuilder)} or
      * {@link BytesReference#bytes(XContentBuilder)}}.
      *
@@ -252,12 +208,12 @@ public final class MonitoringTemplateUtils {
     /**
      * Get the index name given a specific date format, a monitored system and a timestamp.
      *
-     * @param formatter the {@link DateTimeFormatter} to use to compute the timestamped index name
+     * @param formatter the {@link DateFormatter} to use to compute the timestamped index name
      * @param system the {@link MonitoredSystem} for which the index name is computed
      * @param timestamp the timestamp value to use to compute the timestamped index name
      * @return the index name as a @{link String}
      */
-    public static String indexName(final DateTimeFormatter formatter, final MonitoredSystem system, final long timestamp) {
-        return ".monitoring-" + system.getSystem() + "-" + TEMPLATE_VERSION + "-" + formatter.print(timestamp);
+    public static String indexName(final DateFormatter formatter, final MonitoredSystem system, final long timestamp) {
+        return ".monitoring-" + system.getSystem() + "-" + TEMPLATE_VERSION + "-" + formatter.format(Instant.ofEpochMilli(timestamp));
     }
 }

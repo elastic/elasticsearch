@@ -3,466 +3,196 @@
 
 The following pages have moved or been deleted.
 
-[role="exclude",id="cluster-nodes-shutdown"]
-=== Nodes shutdown
+[role="exclude",id="grok-basics"]
+=== Grok basics
 
-The `_shutdown` API has been removed.  Instead, setup Elasticsearch to run as
-a service (see <<rpm>>, <<deb>>,  or <<windows>>) or use the `-p`
-command line option to <<setup-installation-daemon,write the PID to a file>>.
+See <<grok,Grokking grok>>.
+
+// [START] Security redirects
+
+[role="exclude",id="get-started-users"]
+=== Create users
+
+See <<security-create-builtin-users,Create passwords for built-in users>>.
+
+[role="exclude",id="encrypting-communications-certificates"]
+=== Generate certificates
+
+See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[role="exclude",id="encrypting-internode-communications"]
+=== Tutorial: Encrypting communications
+
+See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[role="exclude",id="encrypting-internode"]
+=== Encrypting internode communication
+
+See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[role="exclude",id="security-getting-started"]
+=== Tutorial: Getting started with security
+
+See <<secure-cluster,Secure the Elastic Stack>>.
+
+// [START] OpenID Connect authentication
+[role="exclude",id="oidc-guide-authentication"]
+=== Configure {es} for OpenID Connect authentication
+
+See <<oidc-elasticsearch-authentication,Configure {es} for OpenID Connect authentication>>.
+
+[role="exclude",id="oidc-claims-mapping"]
+==== Claims mapping
+
+See <<oidc-claims-mappings,Claims mapping for OpenID Connect>>.
+
+[role="exclude",id="oidc-kibana"]
+=== Configuring {kib}
+
+See <<oidc-configure-kibana,Configuring {kib} for OpenID Connect>>.
+
+[role="exclude",id="oidc-role-mapping"]
+=== Configuring role mappings
+
+See <<oidc-role-mappings,Configuring OpenID Connect role mappings>>.
+// [END] OpenID Connect authentication
+
+// [START] SAML authentication
+[role="exclude",id="saml-guide"]
+=== Configure SAML single-sign on
+
+See <<saml-guide-stack,Configuring SAML single-sign-on on the {stack}>>.
+
+[role="exclude",id="saml-kibana"]
+=== Configuring {kib}
+
+See <<saml-configure-kibana,Configuring {kib} for SAML>>.
+
+[role="exclude",id="saml-guide-authentication"]
+=== Configure {es} for SAML authentication
+
+See <<saml-elasticsearch-authentication,Configure {es} for SAML authentication>>.
+
+[role="exclude",id="saml-attribute-mapping"]
+==== Attribute mapping
+
+See <<saml-attributes-mapping,SAML attribute mapping>>.
+
+[role="exclude",id="saml-user-properties"]
+===== User properties
+
+See <<saml-es-user-properties,{es} user properties>>.
+// [END] SAML authentication
+
+[role="exclude",id="active-directory-ssl"]
+=== Setting up SSL between {es} and Active Directory
+
+See <<tls-active-directory,Encrypting communications between {es} and Active Directory>>.
+
+[role="exclude",id="elasticsearch-security"]
+=== Security overview
+
+See <<secure-cluster,Secure the Elastic Stack>>.
+
+[role="exclude",id="get-started-enable-security"]
+=== Enable {es} {security-features}
+
+See <<security-minimal-setup,Set up minimal security for {es}>>.
+
+[role="exclude",id="ssl-tls"]
+=== Set up TLS on a cluster
+
+See <<encrypt-internode-communication,Encrypt internode communication>>.
+
+// [START] Configuring TLS
+[role="exclude",id="configuring-tls"]
+=== Configure TLS
+
+See <<encrypt-internode-communication,Encrypt internode communication>>.
+
+[role="exclude",id="tls-http"]
+==== Encrypt HTTP client communications
+
+See <<encrypt-http-communication,Encrypt HTTP client communications>>.
+
+[role="exclude",id="tls-transport"]
+==== Encrypt internode communication
+
+See <<encrypt-internode-communication,Encrypt internode communications>>.
+
+[role="exclude",id="node-certificates"]
+==== Generating node certificates
+
+See <<generate-certificates,Generate the certificate authority>>.
+
+[role="exclude",id="configuring-security"]
+=== Configure security in {es}
+
+See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
+
+// [END] Configuring TLS
+
+[role="exclude",id="encrypting-communications"]
+=== Encrypting communications
+
+See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
+// [END] Security redirects
+
+[roles="exclude",id="modules-scripting-stored-scripts"]
+=== Stored scripts
+
+See <<script-stored-scripts,Store and retrieve scripts>>
+
+[role="exclude",id="node.name"]
+=== Node name setting
+
+See <<node-name,Node name setting>>.
+
+[role="exclude",id="cluster.name"]
+=== Cluster name setting
+
+See <<cluster-name,Cluster name setting>>.
+
+[role="exclude",id="heap-size"]
+=== Heap size settings
+
+See <<heap-size-settings>>.
+
+[role="exclude",id="ccr-remedy-follower-index"]
+=== Leader index retaining operations for replication
+
+See <<ccr-leader-requirements,Requirements for leader indices>>.
+
+[role="exclude",id="ccr-leader-not-replicating"]
+=== Remedying a follower that has fallen behind
+
+See <<ccr-recreate-follower-index,Recreating a follower index>>.
+
+[role="exclude",id="remote-reovery"]
+=== Remote recovery process
+
+See <<ccr-remote-recovery,Remote recovery process>>.
+
+[role="exclude",id="ccr-requirements"]
+=== Leader index requirements
+
+See <<ccr-leader-requirements,Requirements for leader indices>>.
+
+[role="exclude",id="ccr-overview"]
+=== Cross-cluster replication overview
+
+See <<xpack-ccr,Cross-cluster replication>>.
 
 [role="exclude",id="indices-upgrade"]
 === Upgrade API
 
-The `_upgrade` API is no longer useful and will be removed.  Instead, see
+The `_upgrade` API is no longer useful and will be removed. Instead, see
 <<reindex-upgrade>>.
-
-[role="exclude",id="docs-bulk-udp"]
-=== Bulk UDP API
-
-The Bulk UDP services has been removed.  Use the standard <<docs-bulk>> instead.
-
-[role="exclude",id="indices-delete-mapping"]
-=== Delete Mapping
-
-It is no longer possible to delete the mapping for a type. Instead you should
-<<indices-delete-index,delete the index>> and recreate it with the new mappings.
-
-[role="exclude",id="indices-status"]
-=== Index Status
-
-The  index `_status` API has been replaced with the <<indices-stats>> and
-<<indices-recovery>> APIs.
-
-[role="exclude",id="mapping-analyzer-field"]
-=== `_analyzer`
-
-The `_analyzer` field in type mappings is no longer supported and will be
-automatically removed from mappings when upgrading to 2.x.
-
-[role="exclude",id="mapping-boost-field"]
-=== `_boost`
-
-The `_boost` field in type mappings is no longer supported and will be
-automatically removed from mappings when upgrading to 2.x.
-
-[role="exclude",id="mapping-conf-mappings"]
-=== Config mappings
-
-It is no longer possible to specify mappings in files in the `config`
-directory.  Instead, mappings should be created using the API with:
-
-* <<indices-create-index>>
-* <<indices-put-mapping>>
-* <<indices-templates>>
 
 [role="exclude",id="mapping-parent-field"]
 === `_parent` field
 
 The `_parent` field has been removed in favour of the <<parent-join,`join` field>>.
-
-[role="exclude",id="mapping-uid-field"]
-=== `_uid` field
-
-The `_uid` field has been removed in favour of the <<mapping-id-field,`_id` field>>.
-
-[role="exclude",id="modules-memcached"]
-=== memcached
-
-The `memcached` transport is no longer supported.  Instead use the REST
-interface over <<modules-http,HTTP>> or the
-{javaclient}/index.html[Java API].
-
-[role="exclude",id="modules-thrift"]
-=== Thrift
-
-The `thrift` transport is no longer supported.  Instead use the REST
-interface over <<modules-http,HTTP>> or the
-{javaclient}/index.html[Java API].
-
-// QUERY DSL
-
-[role="exclude",id="query-dsl-queries"]
-=== Queries
-
-Queries and filters have been merged.  Any query clause can now be used as a query
-in ``query context'' and as a filter in ``filter context'' (see <<query-dsl>>).
-
-[role="exclude",id="query-dsl-filters"]
-=== Filters
-
-Queries and filters have been merged.  Any query clause can now be used as a query
-in ``query context'' and as a filter in ``filter context'' (see <<query-dsl>>).
-
-[role="exclude",id="query-dsl-not-filter"]
-=== Not Filter
-
-The `not` query has been replaced by using a `must_not` clause in a `bool` query (see <<query-dsl-bool-query>>).
-
-[role="exclude",id="query-dsl-bool-filter"]
-=== Bool Filter
-
-The `bool` filter has been replaced by the <<query-dsl-bool-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-exists-filter"]
-=== Exists Filter
-
-The `exists` filter has been replaced by the <<query-dsl-exists-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-geo-bounding-box-filter"]
-=== Geo Bounding Box Filter
-
-The `geo_bounding_box` filter has been replaced by the <<query-dsl-geo-bounding-box-query>>.
-It behaves as a query in ``query context'' and as a filter in ``filter
-context'' (see <<query-dsl>>).
-
-[role="exclude",id="query-dsl-geo-distance-filter"]
-=== Geo Distance Filter
-
-The `geo_distance` filter has been replaced by the <<query-dsl-geo-distance-query>>.
-It behaves as a query in ``query context'' and as a filter in ``filter
-context'' (see <<query-dsl>>).
-
-[role="exclude",id="query-dsl-geo-distance-range-filter"]
-=== Geo Distance Range Filter
-
-The `geo_distance_range` filter has been replaced by the <<query-dsl-geo-distance-range-query>>.
-It behaves as a query in ``query context'' and as a filter in ``filter
-context'' (see <<query-dsl>>).
-
-[role="exclude",id="query-dsl-geo-polygon-filter"]
-=== Geo Polygon Filter
-
-The `geo_polygon` filter has been replaced by the <<query-dsl-geo-polygon-query>>.
-It behaves as a query in ``query context'' and as a filter in ``filter
-context'' (see <<query-dsl>>).
-
-[role="exclude",id="query-dsl-geo-shape-filter"]
-=== Geo Shape Filter
-
-The `geo_shape` filter has been replaced by the <<query-dsl-geo-shape-query>>.
-It behaves as a query in ``query context'' and as a filter in ``filter
-context'' (see <<query-dsl>>).
-
-[role="exclude",id="query-dsl-has-child-filter"]
-=== Has Child Filter
-
-The `has_child` filter has been replaced by the <<query-dsl-has-child-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-has-parent-filter"]
-=== Has Parent Filter
-
-The `has_parent` filter has been replaced by the <<query-dsl-has-parent-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-top-children-query"]
-=== Top Children Query
-
-The `top_children` query has been removed. Use the <<query-dsl-has-child-query>> instead.
-
-[role="exclude",id="query-dsl-ids-filter"]
-=== IDs Filter
-
-The `ids` filter has been replaced by the <<query-dsl-ids-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-match-all-filter"]
-=== Match All Filter
-
-The `match_all` filter has been replaced by the <<query-dsl-match-all-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-nested-filter"]
-=== Nested Filter
-
-The `nested` filter has been replaced by the <<query-dsl-nested-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-prefix-filter"]
-=== Prefix Filter
-
-The `prefix` filter has been replaced by the <<query-dsl-prefix-query>>. It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-query-filter"]
-=== Query Filter
-
-The `query` filter has been removed as queries and filters have been merged (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-range-filter"]
-=== Range Filter
-
-The `range` filter has been replaced by the <<query-dsl-range-query>>. It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-regexp-filter"]
-=== Regexp Filter
-
-The `regexp` filter has been replaced by the <<query-dsl-regexp-query>>. It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-script-filter"]
-=== Script Filter
-
-The `script` filter has been replaced by the <<query-dsl-script-query>>. It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-term-filter"]
-=== Term Filter
-
-The `term` filter has been replaced by the <<query-dsl-term-query>>. It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-terms-filter"]
-=== Terms Filter
-
-The `terms` filter has been replaced by the <<query-dsl-terms-query>>. It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-type-filter"]
-=== Type Filter
-
-The `type` filter has been replaced by the <<query-dsl-type-query>>. It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-flt-query"]
-=== Fuzzy Like This Query
-
-The `fuzzy_like_this`, alternatively known as `flt`, query has been removed.  Instead use either
-the <<query-dsl-match-query-fuzziness,`fuzziness`>> parameter with the
-<<query-dsl-match-query,`match` query>> or the <<query-dsl-mlt-query>>.
-
-
-[role="exclude",id="query-dsl-flt-field-query"]
-=== Fuzzy Like This Field Query
-
-The `fuzzy_like_this_field` or `flt_field` query has been removed.  Instead use
-the <<query-dsl-match-query-fuzziness,`fuzziness`>> parameter with the
-<<query-dsl-match-query,`match` query>> or the <<query-dsl-mlt-query>>.
-
-[role="exclude",id="query-dsl-geo-distance-range-query"]
-=== Geo distance range Query
-
-The `geo_distance_range` query has been removed. Instead use the
-<<query-dsl-geo-distance-query, Geo Distance Query>> with pagination
-or the
-<<search-aggregations-bucket-geodistance-aggregation, Geo Distance Aggregation>>
-depending on your needs.
-
-[role="exclude",id="query-dsl-geohash-cell-query"]
-=== Geohash Cell Query
-
-The `geohash_cell` query has been removed. Instead use the
-<<query-dsl-geo-bounding-box-query, Geo Bounding Box Query>>.
-
-[role="exclude",id="search-more-like-this"]
-=== More Like This API
-
-The More Like This API has been removed. Instead, use the <<query-dsl-mlt-query>>.
-
-// FACETS
-
-[role="exclude",id="search-facets"]
-=== Facets
-
-Faceted search refers to a way to explore large amounts of data by displaying
-summaries about various partitions of the data and later allowing to narrow
-the navigation to a specific partition.
-
-In Elasticsearch, `facets` are also the name of a feature that allowed to
-compute these summaries. `facets` have been replaced by
-<<search-aggregations, aggregations>> in Elasticsearch 1.0, which are a superset
-of facets.
-
-[role="exclude",id="search-facets-filter-facet"]
-=== Filter Facet
-
-Facets have been removed. Use the
-<<search-aggregations-bucket-filter-aggregation,`filter` aggregation>> or
-<<search-aggregations-bucket-filters-aggregation,`filters` aggregation>> instead.
-
-[role="exclude",id="search-facets-query-facet"]
-=== Query Facet
-
-Facets have been removed. Use the
-<<search-aggregations-bucket-filter-aggregation,`filter` aggregation>> or
-<<search-aggregations-bucket-filters-aggregation,`filters` aggregation>> instead.
-
-[role="exclude",id="search-facets-geo-distance-facet"]
-=== Geo Distance Facet
-
-Facets have been removed. Use the
-<<search-aggregations-bucket-geodistance-aggregation,`geo_distance` aggregation>> instead.
-
-[role="exclude",id="search-facets-histogram-facet"]
-=== Histogram Facet
-
-Facets have been removed. Use the
-<<search-aggregations-bucket-histogram-aggregation,`histogram` aggregation>> instead.
-
-[role="exclude",id="search-facets-date-histogram-facet"]
-=== Date Histogram Facet
-
-Facets have been removed. Use the
-<<search-aggregations-bucket-datehistogram-aggregation,`date_histogram` aggregation>> instead.
-
-[role="exclude",id="search-facets-range-facet"]
-=== Range Facet
-
-Facets have been removed. Use the
-<<search-aggregations-bucket-range-aggregation,`range` aggregation>> instead.
-
-[role="exclude",id="search-facets-terms-facet"]
-=== Terms Facet
-
-Facets have been removed. Use the
-<<search-aggregations-bucket-terms-aggregation,`terms` aggregation>> instead.
-
-[role="exclude",id="search-facets-terms-statistical-facet"]
-=== Terms Stats Facet
-
-Facets have been removed. Use the
-<<search-aggregations-bucket-terms-aggregation,`terms` aggregation>>
-with the <<search-aggregations-metrics-stats-aggregation,`stats` aggregation>>
-or the <<search-aggregations-metrics-extendedstats-aggregation,`extended_stats` aggregation>>
-instead.
-
-[role="exclude",id="search-facets-statistical-facet"]
-=== Statistical Facet
-
-Facets have been removed. Use the
-<<search-aggregations-metrics-stats-aggregation,`stats` aggregation>>
-or the <<search-aggregations-metrics-extendedstats-aggregation,`extended_stats` aggregation>>  instead.
-
-[role="exclude",id="search-facets-migrating-to-aggs"]
-=== Migrating from facets to aggregations
-
-Facets have been removed. Use <<search-aggregations>> instead.
-
-// CACHES
-
-[role="exclude",id="shard-query-cache"]
-=== Shard request cache
-
-The shard query cache has been renamed <<shard-request-cache>>.
-
-[role="exclude",id="filter-cache"]
-=== Query cache
-
-The filter cache has been renamed <<query-cache>>.
-
-[role="exclude",id="query-dsl-filtered-query"]
-=== Filtered query
-
-The `filtered` query is replaced by the <<query-dsl-bool-query,bool>> query. Instead of
-the following:
-
-[source,js]
--------------------------
-## INCORRECT - DEPRECATED SYNTAX, DO NOT USE
-GET _search
-{
-  "query": {
-    "filtered": {
-      "query": {
-        "match": {
-          "text": "quick brown fox"
-        }
-      },
-      "filter": {
-        "term": {
-          "status": "published"
-        }
-      }
-    }
-  }
-}
--------------------------
-// NOTCONSOLE
-
-move the query and filter to the `must` and `filter` parameters in the `bool`
-query:
-
-[source,js]
--------------------------
-GET _search
-{
-  "query": {
-    "bool": {
-      "must": {
-        "match": {
-          "text": "quick brown fox"
-        }
-      },
-      "filter": {
-        "term": {
-          "status": "published"
-        }
-      }
-    }
-  }
-}
--------------------------
-// CONSOLE
-
-[role="exclude",id="query-dsl-or-query"]
-=== Or query
-
-The `or` query is replaced in favour of the <<query-dsl-bool-query,bool>> query.
-
-[role="exclude",id="query-dsl-or-filter"]
-=== Or filter
-
-The `or` filter is replaced in favour of the <<query-dsl-bool-query,bool>> query.
-
-[role="exclude",id="query-dsl-and-query"]
-=== And query
-
-The `and` query is replaced in favour of the <<query-dsl-bool-query,bool>> query.
-
-[role="exclude",id="query-dsl-and-filter"]
-=== And filter
-
-The `and` filter is replaced in favour of the <<query-dsl-bool-query,bool>> query.
-
-[role="exclude",id="query-dsl-limit-query"]
-=== Limit query
-
-The `limit` query is replaced in favour of the <<search-request-body,terminate_after>>
-parameter of search requests.
-
-[role="exclude",id="query-dsl-limit-filter"]
-=== Limit filter
-
-The `limit` filter is replaced in favour of the <<search-request-body,terminate_after>>
-parameter of search requests.
-
-[role="exclude",id="query-dsl-not-query"]
-=== Not query
-
-The `not` query has been replaced by using a `mustNot` clause in a Boolean query.
-
-[role="exclude",id="mapping-nested-type"]
-=== Nested type
-
-The docs for the `nested` field datatype have moved to <<nested>>.
 
 [role="exclude",id="indices-warmers"]
 === Warmers
@@ -470,93 +200,1442 @@ The docs for the `nested` field datatype have moved to <<nested>>.
 Warmers have been removed. There have been significant improvements to the
 index that make warmers not necessary anymore.
 
-[role="exclude",id="index-boost"]
-=== Index time boosting
+[role="exclude",id="indices-types-exists"]
+=== Types Exists
 
-The index time boost mapping has been replaced with query time boost (see <<mapping-boost>>).
-
-[role="exclude",id="modules-scripting-native"]
-=== Native scripting
-
-Native scripts have been replaced with writing custom `ScriptEngine` backends (see <<modules-scripting-engine>>).
-
-[role="exclude",id="modules-advanced-scripting"]
-=== Advanced scripting
-
-Using `_index` in scripts has been replaced with writing `ScriptEngine` backends (see <<modules-scripting-engine>>).
-
-[role="exclude",id="modules-scripting-painless-syntax"]
-=== Painless Syntax
-
-See the
-{painless}/painless-lang-spec.html[Painless Language Specification]
-in the guide to the {painless}/index.html[Painless Scripting Language].
-
-[role="exclude",id="modules-scripting-painless-debugging"]
-=== Painless Debugging
-
-See {painless}/painless-debugging.html[Painless Debugging] in the
-guide to the {painless}/index.html[Painless Scripting Language].
-
-[role="exclude",id="painless-api-reference"]
-=== Painless API Reference
-
-See the {painless}/painless-api-reference.html[Painless API Reference] in
-the guide to the {painless}/index.html[Painless Scripting Language].
-
-[role="exclude", id="security-api-roles"]
-=== Role management APIs
-
-You can use the following APIs to add, remove, and retrieve roles in the native realm:
-
-* <<security-api-put-role,Create role>>, <<security-api-delete-role,Delete role>>
-* <<security-api-clear-role-cache,Clear roles cache>>
-* <<security-api-get-role,Get roles>>
-
-[role="exclude",id="security-api-tokens"]
-=== Token management APIs
-
-You can use the following APIs to create and invalidate bearer tokens for access
-without requiring basic authentication:
-
-* <<security-api-get-token,Get token>>, <<security-api-invalidate-token,Invalidate token>>
-
-[role="exclude",id="security-api-users"]
-=== User Management APIs
-
-You can use the following APIs to create, read, update, and delete users from the
-native realm:
-
-* <<security-api-put-user,Create users>>, <<security-api-delete-user,Delete users>>
-* <<security-api-enable-user,Enable users>>, <<security-api-disable-user,Disable users>>
-* <<security-api-change-password,Change passwords>>
-* <<security-api-get-user,Get users>>
-
-[role="exclude",id="security-api-role-mapping"]
-=== Role mapping APIs
-
-You can use the following APIs to add, remove, and retrieve role mappings:
-
-* <<security-api-put-role-mapping,Add role mappings>>, <<security-api-delete-role-mapping,Delete role mappings>>
-* <<security-api-get-role-mapping,Get role mappings>>
-
-[role="exclude",id="security-api-privileges"]
-=== Privilege APIs
-
-See <<security-api-has-privileges>>.
+The types exists endpoint has been removed. See <<removal-of-types>> for
+more details.
 
 [role="exclude",id="xpack-commands"]
 === X-Pack commands
 
-See <<commands>>. 
+See <<commands>>.
 
-[role="exclude",id="ml-api-definitions"]
-=== Machine learning API definitions
+[role="exclude",id="xpack-api"]
+=== X-Pack APIs
 
-See <<api-definitions>>.
+{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>.
 
-[role="exclude",id="analysis-standard-tokenfilter"]
-=== Standard filter removed
+[role="exclude",id="ml-calendar-resource"]]
+=== Calendar resources
 
-The standard token filter has been removed.
+See <<ml-get-calendar>> and
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
 
+[role="exclude",id="ml-filter-resource"]
+=== Filter resources
+
+See <<ml-get-filter>> and
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-rules[Machine learning custom rules].
+
+[role="exclude",id="ml-event-resource"]
+=== Scheduled event resources
+
+See <<ml-get-calendar-event>> and
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
+
+[role="exclude",id="index-apis"]
+=== Index APIs
+{es} index APIs are now documented in <<indices>>.
+
+[role="exclude",id="search-request-docvalue-fields"]
+=== Doc value fields parameter for request body search API
+See <<request-body-search-docvalue-fields>>.
+
+[role="exclude",id="search-request-explain"]
+=== Explain parameter for request body search API
+See <<request-body-search-explain>>.
+
+[role="exclude",id="search-request-collapse"]
+=== Collapse parameter for request body search API
+
+See <<collapse-search-results>>.
+
+[role="exclude",id="search-request-from-size"]
+=== From and size parameters for request body search API
+See <<paginate-search-results>>.
+
+[role="exclude",id="search-request-highlighting"]
+=== Highlight parameter for request body search API
+See <<highlighting>>.
+
+[role="exclude",id="search-request-index-boost"]
+=== Index boost parameter for request body search API
+See <<index-boost>>.
+
+[role="exclude",id="search-request-inner-hits"]
+=== Inner hits parameter for request body search API
+See <<inner-hits>>.
+
+[role="exclude",id="search-request-min-score"]
+=== Minimum score parameter for request body search API
+See <<search-api-min-score>>.
+
+[role="exclude",id="search-request-named-queries-and-filters"]
+=== Named query parameter for request body search API
+See <<named-queries>>.
+
+[role="exclude",id="search-request-post-filter"]
+=== Post filter parameter for request body search API
+See <<post-filter>>.
+
+[role="exclude",id="search-request-preference"]
+=== Preference parameter for request body search API
+See <<search-preference>>.
+
+[role="exclude",id="search-request-query"]
+=== Query parameter for request body search API
+See <<request-body-search-query>>.
+
+[role="exclude",id="search-request-rescore"]
+=== Rescoring parameter for request body search API
+See <<rescore>>.
+
+[role="exclude",id="search-request-script-fields"]
+=== Script fields parameter for request body search API
+See <<script-fields>>.
+
+[role="exclude",id="search-request-scroll"]
+=== Scroll parameter for request body search API
+See <<scroll-search-results>>.
+
+[role="exclude",id="search-request-search-after"]
+=== Search after parameter for request body search API
+See <<search-after>>.
+
+[role="exclude",id="search-request-search-type"]
+=== Search type parameter for request body search API
+See <<search-type>>.
+
+[role="exclude",id="search-request-seq-no-primary-term"]
+=== Sequence numbers and primary terms parameter for request body search API
+See <<optimistic-concurrency-control>>.
+
+[role="exclude",id="search-request-sort"]
+=== Sort parameter for request body search API
+See <<sort-search-results>>.
+
+[role="exclude",id="search-request-source-filtering"]
+=== Source filtering parameter for request body search API
+
+See <<source-filtering>>.
+
+[role="exclude",id="search-request-stored-fields"]
+=== Stored fields parameter for request body search API
+See <<stored-fields>>.
+
+[role="exclude",id="search-request-track-total-hits"]
+=== Track total hits parameter for request body search API
+See <<track-total-hits>>.
+
+[role="exclude",id="search-request-version"]
+=== Version parameter for request body search API
+See <<request-body-search-version>>.
+
+[role="exclude",id="search-suggesters-term"]
+=== Term suggester
+See <<term-suggester>>.
+
+[role="exclude",id="search-suggesters-phrase"]
+=== Phrase suggester
+See <<phrase-suggester>>.
+
+[role="exclude",id="search-suggesters-completion"]
+=== Completion suggester
+See <<completion-suggester>>.
+
+[role="exclude",id="suggester-context"]
+=== Context suggester
+See <<context-suggester>>.
+
+[role="exclude",id="returning-suggesters-type"]
+=== Return suggester type
+See <<return-suggesters-type>>.
+
+[role="exclude",id="search-profile-queries"]
+=== Profiling queries
+See <<profiling-queries>>.
+
+[role="exclude",id="search-profile-aggregations"]
+=== Profiling aggregations
+See <<profiling-aggregations>>.
+
+[role="exclude",id="search-profile-considerations"]
+=== Profiling considerations
+See <<profiling-considerations>>.
+
+[role="exclude",id="_explain_analyze"]
+=== Explain analyze API
+See <<explain-analyze-api>>.
+
+[role="exclude",id="indices-synced-flush"]
+=== Synced flush API
+The synced flush API has been removed. Use the <<indices-flush,flush API>>
+instead. A regular flush has the same effect as a synced flush in 7.6 and later.
+
+[role="exclude",id="indices-synced-flush-api"]
+=== Synced flush API
+The synced flush API has been removed. Use the <<indices-flush,flush API>>
+instead. A regular flush has the same effect as a synced flush in 7.6 and later.
+
+[role="exclude",id="_repositories"]
+=== Snapshot repositories
+See <<snapshots-repositories>>.
+
+[role="exclude",id="_snapshot"]
+=== Snapshot
+See <<snapshots-take-snapshot>>.
+
+[role="exclude",id="getting-started-explore"]
+=== Exploring your cluster
+See <<cat>>.
+
+[role="exclude",id="getting-started-cluster-health"]
+=== Cluster health
+See <<cat-health>>.
+
+[role="exclude", id="getting-started-list-indices"]
+=== List all indices
+See <<cat-indices>>.
+
+[role="exclude", id="getting-started-create-index"]
+=== Create an index
+See <<indices-create-index>>.
+
+[role="exclude", id="getting-started-query-document"]
+=== Index and query a document
+See <<getting-started-index>>.
+
+[role="exclude", id="getting-started-delete-index"]
+=== Delete an index
+See <<indices-delete-index>>.
+
+[role="exclude", id="getting-started-modify-data"]
+== Modifying your data
+See <<docs-update>>.
+
+[role="exclude", id="indexing-replacing-documents"]
+=== Indexing/replacing documents
+See <<docs-index_>>.
+
+[role="exclude", id="getting-started-explore-data"]
+=== Exploring your data
+See <<getting-started-search>>.
+
+[role="exclude", id="getting-started-search-API"]
+=== Search API
+See <<getting-started-search>>.
+
+[role="exclude", id="getting-started-conclusion"]
+=== Conclusion
+See <<getting-started-next-steps>>.
+
+[role="exclude",id="ccs-reduction"]
+=== {ccs-cap} reduction
+See <<ccs-works>>.
+
+[role="exclude",id="administer-elasticsearch"]
+=== Administering {es}
+See <<high-availability>>.
+
+[role="exclude",id="slm-api"]
+=== Snapshot lifecycle management API
+See <<snapshot-lifecycle-management-api>>.
+
+[role="exclude",id="delete-data-frame-transform"]
+===  Delete {transforms} API
+
+See <<delete-transform>>.
+
+[role="exclude",id="get-data-frame-transform-stats"]
+=== Get {transform} statistics API
+
+See <<get-transform-stats>>.
+
+[role="exclude",id="get-data-frame-transform"]
+=== Get {transforms} API
+
+See <<get-transform>>.
+
+[role="exclude",id="preview-data-frame-transform"]
+=== Preview {transforms} API
+
+See <<preview-transform>>.
+
+[role="exclude",id="put-data-frame-transform"]
+===  Create {transforms} API
+
+See <<put-transform>>.
+
+[role="exclude",id="start-data-frame-transform"]
+=== Start {transforms} API
+
+See <<start-transform>>.
+
+[role="exclude",id="stop-data-frame-transform"]
+=== Stop {transforms} API
+
+See <<stop-transform>>.
+
+[role="exclude",id="update-data-frame-transform"]
+=== Update {transforms} API
+
+See <<update-transform>>.
+
+[role="exclude",id="data-frame-apis"]
+=== {transform-cap} APIs
+
+See <<transform-apis>>.
+
+[role="exclude",id="data-frame-transform-resource"]
+=== {transform-cap} resources
+
+See <<transform-resource>>.
+
+[role="exclude",id="data-frame-transform-dest"]
+=== Dest objects
+
+See <<transform-resource>>.
+
+[role="exclude",id="data-frame-transform-source"]
+==== Source objects
+
+See <<transform-resource>>.
+
+[role="exclude",id="data-frame-transform-pivot"]
+==== Pivot objects
+
+See <<transform-resource>>.
+
+[role="exclude",id="es-monitoring"]
+=== Monitoring {es}
+
+See <<monitor-elasticsearch-cluster>>.
+
+[role="exclude",id="docker-cli-run"]
+=== Docker Run
+
+See <<docker-cli-run-dev-mode>>.
+
+[role="exclude",id="auditing"]
+=== Audit logging
+
+See <<enable-audit-logging>>.
+
+[role="exclude",id="analysis-compound-word-tokenfilter"]
+=== Compound word token filters
+
+See <<analysis-dict-decomp-tokenfilter>> and
+<<analysis-hyp-decomp-tokenfilter>>.
+
+[role="exclude",id="configuring-native-realm"]
+=== Configuring a native realm
+
+See <<native-realm-configuration>>.
+
+[role="exclude",id="native-settings"]
+==== Native realm settings
+
+See <<ref-native-settings>>.
+
+[role="exclude",id="configuring-saml-realm"]
+=== Configuring a SAML realm
+
+See <<saml-guide-stack>>.
+
+[role="exclude",id="saml-settings"]
+==== SAML realm settings
+
+See <<ref-saml-settings>>.
+
+[role="exclude",id="_saml_realm_signing_settings"]
+==== SAML realm signing settings
+
+See <<ref-saml-signing-settings>>.
+
+[role="exclude",id="_saml_realm_encryption_settings"]
+==== SAML realm encryption settings
+
+See <<ref-saml-encryption-settings>>.
+
+[role="exclude",id="_saml_realm_ssl_settings"]
+==== SAML realm SSL settings
+
+See <<ref-saml-ssl-settings>>.
+
+[role="exclude",id="configuring-file-realm"]
+=== Configuring a file realm
+
+See <<file-realm-configuration>>.
+
+[role="exclude",id="ldap-user-search"]
+=== User search mode and user DN templates mode
+
+See <<ldap-realm-configuration>>.
+
+[role="exclude",id="configuring-ldap-realm"]
+=== Configuring an LDAP realm
+
+See <<ldap-realm-configuration>>.
+
+[role="exclude",id="ldap-settings"]
+=== LDAP realm settings
+
+See <<ref-ldap-settings>>.
+
+[role="exclude",id="ldap-ssl"]
+=== Setting up SSL between Elasticsearch and LDAP
+
+See <<tls-ldap>>.
+
+[role="exclude",id="configuring-kerberos-realm"]
+=== Configuring a Kerberos realm
+
+See <<kerberos-realm-configuration>>.
+
+[role="exclude",id="beats"]
+=== Beats and Security
+
+See:
+
+* {auditbeat-ref}/securing-auditbeat.html[{auditbeat}]
+* {filebeat-ref}/securing-filebeat.html[{filebeat}]
+* {heartbeat-ref}/securing-heartbeat.html[{heartbeat}]
+* {metricbeat-ref}/securing-metricbeat.html[{metricbeat}]
+* {packetbeat-ref}/securing-packetbeat.html[{packetbeat}]
+* {winlogbeat-ref}/securing-winlogbeat.html[{winlogbeat}]
+
+[role="exclude",id="configuring-pki-realm"]
+=== Configuring a PKI realm
+
+See <<pki-realm>>.
+
+[role="exclude",id="pki-settings"]
+==== PKI realm settings
+
+See <<ref-pki-settings>>.
+
+[role="exclude",id="configuring-ad-realm"]
+=== Configuring an Active Directory realm
+
+See <<ad-realm-configuration>>.
+
+[role="exclude",id="ad-settings"]
+=== Active Directory realm settings
+
+See <<ref-ad-settings>>.
+
+[role="exclude",id="mapping-roles-ad"]
+=== Mapping Active Directory users and groups to roles
+
+See <<ad-realm-configuration>>.
+
+[role="exclude",id="how-security-works"]
+=== How security works
+
+See <<configuring-stack-security>>.
+
+[role="exclude",id="rollup-job-config"]
+=== Rollup job configuration
+
+See <<rollup-put-job-api-request-body>>.
+
+[role="exclude",id="ml-job-resource"]
+=== Job resources
+
+This page was deleted.
+[[ml-analysisconfig]]
+See the details in
+[[ml-apimodelplotconfig]]
+<<ml-put-job>>, <<ml-update-job>>, and <<ml-get-job>>.
+
+[role="exclude",id="ml-datafeed-resource"]
+=== {dfeed-cap} resources
+
+This page was deleted.
+[[ml-datafeed-chunking-config]]
+See the details in <<ml-put-datafeed>>, <<ml-update-datafeed>>,
+[[ml-datafeed-delayed-data-check-config]]
+<<ml-get-datafeed>>,
+[[ml-datafeed-counts]]
+<<ml-get-datafeed-stats>>.
+
+[role="exclude",id="ml-jobstats"]
+=== Job statistics
+
+This
+[[ml-datacounts]]
+page
+[[ml-modelsizestats]]
+was
+[[ml-forecastsstats]]
+deleted.
+[[ml-timingstats]]
+See
+[[ml-stats-node]]
+the details in <<ml-get-job-stats>>.
+
+[role="exclude",id="ml-snapshot-resource"]
+=== Model snapshot resources
+
+This page was deleted.
+[[ml-snapshot-stats]]
+See <<ml-update-snapshot>> and <<ml-get-snapshot>>.
+
+[role="exclude",id="transform-resource"]
+=== {transform-cap} resources
+
+This page was deleted.
+See <<put-transform>>, <<preview-transform>>, <<update-transform>>,
+<<get-transform>>.
+
+[role="exclude",id="ml-dfanalytics-resources"]
+=== {dfanalytics-cap} job resources
+
+This page was deleted.
+See <<put-dfanalytics>>.
+
+[role="exclude",id="put-inference"]
+=== Create trained model API
+
+See <<put-trained-models>>.
+
+[role="exclude",id="get-inference-stats"]
+=== Get trained model statistics API
+
+See <<get-trained-models-stats>>.
+
+[role="exclude",id="get-inference"]
+=== Get trained model API
+
+See <<get-trained-models>>.
+
+[role="exclude",id="delete-inference"]
+=== Delete trained model API
+
+See <<delete-trained-models>>.
+
+[role="exclude",id="data-frames-settings"]
+=== {transforms-cap}  settings in Elasticsearch
+
+See <<transform-settings>>.
+
+[role="exclude",id="general-data-frames-settings"]
+==== General {transforms} settings
+
+See <<general-transform-settings>>.
+
+[role="exclude",id="ml-results-resource"]
+=== Results resources
+
+This page was deleted.
+[[ml-results-buckets]]
+See <<ml-get-bucket>>,
+[[ml-results-bucket-influencers]]
+<<ml-get-bucket>>,
+[[ml-results-influencers]]
+<<ml-get-influencer>>,
+[[ml-results-records]]
+<<ml-get-record>>,
+[[ml-results-categories]]
+<<ml-get-category>>, and
+[[ml-results-overall-buckets]]
+<<ml-get-overall-buckets>>.
+
+[role="exclude",id="modules-snapshots"]
+=== Snapshot module
+
+See <<snapshot-restore>>.
+
+[role="exclude",id="_repository_plugins"]
+==== Repository plugins
+
+See <<snapshots-repository-plugins>>.
+
+[role="exclude",id="_changing_index_settings_during_restore"]
+==== Change index settings during restore
+
+See <<change-index-settings-during-restore>>.
+
+[role="exclude",id="restore-snapshot"]
+=== Restore snapshot
+
+See <<snapshots-restore-snapshot>>.
+
+[role="exclude",id="snapshots-repositories"]
+=== Snapshot repositories
+
+See <<snapshots-register-repository>>.
+
+[role="exclude",id="ml-dfa-analysis-objects"]
+=== Analysis configuration objects
+
+This page was deleted.
+See <<put-dfanalytics>>.
+
+[role="exclude",id="slm-api-delete"]
+=== {slm-init} delete policy API
+
+See <<slm-api-delete-policy>>.
+
+[role="exclude",id="slm-api-execute"]
+=== {slm-init} execute lifecycle API
+
+See <<slm-api-execute-lifecycle>>.
+
+[role="exclude",id="slm-api-execute-policy"]
+=== {slm-init} execute lifecycle API
+
+See <<slm-api-execute-lifecycle>>.
+
+[role="exclude",id="slm-api-get"]
+=== {slm-init} get policy API
+
+See <<slm-api-get-policy>>.
+
+[role="exclude",id="slm-get-stats"]
+=== {slm-init} get stats API
+
+See <<slm-api-get-stats>>.
+
+[role="exclude",id="slm-get-status"]
+=== {slm-init} status API
+
+See <<slm-api-get-status>>.
+
+[role="exclude",id="slm-api-put"]
+=== {slm-init} put policy API
+
+See <<slm-api-put-policy>>.
+
+[role="exclude",id="slm-start"]
+=== Start {slm} API
+
+See <<slm-api-start>>.
+
+[role="exclude",id="slm-stop"]
+=== Stop {slm} API
+
+See <<slm-api-stop>>.
+
+[role="exclude",id="ccs-works"]
+=== How {ccs} works
+
+See <<ccs-gateway-seed-nodes>> and <<ccs-min-roundtrips>>.
+
+[role="exclude",id="indices-component-templates"]
+=== Component template APIs
+
+coming::[7.x]
+
+[role="exclude",id="modules-indices"]
+=== Indices module
+
+See:
+
+* <<circuit-breaker>>
+* <<indexing-buffer>>
+* <<modules-fielddata>>
+* <<query-cache>>
+* <<recovery>>
+* <<search-settings>>
+* <<shard-request-cache>>
+
+[role="exclude",id="testing"]
+=== Testing
+
+This page was deleted.
+Information about the Java testing framework was removed
+({es-issue}55257[#55257]) from the {es} Guide
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}55258[#55258])
+for providing general testing guidance for applications that communicate with {es}.
+
+[role="exclude",id="testing-framework"]
+=== Java testing framework
+
+This page was deleted.
+Information about the Java testing framework was removed
+({es-issue}55257[55257]) from the {es} Guide because it was out of date and
+erroneously implied that it should be used by application developers.
+
+There is an issue ({es-issue}55258[#55258]) for providing general testing
+guidance for applications that communicate with {es}.
+
+
+[role="exclude",id="why-randomized-testing"]
+=== Why randomized testing?
+
+This page was deleted.
+Information about the Java testing framework was removed
+({es-issue}55257[55257]) from the {es} Guide
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}[#55258])
+for providing general testing guidance for applications that communicate with {es}.
+
+
+[role="exclude",id="using-elasticsearch-test-classes"]
+=== Using the {es} test classes
+
+This page was deleted.
+Information about the Java testing framework was removed
+({es-issue}55257[55257]) from the {es} Guide
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}55258[#55258])
+for providing general testing guidance for applications that communicate with {es}.
+
+
+[role="exclude",id="unit-tests"]
+=== Unit tests
+
+This page was deleted.
+Information about the Java testing framework was removed
+({es-issue}55257[55257]) from the {es} Guide
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}55258[#55258])
+for providing general testing guidance for applications that communicate with {es}.
+
+
+[role="exclude",id="integration-tests"]
+=== Integration tests
+
+This page was deleted.
+Information about the Java testing framework was removed
+({es-issue}55257[55257]) from the {es} Guide
+because it was out of date and erroneously implied that it should be used by application developers.
+There is an issue ({es-issue}55258[#55258])
+for providing general testing guidance for applications that communicate with {es}.
+
+
+[role="exclude",id="number-of-shards"]
+==== Number of shards
+
+This section was deleted.
+
+[role="exclude",id="helper-methods"]
+==== Generic helper methods
+
+This section was deleted.
+
+[role="exclude",id="test-cluster-methods"]
+==== Test cluster methods
+
+This section was deleted.
+
+[role="exclude",id="changing-node-settings"]
+==== Changing node settings
+
+This section was deleted.
+
+[role="exclude",id="accessing-clients"]
+==== Accessing clients
+
+This section was deleted.
+
+[role="exclude",id="scoping"]
+==== Scoping
+
+This section was deleted.
+
+[role="exclude",id="changing-node-configuration"]
+==== Changing plugins via configuration
+
+This section was deleted.
+
+[role="exclude",id="randomized-testing"]
+=== Randomized testing
+
+This page was deleted.
+
+[role="exclude",id="generating-random-data"]
+==== Generating random data
+
+This section was deleted.
+
+[role="exclude",id="assertions"]
+=== Assertions
+
+This page was deleted.
+
+[role="exclude",id="_actions"]
+=== {ilm-init} actions
+
+See <<ilm-actions>>.
+
+[role="exclude",id="ilm-allocate-action"]
+==== Allocate action
+
+See <<ilm-allocate>>.
+
+[role="exclude",id="ilm-delete-action"]
+==== Delete action
+
+See <<ilm-delete>>.
+
+[role="exclude",id="ilm-forcemerge-action"]
+==== Force merge action
+
+See <<ilm-forcemerge>>.
+
+[role="exclude",id="ilm-freeze-action"]
+==== Freeze action
+
+See <<ilm-freeze>>.
+
+[role="exclude",id="ilm-migrate-action"]
+==== Migrate action
+
+See <<ilm-migrate>>.
+
+[role="exclude",id="ilm-readonly-action"]
+==== Read only action
+
+See <<ilm-readonly>>.
+
+[role="exclude",id="ilm-rollover-action"]
+==== Rollover action
+
+See <<ilm-rollover>>.
+
+[role="exclude",id="ilm-searchable-snapshot-action"]
+==== Searchable snapshot action
+
+See <<ilm-searchable-snapshot>>.
+
+[role="exclude",id="ilm-set-priority-action"]
+==== Set priority action
+
+See <<ilm-set-priority>>.
+
+[role="exclude",id="ilm-shrink-action"]
+==== Shrink action
+
+See <<ilm-shrink>>.
+
+[role="exclude",id="ilm-unfollow-action"]
+==== Unfollow action
+
+See <<ilm-unfollow>>.
+
+[role="exclude",id="ilm-wait-for-snapshot-action"]
+==== Wait for snapshot action
+
+See <<ilm-wait-for-snapshot>>.
+
+[role="exclude",id="ilm-policy-definition"]
+=== {ilm-init} policy definition
+
+See <<ilm-index-lifecycle>>.
+
+[role="exclude",id="search-uri-request"]
+=== URI search
+
+See <<search-search>>.
+
+[role="exclude",id="modules-gateway-dangling-indices"]
+=== Dangling indices
+
+See <<dangling-indices>>.
+
+[role="exclude",id="shards-allocation"]
+=== Cluster-level shard allocation
+
+See <<cluster-shard-allocation-settings>>.
+
+[role="exclude",id="disk-allocator"]
+=== Disk-based shard allocation
+
+See <<disk-based-shard-allocation>>.
+
+[role="exclude",id="allocation-awareness"]
+=== Shard allocation awareness
+
+See <<shard-allocation-awareness>>.
+
+[role="exclude",id="allocation-filtering"]
+=== Cluster-level shard allocation filtering
+
+See <<cluster-shard-allocation-filtering>>.
+
+[role="exclude",id="misc-cluster"]
+=== Miscellaneous cluster settings
+
+See <<misc-cluster-settings>>.
+
+[role="exclude",id="modules"]
+=== Modules
+
+This page has been removed.
+
+See <<settings,Configuring Elasticsearch>> for settings information:
+
+* <<circuit-breaker>>
+* <<modules-cluster>>
+* <<modules-discovery-settings>>
+* <<modules-fielddata>>
+* <<recovery>>
+* <<indexing-buffer>>
+* <<modules-gateway>>
+* <<modules-network>>
+* <<query-cache>>
+* <<search-settings>>
+* <<shard-request-cache>>
+
+For other information, see:
+
+* <<modules-threadpool>>
+* <<modules-node>>
+* <<modules-plugins>>
+* <<modules-remote-clusters>>
+
+[role="exclude",id="modules-http"]
+=== HTTP
+
+See <<modules-network,Networking>>.
+
+[role="exclude",id="modules-transport"]
+=== Transport
+
+See <<modules-network,Networking>>.
+
+[role="exclude",id="modules-discovery-adding-removing-nodes"]
+=== Adding and removing nodes
+
+See <<add-elasticsearch-nodes>>.
+
+[role="exclude",id="_timing"]
+=== Timing
+
+See <<ilm-phase-transitions>>.
+
+[role="exclude",id="_installation"]
+=== Installation
+
+See <<install-elasticsearch>>.
+
+[role="exclude",id="mapping-ttl-field"]
+=== `_ttl` mappings
+
+The `_ttl` mappings have been removed. As a replacement for `_ttl`
+mappings, we recommend using <<index-lifecycle-management,{ilm-init}>> to create
+time-based indices.
+
+[role="exclude",id="setup-service"]
+=== Running as a service on Linux
+
+See <<starting-elasticsearch>>.
+
+[role="exclude",id="modules-scripting-painless-syntax"]
+=== Painless syntax
+
+See {painless}/painless-lang-spec.html[Painless language specification].
+
+[role="exclude",id="using-policies-rollover"]
+=== Using policies to manage index rollover
+
+See <<getting-started-index-lifecycle-management>>.
+
+[role="exclude",id="_applying_a_policy_to_our_index"]
+=== Applying a policy to our index
+
+See <<ilm-gs-apply-policy>>.
+
+[role="exclude",id="setup-dir-layout"]
+=== Directory layout
+
+See <<settings>>.
+
+[role="exclude",id="scan-scroll"]
+=== Scan and scroll
+
+See <<scroll-search-results>>.
+
+[role="exclude",id="mapping-dynamic-mapping"]
+=== Dynamic mapping
+
+See <<dynamic-mapping>>.
+
+[role="exclude",id="applying-policy-to-template"]
+=== Applying a policy to an index template
+
+See <<ilm-gs-apply-policy>>.
+
+[role="exclude",id="indices-status"]
+=== Index status API
+
+The index `_status` API has been replaced with the <<indices-stats,index
+stats>> and <<indices-recovery,index recovery>> APIs.
+
+[role="exclude",id="search-facets"]
+=== Search facets
+
+See <<search-aggregations>>.
+
+[role="exclude",id="_executing_searches"]
+=== Executing searches
+
+See <<getting-started-search>>.
+
+[role="exclude",id="mapping-root-object-type"]
+=== Mapping root object type
+
+Mapping types have been removed. See <<mapping>>.
+
+[role="exclude",id="query-dsl-filters"]
+=== Query DSL filters
+
+See <<query-filter-context>>.
+
+[role="exclude",id="esms"]
+=== {esms}
+
+We have stopped adding new customers to our {esms}.
+
+If you are interested in similar capabilities, contact
+https://support.elastic.co[Elastic Support] to discuss available options.
+
+[role="exclude",id="ilm-with-existing-periodic-indices"]
+=== Manage existing periodic indices with {ilm-init}
+
+See <<ilm-existing-indices-apply>>.
+
+[role="exclude",id="ilm-reindexing-into-rollover"]
+=== Reindexing via {ilm-init}
+
+See <<ilm-existing-indices-reindex>>.
+
+[role="exclude",id="analysis-pathhierarchy-tokenizer-examples"]
+=== Path hierarchy tokenizer examples
+
+See <<analysis-pathhierarchy-tokenizer-detailed-examples>>.
+
+[role="exclude",id="modules-tribe"]
+=== Tribe node
+
+Tribe node functionality has been removed in favor of {ccs}. See
+<<modules-cross-cluster-search>>.
+
+[role="exclude",id="release-highlights-7.0.0"]
+=== Release highlights
+
+See <<release-highlights>>.
+
+[role="exclude",id="sql-settings"]
+=== SQL access settings in Elasticsearch
+
+The `xpack.sql.enabled` setting has been deprecated. SQL access is always enabled.
+
+[role="exclude",id="indices-templates"]
+=== Index templates [[getting]]
+
+See <<index-templates>>.
+
+[role="exclude",id="indices-template-exists"]
+=== Index template exists (legacy)
+
+See <<indices-template-exists-v1>>.
+
+[role="exclude",id="run-a-search"]
+=== Run a search
+
+See <<run-an-es-search>>.
+
+[role="exclude",id="how-highlighters-work-internally"]
+=== How highlighters work internally
+
+See <<how-es-highlighters-work-internally>>.
+
+[role="exclude",id="eql-search"]
+=== Run an EQL search
+
+See <<run-an-eql-search>>.
+
+[role="exclude",id="eql-limitations"]
+=== EQL limitations
+
+See <<eql-syntax-limitations>>.
+
+[role="exclude",id="eql-requirements"]
+=== EQL requirements
+
+See <<eql-required-fields>>.
+
+[role="exclude",id="sql-client-apps-tableau"]
+=== Tableau Desktop
+
+See <<sql-client-apps-tableau-desktop>> and <<sql-client-apps-tableau-server>>.
+
+[role="exclude",id="search-request-body"]
+=== Request body search
+
+This page has been removed.
+
+For search API reference documentation, see <<search-search>>.
+
+For search examples, see <<search-your-data>>.
+
+[role="exclude",id="request-body-search-docvalue-fields"]
+==== Doc value fields
+
+See <<docvalue-fields, doc value fields>>.
+
+[role="exclude",id="_fast_check_for_any_matching_docs"]
+==== Fast check for any matching docs
+
+See <<quickly-check-for-matching-docs>>.
+
+[role="exclude",id="request-body-search-collapse"]
+==== Field collapsing
+
+See <<collapse-search-results>>.
+
+[role="exclude",id="request-body-search-from-size"]
+==== From / size
+
+See <<paginate-search-results>>.
+
+[role="exclude",id="request-body-search-highlighting"]
+==== Highlighting
+
+See <<highlighting>>.
+
+[role="exclude",id="highlighter-internal-work"]
+==== How highlighters work internally
+
+See <<how-es-highlighters-work-internally>>.
+
+[role="exclude",id="request-body-search-index-boost"]
+==== Index boost
+See <<index-boost>>.
+
+[role="exclude",id="request-body-search-inner-hits"]
+==== Inner hits
+See <<inner-hits>>.
+
+[role="exclude",id="request-body-search-min-score"]
+==== `min_score`
+
+See the <<search-api-min-score,`min_score`>> parameter.
+
+[role="exclude",id="request-body-search-queries-and-filters"]
+==== Named queries
+
+See <<named-queries>>.
+
+[role="exclude",id="request-body-search-post-filter"]
+==== Post filter
+
+See <<post-filter>>.
+
+[role="exclude",id="request-body-search-preference"]
+==== Preference
+
+See <<search-preference>>.
+
+[role="exclude",id="request-body-search-rescore"]
+==== Rescoring
+
+See <<rescore>>.
+
+[role="exclude",id="request-body-search-script-fields"]
+==== Script fields
+
+See <<script-fields>>.
+
+[role="exclude",id="request-body-search-scroll"]
+==== Scroll
+
+See <<scroll-search-results>>.
+
+[[_clear_scroll_api]]
+==== Clear scroll API
+
+See <<clear-scroll-api>>.
+
+[[sliced-scroll]]
+==== Sliced scroll
+
+See <<slice-scroll>>.
+
+[role="exclude",id="request-body-search-search-after"]
+==== Search after
+
+See <<search-after>>.
+
+[role="exclude",id="request-body-search-search-type"]
+==== Search type
+
+See <<search-type>>.
+
+[role="exclude",id="request-body-search-sort"]
+==== Sort
+
+See <<sort-search-results>>.
+
+[role="exclude",id="request-body-search-source-filtering"]
+==== Source filtering
+
+See <<source-filtering>>.
+
+[role="exclude",id="request-body-search-stored-fields"]
+==== Stored fields
+
+See <<stored-fields>>.
+
+[role="exclude",id="request-body-search-track-total-hits"]
+==== Track total hits
+
+See <<track-total-hits>>.
+
+[role="exclude",id="_notes_3"]
+=== Joining queries notes
+
+See <<joining-queries-notes>>.
+
+[role="exclude",id="_notes_4"]
+=== Percolate query notes
+
+See <<percolate-query-notes>>.
+
+[role="exclude",id="point-in-time"]
+=== Point in time API
+
+See <<point-in-time-api>>.
+
+[role="exclude",id="constant-keyword"]
+=== Constant keyword field type
+
+See <<constant-keyword-field-type>>.
+
+[role="exclude",id="wildcard"]
+=== Wildcard field type
+
+See <<wildcard-field-type>>.
+
+[role="exclude",id="searchable-snapshots-repository-stats"]
+=== Searchable snapshot repository statistics API
+
+We have removed documentation for this API. This a low-level API used to get
+information about searchable snapshot indices. We plan to remove or drastically
+change this API as part of a future release.
+
+For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
+
+[role="exclude",id="avoid-oversharding"]
+=== Avoid oversharding
+
+See <<size-your-shards>>.
+
+[role="exclude",id="_parameters_8"]
+=== elasticsearch-croneval parameters
+
+See <<elasticsearch-croneval-parameters>>.
+
+[role="exclude",id="autoscaling-get-autoscaling-decision"]
+=== Autoscaling decision API
+
+The autoscaling decision API has been renamed to capacity,
+see <<autoscaling-get-autoscaling-capacity>>.
+
+[role="exclude",id="caching-heavy-aggregations"]
+=== Caching heavy aggregations
+
+See <<agg-caches>>.
+
+[role="exclude",id="returning-only-agg-results"]
+=== Returning only aggregation results
+
+See <<return-only-agg-results>>.
+
+[role="exclude",id="agg-metadata"]
+=== Aggregation metadata
+
+See <<add-metadata-to-an-agg>>.
+
+[role="exclude",id="returning-aggregation-type"]
+=== Returning the type of the aggregation
+
+See <<return-agg-type>>.
+
+[role="exclude",id="indexing-aggregation-results"]
+=== Indexing aggregation results with transforms
+
+See <<transforms>>.
+
+[role="exclude",id="search-aggregations-matrix"]
+=== Matrix aggregations
+
+See <<search-aggregations-matrix-stats-aggregation>>.
+
+[role="exclude",id="search-aggregations-pipeline-movavg-aggregation"]
+=== Moving average aggregation
+
+The moving average aggregation has been removed. Use the
+<<search-aggregations-pipeline-movfn-aggregation,moving function aggregation>>
+instead.
+
+[role="exclude",id="fielddata"]
+=== `fielddata` mapping parameter
+
+See <<fielddata-mapping-param>>.
+
+[role="exclude",id="pipeline"]
+=== Pipeline definition
+
+See <<ingest>>.
+
+[role="exclude",id="accessing-data-in-pipelines"]
+=== Accessing data in pipelines
+
+See <<access-source-fields>>, <<access-metadata-fields>>, and
+<<access-ingest-metadata>>.
+
+[role="exclude",id="ingest-conditionals"]
+=== Conditional execution in pipelines
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="ingest-conditional-nullcheck"]
+=== Handling nested fields in conditionals
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="ingest-conditional-complex"]
+=== Complex conditionals
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="conditionals-with-multiple-pipelines"]
+=== Conditionals with the pipeline processor
+
+See <<conditionally-apply-pipelines>>.
+
+[role="exclude",id="conditionals-with-regex"]
+=== Conditionals with the regular expressions
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="handling-failure-in-pipelines"]
+=== Handling failures in pipelines
+
+See <<handling-pipeline-failures>>.
+
+[role="exclude",id="ingest-processors"]
+=== Ingest processors
+
+See <<processors>>.
+
+[role="exclude",id="enrich-policy-definition"]
+=== Enrich policy definition
+
+See <<put-enrich-policy-api>>.
+
+[role="exclude",id="rollup-api"]
+=== Rollup API
+
+See <<rollup-apis>>.
+
+[role="exclude",id="getting-started-install"]
+=== Get {es} up and running
+
+See <<run-elasticsearch>>.
+
+[role="exclude",id="getting-started-index"]
+=== Index some documents
+
+See <<add-data>>.
+
+[role="exclude",id="getting-started-search"]
+=== Start searching
+
+See <<qs-search-data>>.
+
+[role="exclude",id="getting-started-aggregations"]
+=== Analyze results with aggregations
+
+See <<getting-started>>.
+
+[role="exclude",id="getting-started-next-steps"]
+=== Where to go from here
+
+See <<getting-started>>.
+
+[role="exclude",id="jvm-options"]
+=== Settng JVM options
+
+See <<set-jvm-options>>.
+
+[role="exclude",id="terms-enum"]
+=== Terms enum API
+
+See <<search-terms-enum>>.
+
+[role="exclude",id="frozen-indices"]
+=== Frozen indices
+
+// tag::frozen-index-redirect[]
+include::{es-repo-dir}/indices/apis/freeze.asciidoc[tag=freeze-api-dep]
+
+For API documentation, see <<freeze-index-api>> and <<unfreeze-index-api>>.
+// end::frozen-index-redirect[]
+
+[role="exclude",id="best_practices"]
+=== Best practices for frozen indices
+
+include::redirects.asciidoc[tag=frozen-index-redirect]
+
+[role="exclude",id="searching_a_frozen_index"]
+=== Searching a frozen index
+
+include::redirects.asciidoc[tag=frozen-index-redirect]
+
+[role="exclude",id="monitoring_frozen_indices"]
+=== Monitoring frozen indices
+
+include::redirects.asciidoc[tag=frozen-index-redirect]
+
+[role="exclude",id="glossary"]
+=== Glossary
+
+See the {glossary}/terms.html[Elastic glossary].
+[role="exclude",id="multi-index"]
+=== Multi-target syntax
+
+See <<api-multi-index>>. 
+
+[float]
+[[hidden]]
+==== Hidden data streams and indices
+
+See <<multi-hidden>>. 
+
+[role="exclude",id="date-math-index-names"]
+=== Date math support in system and index alias names 
+
+See <<api-date-math-index-names>>.
+
+[role="exclude",id="cron-expressions"]
+=== Cron expressions
+
+See <<api-cron-expressions>>.
+
+[role="exclude",id="url-access-control"]
+=== URL-based access control
+
+See <<api-url-access-control>>.
+
+[role="exclude",id="indices-field-usage-stats"]
+=== Field usage stats API
+
+See <<field-usage-stats>>.
+
+[role="exclude",id="security-api-enroll-kibana"]
+=== Enroll {kib} API
+
+See <<security-api-kibana-enrollment>>.
+
+[role="exclude",id="sql-rest-fields"]
+=== Supported REST parameters for SQL search API
+
+See the <<sql-search-api-request-body,request body parameters>> for the
+<<sql-search-api,SQL search API>>.

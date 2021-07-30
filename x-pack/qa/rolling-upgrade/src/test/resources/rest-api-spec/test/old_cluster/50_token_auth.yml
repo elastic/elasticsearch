@@ -27,7 +27,9 @@
   - match: { type: "Bearer" }
   - is_true: access_token
   - set: { access_token: token }
-  - match: { expires_in: 1200 }
+  - is_true: refresh_token
+  - set: { refresh_token: refresh_token }
+  - match: { expires_in: 3600 }
   - is_false: scope
 
   - do:
@@ -54,15 +56,15 @@
       bulk:
         refresh: true
         body:
-          - '{"index": {"_index": "token_index", "_type": "doc", "_id" : "1"}}'
+          - '{"index": {"_index": "token_index", "_id" : "1"}}'
           - '{"f1": "v1_old", "f2": 0}'
-          - '{"index": {"_index": "token_index", "_type": "doc", "_id" : "2"}}'
+          - '{"index": {"_index": "token_index", "_id" : "2"}}'
           - '{"f1": "v2_old", "f2": 1}'
-          - '{"index": {"_index": "token_index", "_type": "doc", "_id" : "3"}}'
+          - '{"index": {"_index": "token_index", "_id" : "3"}}'
           - '{"f1": "v3_old", "f2": 2}'
-          - '{"index": {"_index": "token_index", "_type": "doc", "_id" : "4"}}'
+          - '{"index": {"_index": "token_index", "_id" : "4"}}'
           - '{"f1": "v4_old", "f2": 3}'
-          - '{"index": {"_index": "token_index", "_type": "doc", "_id" : "5"}}'
+          - '{"index": {"_index": "token_index", "_id" : "5"}}'
           - '{"f1": "v5_old", "f2": 4}'
 
   - do:
@@ -81,6 +83,48 @@
         Authorization: Bearer ${token}
       index:
         index: token_index
-        type: doc
         id: "6"
         body: { "token" : "${token}"}
+
+  # refresh token and store it as well
+  - do:
+      security.get_token:
+        body:
+          grant_type: "refresh_token"
+          refresh_token: "${refresh_token}"
+
+  - match: { type: "Bearer" }
+  - is_true: access_token
+  - set: { access_token: refreshed_access_token }
+  - is_true: refresh_token
+  - set: { refresh_token: refreshed_refresh_token }
+  - match: { expires_in: 3600 }
+  - is_false: scope
+
+  # test refresh token (use it)
+  - do:
+      headers:
+        Authorization: Bearer ${refreshed_access_token}
+      security.authenticate: {}
+
+  - match: { username: "token_user" }
+  - match: { roles.0:  "superuser" }
+  - match: { full_name: "Token User" }
+
+  # store the new refreshed access token
+  - do:
+      headers:
+        Authorization: Bearer ${refreshed_access_token}
+      index:
+        index: token_index
+        id: "7"
+        body: { "token" : "${refreshed_access_token}"}
+
+  # store the refresh token
+  - do:
+      headers:
+        Authorization: Bearer ${refreshed_access_token}
+      index:
+        index: token_index
+        id: "8"
+        body: { "token" : "${refreshed_refresh_token}"}

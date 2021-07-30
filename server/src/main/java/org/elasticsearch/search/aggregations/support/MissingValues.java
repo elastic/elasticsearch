@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -49,10 +38,15 @@ public enum MissingValues {
                 SortedBinaryDocValues values = valuesSource.bytesValues(context);
                 return replaceMissing(values, missing);
             }
+
+            @Override
+            public String toString() {
+                return "anon ValuesSource.Bytes of [" + super.toString() + "]";
+            }
         };
     }
 
-    static SortedBinaryDocValues replaceMissing(final SortedBinaryDocValues values, final BytesRef missing) {
+    public static SortedBinaryDocValues replaceMissing(final SortedBinaryDocValues values, final BytesRef missing) {
         return new SortedBinaryDocValues() {
 
             private int count;
@@ -82,6 +76,10 @@ public enum MissingValues {
                     return missing;
                 }
             }
+            @Override
+            public String toString() {
+                return "anon SortedBinaryDocValues of [" + super.toString() + "]";
+            }
         };
     }
 
@@ -110,6 +108,10 @@ public enum MissingValues {
             public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
                 final SortedNumericDoubleValues values = valuesSource.doubleValues(context);
                 return replaceMissing(values, missing.doubleValue());
+            }
+            @Override
+            public String toString() {
+                return "anon ValuesSource.Numeric of [" + super.toString() + "]";
             }
         };
     }
@@ -143,6 +145,11 @@ public enum MissingValues {
                 // always return true because we want to return a value even if
                 // the document does not have a value
                 return true;
+            }
+
+            @Override
+            public String toString() {
+                return "anon SortedNumericDocValues of [" + super.toString() + "]";
             }
 
         };
@@ -179,6 +186,11 @@ public enum MissingValues {
                 return count == 0 ? 1 : count;
             }
 
+            @Override
+            public String toString() {
+                return "anon SortedNumericDoubleValues of [" + super.toString() + "]";
+            }
+
         };
     }
 
@@ -209,6 +221,12 @@ public enum MissingValues {
                         valuesSource.globalOrdinalsValues(context),
                         valuesSource.globalOrdinalsMapping(context), missing);
             }
+
+            @Override
+            public String toString() {
+                return "anon ValuesSource.Bytes.WithOrdinals of [" + super.toString() + "]";
+            }
+
         };
     }
 
@@ -263,6 +281,12 @@ public enum MissingValues {
                 // the document does not have a value
                 return true;
             }
+
+            @Override
+            public String toString() {
+                return "anon AbstractSortedDocValues of [" + super.toString() + "]";
+            }
+
         };
     }
 
@@ -315,6 +339,11 @@ public enum MissingValues {
                 // always return true because we want to return a value even if
                 // the document does not have a value
                 return true;
+            }
+
+            @Override
+            public String toString() {
+                return "anon AbstractSortedDocValues of [" + super.toString() + "]";
             }
         };
     }
@@ -369,6 +398,11 @@ public enum MissingValues {
                 final MultiGeoPointValues values = valuesSource.geoPointValues(context);
                 return replaceMissing(values, missing);
             }
+
+            @Override
+            public String toString() {
+                return "anon ValuesSource.GeoPoint of [" + super.toString() + "]";
+            }
         };
     }
 
@@ -401,6 +435,11 @@ public enum MissingValues {
                 } else {
                     return missing;
                 }
+            }
+
+            @Override
+            public String toString() {
+                return "anon MultiGeoPointValues of [" + super.toString() + "]";
             }
         };
     }

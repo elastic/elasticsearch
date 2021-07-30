@@ -1,0 +1,287 @@
+# Integration tests for Mapper Annotated_text components
+#
+
+---
+"annotated highlighter on annotated text":
+  - do:
+      indices.create:
+        index: annotated
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+          mappings:
+            properties:
+              text:
+                type: annotated_text
+              entityID:
+                type: keyword
+
+  - do:
+      index:
+        index: annotated
+        body:
+            "text" : "The [quick brown fox](entity_3789) is brown."
+            "entityID": "entity_3789"
+        refresh: true
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "query" : {"term" : { "entityID" : "entity_3789" } }, "highlight" : { "type" : "annotated", "require_field_match": false, "fields" : { "text" : {} } } }
+
+  - match: {hits.hits.0.highlight.text.0: "The [quick brown fox](_hit_term=entity_3789&entity_3789) is brown."}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "query" : {"term" : { "text" : "quick" } }, "highlight" : { "type" : "annotated", "require_field_match": false, "fields" : { "text" : {} } } }
+
+  - match: {hits.hits.0.highlight.text.0: "The [quick](_hit_term=quick) brown fox is brown."}
+
+  - do:
+      search:
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: entity_3789 brown
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        body:
+          query:
+            span_near:
+              clauses: [
+                span_term: { text: entity_3789 },
+                span_term: { text: brown }
+              ]
+              in_order: true
+              slop: 10
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        body:
+          query:
+            match_phrase:
+              text: "fox is brown"
+
+  - match: { hits.total.value: 1 }
+
+
+---
+"issue 39395 thread safety issue -requires multiple calls to reveal":
+  - do:
+      indices.create:
+        index: annotated
+        body:
+          settings:
+            number_of_shards: "5"
+            number_of_replicas: "0"
+          mappings:
+            properties:
+              my_field:
+                type: annotated_text
+
+  - do:
+      index:
+        index: annotated
+        id: 1
+        body:
+            "my_field" : "[A](~MARK0&~MARK0) [B](~MARK1)"
+  - do:
+      index:
+        index: annotated
+        id: 2
+        body:
+            "my_field" : "[A](~MARK0) [C](~MARK2)"
+        refresh: true
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
+  - match: {_shards.failed: 0}
+
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
+  - match: {_shards.failed: 0}
+
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
+  - match: {_shards.failed: 0}
+
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
+  - match: {_shards.failed: 0}
+
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
+  - match: {_shards.failed: 0}
+
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
+  - match: {_shards.failed: 0}
+
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
+  - match: {_shards.failed: 0}
+
+---
+"issue 66535 array index out of bounds issue -requires multiple docs":
+  - do:
+      indices.create:
+        index: annotated
+        body:
+          mappings:
+            properties:
+              my_field:
+                type: annotated_text
+
+  - do:
+      index:
+        index: annotated
+        id: 1
+        body:
+            "my_field" : "[Jeff Beck](Beck) plays a strat"
+  - do:
+      index:
+        index: annotated
+        id: 2
+        body:
+            "my_field" : "[Kimchy](Beck) plays a strat"
+        refresh: true
+  - do:
+      search:
+        request_cache: false
+        body: {"query": {"term": {"my_field": "Beck"}  }, "highlight": {"fields": {"my_field": {"type": "annotated", "require_field_match": false }}}}
+  - match: {_shards.failed: 0}
+
+---
+"Signficant text support":
+  - do:
+      indices.create:
+        index: annotated
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+          mappings:
+            properties:
+              my_field:
+                type: annotated_text
+
+  - do:
+      index:
+        index: annotated
+        id: 1
+        body:
+            "my_field" : "[Apple](Apple+Inc) launched the iphone 12"
+  - do:
+      index:
+        index: annotated
+        id: 2
+        body:
+            "my_field" : "[They](Apple+Inc) make iphone accessories"
+  - do:
+      index:
+        index: annotated
+        id: 3
+        body:
+            "my_field" : "[Apple](Apple+Inc) have a new iphone coming"
+        refresh: true
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match" : { "my_field" : "iphone" } }, "aggs" : { "keywords" : { "significant_text" : {"field" : "my_field", "min_doc_count":3, "percentage":{}, "exclude":["iphone"]} } } }
+  - match: {_shards.failed: 0}
+  - match: {aggregations.keywords.buckets.0.key: "Apple Inc"}
+
+---
+"Annotated highlighter on annotated text exceeding index.highlight.max_analyzed_offset should FAIL":
+
+  - do:
+      indices.create:
+        index: annotated
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+            index.highlight.max_analyzed_offset: 20
+          mappings:
+            properties:
+              text:
+                type: annotated_text
+              entityID:
+                type: keyword
+
+  - do:
+      index:
+        index: annotated
+        body:
+          "text": "The [quick brown fox](entity_3789) is brown."
+          "entityID": "entity_3789"
+        refresh: true
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: annotated
+        body: { "query": { "term": { "entityID": "entity_3789" } }, "highlight": { "type": "annotated", "require_field_match": false, "fields": { "text": { } } } }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+
+
+---
+"Annotated highlighter on annotated text exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=20 should SUCCEED":
+
+  - skip:
+      version: " - 7.11.99"
+      reason: max_analyzed_offset query param added in 7.12.0
+
+  - do:
+      indices.create:
+        index: annotated
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+            index.highlight.max_analyzed_offset: 20
+          mappings:
+            properties:
+              text:
+                type: annotated_text
+              entityID:
+                type: keyword
+
+  - do:
+      index:
+        index: annotated
+        body:
+          "text": "The [quick brown fox](entity_3789) is brown."
+          "entityID": "entity_3789"
+        refresh: true
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: annotated
+        body: { "query": { "term": { "entityID": "entity_3789" } }, "highlight": { "type": "annotated", "require_field_match": false, "fields": { "text": { } }, "max_analyzed_offset": 20 } }
+  - match: {hits.hits.0.highlight.text.0: "The [quick brown fox](_hit_term=entity_3789&entity_3789) is brown."}
+

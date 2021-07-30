@@ -3,15 +3,14 @@
 :request: CloseJobRequest
 :response: CloseJobResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Close Job API
+=== Close {anomaly-jobs} API
 
-The Close Job API provides the ability to close {ml} jobs in the cluster.
-It accepts a +{request}+ object and responds
-with a +{response}+ object.
+Closes {anomaly-jobs} in the cluster. It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Close Job Request
+==== Close {anomaly-jobs} request
 
 A +{request}+ object gets created with an existing non-null `jobId`.
 
@@ -28,7 +27,7 @@ which has not responded to its initial close request.
 execution should wait for the job to be closed.
 
 [id="{upid}-{api}-response"]
-==== Close Job Response
+==== Close {anomaly-jobs} response
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

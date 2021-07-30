@@ -1,36 +1,26 @@
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 dependencies {
-  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
+  yamlRestTestImplementation project(":x-pack:plugin:core")
 }
 
 // bring in graph rest test suite
-task copyGraphRestTests(type: Copy) {
-  into project.sourceSets.test.output.resourcesDir
-  from project(xpackProject('plugin').path).sourceSets.test.resources.srcDirs
-  include 'rest-api-spec/test/graph/**'
+restResources {
+  restApi {
+    include '_common', 'cluster', 'indices', 'index', 'graph'
+  }
+  restTests {
+    includeXpack 'graph'
+  }
 }
 
-integTestCluster {
-  dependsOn copyGraphRestTests
-  extraConfigFile 'roles.yml', 'roles.yml'
-  setupCommand 'setupTestAdminUser',
-               'bin/elasticsearch-users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
-  setupCommand 'setupGraphExplorerUser',
-               'bin/elasticsearch-users', 'useradd', 'graph_explorer', '-p', 'x-pack-test-password', '-r', 'graph_explorer'
-  setupCommand 'setupPowerlessUser',
-               'bin/elasticsearch-users', 'useradd', 'no_graph_explorer', '-p', 'x-pack-test-password', '-r', 'no_graph_explorer'
-  setting 'xpack.license.self_generated.type', 'trial'
+testClusters.all {
+  testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: 'test_admin',
-            password: 'x-pack-test-password',
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
-  }
+  setting 'xpack.license.self_generated.type', 'trial'
+
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: 'test_admin', password: 'x-pack-test-password'
+  user username: 'graph_explorer', password: 'x-pack-test-password', role: 'graph_explorer'
+  user username: 'no_graph_explorer', password: 'x-pack-test-password', role: 'no_graph_explorer'
 }

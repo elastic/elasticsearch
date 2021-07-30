@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.slack;
 
@@ -28,12 +29,10 @@ import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
 import org.elasticsearch.xpack.watcher.notification.slack.message.SlackMessage;
 import org.elasticsearch.xpack.watcher.notification.slack.message.SlackMessageDefaults;
 import org.elasticsearch.xpack.watcher.notification.slack.message.SlackMessageTests;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
-import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -77,8 +76,8 @@ public class SlackActionTests extends ESTestCase {
 
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
-        JodaCompatibleZonedDateTime jodaJavaNow = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(now.getMillis()), ZoneOffset.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+        JodaCompatibleZonedDateTime jodaJavaNow = new JodaCompatibleZonedDateTime(now.toInstant(), ZoneOffset.UTC);
 
         Wid wid = new Wid(randomAlphaOfLength(5), now);
         WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId())
@@ -134,8 +133,8 @@ public class SlackActionTests extends ESTestCase {
         SentMessages sentMessages = new SentMessages(accountName, messages);
         when(account.send(message, eq(any()))).thenReturn(sentMessages);
 
-        Action.Result.Status expectedStatus = !hasError ? Action.Result.Status.SUCCESS :
-                !hasSuccess ? Action.Result.Status.FAILURE :
+        Action.Result.Status expectedStatus = hasError == false ? Action.Result.Status.SUCCESS :
+                hasSuccess == false ? Action.Result.Status.FAILURE :
                         Action.Result.Status.PARTIAL_FAILURE;
 
 

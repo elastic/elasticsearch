@@ -4,7 +4,7 @@
 Analysis plugins extend Elasticsearch by adding new analyzers, tokenizers,
 token filters, or character filters to Elasticsearch.
 
-[float]
+[discrete]
 ==== Core analysis plugins
 
 The core analysis plugins are:
@@ -18,7 +18,7 @@ transliteration.
 
 <<analysis-kuromoji,Kuromoji>>::
 
-Advanced analysis of Japanese using the http://www.atilika.org/[Kuromoji analyzer].
+Advanced analysis of Japanese using the https://www.atilika.org/[Kuromoji analyzer].
 
 <<analysis-nori,Nori>>::
 
@@ -44,20 +44,15 @@ Provides high quality stemming for Polish.
 
 Provides stemming for Ukrainian.
 
-[float]
+[discrete]
 ==== Community contributed analysis plugins
 
 A number of analysis plugins have been contributed by our community:
 
-* https://github.com/synhershko/elasticsearch-analysis-hebrew[Hebrew Analysis Plugin] (by Itamar Syn-Hershko)
 * https://github.com/medcl/elasticsearch-analysis-ik[IK Analysis Plugin] (by Medcl)
-* https://github.com/medcl/elasticsearch-analysis-mmseg[Mmseg Analysis Plugin] (by Medcl)
-* https://github.com/imotov/elasticsearch-analysis-morphology[Russian and English Morphological Analysis Plugin] (by Igor Motov)
 * https://github.com/medcl/elasticsearch-analysis-pinyin[Pinyin Analysis Plugin] (by Medcl)
 * https://github.com/duydo/elasticsearch-analysis-vietnamese[Vietnamese Analysis Plugin] (by Duy Do)
-* https://github.com/ofir123/elasticsearch-network-analysis[Network Addresses Analysis Plugin] (by Ofir123)
-* https://github.com/medcl/elasticsearch-analysis-string2int[String2Integer Analysis Plugin] (by Medcl)
-* https://github.com/ZarHenry96/elasticsearch-dandelion-plugin[Dandelion Analysis Plugin] (by ZarHenry96)
+* https://github.com/medcl/elasticsearch-analysis-stconvert[STConvert Analysis Plugin] (by Medcl)
 
 include::analysis-icu.asciidoc[]
 

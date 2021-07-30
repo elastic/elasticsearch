@@ -1,33 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.rest.action.cat;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -37,10 +24,12 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestAliasAction extends AbstractCatAction {
-    public RestAliasAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_cat/aliases", this);
-        controller.registerHandler(GET, "/_cat/aliases/{alias}", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_cat/aliases"),
+            new Route(GET, "/_cat/aliases/{alias}"));
     }
 
     @Override
@@ -49,10 +38,16 @@ public class RestAliasAction extends AbstractCatAction {
     }
 
     @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return true;
+    }
+
+    @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final GetAliasesRequest getAliasesRequest = request.hasParam("alias") ?
                 new GetAliasesRequest(Strings.commaDelimitedListToStringArray(request.param("alias"))) :
                 new GetAliasesRequest();
+        getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
 
         return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestResponseListener<GetAliasesResponse>(channel) {
@@ -79,6 +74,7 @@ public class RestAliasAction extends AbstractCatAction {
         table.addCell("filter", "alias:f,fi;desc:filter");
         table.addCell("routing.index", "alias:ri,routingIndex;desc:index routing");
         table.addCell("routing.search", "alias:rs,routingSearch;desc:search routing");
+        table.addCell("is_write_index", "alias:w,isWriteIndex;desc:write index");
         table.endHeaders();
         return table;
     }
@@ -86,17 +82,19 @@ public class RestAliasAction extends AbstractCatAction {
     private Table buildTable(RestRequest request, GetAliasesResponse response) {
         Table table = getTableWithHeader(request);
 
-        for (ObjectObjectCursor<String, List<AliasMetaData>> cursor : response.getAliases()) {
+        for (ObjectObjectCursor<String, List<AliasMetadata>> cursor : response.getAliases()) {
             String indexName = cursor.key;
-            for (AliasMetaData aliasMetaData : cursor.value) {
+            for (AliasMetadata aliasMetadata : cursor.value) {
                 table.startRow();
-                table.addCell(aliasMetaData.alias());
+                table.addCell(aliasMetadata.alias());
                 table.addCell(indexName);
-                table.addCell(aliasMetaData.filteringRequired() ? "*" : "-");
-                String indexRouting = Strings.hasLength(aliasMetaData.indexRouting()) ? aliasMetaData.indexRouting() : "-";
+                table.addCell(aliasMetadata.filteringRequired() ? "*" : "-");
+                String indexRouting = Strings.hasLength(aliasMetadata.indexRouting()) ? aliasMetadata.indexRouting() : "-";
                 table.addCell(indexRouting);
-                String searchRouting = Strings.hasLength(aliasMetaData.searchRouting()) ? aliasMetaData.searchRouting() : "-";
+                String searchRouting = Strings.hasLength(aliasMetadata.searchRouting()) ? aliasMetadata.searchRouting() : "-";
                 table.addCell(searchRouting);
+                String isWriteIndex = aliasMetadata.writeIndex() == null ? "-" : aliasMetadata.writeIndex().toString();
+                table.addCell(isWriteIndex);
                 table.endRow();
             }
         }

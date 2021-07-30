@@ -1,29 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -33,6 +21,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 public class IngestStats implements Writeable, ToXContentFragment {
@@ -64,16 +53,15 @@ public class IngestStats implements Writeable, ToXContentFragment {
             String pipelineId = in.readString();
             Stats pipelineStat = new Stats(in);
             this.pipelineStats.add(new PipelineStat(pipelineId, pipelineStat));
-            if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
-                int processorsSize = in.readVInt();
-                List<ProcessorStat> processorStatsPerPipeline = new ArrayList<>(processorsSize);
-                for (int j = 0; j < processorsSize; j++) {
-                    String processorName = in.readString();
-                    Stats processorStat = new Stats(in);
-                    processorStatsPerPipeline.add(new ProcessorStat(processorName, processorStat));
-                }
-                this.processorStats.put(pipelineId, processorStatsPerPipeline);
+            int processorsSize = in.readVInt();
+            List<ProcessorStat> processorStatsPerPipeline = new ArrayList<>(processorsSize);
+            for (int j = 0; j < processorsSize; j++) {
+                String processorName = in.readString();
+                String processorType = in.readString();
+                Stats processorStat = new Stats(in);
+                processorStatsPerPipeline.add(new ProcessorStat(processorName, processorType, processorStat));
             }
+            this.processorStats.put(pipelineId, processorStatsPerPipeline);
         }
     }
 
@@ -84,16 +72,15 @@ public class IngestStats implements Writeable, ToXContentFragment {
         for (PipelineStat pipelineStat : pipelineStats) {
             out.writeString(pipelineStat.getPipelineId());
             pipelineStat.getStats().writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
-                List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.getPipelineId());
-                if (processorStatsForPipeline == null) {
-                    out.writeVInt(0);
-                } else {
-                    out.writeVInt(processorStatsForPipeline.size());
-                    for (ProcessorStat processorStat : processorStatsForPipeline) {
-                        out.writeString(processorStat.getName());
-                        processorStat.getStats().writeTo(out);
-                    }
+            List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.getPipelineId());
+            if (processorStatsForPipeline == null) {
+                out.writeVInt(0);
+            } else {
+                out.writeVInt(processorStatsForPipeline.size());
+                for (ProcessorStat processorStat : processorStatsForPipeline) {
+                    out.writeString(processorStat.getName());
+                    out.writeString(processorStat.getType());
+                    processorStat.getStats().writeTo(out);
                 }
             }
         }
@@ -115,7 +102,10 @@ public class IngestStats implements Writeable, ToXContentFragment {
                 for (ProcessorStat processorStat : processorStatsForPipeline) {
                     builder.startObject();
                     builder.startObject(processorStat.getName());
+                    builder.field("type", processorStat.getType());
+                    builder.startObject("stats");
                     processorStat.getStats().toXContent(builder, params);
+                    builder.endObject();
                     builder.endObject();
                     builder.endObject();
                 }
@@ -138,6 +128,21 @@ public class IngestStats implements Writeable, ToXContentFragment {
 
     public Map<String, List<ProcessorStat>> getProcessorStats() {
         return processorStats;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        IngestStats that = (IngestStats) o;
+        return Objects.equals(totalStats, that.totalStats)
+            && Objects.equals(pipelineStats, that.pipelineStats)
+            && Objects.equals(processorStats, that.processorStats);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(totalStats, pipelineStats, processorStats);
     }
 
     public static class Stats implements Writeable, ToXContentFragment {
@@ -208,6 +213,22 @@ public class IngestStats implements Writeable, ToXContentFragment {
             builder.field("failed", ingestFailedCount);
             return builder;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            IngestStats.Stats that = (IngestStats.Stats) o;
+            return Objects.equals(ingestCount, that.ingestCount)
+                && Objects.equals(ingestTimeInMillis, that.ingestTimeInMillis)
+                && Objects.equals(ingestFailedCount, that.ingestFailedCount)
+                && Objects.equals(ingestCurrent, that.ingestCurrent);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(ingestCount, ingestTimeInMillis, ingestFailedCount, ingestCurrent);
+        }
     }
 
     /**
@@ -229,9 +250,9 @@ public class IngestStats implements Writeable, ToXContentFragment {
             return this;
         }
 
-        Builder addProcessorMetrics(String pipelineId, String processorName, IngestMetric metric) {
+        Builder addProcessorMetrics(String pipelineId, String processorName, String processorType, IngestMetric metric) {
             this.processorStats.computeIfAbsent(pipelineId, k -> new ArrayList<>())
-                .add(new ProcessorStat(processorName, metric.createStats()));
+                .add(new ProcessorStat(processorName, processorType, metric.createStats()));
             return this;
         }
 
@@ -260,6 +281,20 @@ public class IngestStats implements Writeable, ToXContentFragment {
         public Stats getStats() {
             return stats;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            IngestStats.PipelineStat that = (IngestStats.PipelineStat) o;
+            return Objects.equals(pipelineId, that.pipelineId)
+                && Objects.equals(stats, that.stats);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pipelineId, stats);
+        }
     }
 
     /**
@@ -267,10 +302,12 @@ public class IngestStats implements Writeable, ToXContentFragment {
      */
     public static class ProcessorStat {
         private final String name;
+        private final String type;
         private final Stats stats;
 
-        public ProcessorStat(String name, Stats stats) {
+        public ProcessorStat(String name, String type, Stats stats) {
             this.name = name;
+            this.type = type;
             this.stats = stats;
         }
 
@@ -278,8 +315,28 @@ public class IngestStats implements Writeable, ToXContentFragment {
             return name;
         }
 
+        public String getType() {
+            return type;
+        }
+
         public Stats getStats() {
             return stats;
+        }
+
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            IngestStats.ProcessorStat that = (IngestStats.ProcessorStat) o;
+            return Objects.equals(name, that.name)
+                && Objects.equals(type, that.type)
+                && Objects.equals(stats, that.stats);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, type, stats);
         }
     }
 }

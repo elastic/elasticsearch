@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.saml;
-
-import java.io.IOException;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationRequest;
 import org.elasticsearch.xpack.security.authc.saml.SamlTestCase;
 import org.hamcrest.Matchers;
+
+import java.io.IOException;
 
 public class SamlPrepareAuthenticationRequestTests extends SamlTestCase {
 
@@ -18,6 +19,7 @@ public class SamlPrepareAuthenticationRequestTests extends SamlTestCase {
         final SamlPrepareAuthenticationRequest req = new SamlPrepareAuthenticationRequest();
         req.setRealmName("saml1");
         req.setAssertionConsumerServiceURL("https://sp.example.com/sso/saml2/post");
+        req.setRelayState("the_relay_state");
         serialiseAndValidate(req);
     }
 
@@ -25,6 +27,7 @@ public class SamlPrepareAuthenticationRequestTests extends SamlTestCase {
         final SamlPrepareAuthenticationRequest req = new SamlPrepareAuthenticationRequest();
         req.setRealmName(null);
         req.setAssertionConsumerServiceURL(null);
+        req.setRelayState(null);
         serialiseAndValidate(req);
     }
 
@@ -32,11 +35,11 @@ public class SamlPrepareAuthenticationRequestTests extends SamlTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         req1.writeTo(out);
 
-        final SamlPrepareAuthenticationRequest req2 = new SamlPrepareAuthenticationRequest();
-        req2.readFrom(out.bytes().streamInput());
+        final SamlPrepareAuthenticationRequest req2 = new SamlPrepareAuthenticationRequest(out.bytes().streamInput());
 
         assertThat(req2.getRealmName(), Matchers.equalTo(req1.getRealmName()));
         assertThat(req2.getAssertionConsumerServiceURL(), Matchers.equalTo(req1.getAssertionConsumerServiceURL()));
+        assertThat(req2.getRelayState(), Matchers.equalTo(req1.getRelayState()));
         assertThat(req2.getParentTask(), Matchers.equalTo(req1.getParentTask()));
     }
 

@@ -1,0 +1,30 @@
+[[trim-processor]]
+=== Trim processor
+++++
+<titleabbrev>Trim</titleabbrev>
+++++
+
+Trims whitespace from field. If the field is an array of strings, all members of the array will be trimmed.
+
+NOTE: This only works on leading and trailing whitespace.
+
+[[trim-options]]
+.Trim Options
+[options="header"]
+|======
+| Name              | Required  | Default  | Description
+| `field`           | yes       | -        | The string-valued field to trim whitespace from
+| `target_field`    | no        | `field`  | The field to assign the trimmed value to, by default `field` is updated in-place
+| `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+include::common-options.asciidoc[]
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "trim": {
+    "field": "foo"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

@@ -24,7 +24,7 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "single_doc_index", "_type": "test_type"}}'
+            - '{"index": {"_index": "single_doc_index" }}'
             - '{"f1": "local_cluster", "sort_field": 0}'
   - do:
       search:

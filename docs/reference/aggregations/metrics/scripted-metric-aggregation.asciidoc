@@ -1,30 +1,35 @@
 [[search-aggregations-metrics-scripted-metric-aggregation]]
-=== Scripted Metric Aggregation
+=== Scripted metric aggregation
+++++
+<titleabbrev>Scripted metric</titleabbrev>
+++++
 
 A metric aggregation that executes using scripts to provide a metric output.
 
+WARNING: Using scripts can result in slower search speeds. See
+<<scripts-and-search-speed>>.
+
 Example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST ledger/_search?size=0
 {
-    "query" : {
-        "match_all" : {}
-    },
-    "aggs": {
-        "profit": {
-            "scripted_metric": {
-                "init_script" : "state.transactions = []", <1>
-                "map_script" : "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)",
-                "combine_script" : "double profit = 0; for (t in state.transactions) { profit += t } return profit",
-                "reduce_script" : "double profit = 0; for (a in states) { profit += a } return profit"
-            }
-        }
+  "query": {
+    "match_all": {}
+  },
+  "aggs": {
+    "profit": {
+      "scripted_metric": {
+        "init_script": "state.transactions = []", <1>
+        "map_script": "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)",
+        "combine_script": "double profit = 0; for (t in state.transactions) { profit += t } return profit",
+        "reduce_script": "double profit = 0; for (a in states) { profit += a } return profit"
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:ledger]
 
 <1> `init_script` is an optional parameter, all other scripts are required.
@@ -33,16 +38,16 @@ The above aggregation demonstrates how one would use the script aggregation comp
 
 The response for the above aggregation:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-    "took": 218,
-    ...
-    "aggregations": {
-        "profit": {
-            "value": 240.0
-        }
-   }
+  "took": 218,
+  ...
+  "aggregations": {
+    "profit": {
+      "value": 240.0
+    }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 218/"took": $body.took/]
@@ -50,34 +55,33 @@ The response for the above aggregation:
 
 The above example can also be specified using stored scripts as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST ledger/_search?size=0
 {
-    "aggs": {
-        "profit": {
-            "scripted_metric": {
-                "init_script" : {
-                    "id": "my_init_script"
-                },
-                "map_script" : {
-                    "id": "my_map_script"
-                },
-                "combine_script" : {
-                    "id": "my_combine_script"
-                },
-                "params": {
-                    "field": "amount" <1>
-                },
-                "reduce_script" : {
-                    "id": "my_reduce_script"
-                }
-            }
+  "aggs": {
+    "profit": {
+      "scripted_metric": {
+        "init_script": {
+          "id": "my_init_script"
+        },
+        "map_script": {
+          "id": "my_map_script"
+        },
+        "combine_script": {
+          "id": "my_combine_script"
+        },
+        "params": {
+          "field": "amount"           <1>
+        },
+        "reduce_script": {
+          "id": "my_reduce_script"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:ledger,stored_scripted_metric_script]
 
 <1> script parameters for `init`, `map` and `combine` scripts must be specified
@@ -86,16 +90,16 @@ in a global `params` object so that it can be shared between the scripts.
 ////
 Verify this response as well but in a hidden block.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-    "took": 218,
-    ...
-    "aggregations": {
-        "profit": {
-            "value": 240.0
-        }
-   }
+  "took": 218,
+  ...
+  "aggregations": {
+    "profit": {
+      "value": 240.0
+    }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 218/"took": $body.took/]
@@ -104,6 +108,7 @@ Verify this response as well but in a hidden block.
 
 For more details on specifying scripts see <<modules-scripting, script documentation>>.
 
+[[scripted-metric-aggregation-return-types]]
 ==== Allowed return types
 
 Whilst any valid script object can be used within a single script, the scripts must return or store in the `state` object only the following types:
@@ -113,6 +118,7 @@ Whilst any valid script object can be used within a single script, the scripts m
 * Map (containing only keys and values of the types listed here)
 * Array (containing elements of only the types listed here)
 
+[[scripted-metric-aggregation-scope]]
 ==== Scope of scripts
 
 The scripted metric aggregation uses scripts at 4 stages of its execution:
@@ -141,13 +147,14 @@ reduce_script::     Executed once on the coordinating node after all shards have
 In the above example, the `reduce_script` iterates through the `profit` returned by each shard summing the values before returning the
 final combined profit which will be returned in the response of the aggregation.
 
-==== Worked Example
+[[scripted-metric-aggregation-example]]
+==== Worked example
 
 Imagine a situation where you index the following documents into an index with 2 shards:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /transactions/_doc/_bulk?refresh
+PUT /transactions/_bulk?refresh
 {"index":{"_id":1}}
 {"type": "sale","amount": 80}
 {"index":{"_id":2}}
@@ -157,7 +164,6 @@ PUT /transactions/_doc/_bulk?refresh
 {"index":{"_id":4}}
 {"type": "sale","amount": 130}
 --------------------------------------------------
-// CONSOLE
 
 Lets say that documents 1 and 3 end up on shard A and documents 2 and 4 end up on shard B. The following is a breakdown of what the aggregation result is
 at each stage of the example above.
@@ -247,18 +253,19 @@ produce the response:
 [source,js]
 --------------------------------------------------
 {
-    ...
+  ...
 
-    "aggregations": {
-        "profit": {
-            "value": 170
-        }
-   }
+  "aggregations": {
+    "profit": {
+      "value": 170
+    }
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
 
-==== Other Parameters
+[[scripted-metric-aggregation-parameters]]
+==== Other parameters
 
 [horizontal]
 params::           Optional. An object whose contents will be passed as variables to the  `init_script`, `map_script` and `combine_script`. This can be
@@ -271,7 +278,8 @@ params::           Optional. An object whose contents will be passed as variable
 --------------------------------------------------
 // NOTCONSOLE
 
-==== Empty Buckets
+[[scripted-metric-aggregation-empty-buckets]]
+==== Empty buckets
 
 If a parent bucket of the scripted metric aggregation does not collect any documents an empty aggregation response will be returned from the
 shard with a `null` value. In this case the `reduce_script`'s `states` variable will contain `null` as a response from that shard.

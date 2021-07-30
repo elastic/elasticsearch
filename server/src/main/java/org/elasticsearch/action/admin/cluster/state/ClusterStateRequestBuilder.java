@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.state;
@@ -22,6 +11,8 @@ package org.elasticsearch.action.admin.cluster.state;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.core.TimeValue;
 
 public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterStateRequest,
         ClusterStateResponse, ClusterStateRequestBuilder> {
@@ -52,11 +43,11 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include the {@link org.elasticsearch.cluster.metadata.MetaData}. Defaults
+     * Should the cluster state result include the {@link Metadata}. Defaults
      * to {@code true}.
      */
-    public ClusterStateRequestBuilder setMetaData(boolean filter) {
-        request.metaData(filter);
+    public ClusterStateRequestBuilder setMetadata(boolean filter) {
+        request.metadata(filter);
         return this;
     }
 
@@ -88,7 +79,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * When {@link #setMetaData(boolean)} is set, which indices to return the {@link org.elasticsearch.cluster.metadata.IndexMetaData}
+     * When {@link #setMetadata(boolean)} is set, which indices to return the {@link org.elasticsearch.cluster.metadata.IndexMetadata}
      * for. Defaults to all indices.
      */
     public ClusterStateRequestBuilder setIndices(String... indices) {
@@ -98,6 +89,23 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
 
     public ClusterStateRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
+        return this;
+    }
+
+    /**
+     * Causes the request to wait for the metadata version to advance to at least the given version.
+     * @param waitForMetadataVersion The metadata version for which to wait
+     */
+    public ClusterStateRequestBuilder setWaitForMetadataVersion(long waitForMetadataVersion) {
+        request.waitForMetadataVersion(waitForMetadataVersion);
+        return this;
+    }
+
+    /**
+     * If {@link ClusterStateRequest#waitForMetadataVersion()} is set then this determines how long to wait
+     */
+    public ClusterStateRequestBuilder setWaitForTimeOut(TimeValue waitForTimeout) {
+        request.waitForTimeout(waitForTimeout);
         return this;
     }
 }

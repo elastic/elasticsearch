@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -101,21 +90,21 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
             nodes.add(new DiscoveryNode("_node_" + i, buildNewFakeTransportAddress(), Version.CURRENT));
         }
 
-        PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
         for (int i = 0; i < nbTasks; i++) {
-            tasks.addTask("_task_" + i, "test", null, new PersistentTasksCustomMetaData.Assignment(null, "initialized"));
+            tasks.addTask("_task_" + i, "test", null, new PersistentTasksCustomMetadata.Assignment(null, "initialized"));
         }
 
-        MetaData metaData = MetaData.builder()
-            .putCustom(PersistentTasksCustomMetaData.TYPE, tasks.build())
+        Metadata metadata = Metadata.builder()
+            .putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build())
             .build();
 
-        return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metaData(metaData).build();
+        return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).build();
     }
 
     /** Asserts that the given cluster state contains nbTasks tasks that are assigned **/
     protected static void assertNbAssignedTasks(final long nbTasks, final ClusterState clusterState) {
-        assertPersistentTasks(nbTasks, clusterState, PersistentTasksCustomMetaData.PersistentTask::isAssigned);
+        assertPersistentTasks(nbTasks, clusterState, PersistentTasksCustomMetadata.PersistentTask::isAssigned);
     }
 
     /** Asserts that the given cluster state contains nbTasks tasks that are NOT assigned **/
@@ -126,8 +115,8 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
     /** Asserts that the cluster state contains nbTasks tasks that verify the given predicate **/
     protected static void assertPersistentTasks(final long nbTasks,
                                               final ClusterState clusterState,
-                                              final Predicate<PersistentTasksCustomMetaData.PersistentTask> predicate) {
-        PersistentTasksCustomMetaData tasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+                                              final Predicate<PersistentTasksCustomMetadata.PersistentTask> predicate) {
+        PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertNotNull("Persistent tasks must be not null", tasks);
         assertEquals(nbTasks, tasks.tasks().stream().filter(predicate).count());
     }

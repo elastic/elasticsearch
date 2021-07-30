@@ -1,152 +1,83 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.dfs;
 
-import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
-import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
-import java.util.AbstractSet;
-import java.util.Collection;
-import java.util.Iterator;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Dfs phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
  * The additional information is used to better compare the scores coming from all the shards, which depend on local factors (e.g. idf)
  */
-public class DfsPhase implements SearchPhase {
+public class DfsPhase {
 
-    @Override
-    public void preProcess(SearchContext context) {
-    }
-
-    @Override
     public void execute(SearchContext context) {
-        final ObjectHashSet<Term> termsSet = new ObjectHashSet<>();
         try {
-            context.searcher().createWeight(context.searcher().rewrite(context.query()), ScoreMode.COMPLETE, 1f)
-                .extractTerms(new DelegateSet(termsSet));
-            for (RescoreContext rescoreContext : context.rescore()) {
-                try {
-                    rescoreContext.rescorer().extractTerms(context.searcher(), rescoreContext, new DelegateSet(termsSet));
-                } catch (IOException e) {
-                    throw new IllegalStateException("Failed to extract terms", e);
-                }
-            }
-
-            Term[] terms = termsSet.toArray(Term.class);
-            TermStatistics[] termStatistics = new TermStatistics[terms.length];
-            IndexReaderContext indexReaderContext = context.searcher().getTopReaderContext();
-            for (int i = 0; i < terms.length; i++) {
-                if(context.isCancelled()) {
-                    throw new TaskCancelledException("cancelled");
-                }
-                // LUCENE 4 UPGRADE: cache TermStates?
-                TermStates termContext = TermStates.build(indexReaderContext, terms[i], true);
-                termStatistics[i] = context.searcher().termStatistics(terms[i], termContext);
-            }
-
             ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
-            for (Term term : terms) {
-                assert term.field() != null : "field is null";
-                if (fieldStatistics.containsKey(term.field()) == false) {
-                    final CollectionStatistics collectionStatistics = context.searcher().collectionStatistics(term.field());
-                    if (collectionStatistics != null) {
-                        fieldStatistics.put(term.field(), collectionStatistics);
-                    }
-                    if(context.isCancelled()) {
+            Map<Term, TermStatistics> stats = new HashMap<>();
+            IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {
+                @Override
+                public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
+                    if (context.isCancelled()) {
                         throw new TaskCancelledException("cancelled");
                     }
+                    TermStatistics ts = super.termStatistics(term, docFreq, totalTermFreq);
+                    if (ts != null) {
+                        stats.put(term, ts);
+                    }
+                    return ts;
                 }
+
+                @Override
+                public CollectionStatistics collectionStatistics(String field) throws IOException {
+                    if (context.isCancelled()) {
+                        throw new TaskCancelledException("cancelled");
+                    }
+                    CollectionStatistics cs = super.collectionStatistics(field);
+                    if (cs != null) {
+                        fieldStatistics.put(field, cs);
+                    }
+                    return cs;
+                }
+            };
+
+            searcher.createWeight(context.searcher().rewrite(context.query()), ScoreMode.COMPLETE, 1);
+            for (RescoreContext rescoreContext : context.rescore()) {
+                for (Query query : rescoreContext.getQueries()) {
+                    searcher.createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE, 1);
+                }
+            }
+
+            Term[] terms = stats.keySet().toArray(new Term[0]);
+            TermStatistics[] termStatistics = new TermStatistics[terms.length];
+            for (int i = 0; i < terms.length; i++) {
+                termStatistics[i] = stats.get(terms[i]);
             }
 
             context.dfsResult().termsStatistics(terms, termStatistics)
                     .fieldStatistics(fieldStatistics)
                     .maxDoc(context.searcher().getIndexReader().maxDoc());
         } catch (Exception e) {
-            throw new DfsPhaseExecutionException(context, "Exception during dfs phase", e);
-        } finally {
-            termsSet.clear(); // don't hold on to terms
-        }
-    }
-
-    // We need to bridge to JCF world, b/c of Query#extractTerms
-    private static class DelegateSet extends AbstractSet<Term> {
-
-        private final ObjectHashSet<Term> delegate;
-
-        private DelegateSet(ObjectHashSet<Term> delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public boolean add(Term term) {
-            return delegate.add(term);
-        }
-
-        @Override
-        public boolean addAll(Collection<? extends Term> terms) {
-            boolean result = false;
-            for (Term term : terms) {
-                result = delegate.add(term);
-            }
-            return result;
-        }
-
-        @Override
-        public Iterator<Term> iterator() {
-            final Iterator<ObjectCursor<Term>> iterator = delegate.iterator();
-            return new Iterator<Term>() {
-                @Override
-                public boolean hasNext() {
-                    return iterator.hasNext();
-                }
-
-                @Override
-                public Term next() {
-                    return iterator.next().value;
-                }
-
-                @Override
-                public void remove() {
-                    throw new UnsupportedOperationException();
-                }
-            };
-        }
-
-        @Override
-        public int size() {
-            return delegate.size();
+            throw new DfsPhaseExecutionException(context.shardTarget(), "Exception during dfs phase", e);
         }
     }
 

@@ -1,0 +1,149 @@
+// To mute tests follow example in file: example.sql-spec
+
+//
+// Math
+//
+
+mathAbs
+SELECT ABS(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathACos
+SELECT ACOS(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathASin
+SELECT ASIN(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathATan
+SELECT ATAN(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+//mathCbrt
+//SELECT CBRT(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathCeil
+// H2 returns CEIL as a double despite the value being an integer; we return a long as the other DBs
+SELECT CAST(CEIL(emp_no) AS INT) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathCeilWithNulls
+SELECT CAST(CEIL(languages) AS INT) m FROM "test_emp" ORDER BY emp_no;
+mathCos
+SELECT COS(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathCosh
+SELECT COSH(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathCot
+SELECT COT(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathDegrees
+SELECT DEGREES(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathExp
+SELECT EXP(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathExpm1
+SELECT EXP(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathFloor
+SELECT CAST(FLOOR(emp_no) AS INT) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathFloorWithNulls
+SELECT CAST(FLOOR(languages) AS INT) m FROM "test_emp" ORDER BY emp_no;
+mathLog
+SELECT LOG(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathLog10
+SELECT LOG10(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathRadians
+SELECT RADIANS(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathRound
+SELECT CAST(ROUND(emp_no, 0) AS INT) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathSign
+SELECT SIGN(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathSin
+SELECT SIN(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathSinH
+SELECT SINH(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathSqrt
+SELECT SQRT(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathTan
+SELECT TAN(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathFloorAndCeilWithNullLiteral
+SELECT CAST(FLOOR(CAST(NULL AS DOUBLE)) AS INT) fnull, CAST(CEIL(CAST(NULL AS LONG)) AS INT) cnull, gender FROM "test_emp" ORDER BY emp_no;
+
+//
+// Combined methods
+//
+
+mathAbsOfSin
+SELECT ABS(SIN(emp_no)) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathAbsOfCeilOfSin
+SELECT EXP(ABS(CEIL(SIN(DEGREES(emp_no))))) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathAbsOfCeilOfSinWithFilter
+SELECT EXP(ABS(CEIL(SIN(DEGREES(emp_no))))) m, first_name FROM "test_emp" WHERE EXP(ABS(CEIL(SIN(DEGREES(emp_no))))) < 10 ORDER BY emp_no;
+
+//
+// Filter by Scalar
+//
+mathAbsFilterAndOrder
+SELECT emp_no, ABS(emp_no) m, first_name FROM "test_emp" WHERE ABS(emp_no) < 10010 ORDER BY ABS(emp_no);
+mathACosFilterAndOrder
+SELECT emp_no, ACOS(emp_no) m, first_name FROM "test_emp" WHERE ACOS(emp_no) < 10010 ORDER BY ACOS(emp_no);
+mathASinFilterAndOrder
+SELECT emp_no, ASIN(emp_no) m, first_name FROM "test_emp" WHERE ASIN(emp_no) < 10010 ORDER BY ASIN(emp_no);
+//mathATanFilterAndOrder
+//SELECT emp_no, ATAN(emp_no) m, first_name FROM "test_emp" WHERE ATAN(emp_no) < 10010 ORDER BY ATAN(emp_no);
+mathCeilFilterAndOrder
+SELECT emp_no, CAST(CEIL(emp_no) AS INT) m, first_name FROM "test_emp" WHERE CEIL(emp_no) < 10010 ORDER BY CEIL(emp_no);
+//mathCosFilterAndOrder
+//SELECT emp_no, COS(emp_no) m, first_name FROM "test_emp" WHERE COS(emp_no) < 10010 ORDER BY COS(emp_no);
+//mathCoshFilterAndOrder
+//SELECT emp_no, COSH(emp_no) m, first_name FROM "test_emp" WHERE COSH(emp_no) < 10010 ORDER BY COSH(emp_no);
+
+//
+// constants
+//
+mathConstantPI
+SELECT ABS(emp_no) m, PI() as pi, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathConstant
+SELECT 5 + 2 * 3 / 2 % 2 AS c, PI() as e, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+//
+// binary functions
+// 
+mathATan2
+SELECT ATAN2(emp_no, emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathPowerPositive
+SELECT POWER(emp_no, 2) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathPowerNegative
+SELECT POWER(salary, -1) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+roundInline1
+SELECT ROUND(-345.123, -2) AS rounded;
+
+roundInline2
+SELECT ROUND(-345.123, 2) AS rounded;
+
+roundInline3
+SELECT ROUND(-345.123, 0) AS rounded;
+
+roundInline4
+SELECT ROUND(-345.123,-51231231) AS rounded;
+
+roundInline5
+SELECT ROUND(134.51, 1) AS rounded;
+
+roundInline6
+SELECT ROUND(134.56, 1) AS rounded;
+
+roundInline7
+SELECT ROUND(-345.123) AS rounded;
+
+truncateInline1
+SELECT TRUNCATE(-345.123, -2) AS trimmed;
+
+truncateInline2
+SELECT TRUNCATE(-345.123, 2) AS trimmed;
+
+truncateInline3
+SELECT TRUNCATE(-345.123, 0) AS trimmed;
+
+truncateInline4
+SELECT TRUNCATE(-345.123,-51231231) AS trimmed;
+
+truncateInline5
+SELECT TRUNCATE(134.51, 1) AS trimmed;
+
+truncateInline6
+SELECT TRUNCATE(134.56, 1) AS trimmed;
+
+truncateInline7
+SELECT TRUNCATE(-345.123) AS trimmed;
+
+truncateAndRoundInline
+SELECT ROUND(134.56,1) AS rounded, TRUNCATE(134.56,1) AS trimmed;

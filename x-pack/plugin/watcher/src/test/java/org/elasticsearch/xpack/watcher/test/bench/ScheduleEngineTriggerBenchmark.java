@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test.bench;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -57,7 +58,7 @@ public class ScheduleEngineTriggerBenchmark {
         List<Watch> watches = new ArrayList<>(numWatches);
         for (int i = 0; i < numWatches; i++) {
             watches.add(new Watch("job_" + i, new ScheduleTrigger(interval(interval + "s")), new ExecutableNoneInput(),
-                    InternalAlwaysCondition.INSTANCE, null, null, Collections.emptyList(), null, null, 1L));
+                    InternalAlwaysCondition.INSTANCE, null, null, Collections.emptyList(), null, null, 1L, 1L));
         }
         ScheduleRegistry scheduleRegistry = new ScheduleRegistry(emptySet());
 
@@ -77,8 +78,8 @@ public class ScheduleEngineTriggerBenchmark {
                 if (running.get()) {
                     for (TriggerEvent event : events) {
                         ScheduleTriggerEvent scheduleTriggerEvent = (ScheduleTriggerEvent) event;
-                        measure(total, triggerMetric, tooEarlyMetric, event.triggeredTime().getMillis(),
-                                scheduleTriggerEvent.scheduledTime().getMillis());
+                        measure(total, triggerMetric, tooEarlyMetric, event.triggeredTime().toInstant().toEpochMilli(),
+                                scheduleTriggerEvent.scheduledTime().toInstant().toEpochMilli());
                     }
                 }
             }

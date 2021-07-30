@@ -1,16 +1,136 @@
 [[cat-thread-pool]]
-== cat thread pool
+=== cat thread pool API
+++++
+<titleabbrev>cat thread pool</titleabbrev>
+++++
 
-The `thread_pool` command shows cluster wide thread pool statistics per node. By default the active, queue and rejected
-statistics are returned for all thread pools.
+Returns thread pool statistics for each node in a cluster. Returned information
+includes all <<modules-threadpool,built-in thread pools>> and custom thread
+pools.
 
-[source,js]
+
+[[cat-thread-pool-api-request]]
+==== {api-request-title}
+
+`GET /_cat/thread_pool/<thread_pool>`
+
+`GET /_cat/thread_pool`
+
+[[cat-thread-pool-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cat-thread-pool-path-params]]
+==== {api-path-parms-title}
+
+`<thread_pool>`::
+(Optional, string) Comma-separated list of thread pool names used to limit the
+request. Accepts wildcard expressions.
+
+
+[[cat-thread-pool-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
++
+--
+If you do not specify which columns to include, the API returns the default
+columns in the order listed below. If you explicitly specify one or more
+columns, it only returns the specified columns.
+
+Valid columns are:
+
+`node_name`::
+(Default) Node name, such as `I8hydUG`.
+
+`name`::
+(Default) Name of the thread pool, such as `analyze` or `generic`.
+
+`active`, `a`::
+(Default) Number of active threads in the current thread pool.
+
+`queue`,`q`::
+(Default) Number of tasks in the queue for the current thread pool.
+
+`rejected`, `r`::
+(Default) Number of tasks rejected by the thread pool executor.
+
+`completed`, `c`::
+Number of tasks completed by the thread pool executor.
+
+`core`, `cr`::
+Configured core number of active threads allowed in the current thread pool.
+
+`ephemeral_id`,`eid`::
+Ephemeral node ID.
+
+`host`, `h`::
+Hostname for the current node.
+
+`ip`, `i`::
+IP address for the current node.
+
+`keep_alive`, `k`::
+Configured keep alive time for threads.
+
+`largest`, `l`::
+Highest number of active threads in the current thread pool.
+
+`max`, `mx`::
+Configured maximum number of active threads allowed in the current thread pool.
+
+`node_id`, `id`::
+ID of the node, such as `k0zy`.
+
+`pid`, `p`::
+Process ID of the running node.
+
+`pool_size`, `psz`::
+Number of threads in the current thread pool.
+
+`port`, `po`::
+Bound transport port for the current node.
+
+`queue_size`, `qs`::
+Maximum number of tasks permitted in the queue for the current thread pool.
+
+`size`, `sz`::
+Configured fixed number of active threads allowed in the current thread pool.
+
+`type`, `t`::
+Type of thread pool. Returned values are `fixed` or `scaling`.
+
+--
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-thread-pool-api-example]]
+==== {api-examples-title}
+
+[[cat-thread-pool-api-ex-default]]
+===== Example with default columns
+
+[source,console]
 --------------------------------------------------
 GET /_cat/thread_pool
 --------------------------------------------------
-// CONSOLE
 
-Which looks like:
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
@@ -23,7 +143,7 @@ node-0 flush               0 0 0
 node-0 write               0 0 0
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./(node-0 \\S+ 0 0 0\n)*/]
-// TESTRESPONSE[s/\d+/\\d+/ _cat]
+// TESTRESPONSE[s/\d+/\\d+/ non_json]
 // The substitutions do two things:
 // 1. Expect any number of extra thread pools. This allows us to only list a
 //    few thread pools. The list would be super long otherwise. In addition,
@@ -33,122 +153,25 @@ node-0 write               0 0 0
 //    know how many there will be and we just want to assert that there are
 //    numbers in the response, not *which* numbers are there.
 
-The first column is the node name
 
-[source,txt]
---------------------------------------------------
-node_name
-node-0
---------------------------------------------------
+[[cat-thread-pool-api-ex-headings]]
+===== Example with explicit columns
 
-The second column is the thread pool name
-[source,txt]
+The following API request returns the `id`, `name`, `active`, `rejected`, and
+`completed` columns. The request limits returned information to the `generic`
+thread pool.
+
+[source,console]
 --------------------------------------------------
-name
-analyze
-ccr (default distro only)
-fetch_shard_started
-fetch_shard_store
-flush
-force_merge
-generic
-get
-listener
-management
-ml_autodetect (default distro only)
-ml_datafeed (default distro only)
-ml_utility (default distro only)
-refresh
-rollup_indexing (default distro only)`
-search
-security-token-key (default distro only)
-snapshot
-warmer
-watcher (default distro only)
-write
+GET /_cat/thread_pool/generic?v=true&h=id,name,active,rejected,completed
 --------------------------------------------------
 
-
-The next three columns show the active, queue, and rejected statistics for each thread pool
-
-[source,txt]
---------------------------------------------------
-active queue rejected
-     0     0        0
-     0     0        0
-     0     0        0
-     0     0        0
-     0     0        0
-     0     0        0
-     0     0        0
-     0     0        0
-     0     0        0
-     0     0        0
-     1     0        0
-     0     0        0
-     0     0        0
-     0     0        0
-     0     0        0
---------------------------------------------------
-
-The cat thread pool API accepts a `thread_pool_patterns` URL parameter for specifying a
-comma-separated list of regular expressions to match thread pool names.
-
-[source,js]
---------------------------------------------------
-GET /_cat/thread_pool/generic?v&h=id,name,active,rejected,completed
---------------------------------------------------
-// CONSOLE
-
-which looks like:
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
 id                     name    active rejected completed
 0EWUhXeBQtaVGlexUeVwMg generic      0        0        70
 --------------------------------------------------
-// TESTRESPONSE[s/0EWUhXeBQtaVGlexUeVwMg/[\\w-]+/ s/\d+/\\d+/ _cat]
+// TESTRESPONSE[s/0EWUhXeBQtaVGlexUeVwMg/[\\w-]+/ s/\d+/\\d+/ non_json]
 
-Here the host columns and the active, rejected and completed suggest thread pool statistics are displayed.
-
-All <<modules-threadpool,built-in thread pools>> and custom thread pools are available.
-[float]
-==== Thread Pool Fields
-
-For each thread pool, you can load details about it by using the field names
-in the table below.
-
-[cols="<,<,<",options="header"]
-|=======================================================================
-|Field Name |Alias |Description
-|`type` |`t` |The current (*) type of thread pool (`fixed` or `scaling`)
-|`active` |`a` |The number of active threads in the current thread pool
-|`pool_size` |`psz` |The number of threads in the current thread pool
-|`queue` |`q` |The number of tasks in the queue for the current thread pool
-|`queue_size` |`qs` |The maximum number of tasks permitted in the queue for the current thread pool
-|`rejected` |`r` |The number of tasks rejected by the thread pool executor
-|`largest` |`l` |The highest number of active threads in the current thread pool
-|`completed` |`c` |The number of tasks completed by the thread pool executor
-|`core` |`cr` |The configured core number of active threads allowed in the current thread pool
-|`max` |`mx` |The configured maximum number of active threads allowed in the current thread pool
-|`size` |`sz` |The configured fixed number of active threads allowed in the current thread pool
-|`keep_alive` |`k` |The configured keep alive time for threads
-|=======================================================================
-
-[float]
-=== Other Fields
-
-In addition to details about each thread pool, it is also convenient to get an
-understanding of where those thread pools reside. As such, you can request
-other details like the `ip` of the responding node(s).
-
-[cols="<,<,<",options="header"]
-|=======================================================================
-|Field Name |Alias |Description
-|`node_id` |`id` |The unique node ID
-|`ephemeral_id`|`eid` |The ephemeral node ID
-|`pid` |`p` |The process ID of the running node
-|`host` |`h` |The hostname for the current node
-|`ip` |`i` |The IP address for the current node
-|`port` |`po` |The bound transport port for the current node
-|=======================================================================

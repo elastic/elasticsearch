@@ -1,21 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.kerberos;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
 import org.ietf.jgss.GSSManager;
 import org.ietf.jgss.Oid;
+
+import javax.security.auth.Subject;
+import javax.security.auth.login.AppConfigurationEntry;
+import javax.security.auth.login.Configuration;
+import javax.security.auth.login.LoginContext;
+import javax.security.auth.login.LoginException;
 
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -23,14 +30,7 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
-
-import javax.security.auth.Subject;
-import javax.security.auth.login.AppConfigurationEntry;
-import javax.security.auth.login.Configuration;
-import javax.security.auth.login.LoginContext;
-import javax.security.auth.login.LoginException;
 
 /**
  * Utility class that validates kerberos ticket for peer authentication.
@@ -254,21 +254,18 @@ public class KerberosTicketValidator {
 
         @Override
         public AppConfigurationEntry[] getAppConfigurationEntry(final String name) {
-            final Map<String, String> options = new HashMap<>();
-            options.put("keyTab", keytabFilePath);
-            /*
-             * As acceptor, we can have multiple SPNs, we do not want to use particular
-             * principal so it uses "*"
-             */
-            options.put("principal", "*");
-            options.put("useKeyTab", Boolean.TRUE.toString());
-            options.put("storeKey", Boolean.TRUE.toString());
-            options.put("doNotPrompt", Boolean.TRUE.toString());
-            options.put("isInitiator", Boolean.FALSE.toString());
-            options.put("debug", Boolean.toString(krbDebug));
-
-            return new AppConfigurationEntry[] { new AppConfigurationEntry(SUN_KRB5_LOGIN_MODULE,
-                    AppConfigurationEntry.LoginModuleControlFlag.REQUIRED, Collections.unmodifiableMap(options)) };
+            return new AppConfigurationEntry[]{new AppConfigurationEntry(
+                    SUN_KRB5_LOGIN_MODULE,
+                    AppConfigurationEntry.LoginModuleControlFlag.REQUIRED,
+                    Map.of(
+                            "keyTab", keytabFilePath,
+                            // as acceptor, we can have multiple SPNs, we do not want to use any particular principal so it uses "*"
+                            "principal", "*",
+                            "useKeyTab", Boolean.TRUE.toString(),
+                            "storeKey", Boolean.TRUE.toString(),
+                            "doNotPrompt", Boolean.TRUE.toString(),
+                            "isInitiator", Boolean.FALSE.toString(),
+                            "debug", Boolean.toString(krbDebug)))};
         }
 
     }

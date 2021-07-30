@@ -25,7 +25,7 @@ results.
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+The standard <<painless-api-reference-shared, Painless API>> is available.
 
 *Example*
 
@@ -35,12 +35,14 @@ To run this example, first follow the steps in
 Imagine that you want to find seats to performances by your favorite
 actors. You have a list of favorite actors in mind, and you want
 to find performances where the cast includes at least a certain
-number of them. `terms_set` query with `minimum_should_match_script`
-is a way to accomplish this. To make the query request more configurable,
+number of them.
+
+To achieve this result, use a `terms_set` query with
+`minimum_should_match_script`. To make the query request more configurable,
 you can define `min_actors_to_see` as a script parameter.
 
 To ensure that the parameter `min_actors_to_see` doesn't exceed
-the number of favorite actors, you can use `num_term`s to get
+the number of favorite actors, you can use `num_terms` to get
 the number of actors in the list and `Math.min` to get the lesser
 of the two.
 
@@ -52,25 +54,27 @@ Math.min(params['num_terms'], params['min_actors_to_see'])
 The following request finds seats to performances with at least
 two of the three specified actors.
 
-[source,js]
+[source,console]
 ----
 GET seats/_search
 {
-    "query" : {
-        "terms_set": {
-            "actors" : {
-                "terms" : ["smith", "earns", "black"],
-                "minimum_should_match_script": {
-                    "source": "Math.min(params['num_terms'], params['min_actors_to_see'])",
-                    "params" : {
-                        "min_actors_to_see" : 2
-                    }
-                }
-            }
+  "query": {
+    "terms_set": {
+      "actors": {
+        "terms": [
+          "smith",
+          "earns",
+          "black"
+        ],
+        "minimum_should_match_script": {
+          "source": "Math.min(params['num_terms'], params['min_actors_to_see'])",
+          "params": {
+            "min_actors_to_see": 2
+          }
         }
+      }
     }
+  }
 }
 ----
-// CONSOLE
-// TEST[skip: requires setup from other pages]
-
+// TEST[setup:seats]

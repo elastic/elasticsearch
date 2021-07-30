@@ -1,11 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,6 +27,20 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
     private String[] clusterPrivileges;
     private RoleDescriptor.IndicesPrivileges[] indexPrivileges;
     private ApplicationResourcePrivileges[] applicationPrivileges;
+
+    public HasPrivilegesRequest() {}
+
+    public HasPrivilegesRequest(StreamInput in) throws IOException {
+        super(in);
+        this.username = in.readString();
+        this.clusterPrivileges = in.readStringArray();
+        int indexSize = in.readVInt();
+        indexPrivileges = new RoleDescriptor.IndicesPrivileges[indexSize];
+        for (int i = 0; i < indexSize; i++) {
+            indexPrivileges[i] = new RoleDescriptor.IndicesPrivileges(in);
+        }
+        applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
+    }
 
     @Override
     public ActionRequestValidationException validate() {
@@ -100,21 +114,6 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.username = in.readString();
-        this.clusterPrivileges = in.readStringArray();
-        int indexSize = in.readVInt();
-        indexPrivileges = new RoleDescriptor.IndicesPrivileges[indexSize];
-        for (int i = 0; i < indexSize; i++) {
-            indexPrivileges[i] = new RoleDescriptor.IndicesPrivileges(in);
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(username);
@@ -123,9 +122,7 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
         for (RoleDescriptor.IndicesPrivileges priv : indexPrivileges) {
             priv.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
-        }
+        out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
     }
 
 }

@@ -1,25 +1,14 @@
 package org.elasticsearch.script.expression;
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-import org.apache.lucene.queries.function.ValueSource;
+import org.apache.lucene.search.DoubleValuesSource;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.MultiValueMode;
 import org.joda.time.ReadableDateTime;
@@ -30,7 +19,7 @@ import org.joda.time.ReadableDateTime;
 final class DateObject {
     // no instance
     private DateObject() {}
-    
+
     // supported variables
     static final String CENTURY_OF_ERA_VARIABLE       = "centuryOfEra";
     static final String DAY_OF_MONTH_VARIABLE         = "dayOfMonth";
@@ -50,7 +39,7 @@ final class DateObject {
     static final String YEAR_VARIABLE                 = "year";
     static final String YEAR_OF_CENTURY_VARIABLE      = "yearOfCentury";
     static final String YEAR_OF_ERA_VARIABLE          = "yearOfEra";
-    
+
     // supported methods
     static final String GETCENTURY_OF_ERA_METHOD      = "getCenturyOfEra";
     static final String GETDAY_OF_MONTH_METHOD        = "getDayOfMonth";
@@ -70,8 +59,8 @@ final class DateObject {
     static final String GETYEAR_METHOD                = "getYear";
     static final String GETYEAR_OF_CENTURY_METHOD     = "getYearOfCentury";
     static final String GETYEAR_OF_ERA_METHOD         = "getYearOfEra";
-    
-    static ValueSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
+
+    static DoubleValuesSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
         switch (variable) {
             case CENTURY_OF_ERA_VARIABLE:
                 return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getCenturyOfEra);
@@ -110,12 +99,12 @@ final class DateObject {
             case YEAR_OF_ERA_VARIABLE:
                 return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getYearOfEra);
             default:
-                throw new IllegalArgumentException("Member variable [" + variable + 
+                throw new IllegalArgumentException("Member variable [" + variable +
                                                    "] does not exist for date object on field [" + fieldName + "].");
         }
     }
-    
-    static ValueSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
+
+    static DoubleValuesSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
         switch (method) {
             case GETCENTURY_OF_ERA_METHOD:
                 return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getCenturyOfEra);
@@ -154,7 +143,7 @@ final class DateObject {
             case GETYEAR_OF_ERA_METHOD:
                 return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getYearOfEra);
             default:
-                throw new IllegalArgumentException("Member method [" + method + 
+                throw new IllegalArgumentException("Member method [" + method +
                                                    "] does not exist for date object on field [" + fieldName + "].");
         }
     }

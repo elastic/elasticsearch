@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.kerberos;
@@ -11,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -21,18 +22,18 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.support.CachingRealm;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.ietf.jgss.GSSException;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.security.auth.login.LoginException;
 
@@ -215,18 +216,17 @@ public final class KerberosRealm extends Realm implements CachingRealm {
             final User user = (userPrincipalNameToUserCache != null) ? userPrincipalNameToUserCache.get(username) : null;
             if (user != null) {
                 listener.onResponse(AuthenticationResult.success(user));
+            } else if (userAndRealmName.length > 1) {
+                final String realmName = userAndRealmName[1];
+                buildUser(username, Map.of(KRB_METADATA_REALM_NAME_KEY, realmName, KRB_METADATA_UPN_KEY, userPrincipalName), listener);
             } else {
-                final String realmName = (userAndRealmName.length > 1) ? userAndRealmName[1] : null;
-                final Map<String, Object> metadata = new HashMap<>();
-                metadata.put(KRB_METADATA_REALM_NAME_KEY, realmName);
-                metadata.put(KRB_METADATA_UPN_KEY, userPrincipalName);
-                buildUser(username, metadata, listener);
+                buildUser(username, Map.of(KRB_METADATA_UPN_KEY, userPrincipalName), listener);
             }
         }
     }
 
     private void buildUser(final String username, final Map<String, Object> metadata, final ActionListener<AuthenticationResult> listener) {
-        final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(username, null, Collections.emptySet(), metadata, this.config);
+        final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(username, null, Set.of(), metadata, this.config);
         userRoleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
             final User computedUser = new User(username, roles.toArray(new String[roles.size()]), null, null, userData.getMetadata(), true);
             if (userPrincipalNameToUserCache != null) {

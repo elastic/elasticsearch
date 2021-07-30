@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
-import java.io.IOException;
-
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  * Represents a request to prepare a SAML {@code &lt;AuthnRequest&gt;}.
@@ -23,6 +25,18 @@ public final class SamlPrepareAuthenticationRequest extends ActionRequest {
 
     @Nullable
     private String assertionConsumerServiceURL;
+
+    @Nullable
+    private String relayState;
+
+    public SamlPrepareAuthenticationRequest(StreamInput in) throws IOException {
+        super(in);
+        realmName = in.readOptionalString();
+        assertionConsumerServiceURL = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+            relayState = in.readOptionalString();
+        }
+    }
 
     public SamlPrepareAuthenticationRequest() {
     }
@@ -48,19 +62,21 @@ public final class SamlPrepareAuthenticationRequest extends ActionRequest {
         this.assertionConsumerServiceURL = assertionConsumerServiceURL;
     }
 
+    public String getRelayState() {
+        return relayState;
+    }
+
+    public void setRelayState(String relayState) {
+        this.relayState = relayState;
+    }
+
     @Override
     public String toString() {
         return getClass().getSimpleName() + "{" +
                 "realmName=" + realmName +
                 ", assertionConsumerServiceURL=" + assertionConsumerServiceURL +
+                ", relayState=" + relayState +
                 '}';
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        realmName = in.readOptionalString();
-        assertionConsumerServiceURL = in.readOptionalString();
     }
 
     @Override
@@ -68,5 +84,8 @@ public final class SamlPrepareAuthenticationRequest extends ActionRequest {
         super.writeTo(out);
         out.writeOptionalString(realmName);
         out.writeOptionalString(assertionConsumerServiceURL);
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+            out.writeOptionalString(relayState);
+        }
     }
 }

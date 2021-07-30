@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -26,9 +15,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.ParsedPercentiles;
-import org.elasticsearch.search.aggregations.metrics.Percentile;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
@@ -38,35 +24,36 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractPercentilesTestCase<T extends InternalAggregation & Iterable<Percentile>>
         extends InternalAggregationTestCase<T> {
-
-    private double[] percents;
-    private boolean keyed;
-    private DocValueFormat docValueFormat;
-
     @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        percents = randomPercents(false);
-        keyed = randomBoolean();
-        docValueFormat = randomNumericDocValueFormat();
+    protected T createTestInstance(String name, Map<String, Object> metadata) {
+        return createTestInstance(name, metadata, randomBoolean(), randomNumericDocValueFormat(), randomPercents(false));
     }
 
     @Override
-    protected T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected List<T> randomResultsToReduce(String name, int size) {
+        boolean keyed = randomBoolean();
+        DocValueFormat format = randomNumericDocValueFormat();
+        double[] percents = randomPercents(false);
+        return Stream.generate(() -> createTestInstance(name, null, keyed, format, percents)).limit(size).collect(toList());
+    }
+
+    private T createTestInstance(String name, Map<String, Object> metadata, boolean keyed, DocValueFormat format, double[] percents) {
         int numValues = frequently() ? randomInt(100) : 0;
         double[] values = new double[numValues];
         for (int i = 0; i < numValues; ++i) {
             values[i] = randomDouble();
         }
-        return createTestInstance(name, pipelineAggregators, metaData, keyed, docValueFormat, percents, values);
+        return createTestInstance(name, metadata, keyed, format, percents, values);
     }
 
-    protected abstract T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+    protected abstract T createTestInstance(String name, Map<String, Object> metadata,
                                             boolean keyed, DocValueFormat format, double[] percents, double[] values);
 
     protected abstract Class<? extends ParsedPercentiles> implementationClass();
@@ -106,7 +93,7 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
         boolean keyed = randomBoolean();
         DocValueFormat docValueFormat = randomNumericDocValueFormat();
 
-        T agg = createTestInstance("test", Collections.emptyList(), Collections.emptyMap(), keyed, docValueFormat, percents, new double[0]);
+        T agg = createTestInstance("test", Collections.emptyMap(), keyed, docValueFormat, percents, new double[0]);
 
         for (Percentile percentile : agg) {
             Double value = percentile.getValue();

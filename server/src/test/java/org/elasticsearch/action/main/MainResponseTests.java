@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.main;
@@ -23,17 +12,18 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Date;
 
-public class MainResponseTests extends AbstractStreamableXContentTestCase<MainResponse> {
+public class MainResponseTests extends AbstractSerializingTestCase<MainResponse> {
 
     @Override
     protected MainResponse createTestInstance() {
@@ -41,7 +31,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_1, Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Build build = new Build(
             Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(),
             version.toString()
@@ -50,8 +40,8 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
     }
 
     @Override
-    protected MainResponse createBlankInstance() {
-        return new MainResponse();
+    protected Writeable.Reader<MainResponse> instanceReader() {
+        return MainResponse::new;
     }
 
     @Override
@@ -63,7 +53,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
         String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final Build current = Build.CURRENT;
         Build build = new Build(
-            current.flavor(), current.type(), current.shortHash(), current.date(), current.isSnapshot(),
+            current.flavor(), current.type(), current.hash(), current.date(), current.isSnapshot(),
             current.getQualifiedVersion()
         );
         Version version = Version.CURRENT;
@@ -78,7 +68,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
                     + "\"number\":\"" + build.getQualifiedVersion() + "\","
                     + "\"build_flavor\":\"" + current.flavor().displayName() + "\","
                     + "\"build_type\":\"" + current.type().displayName() + "\","
-                    + "\"build_hash\":\"" + current.shortHash() + "\","
+                    + "\"build_hash\":\"" + current.hash() + "\","
                     + "\"build_date\":\"" + current.date() + "\","
                     + "\"build_snapshot\":" + current.isSnapshot() + ","
                     + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\","
@@ -105,7 +95,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
             case 2:
                 // toggle the snapshot flag of the original Build parameter
                 build = new Build(
-                    Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, build.shortHash(), build.date(), !build.isSnapshot(),
+                    Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, build.hash(), build.date(), build.isSnapshot() == false,
                     build.getQualifiedVersion()
                 );
                 break;

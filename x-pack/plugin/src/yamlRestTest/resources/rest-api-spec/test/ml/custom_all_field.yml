@@ -1,0 +1,159 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: custom-all-test-1
+        body:  >
+          {
+            "description":"Job for testing custom all field",
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description": {}
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: custom-all-test-2
+        body:  >
+          {
+            "description":"Job for testing custom all field",
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description": {}
+          }
+
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-custom-all-test-1
+        id:     custom_all_1464739200000_1_1
+        body:
+          {
+            "job_id": "custom-all-test-1",
+            "result_type": "record",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "anomaly_score": 60.0,
+            "bucket_span": 1,
+            "by_field_value": "A by field",
+            "partition_field_value": "A partition field",
+            "over_field_value": "An over field",
+            "influencer_field_name": "An influencer field",
+            "causes": [{
+                "by_field_value": "Cause by field",
+                "partition_field_value": "Cause partition field",
+                "over_field_value": "Cause over field",
+                "correlated_by_field_value": "Cause correlated by field"
+                }]
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-custom-all-test-2
+        id:     custom_all_1464739200000_1_2
+        body:
+          {
+            "job_id": "custom-all-test-2",
+            "result_type": "record",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "bucket_span": 1,
+            "by_field_value": "A by field"
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh:
+        index: [.ml-anomalies-shared]
+
+---
+"Test querying custom all field":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .ml-anomalies-custom-all-test-1
+        body: { query: { query_string: { query: "A by field" } } }
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .ml-anomalies-custom-all-test-1
+        body: { query: { query_string: { query: "A partition field" } } }
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .ml-anomalies-custom-all-test-1
+        body: { query: { query_string: { query: "An over field" } } }
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .ml-anomalies-custom-all-test-1
+        body: { query: { query_string: { query: "An influencer field" } } }
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .ml-anomalies-custom-all-test-1
+        body: { query: { query_string: { query: "Cause by field" } } }
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .ml-anomalies-custom-all-test-1
+        body: { query: { query_string: { query: "Cause partition field" } } }
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .ml-anomalies-custom-all-test-1
+        body: { query: { query_string: { query: "Cause over field" } } }
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .ml-anomalies-custom-all-test-1
+        body: { query: { query_string: { query: "Cause correlated by field" } } }
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .ml-anomalies-custom-all-test-1
+        body: { query: { query_string: { query: "custom-all-test-1" } } }
+  - match: { hits.total: 1 }
+
+---
+"Test wildcard job id":
+
+  - do:
+      search:
+        index: .ml-anomalies-shared
+        expand_wildcards: all
+        rest_total_hits_as_int: true
+        body: { query: { bool: { must: [
+              { query_string: { query: "result_type:record"} },
+              { query_string: { query: "A by field" } },
+              { query_string: { query: "job_id:*" } }
+              ] } } }
+  - match: { hits.total: 2 }

@@ -1,29 +1,42 @@
 [role="xpack"]
 [[security-api-put-privileges]]
 === Create or update application privileges API
+++++
+<titleabbrev>Create or update application privileges</titleabbrev>
+++++
 
-Adds or updates 
-{stack-ov}/security-privileges.html#application-privileges[application privileges].
+Adds or updates <<application-privileges,application privileges>>.
 
-==== Request
+[[security-api-put-privileges-request]]
+==== {api-request-title}
 
 `POST /_security/privilege` +
 
 `PUT /_security/privilege`
 
 
-==== Description
+[[security-api-put-privileges-prereqs]]
+==== {api-prereq-title}
+
+To use this API, you must have either:
+
+- the `manage_security` cluster privilege (or a greater privilege such as `all`); _or_
+- the _"Manage Application Privileges"_ global privilege for the application 
+being referenced in the request
+
+[[security-api-put-privileges-desc]]
+==== {api-description-title}
 
 This API creates or updates privileges. To remove privileges, use the 
 <<security-api-delete-privilege,delete application privilege API>>. 
 
-For more information, see 
-{stack-ov}/defining-roles.html#roles-application-priv[Application privileges].
+For more information, see <<roles-application-priv>>.
 
 To check a user's application privileges, use the
 <<security-api-has-privileges,has privileges API>>.
 
-==== Request Body
+[[security-api-put-privileges-request-body]]
+==== {api-request-body-title}
 
 The body is a JSON object where the names of the fields are the application
 names and the value of each field is an object. The fields in this inner
@@ -40,7 +53,7 @@ that begin with `_` are reserved for system usage.
 [[security-api-app-privileges-validation]]
 ==== Validation
 
-Application Names::
+Application names::
     Application names are formed from a _prefix_, with an optional _suffix_ that
     conform to the following rules:
     * The prefix must begin with a lowercase ASCII letter
@@ -51,28 +64,27 @@ Application Names::
       `\\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, `,`, `*`
     * No part of the name can contain whitespace.
 
-Privilege Names::
+Privilege names::
     Privilege names must begin with a lowercase ASCII letter and must contain
     only ASCII letters and digits along with the characters `_`, `-` and `.`
 
-Action Names::
+Action names::
     Action names can contain any number of printable ASCII characters and must 
     contain at least one of the following characters: `/` `*`, `:`
 
-==== Authorization
+[[security-api-put-privileges-response-body]]
+==== {api-response-body-title}
 
-To use this API, you must have either:
+A successful call returns a JSON structure that shows whether the privilege has
+been created or updated.
 
-- the `manage_security` cluster privilege (or a greater privilege such as `all`); _or_
-- the _"Manage Application Privileges"_ global privilege for the application being referenced
-  in the request
+[[security-api-put-privileges-example]]
+==== {api-examples-title}
 
-==== Examples
+To add a single privilege, submit a PUT or POST request to the 
+`/_security/privilege/` endpoint. For example:
 
-To add a single privilege, submit a PUT or POST request to the
-`/_security/privilege/<application>/<privilege>` endpoint. For example:
-
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/privilege
 {
@@ -88,7 +100,6 @@ PUT /_security/privilege
     }
 }
 --------------------------------------------------
-// CONSOLE
 <1> These strings have significance within the "myapp" application. {es} does not 
     assign any meaning to them.
 <2> The use of a wildcard here (`*`) means that this privilege grants access to 
@@ -99,10 +110,7 @@ PUT /_security/privilege
     wildcard and returns `true`.
 <3> The metadata object is optional.
 
-A successful call returns a JSON structure that shows whether the privilege has
-been created or updated.
-
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "myapp": {
@@ -112,13 +120,13 @@ been created or updated.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 <1> When an existing privilege is updated, `created` is set to false.
 
 To add multiple privileges, submit a POST request to the 
 `/_security/privilege/` endpoint. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/privilege
 {
@@ -137,12 +145,11 @@ PUT /_security/privilege
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 A successful call returns a JSON structure that shows whether the privileges 
 have been created or updated.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "app02": {
@@ -160,4 +167,3 @@ have been created or updated.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE

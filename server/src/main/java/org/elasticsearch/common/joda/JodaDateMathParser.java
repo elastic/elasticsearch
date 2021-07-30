@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.joda;
@@ -26,6 +15,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.format.DateTimeFormatter;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Objects;
 import java.util.function.LongSupplier;
@@ -50,7 +40,7 @@ public class JodaDateMathParser implements DateMathParser {
     // if it has been used. For instance, the request cache does not cache requests that make
     // use of `now`.
     @Override
-    public long parse(String text, LongSupplier now, boolean roundUp, ZoneId tz) {
+    public Instant parse(String text, LongSupplier now, boolean roundUp, ZoneId tz) {
         final DateTimeZone timeZone = tz == null ? null : DateUtils.zoneIdToDateTimeZone(tz);
         long time;
         String mathString;
@@ -64,13 +54,13 @@ public class JodaDateMathParser implements DateMathParser {
         } else {
             int index = text.indexOf("||");
             if (index == -1) {
-                return parseDateTime(text, timeZone, roundUp);
+                return Instant.ofEpochMilli(parseDateTime(text, timeZone, roundUp));
             }
             time = parseDateTime(text.substring(0, index), timeZone, false);
             mathString = text.substring(index + 2);
         }
 
-        return parseMath(mathString, time, roundUp, timeZone);
+        return Instant.ofEpochMilli(parseMath(mathString, time, roundUp, timeZone));
     }
 
     private long parseMath(String mathString, long time, boolean roundUp, DateTimeZone timeZone) throws ElasticsearchParseException {
@@ -101,7 +91,7 @@ public class JodaDateMathParser implements DateMathParser {
             }
 
             final int num;
-            if (!Character.isDigit(mathString.charAt(i))) {
+            if (Character.isDigit(mathString.charAt(i)) == false) {
                 num = 1;
             } else {
                 int numFrom = i;

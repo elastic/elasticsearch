@@ -1,20 +1,45 @@
 {
-  "clear_scroll": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-scroll.html",
-    "methods": ["DELETE"],
-    "url": {
-      "path": "/_search/scroll/{scroll_id}",
-      "paths": ["/_search/scroll/{scroll_id}", "/_search/scroll"],
-      "parts": {
-        "scroll_id": {
-          "type" : "list",
-          "description" : "A comma-separated list of scroll IDs to clear"
-        }
-      },
-      "params": {}
+  "clear_scroll":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/clear-scroll-api.html",
+      "description":"Explicitly clears the search context for a scroll."
     },
-    "body": {
-      "description": "A comma-separated list of scroll IDs to clear if none was specified via the scroll_id parameter"
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json","text/plain"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_search/scroll",
+          "methods":[
+            "DELETE"
+          ]
+        },
+        {
+          "path":"/_search/scroll/{scroll_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "scroll_id":{
+              "type":"list",
+              "description":"A comma-separated list of scroll IDs to clear",
+              "deprecated":true
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"A scroll id can be quite large and should be specified as part of the body"
+          }
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"A comma-separated list of scroll IDs to clear if none was specified via the scroll_id parameter"
     }
   }
 }

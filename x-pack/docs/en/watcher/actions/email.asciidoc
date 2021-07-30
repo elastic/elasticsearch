@@ -1,5 +1,9 @@
+[role="xpack"]
 [[actions-email]]
-=== Email Action
+=== Watcher email action
+++++
+<titleabbrev>Email action</titleabbrev>
+++++
 
 Use the `email` action to send email notifications. To send email, you must
 <<configuring-email, configure at least one email account>> in
@@ -15,7 +19,7 @@ account configuration. The required attributes must either be set in the email
 action definition or the account's `email_defaults`.
 
 [[configuring-email-actions]]
-==== Configuring Email Actions
+==== Configuring email actions
 
 You configure email actions in the `actions` array. Action-specific attributes
 are specified using the `email` keyword.
@@ -30,7 +34,7 @@ the watch payload in the email body:
     "email" : { <2>
       "to" : "username@example.org", <3>
       "subject" : "Watcher Notification", <4>
-      "body" : "{{ctx.payload.hits.total.value}} error logs found" <5>
+      "body" : "{{ctx.payload.hits.total}} error logs found" <5>
     }
   }
 }
@@ -47,7 +51,7 @@ the watch payload in the email body:
      account configuration.
 
 [[configuring-email-attachments]]
-==== Configuring Email Attachments
+==== Configuring email attachments
 
 You can attach the execution context payload or data from an any HTTP service to
 the email notification. There is no limit on the number of attachments you can
@@ -117,11 +121,11 @@ killed by firewalls or load balancers in-between.
                     specify the `url` attribute to configure the host and path to
                     the service endpoint. See <<webhook-action-attributes>> for
                     the full list of HTTP request attributes. Required.
-|======
+|=====
 
 .`data` attachment type attributes
 [options="header"]
-|=====
+|======
 | Name        | Description
 | `format`    | Attaches the watch data, equivalent to specifying `attach_data`
                 in the watch configuration. Possible values are `json` or `yaml`.
@@ -131,7 +135,7 @@ killed by firewalls or load balancers in-between.
 
 .`reporting` attachment type attributes
 [options="header"]
-|=====
+|======
 | Name            | Description
 | `url`           | The URL to trigger the dashboard creation
 | `inline`        | Configures as an attachment to sent with disposition `inline`. This
@@ -151,20 +155,15 @@ killed by firewalls or load balancers in-between.
 
 
 [[email-action-reports]]
-===== Attaching Reports to an Email
+===== Attaching reports to an email
 
 You can use the `reporting` attachment type in an `email` action to automatically
 generate a Kibana report and distribute it via email.
 
-include::{kib-repo-dir}/reporting/watch-example.asciidoc[]
-
-include::{kib-repo-dir}/reporting/report-intervals.asciidoc[]
-
-For more information, see
-{kibana-ref}/automating-report-generation.html[Automating Report Generation].
+See {kibana-ref}/automating-report-generation.html[Automating report generation].
 
 [[email-action-attributes]]
-==== Email Action Attributes
+==== Email action attributes
 
 [cols=",^,,", options="header"]
 |======
@@ -202,17 +201,15 @@ For more information, see
                                                             to specify either the text or the html body or both (using
                                                             the fields below)
 
-| `body.text`           | yes       | -                   | The plain text body of the email. The body can be static text
-                                                            or contain Mustache <<templates, templates>>. The email `body`
-                                                            must contain at least one `text` or `html` field.
+| `body.text`           | no       | -                   | The plain text body of the email. The body can be static text
+                                                            or contain Mustache <<templates, templates>>.
 
-| `body.html`           | yes       | -                   | The html body of the email. The body can be static text or
+| `body.html`           | no       | -                   | The html body of the email. The body can be static text or
                                                             contain Mustache <<templates, templates>>. This body will be
                                                             sanitized to remove dangerous content such as scripts. This
                                                             behavior can be disabled by setting
                                                             `xpack.notification.email.html.sanitization.enabled: false` in
-                                                            `elasticsearch.yaml`. The email `body` must contain at least
-                                                            one `text` or `html` field.
+                                                            `elasticsearch.yaml`.
 
 | `priority`            | no        | -                   | The priority of this email. Valid values are: `lowest`, `low`,
                                                             `normal`, `high` and `highest`. The priority can contain a
@@ -251,23 +248,20 @@ A list of addresses can be specified as a an
 array: `[ 'Personal Name <user1@host.domain>', 'user2@host.domain' ]`.
 
 [[configuring-email]]
-==== Configuring Email Accounts
+==== Configuring email accounts
 
 {watcher} can send email using any SMTP email service. Email
 messages can contain basic HTML tags. You can control which groups of tags are
 allowed by <<email-html-sanitization, Configuring HTML Sanitization Options>>.
 
 You configure the accounts {watcher} can use to send email in the
-`xpack.notification.email` namespace in `elasticsearch.yml`.
+`xpack.notification.email` namespace in `elasticsearch.yml`. 
+The password for the specified SMTP user is stored securely in the
+<<secure-settings, {es} keystore>>.
 
 If your email account is configured to require two step verification, you need
 to generate and use a unique App Password to send email from {watcher}.
 Authentication will fail if you use your primary password.
-
-IMPORTANT: Currently, neither Watcher nor Shield provide a mechanism to encrypt
-settings in `elasticsearch.yml`. Because the email account credentials appear
-in plain text, you should limit access to `elasticsearch.yml` to the user that
-you use to run Elasticsearch.
 
 [[email-profile]]
 {watcher} provides three email profiles that control how MIME messages are
@@ -280,14 +274,14 @@ email system.
 For more information about configuring {watcher} to work with different email
 systems, see:
 
-* <<gmail, Sending Email from Gmail>>
-* <<outlook, Sending Email from Outlook>>
-* <<exchange, Sending Email from Exchange>>
-* <<amazon-ses, Sending Email from Amazon SES>>
+* <<gmail>>
+* <<outlook>>
+* <<exchange>>
+* <<amazon-ses>>
 
 If you configure multiple email accounts, you must either configure a default
 account or specify which account the email should be sent with in the
-<<actions-email, `email`>> action.
+<<actions-email,`email`>> action.
 
 [source,yaml]
 --------------------------------------------------
@@ -300,9 +294,9 @@ xpack.notification.email:
       ...
 --------------------------------------------------
 
-[float]
+[discrete]
 [[gmail]]
-===== Sending Email From Gmail
+===== Sending email from Gmail
 
 Use the following email account settings to send email from the
 https://mail.google.com[Gmail] SMTP service:
@@ -320,12 +314,12 @@ xpack.notification.email.account:
             user: <username>
 --------------------------------------------------
 
-In order to store the account SMTP password, use the keystore command
+To store the account SMTP password, use the keystore command
 (see {ref}/secure-settings.html[secure settings])
 
 [source,yaml]
 --------------------------------------------------
-bin/elasticsearch-keystore xpack.notification.email.account.gmail_account.smtp.secure_password
+bin/elasticsearch-keystore add xpack.notification.email.account.gmail_account.smtp.secure_password
 --------------------------------------------------
 
 If you get an authentication error that indicates that you need to continue the
@@ -338,9 +332,9 @@ a unique App Password to send email from {watcher}. See
 https://support.google.com/accounts/answer/185833?hl=en[Sign in using App Passwords]
 for more information.
 
-[float]
+[discrete]
 [[outlook]]
-===== Sending Email from Outlook.com
+===== Sending email from Outlook.com
 
 Use the following email account settings to send email action from the
 https://www.outlook.com/[Outlook.com] SMTP service:
@@ -358,12 +352,12 @@ xpack.notification.email.account:
             user: <email.address>
 --------------------------------------------------
 
-In order to store the account SMTP password, use the keystore command
+To store the account SMTP password, use the keystore command
 (see {ref}/secure-settings.html[secure settings])
 
 [source,yaml]
 --------------------------------------------------
-bin/elasticsearch-keystore xpack.notification.email.account.outlook_account.smtp.secure_password
+bin/elasticsearch-keystore add xpack.notification.email.account.outlook_account.smtp.secure_password
 --------------------------------------------------
 
 
@@ -374,9 +368,9 @@ NOTE:   You need to use a unique App Password if two-step verification is enable
         See http://windows.microsoft.com/en-us/windows/app-passwords-two-step-verification[App
         passwords and two-step verification] for more information.
 
-[float]
+[discrete]
 [[amazon-ses]]
-===== Sending Email from Amazon SES (Simple Email Service)
+===== Sending email from Amazon SES (Simple Email Service)
 
 Use the following email account settings to send email from the
 http://aws.amazon.com/ses[Amazon Simple Email Service] (SES) SMTP service:
@@ -395,12 +389,12 @@ xpack.notification.email.account:
 --------------------------------------------------
 <1> `smtp.host` varies depending on the region
 
-In order to store the account SMTP password, use the keystore command
+To store the account SMTP password, use the keystore command
 (see {ref}/secure-settings.html[secure settings])
 
 [source,yaml]
 --------------------------------------------------
-bin/elasticsearch-keystore xpack.notification.email.account.ses_account.smtp.secure_password
+bin/elasticsearch-keystore add xpack.notification.email.account.ses_account.smtp.secure_password
 --------------------------------------------------
 
 NOTE:   You need to use your Amazon SES SMTP credentials to send email through
@@ -411,9 +405,9 @@ NOTE:   You need to use your Amazon SES SMTP credentials to send email through
         or https://docs.aws.amazon.com/ses/latest/DeveloperGuide/verify-domains.html[your whole domain]
         at AWS.
 
-[float]
+[discrete]
 [[exchange]]
-===== Sending Email from Microsoft Exchange
+===== Sending email from Microsoft Exchange
 
 Use the following email account settings to send email action from Microsoft
 Exchange:
@@ -438,20 +432,20 @@ xpack.notification.email.account:
     it is a good idea to check with your system administrator if you receive
     authentication-related failures.
 
-In order to store the account SMTP password, use the keystore command
+To store the account SMTP password, use the keystore command
 (see {ref}/secure-settings.html[secure settings])
 
 [source,yaml]
 --------------------------------------------------
-bin/elasticsearch-keystore xpack.notification.email.account.exchange_account.smtp.secure_password
+bin/elasticsearch-keystore add xpack.notification.email.account.exchange_account.smtp.secure_password
 --------------------------------------------------
 
-[float]
+[discrete]
 [[email-html-sanitization]]
-===== Configuring HTML Sanitization Options
+===== Configuring HTML sanitization options
 
 The `email` action supports sending messages with an HTML body. However, for
-security reasons, {watcher} https://en.wikipedia.org/wiki/HTML_sanitization[sanitizes]
+security reasons, {watcher} {wikipedia}/HTML_sanitization[sanitizes]
 the HTML.
 
 You can control which HTML features are allowed or disallowed by configuring the

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -25,7 +14,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -51,9 +39,8 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
         }
     }
 
-    public UnmappedTerms(String name, BucketOrder order, int requiredSize, long minDocCount,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData);
+    public UnmappedTerms(String name, BucketOrder order, int requiredSize, long minDocCount, Map<String, Object> metadata) {
+        super(name, order, order, requiredSize, minDocCount, metadata);
     }
 
     /**
@@ -80,7 +67,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
 
     @Override
     public UnmappedTerms create(List<Bucket> buckets) {
-        return new UnmappedTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), metaData);
+        return new UnmappedTerms(name, order, requiredSize, minDocCount, metadata);
     }
 
     @Override
@@ -89,13 +76,18 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    protected UnmappedTerms create(String name, List<Bucket> buckets, long docCountError, long otherDocCount) {
+    protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, Bucket prototype) {
         throw new UnsupportedOperationException("not supported for UnmappedTerms");
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        return new UnmappedTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), metaData);
+    protected UnmappedTerms create(String name, List<Bucket> buckets, BucketOrder reduceOrder, long docCountError, long otherDocCount) {
+        throw new UnsupportedOperationException("not supported for UnmappedTerms");
+    }
+
+    @Override
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        return new UnmappedTerms(name, order, requiredSize, minDocCount, metadata);
     }
 
     @Override
@@ -118,8 +110,8 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    public long getDocCountError() {
-        return 0;
+    public Long getDocCountError() {
+        return 0L;
     }
 
     @Override
@@ -135,10 +127,5 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     @Override
     public Bucket getBucketByKey(String term) {
         return null;
-    }
-
-    @Override
-    protected Bucket[] createBucketsArray(int size) {
-        return new Bucket[size];
     }
 }

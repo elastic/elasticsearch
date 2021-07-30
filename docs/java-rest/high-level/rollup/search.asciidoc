@@ -3,14 +3,16 @@
 :request: SearchRequest
 :response: SearchResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Rollup Search API
 
+experimental::[]
+
 The Rollup Search endpoint allows searching rolled-up data using the standard
-query DSL. The Rollup Search endpoint is needed because, internally,
+Query DSL. The Rollup Search endpoint is needed because, internally,
 rolled-up documents utilize a different document structure than the original
-data. The Rollup Search endpoint rewrites standard query DSL into a format that
+data. The Rollup Search endpoint rewrites standard Query DSL into a format that
 matches the rollup documents, then takes the response and rewrites it back to
 what a client would expect given the original query.
 

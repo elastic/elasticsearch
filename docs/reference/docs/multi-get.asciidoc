@@ -1,214 +1,277 @@
 [[docs-multi-get]]
-== Multi Get API
+=== Multi get (mget) API
+++++
+<titleabbrev>Multi get</titleabbrev>
+++++
 
-Multi GET API allows to get multiple documents based on an index, type
-(optional) and id (and possibly routing). The response includes a `docs` array
-with all the fetched documents in order corresponding to the original multi-get
-request (if there was a failure for a specific get, an object containing this
-error is included in place in the response instead). The structure of a
-successful get is similar in structure to a document provided by the
-<<docs-get,get>> API.
+Retrieves multiple JSON documents by ID. 
 
-Here is an example:
-
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_mget
 {
-    "docs" : [
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "1"
-        },
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "2"
-        }
-    ]
+  "docs": [
+    {
+      "_index": "my-index-000001",
+      "_id": "1"
+    },
+    {
+      "_index": "my-index-000001",
+      "_id": "2"
+    }
+  ]
 }
 --------------------------------------------------
-// CONSOLE
+// TEST[setup:my_index]
 
-The `mget` endpoint can also be used against an index (in which case it
-is not required in the body):
+[[docs-multi-get-api-request]]
+==== {api-request-title}
 
-[source,js]
+`GET /_mget`
+
+`GET /<index>/_mget`
+
+[[docs-multi-get-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
+
+[[docs-multi-get-api-desc]]
+==== {api-description-title}
+
+You use `mget` to retrieve multiple documents from one or more indices.
+If you specify an index in the request URI, you only need to specify the document IDs in the request body.
+
+[[mget-security]]
+===== Security
+
+See <<url-access-control>>.
+
+[[multi-get-partial-responses]]
+===== Partial responses
+
+To ensure fast responses, the multi get API responds with partial results if one or more shards fail. 
+See <<shard-failures, Shard failures>> for more information.
+
+[[docs-multi-get-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Optional, string) Name of the index to retrieve documents from when `ids` are specified,
+or when a document in the `docs` array does not specify an index.
+
+[[docs-multi-get-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
+
+`refresh`::
+(Optional, Boolean) If `true`, the request refreshes relevant shards before
+retrieving documents. Defaults to `false`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=stored_fields]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
+
+[[docs-multi-get-api-request-body]]
+==== {api-request-body-title}
+
+`docs`::
+(Optional, array) The documents you want to retrieve.
+Required if no index is specified in the request URI.
+You can specify the following attributes for each
+document:
++
+--
+`_id`::
+(Required, string) The unique document ID.
+
+`_index`::
+(Optional, string)
+The index that contains the document.
+Required if no index is specified in the request URI.
+
+`_routing`::
+(Optional, string) The key for the primary shard the document resides on.
+Required if routing is used during indexing.
+
+`_source`::
+(Optional, Boolean) If `false`,  excludes all `_source` fields. Defaults to `true`.
+`source_include`:::
+(Optional, array) The fields to extract and return from the `_source` field.
+`source_exclude`:::
+(Optional, array) The fields to exclude from the returned `_source` field.
+
+`_stored_fields`::
+(Optional, array) The stored fields you want to retrieve.
+--
+
+`ids`::
+(Optional, array) The IDs of the documents you want to retrieve.
+Allowed when the index is specified in the request URI.
+
+[[multi-get-api-response-body]]
+==== {api-response-body-title}
+
+The response includes a `docs` array that contains the documents in the order specified in the request. 
+The structure of the returned documents is similar to that returned by the <<docs-get,get>> API.
+If there is a failure getting a particular document, the error is included in place of the document. 
+
+[[docs-multi-get-api-example]]
+==== {api-examples-title}
+
+[[mget-ids]]
+===== Get documents by ID
+
+If you specify an index in the request URI, only the document IDs are required in the request body:
+
+[source,console]
 --------------------------------------------------
-GET /test/_mget
+GET /my-index-000001/_mget
 {
-    "docs" : [
-        {
-            "_type" : "_doc",
-            "_id" : "1"
-        },
-        {
-            "_type" : "_doc",
-            "_id" : "2"
-        }
-    ]
+  "docs": [
+    {
+      "_id": "1"
+    },
+    {
+      "_id": "2"
+    }
+  ]
 }
 --------------------------------------------------
-// CONSOLE
+// TEST[setup:my_index]
 
-And type:
+You can use the `ids` element to simplify the request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /test/_doc/_mget
+GET /my-index-000001/_mget
 {
-    "docs" : [
-        {
-            "_id" : "1"
-        },
-        {
-            "_id" : "2"
-        }
-    ]
+  "ids" : ["1", "2"]
 }
 --------------------------------------------------
-//CONSOLE
+// TEST[setup:my_index]
 
-In which case, the `ids` element can directly be used to simplify the
-request:
-
-[source,js]
---------------------------------------------------
-GET /test/_doc/_mget
-{
-    "ids" : ["1", "2"]
-}
---------------------------------------------------
-// CONSOLE
-
-[float]
 [[mget-source-filtering]]
-=== Source filtering
+===== Filter source fields
 
-By default, the `_source` field will be returned for every document (if stored).
-Similar to the <<get-source-filtering,get>> API, you can retrieve only parts of
-the `_source` (or not at all) by using the `_source` parameter. You can also use
-the url parameters `_source`,`_source_includes` & `_source_excludes` to specify defaults,
-which will be used when there are no per-document instructions.
+By default, the `_source` field is returned for every document (if stored). 
+Use the `_source` and `_source_include` or `source_exclude` attributes to 
+filter what fields are returned for a particular document.
+You can include the `_source`, `_source_includes`, and `_source_excludes` query parameters in the
+request URI to specify the defaults to use when there are no per-document instructions.
 
-For example:
+For example, the following request sets `_source` to false for document 1 to exclude the
+source entirely, retrieves `field3` and `field4` from document 2, and retrieves the `user` field
+from document 3 but filters out the `user.location` field.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_mget
 {
-    "docs" : [
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "1",
-            "_source" : false
-        },
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "2",
-            "_source" : ["field3", "field4"]
-        },
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "3",
-            "_source" : {
-                "include": ["user"],
-                "exclude": ["user.location"]
-            }
-        }
-    ]
+  "docs": [
+    {
+      "_index": "test",
+      "_id": "1",
+      "_source": false
+    },
+    {
+      "_index": "test",
+      "_id": "2",
+      "_source": [ "field3", "field4" ]
+    },
+    {
+      "_index": "test",
+      "_id": "3",
+      "_source": {
+        "include": [ "user" ],
+        "exclude": [ "user.location" ]
+      }
+    }
+  ]
 }
 --------------------------------------------------
-// CONSOLE
 
-
-[float]
 [[mget-fields]]
-=== Fields
+===== Get stored fields
 
-Specific stored fields can be specified to be retrieved per document to get, similar to the <<get-stored-fields,stored_fields>> parameter of the Get API.
-For example:
+Use the `stored_fields` attribute to specify the set of stored fields you want
+to retrieve. Any requested fields that are not stored are ignored. 
+You can include the `stored_fields` query parameter in the request URI to specify the defaults 
+to use when there are no per-document instructions. 
 
-[source,js]
+For example, the following request retrieves `field1` and `field2` from document 1, and
+`field3` and `field4` from document 2:
+
+[source,console]
 --------------------------------------------------
 GET /_mget
 {
-    "docs" : [
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "1",
-            "stored_fields" : ["field1", "field2"]
-        },
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "2",
-            "stored_fields" : ["field3", "field4"]
-        }
-    ]
+  "docs": [
+    {
+      "_index": "test",
+      "_id": "1",
+      "stored_fields": [ "field1", "field2" ]
+    },
+    {
+      "_index": "test",
+      "_id": "2",
+      "stored_fields": [ "field3", "field4" ]
+    }
+  ]
 }
 --------------------------------------------------
-// CONSOLE
 
-Alternatively, you can specify the `stored_fields` parameter in the query string
-as a default to be applied to all documents.
+The following request retrieves `field1` and `field2` from all documents by default.
+These default fields are returned for document 1, but 
+overridden to return `field3` and `field4` for document 2.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /test/_doc/_mget?stored_fields=field1,field2
+GET /test/_mget?stored_fields=field1,field2
 {
-    "docs" : [
-        {
-            "_id" : "1" <1>
-        },
-        {
-            "_id" : "2",
-            "stored_fields" : ["field3", "field4"] <2>
-        }
-    ]
+  "docs": [
+    {
+      "_id": "1"
+    },
+    {
+      "_id": "2",
+      "stored_fields": [ "field3", "field4" ]
+    }
+  ]
 }
 --------------------------------------------------
-// CONSOLE
-<1> Returns `field1` and `field2`
-<2> Returns `field3` and `field4`
 
-[float]
 [[mget-routing]]
-=== Routing
+===== Specify document routing
 
-You can also specify routing value as a parameter:
+If routing is used during indexing, you need to specify the routing value to retrieve documents. 
+For example, the following request fetches `test/_doc/2`  from the shard corresponding to routing key `key1`,
+and fetches `test/_doc/1` from the shard corresponding to routing key `key2`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_mget?routing=key1
 {
-    "docs" : [
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "1",
-            "routing" : "key2"
-        },
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "2"
-        }
-    ]
+  "docs": [
+    {
+      "_index": "test",
+      "_id": "1",
+      "routing": "key2"
+    },
+    {
+      "_index": "test",
+      "_id": "2"
+    }
+  ]
 }
 --------------------------------------------------
-// CONSOLE
-
-In this example, document `test/_doc/2` will be fetch from shard corresponding to routing key `key1` but
-document `test/_doc/1` will be fetch from shard corresponding to routing key `key2`.
-
-[float]
-[[mget-security]]
-=== Security
-
-See <<url-access-control>>

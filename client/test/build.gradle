@@ -1,41 +1,36 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
+import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersTask
+
 apply plugin: 'elasticsearch.build'
 
-targetCompatibility = JavaVersion.VERSION_1_7
-sourceCompatibility = JavaVersion.VERSION_1_7
+targetCompatibility = JavaVersion.VERSION_1_8
+sourceCompatibility = JavaVersion.VERSION_1_8
 
 group = "${group}.client.test"
 
+// rest client sniffer is licenses under Apache 2.0
+ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
+ext.licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+
 dependencies {
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  compile "junit:junit:${versions.junit}"
-  compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  api "junit:junit:${versions.junit}"
+  api "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   //client does not depend on core, so only jdk signatures should be checked
   replaceSignatureFiles 'jdk-signatures'
 }
 
-forbiddenApisTest {
+tasks.named('forbiddenApisTest').configure {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
@@ -44,15 +39,17 @@ forbiddenApisTest {
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in :libs:core
-jarHell.enabled=false
+// TODO: Not anymore. Now in :libs:elasticsearch-core
+tasks.named("jarHell").configure { enabled = false }
 
 // TODO: should we have licenses for our test deps?
-dependencyLicenses.enabled = false
-dependenciesInfo.enabled = false
-
-namingConventions.enabled = false
+tasks.named("dependencyLicenses").configure { enabled = false }
+tasks.named("dependenciesInfo").configure { enabled = false }
+tasks.named("dependenciesGraph").configure { it.enabled = false }
 
 //we aren't releasing this jar
-thirdPartyAudit.enabled = false
-test.enabled = false
+tasks.named("test").configure { enabled = false }
+
+tasks.withType(LicenseHeadersTask.class).configureEach {
+  approvedLicenses = ['Apache', 'Generated', 'Vendored']
+}

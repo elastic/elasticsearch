@@ -1,0 +1,250 @@
+[[modules-discovery-settings]]
+=== Discovery and cluster formation settings
+
+<<modules-discovery,Discovery and cluster formation>> are affected by the
+following settings:
+
+`discovery.seed_hosts`::
++
+--
+(<<static-cluster-setting,Static>>)
+Provides a list of the addresses of the master-eligible nodes in the cluster.
+May also be a single string containing the addresses separated by commas. Each
+address has the format `host:port` or `host`. The `host` is either a host name
+to be resolved by DNS, an IPv4 address, or an IPv6 address. IPv6 addresses
+must be enclosed in square brackets. If a host name resolves via DNS to multiple
+addresses, {es} uses all of them. DNS lookups are subject to
+<<networkaddress-cache-ttl,JVM DNS caching>>. If the `port` is not given then it
+is determined by checking the following settings in order:
+
+. `transport.profiles.default.port`
+. `transport.port`
+
+If neither of these is set then the default port is `9300`. The default value
+for `discovery.seed_hosts` is `["127.0.0.1", "[::1]"]`. See <<unicast.hosts>>.
+--
+
+`discovery.seed_providers`::
+(<<static-cluster-setting,Static>>)
+Specifies which types of <<built-in-hosts-providers,seed hosts provider>> to use
+to obtain the addresses of the seed nodes used to start the discovery process.
+By default, it is the <<settings-based-hosts-provider,settings-based seed hosts
+provider>> which obtains the seed node addresses from the `discovery.seed_hosts`
+setting.
+
+`discovery.type`::
+(<<static-cluster-setting,Static>>)
+Specifies whether {es} should form a multiple-node cluster. By default, {es}
+discovers other nodes when forming a cluster and allows other nodes to join the
+cluster later. If `discovery.type` is set to `single-node`, {es} forms a
+single-node cluster and suppresses the timeout set by `cluster.publish.timeout`.
+For more information about when you might use this setting, see
+<<single-node-discovery>>.
+
+`cluster.initial_master_nodes`::
+(<<static-cluster-setting,Static>>)
+Sets the initial set of master-eligible nodes in a brand-new cluster. By default
+this list is empty, meaning that this node expects to join a cluster that has
+already been bootstrapped. See <<initial_master_nodes>>.
+
+[discrete]
+==== Expert settings
+
+Discovery and cluster formation are also affected by the following
+_expert-level_ settings, although it is not recommended to change any of these
+from their default values.
+
+WARNING: If you adjust these settings then your cluster may not form correctly
+or may become unstable or intolerant of certain failures.
+
+`discovery.cluster_formation_warning_timeout`::
+(<<static-cluster-setting,Static>>)
+Sets how long a node will try to form a cluster before logging a warning that
+the cluster did not form. Defaults to `10s`. If a cluster has not formed after
+`discovery.cluster_formation_warning_timeout` has elapsed then the node will log
+a warning message that starts with the phrase `master not discovered` which
+describes the current state of the discovery process.
+
+`discovery.find_peers_interval`::
+(<<static-cluster-setting,Static>>)
+Sets how long a node will wait before attempting another discovery round.
+Defaults to `1s`.
+
+`discovery.probe.connect_timeout`::
+(<<static-cluster-setting,Static>>)
+Sets how long to wait when attempting to connect to each address. Defaults to
+`30s`.
+
+`discovery.probe.handshake_timeout`::
+(<<static-cluster-setting,Static>>)
+Sets how long to wait when attempting to identify the remote node via a
+handshake. Defaults to `30s`.
+
+`discovery.request_peers_timeout`::
+(<<static-cluster-setting,Static>>)
+Sets how long a node will wait after asking its peers again before considering
+the request to have failed. Defaults to `3s`.
+
+`discovery.find_peers_warning_timeout`::
+(<<static-cluster-setting,Static>>)
+Sets how long a node will attempt to discover its peers before it starts to log
+verbose messages describing why the connection attempts are failing. Defaults
+to `5m`.
+
+`discovery.seed_resolver.max_concurrent_resolvers`::
+(<<static-cluster-setting,Static>>)
+Specifies how many concurrent DNS lookups to perform when resolving the
+addresses of seed nodes. Defaults to `10`.
+
+`discovery.seed_resolver.timeout`::
+(<<static-cluster-setting,Static>>)
+Specifies how long to wait for each DNS lookup performed when resolving the
+addresses of seed nodes. Defaults to `5s`.
+
+`cluster.auto_shrink_voting_configuration`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Controls whether the <<modules-discovery-voting,voting configuration>> sheds
+departed nodes automatically, as long as it still contains at least 3 nodes. The
+default value is `true`. If set to `false`, the voting configuration never
+shrinks automatically and you must remove departed nodes manually with the
+<<voting-config-exclusions,voting configuration exclusions API>>.
+
+[[master-election-settings]]`cluster.election.back_off_time`::
+(<<static-cluster-setting,Static>>)
+Sets the amount to increase the upper bound on the wait before an election on
+each election failure. Note that this is _linear_ backoff. This defaults to
+`100ms`. Changing this setting from the default may cause your cluster to fail
+to elect a master node.
+
+`cluster.election.duration`::
+(<<static-cluster-setting,Static>>)
+Sets how long each election is allowed to take before a node considers it to
+have failed and schedules a retry. This defaults to `500ms`. Changing this
+setting from the default may cause your cluster to fail to elect a master node.
+
+`cluster.election.initial_timeout`::
+(<<static-cluster-setting,Static>>)
+Sets the upper bound on how long a node will wait initially, or after the
+elected master fails, before attempting its first election. This defaults to
+`100ms`. Changing this setting from the default may cause your cluster to fail
+to elect a master node.
+
+`cluster.election.max_timeout`::
+(<<static-cluster-setting,Static>>)
+Sets the maximum upper bound on how long a node will wait before attempting an
+first election, so that an network partition that lasts for a long time does not
+result in excessively sparse elections. This defaults to `10s`. Changing this
+setting from the default may cause your cluster to fail to elect a master node.
+
+[[fault-detection-settings]]`cluster.fault_detection.follower_check.interval`::
+(<<static-cluster-setting,Static>>)
+Sets how long the elected master waits between follower checks to each other
+node in the cluster. Defaults to `1s`. Changing this setting from the default
+may cause your cluster to become unstable.
+
+`cluster.fault_detection.follower_check.timeout`::
+(<<static-cluster-setting,Static>>)
+Sets how long the elected master waits for a response to a follower check before
+considering it to have failed. Defaults to `10s`. Changing this setting from the
+default may cause your cluster to become unstable.
+
+`cluster.fault_detection.follower_check.retry_count`::
+(<<static-cluster-setting,Static>>)
+Sets how many consecutive follower check failures must occur to each node before
+the elected master considers that node to be faulty and removes it from the
+cluster. Defaults to `3`. Changing this setting from the default may cause your
+cluster to become unstable.
+
+`cluster.fault_detection.leader_check.interval`::
+(<<static-cluster-setting,Static>>)
+Sets how long each node waits between checks of the elected master. Defaults to
+`1s`. Changing this setting from the default may cause your cluster to become
+unstable.
+
+`cluster.fault_detection.leader_check.timeout`::
+(<<static-cluster-setting,Static>>)
+Sets how long each node waits for a response to a leader check from the elected
+master before considering it to have failed. Defaults to `10s`. Changing this
+setting from the default may cause your cluster to become unstable.
+
+`cluster.fault_detection.leader_check.retry_count`::
+(<<static-cluster-setting,Static>>)
+Sets how many consecutive leader check failures must occur before a node
+considers the elected master to be faulty and attempts to find or elect a new
+master. Defaults to `3`. Changing this setting from the default may cause your
+cluster to become unstable.
+
+`cluster.follower_lag.timeout`::
+(<<static-cluster-setting,Static>>)
+Sets how long the master node waits to receive acknowledgements for cluster
+state updates from lagging nodes. The default value is `90s`. If a node does not
+successfully apply the cluster state update within this period of time, it is
+considered to have failed and is removed from the cluster. See
+<<cluster-state-publishing>>.
+
+`cluster.max_voting_config_exclusions`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Sets a limit on the number of voting configuration exclusions at any one time.
+The default value is `10`. See <<modules-discovery-adding-removing-nodes>>.
+
+`cluster.publish.info_timeout`::
+(<<static-cluster-setting,Static>>)
+Sets how long the master node waits for each cluster state update to be
+completely published to all nodes before logging a message indicating that some
+nodes are responding slowly. The default value is `10s`.
+
+`cluster.publish.timeout`::
+(<<static-cluster-setting,Static>>)
+Sets how long the master node waits for each cluster state update to be
+completely published to all nodes, unless `discovery.type` is set to
+`single-node`. The default value is `30s`. See <<cluster-state-publishing>>.
+
+[[no-master-block]]
+`cluster.no_master_block`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Specifies which operations are rejected when there is no active master in a
+cluster. This setting has three valid values:
++
+--
+`all`::: All operations on the node (both read and write operations) are rejected.
+This also applies for API cluster state read or write operations, like the get
+index settings, update mapping, and cluster state API.
+
+`write`::: (default) Write operations are rejected. Read operations succeed,
+based on the last known cluster configuration. This situation may result in
+partial reads of stale data as this node may be isolated from the rest of the
+cluster.
+
+`metadata_write`::: Only metadata write operations (e.g. mapping updates,
+routing table changes) are rejected but regular indexing operations continue
+to work. Read and write operations succeed, based on the last known cluster
+configuration. This situation may result in partial reads of stale data as
+this node may be isolated from the rest of the cluster.
+
+[NOTE]
+===============================
+* The `cluster.no_master_block` setting doesn't apply to nodes-based APIs
+(for example, cluster stats, node info, and node stats APIs). Requests to these
+APIs are not be blocked and can run on any available node.
+
+* For the cluster to be fully operational, it must have an active master.
+===============================
+
+--
+
+`monitor.fs.health.enabled`::
+(<<dynamic-cluster-setting,Dynamic>>)
+If `true`, the node runs periodic
+<<cluster-fault-detection-filesystem-health,filesystem health checks>>. Defaults
+to `true`.
+
+`monitor.fs.health.refresh_interval`::
+(<<static-cluster-setting,Static>>)
+Interval between successive
+<<cluster-fault-detection-filesystem-health,filesystem health checks>>. Defaults
+to `2m`.
+
+`monitor.fs.health.slow_path_logging_threshold`::
+(<<dynamic-cluster-setting,Dynamic>>)
+If a <<cluster-fault-detection-filesystem-health,filesystem health checks>>
+takes longer than this threshold then {es} logs a warning. Defaults to `5s`.

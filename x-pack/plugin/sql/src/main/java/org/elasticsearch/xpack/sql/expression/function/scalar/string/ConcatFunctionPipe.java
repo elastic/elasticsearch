@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.BinaryPipe;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Objects;
 
 public class ConcatFunctionPipe extends BinaryPipe {
 
-    public ConcatFunctionPipe(Location location, Expression expression, Pipe left, Pipe right) {
-        super(location, expression, left, right);
+    public ConcatFunctionPipe(Source source, Expression expression, Pipe left, Pipe right) {
+        super(source, expression, left, right);
     }
 
     @Override
@@ -26,14 +27,14 @@ public class ConcatFunctionPipe extends BinaryPipe {
 
     @Override
     protected BinaryPipe replaceChildren(Pipe left, Pipe right) {
-        return new ConcatFunctionPipe(location(), expression(), left, right);
+        return new ConcatFunctionPipe(source(), expression(), left, right);
     }
 
     @Override
     public ConcatFunctionProcessor asProcessor() {
         return new ConcatFunctionProcessor(left().asProcessor(), right().asProcessor());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(left(), right());

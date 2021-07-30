@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
@@ -12,7 +13,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -37,14 +38,14 @@ public class ClusterAlertsUtilTests extends ESTestCase {
 
     private final ClusterService clusterService = mock(ClusterService.class);
     private final ClusterState clusterState = mock(ClusterState.class);
-    private final MetaData metaData = mock(MetaData.class);
+    private final Metadata metadata = mock(Metadata.class);
     private final String clusterUuid = randomAlphaOfLength(16);
 
     @Before
     public void setup() {
         when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.metaData()).thenReturn(metaData);
-        when(metaData.clusterUUID()).thenReturn(clusterUuid);
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.clusterUUID()).thenReturn(clusterUuid);
     }
 
     public void testWatchIdsAreAllUnique() {
@@ -68,6 +69,7 @@ public class ClusterAlertsUtilTests extends ESTestCase {
             assertThat(watch, notNullValue());
             assertThat(watch, containsString(clusterUuid));
             assertThat(watch, containsString(watchId));
+            assertThat(watch, containsString(String.valueOf(ClusterAlertsUtil.LAST_UPDATED_VERSION)));
 
             if ("elasticsearch_nodes".equals(watchId) == false) {
                 assertThat(watch, containsString(clusterUuid + "_" + watchId));

@@ -3,7 +3,11 @@
 
 The store module allows you to control how index data is stored and accessed on disk.
 
-[float]
+NOTE: This is a low-level setting. Some store implementations have poor
+concurrency or disable optimizations for heap memory usage. We recommend
+sticking to the defaults.
+
+[discrete]
 [[file-system]]
 === File system storage types
 
@@ -11,27 +15,26 @@ There are different file system implementations or _storage types_. By default,
 Elasticsearch will pick the best implementation based on the operating
 environment.
 
-This can be overridden for all indices by adding this to the
-`config/elasticsearch.yml` file:
+The storage type can also be explicitly set for all indices by configuring the
+store type in the `config/elasticsearch.yml` file:
 
 [source,yaml]
 ---------------------------------
-index.store.type: niofs
+index.store.type: hybridfs
 ---------------------------------
 
 It is a _static_ setting that can be set on a per-index basis at index
 creation time:
 
-[source,js]
+[source,console]
 ---------------------------------
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
-    "index.store.type": "niofs"
+    "index.store.type": "hybridfs"
   }
 }
 ---------------------------------
-// CONSOLE
 
 WARNING: This is an expert-only setting and may be removed in the future.
 
@@ -40,23 +43,25 @@ The following sections lists all the different storage types supported.
 `fs`::
 
 Default file system implementation. This will pick the best implementation
-depending on the operating environment, which is currently `mmapfs` on all
+depending on the operating environment, which is currently `hybridfs` on all
 supported systems but is subject to change.
 
 [[simplefs]]`simplefs`::
 
+deprecated::[7.15,"simplefs is deprecated and will be removed in 8.0. Use niofs or other file systems instead. Elasticsearch 7.15 or later uses niofs for the simplefs store type as it offers superior or equivalent performance to simplefs."]
+
 The Simple FS type is a straightforward implementation of file system
 storage (maps to Lucene `SimpleFsDirectory`) using a random access file.
 This implementation has poor concurrent performance (multiple threads
-will bottleneck). It is usually better to use the `niofs` when you need
-index persistence.
+will bottleneck) and disables some optimizations for heap memory usage.
 
 [[niofs]]`niofs`::
 
 The NIO FS type stores the shard index on the file system (maps to
 Lucene `NIOFSDirectory`) using NIO. It allows multiple threads to read
 from the same file concurrently. It is not recommended on Windows
-because of a bug in the SUN Java implementation.
+because of a bug in the SUN Java implementation and disables some
+optimizations for heap memory usage.
 
 [[mmapfs]]`mmapfs`::
 
@@ -67,14 +72,25 @@ process equal to the size of the file being mapped. Before using this
 class, be sure you have allowed plenty of
 <<vm-max-map-count,virtual address space>>.
 
-[[allow-mmapfs]]
-You can restrict the use of the `mmapfs` store type via the setting
-`node.store.allow_mmapfs`. This is a boolean setting indicating whether or not
-`mmapfs` is allowed. The default is to allow `mmapfs`. This setting is useful,
-for example, if you are in an environment where you can not control the ability
-to create a lot of memory maps so you need disable the ability to use `mmapfs`.
+[[hybridfs]]`hybridfs`::
 
-=== Pre-loading data into the file system cache
+The `hybridfs` type is a hybrid of `niofs` and `mmapfs`, which chooses the best
+file system type for each type of file based on the read access pattern.
+Currently only the Lucene term dictionary, norms and doc values files are
+memory mapped. All other files are opened using Lucene `NIOFSDirectory`.
+Similarly to `mmapfs` be sure you have allowed plenty of
+<<vm-max-map-count,virtual address space>>.
+
+[[allow-mmap]]
+You can restrict the use of the `mmapfs` and the related `hybridfs` store type
+via the setting `node.store.allow_mmap`. This is a boolean setting indicating
+whether or not memory-mapping is allowed. The default is to allow it. This
+setting is useful, for example, if you are in an environment where you can not
+control the ability to create a lot of memory maps so you need disable the
+ability to use memory-mapping.
+
+[[preload-data-to-file-system-cache]]
+=== Preloading data into the file system cache
 
 NOTE: This is an expert setting, the details of which may change in the future.
 
@@ -102,16 +118,15 @@ index.store.preload: ["nvd", "dvd"]
 
 or in the index settings at index creation time:
 
-[source,js]
+[source,console]
 ---------------------------------
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "index.store.preload": ["nvd", "dvd"]
   }
 }
 ---------------------------------
-// CONSOLE
 
 The default value is the empty array, which means that nothing will be loaded
 into the file-system cache eagerly. For indices that are actively searched,

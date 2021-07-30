@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -89,6 +91,14 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
             return in.readEnum(ForecastRequestStatus.class);
         }
 
+        /**
+         * @return {@code true} if state matches any of the given {@code candidates}
+         */
+        public boolean isAnyOf(ForecastRequestStatus... candidates) {
+            return Arrays.stream(candidates).anyMatch(candidate -> this == candidate);
+        }
+
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeEnum(this);
@@ -119,21 +129,38 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         this.forecastId = Objects.requireNonNull(forecastId);
     }
 
+    public ForecastRequestStats(ForecastRequestStats forecastRequestStats) {
+        this.jobId = forecastRequestStats.jobId;
+        this.forecastId = forecastRequestStats.forecastId;
+        this.recordCount = forecastRequestStats.recordCount;
+        this.messages = forecastRequestStats.messages;
+        this.timestamp = forecastRequestStats.timestamp;
+        this.startTime = forecastRequestStats.startTime;
+        this.endTime = forecastRequestStats.endTime;
+        this.createTime = forecastRequestStats.createTime;
+        this.expiryTime = forecastRequestStats.expiryTime;
+        this.progress = forecastRequestStats.progress;
+        this.processingTime = forecastRequestStats.processingTime;
+        this.memoryUsage = forecastRequestStats.memoryUsage;
+        this.status = forecastRequestStats.status;
+    }
+
     public ForecastRequestStats(StreamInput in) throws IOException {
         jobId = in.readString();
         forecastId = in.readString();
         recordCount = in.readLong();
         if (in.readBoolean()) {
-            messages = in.readList(StreamInput::readString);
+            messages = in.readStringList();
         } else {
             messages = null;
         }
 
-        timestamp = Instant.ofEpochMilli(in.readVLong());
-        startTime = Instant.ofEpochMilli(in.readVLong());
-        endTime = Instant.ofEpochMilli(in.readVLong());
-        createTime = Instant.ofEpochMilli(in.readVLong());
-        expiryTime = Instant.ofEpochMilli(in.readVLong());
+        timestamp = in.readInstant();
+        startTime = in.readInstant();
+        endTime = in.readInstant();
+        createTime = in.readInstant();
+        expiryTime = in.readInstant();
+
         progress = in.readDouble();
         processingTime = in.readLong();
         setMemoryUsage(in.readLong());
@@ -147,15 +174,17 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         out.writeLong(recordCount);
         if (messages != null) {
             out.writeBoolean(true);
-            out.writeStringList(messages);
+            out.writeStringCollection(messages);
         } else {
             out.writeBoolean(false);
         }
-        out.writeVLong(timestamp.toEpochMilli());
-        out.writeVLong(startTime.toEpochMilli());
-        out.writeVLong(endTime.toEpochMilli());
-        out.writeVLong(createTime.toEpochMilli());
-        out.writeVLong(expiryTime.toEpochMilli());
+
+        out.writeInstant(timestamp);
+        out.writeInstant(startTime);
+        out.writeInstant(endTime);
+        out.writeInstant(createTime);
+        out.writeInstant(expiryTime);
+
         out.writeDouble(progress);
         out.writeLong(processingTime);
         out.writeLong(getMemoryUsage());
@@ -234,7 +263,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     }
 
     public void setTimeStamp(Instant timestamp) {
-        this.timestamp = timestamp;
+        this.timestamp = Instant.ofEpochMilli(timestamp.toEpochMilli());
     }
 
     public Instant getTimestamp() {
@@ -242,7 +271,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     }
 
     public void setStartTime(Instant startTime) {
-        this.startTime = startTime;
+        this.startTime = Instant.ofEpochMilli(startTime.toEpochMilli());
     }
 
     public Instant getStartTime() {
@@ -254,11 +283,11 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     }
 
     public void setEndTime(Instant endTime) {
-        this.endTime = endTime;
+        this.endTime = Instant.ofEpochMilli(endTime.toEpochMilli());
     }
 
     public void setCreateTime(Instant createTime) {
-        this.createTime = createTime;
+        this.createTime = Instant.ofEpochMilli(createTime.toEpochMilli());
     }
 
     public Instant getCreateTime() {
@@ -266,7 +295,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     }
 
     public void setExpiryTime(Instant expiryTime) {
-        this.expiryTime = expiryTime;
+        this.expiryTime = Instant.ofEpochMilli(expiryTime.toEpochMilli());
     }
 
     public Instant getExpiryTime() {
@@ -276,7 +305,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     /**
      * Progress information of the ForecastRequest in the range 0 to 1,
      * while 1 means finished
-     * 
+     *
      * @return progress value
      */
     public double getProgress() {

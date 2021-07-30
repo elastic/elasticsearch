@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.security;
 
@@ -31,7 +20,9 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -41,8 +32,10 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         final HasPrivilegesRequest request = new HasPrivilegesRequest(
             new LinkedHashSet<>(Arrays.asList("monitor", "manage_watcher", "manage_ml")),
             new LinkedHashSet<>(Arrays.asList(
-                IndicesPrivileges.builder().indices("index-001", "index-002").privileges("all").build(),
-                IndicesPrivileges.builder().indices("index-003").privileges("read").build()
+                IndicesPrivileges.builder().indices("index-001", "index-002").privileges("all")
+                    .allowRestrictedIndices(true).build(),
+                IndicesPrivileges.builder().indices("index-003").privileges("read")
+                    .build()
             )),
             new LinkedHashSet<>(Arrays.asList(
                 new ApplicationResourcePrivileges("myapp", Arrays.asList("read", "write"), Arrays.asList("*")),
@@ -56,10 +49,12 @@ public class HasPrivilegesRequestTests extends ESTestCase {
             " \"cluster\":[\"monitor\",\"manage_watcher\",\"manage_ml\"]," +
             " \"index\":[{" +
             "   \"names\":[\"index-001\",\"index-002\"]," +
-            "   \"privileges\":[\"all\"]" +
+            "   \"privileges\":[\"all\"]," +
+            "   \"allow_restricted_indices\":true" +
             "  },{" +
             "   \"names\":[\"index-003\"]," +
-            "   \"privileges\":[\"read\"]" +
+            "   \"privileges\":[\"read\"]," +
+            "   \"allow_restricted_indices\":false" +
             " }]," +
             " \"application\":[{" +
             "   \"application\":\"myapp\"," +
@@ -81,13 +76,15 @@ public class HasPrivilegesRequestTests extends ESTestCase {
             () -> IndicesPrivileges.builder()
                 .indices(generateRandomStringArray(5, 12, false, false))
                 .privileges(generateRandomStringArray(3, 8, false, false))
+                .allowRestrictedIndices(randomBoolean())
                 .build()));
+        final String[] privileges = generateRandomStringArray(3, 8, false, false);
+        final String[] resources = generateRandomStringArray(2, 6, false, false);
         final Set<ApplicationResourcePrivileges> application = Sets.newHashSet(randomArray(1, 5, ApplicationResourcePrivileges[]::new,
-            () -> new ApplicationResourcePrivileges(
-                randomAlphaOfLengthBetween(5, 12),
-                Sets.newHashSet(generateRandomStringArray(3, 8, false, false)),
-                Sets.newHashSet(generateRandomStringArray(2, 6, false, false))
-            )));
+                () -> new ApplicationResourcePrivileges(
+                        randomAlphaOfLengthBetween(5, 12),
+                        privileges == null ? Collections.emptyList() : List.of(privileges),
+                        resources == null ? Collections.emptyList() : List.of(resources))));
         final HasPrivilegesRequest request = new HasPrivilegesRequest(cluster, indices, application);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(request, this::copy, this::mutate);
     }

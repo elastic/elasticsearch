@@ -1,37 +1,36 @@
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.util.GradleUtils
 
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
-    description 'Die with dignity plugin'
-    classname 'org.elasticsearch.DieWithDignityPlugin'
+  description 'Die with dignity plugin'
+  classname 'org.elasticsearch.DieWithDignityPlugin'
 }
 
-integTestRunner {
-    systemProperty 'tests.security.manager', 'false'
-    systemProperty 'tests.system_call_filter', 'false'
-    systemProperty 'pidfile', "${-> integTest.getNodes().get(0).pidFile}"
-    systemProperty 'log', "${-> integTest.getNodes().get(0).homeDir}/logs/${-> integTest.getNodes().get(0).clusterName}.log"
-    systemProperty 'runtime.java.home', "${project.runtimeJavaHome}"
+// let the javaRestTest see the classpath of main
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))
+
+tasks.named("javaRestTest").configure {
+  systemProperty 'tests.security.manager', 'false'
+  systemProperty 'tests.system_call_filter', 'false'
+  nonInputProperties.systemProperty 'log', "${-> testClusters.javaRestTest.singleNode().getServerLog()}"
+  systemProperty 'runtime.java.home', BuildParams.runtimeJavaHome
 }
 
-test.enabled = false
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
+  systemProperty "die.with.dignity.test", "whatever"
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+}
 
-check.dependsOn integTest
+tasks.named("test").configure {
+  enabled = false
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // these should be moved to an actual package, not the root package
+  ignoreClasses 'org.elasticsearch.DieWithDignityPlugin',
+    'org.elasticsearch.RestDieWithDignityAction'
+}

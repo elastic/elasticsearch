@@ -1,203 +1,220 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-get-follow-stats]]
-=== Get Follower Stats API
+=== Get follower stats API
 ++++
-<titleabbrev>Get Follower Stats</titleabbrev>
+<titleabbrev>Get follower stats</titleabbrev>
 ++++
-
-beta[]
 
 Get follower stats.
 
-==== Description
-
-This API gets follower stats. This API will return shard-level stats about the
-following tasks associated with each shard for the specified indices.
-
-==== Request
+[[ccr-get-follow-stats-request]]
+==== {api-request-title}
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /follower_index/_ccr/follow
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster" : "remote_cluster",
   "leader_index" : "leader_index"
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 // TEST[setup:remote_cluster_and_leader_index]
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /follower_index/_ccr/pause_follow
 --------------------------------------------------
-// CONSOLE
 // TEARDOWN
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /<index>/_ccr/stats
 --------------------------------------------------
-// CONSOLE
 // TEST[s/<index>/follower_index/]
 
-==== Path Parmeters
-`index` ::
-  (string) a comma-delimited list of index patterns
+[[ccr-get-follow-stats-prereqs]]
+==== {api-prereq-title}
 
-==== Results
-
-This API returns the following information:
-
-`indices`::
-  (array) an array of follower index statistics
-
-The `indices` array consists of objects containing two fields:
-
-`indices[].index`::
-  (string) the name of the follower index
-
-`indices[].shards`::
-  (array) an array of shard-level following task statistics
-
-The `shards` array consists of objects containing the following fields:
-
-`indices[].shards[].remote_cluster`::
-  (string) the <modules-remote-clusters,remote cluster>> containing the leader
-  index
-
-`indices[].shards[].leader_index`::
-  (string) the name of the index in the leader cluster being followed
-
-`indices[].shards[].follower_index`::
-  (string) the name of the follower index
-
-`indices[].shards[].shard_id`::
-  (integer) the numerical shard ID, with values from 0 to one less than the
-  number of replicas
-
-`indices[].shards[].leader_global_checkpoint`::
-  (long) the current global checkpoint on the leader known to the follower task
-
-`indices[].shards[].leader_max_seq_no`::
-  (long) the current maximum sequence number on the leader known to the follower
-  task
-
-`indices[].shards[].follower_global_checkpoint`::
-  (long) the current global checkpoint on the follower; the difference between the
-  `leader_global_checkpoint` and the `follower_global_checkpoint` is an
-  indication of how much the follower is lagging the leader
-
-`indices[].shards[].follower_max_seq_no`::
-  (long) the current maximum sequence number on the follower
-
-`indices[].shards[].last_requested_seq_no`::
-  (long) the starting sequence number of the last batch of operations requested
-  from the leader
-
-`indices[].shards[].outstanding_read_requests`::
-  (integer) the number of active read requests from the follower
-
-`indices[].shards[].outstanding_write_requests`::
-  (integer) the number of active bulk write requests on the follower
-
-`indices[].shards[].write_buffer_operation_count`::
-  (integer) the number of write operations queued on the follower
-
-`indices[].shards[].follower_mapping_version`::
-  (long) the mapping version the follower is synced up to
-
-`indices[].shards[].follower_settings_version`::
-  (long) the index settings version the follower is synced up to
-
-`indices[].shards[].total_read_time_millis`::
-  (long) the total time reads were outstanding, measured from the time a read
-  was sent to the leader to the time a reply was returned to the follower
-
-`indices[].shards[].total_read_remote_exec_time_millis`::
-  (long) the total time reads spent executing on the remote cluster
-
-`indices[].shards[].successful_read_requests`::
-  (long) the number of successful fetches
-
-`indices[].shards[].failed_read_requests`::
-  (long) the number of failed reads
-
-`indices[].shards[].operations_read`::
-  (long) the total number of operations read from the leader
-
-`indices[].shards[].bytes_read`::
-  (long) the total of transferred bytes read from the leader (note this is only
-  an estimate, and does not account for compression if enabled)
-
-`indices[].shards[].total_write_time_millis`::
-  (long) the total time spent writing on the follower
-
-`indices[].shards[].write_buffer_size_in_bytes`::
-  (long) the total number of bytes of operations currently queued for writing
-
-`indices[].shards[].successful_write_requests`::
-  (long) the number of bulk write requests executed on the follower
-
-`indices[].shards[].failed_write_requests`::
-  (long) the number of failed bulk write requests executed on the follower
-
-`indices[].shards[].operations_written`::
-  (long) the number of operations written on the follower
-
-`indices[].shards[].read_exceptions`::
-  (array) an array of objects representing failed reads
-
-The `read_exceptions` array consists of objects containing the following
-fields:
-
-`indices[].shards[].read_exceptions[].from_seq_no`::
-  (long) the starting sequence number of the batch requested from the leader
-
-`indices[].shards[].read_exceptions[].retries`::
-  (integer) the number of times the batch has been retried
-
-`indices[].shards[].read_exceptions[].exception`::
-  (object) represents the exception that caused the read to fail
-
-Continuing with the fields from `shards`:
-
-`indices[].shards[].time_since_last_read_millis`::
-  (long) the number of milliseconds since a read request was sent to the leader;
-  note that when the follower is caught up to the leader, this number will
-  increase up to the configured `read_poll_timeout` at which point another read
-  request will be sent to the leader
-
-`indices[].fatal_exception`::
-  (object) an object representing a fatal exception that cancelled the following
-  task; in this situation, the following task must be resumed manually with the
-  <<ccr-post-resume-follow,resume follower API>>
-
-==== Authorization
-
-If the {es} {security-features} are enabled, you must have `monitor` cluster
+* If the {es} {security-features} are enabled, you must have `monitor` cluster
 privileges on the cluster that contains the follower index. For more information,
-see {stack-ov}/security-privileges.html[Security privileges].
+see <<security-privileges>>.
 
-==== Example
+[[ccr-get-follow-stats-desc]]
+==== {api-description-title}
+
+This API gets follower stats. This API will return shard-level stats about the
+following tasks associated with each shard for the specified indices.
+
+[[ccr-get-follow-stats-path-parms]]
+==== {api-path-parms-title}
+
+`<index>`::
+  (Required, string) A comma-delimited list of index patterns.
+
+[role="child_attributes"]
+[[ccr-get-follow-stats-response-body]]
+==== {api-response-body-title}
+
+//Begin indices
+`indices`::
+(array) An array of follower index statistics.
++
+.Properties of `indices`
+[%collapsible%open]
+====
+`fatal_exception`::
+(object) An object representing a fatal exception that cancelled the following
+task. In this situation, the following task must be resumed manually with the
+<<ccr-post-resume-follow,resume follower API>>.
+
+`index`::
+(string) The name of the follower index.
+
+//Begin shards
+`shards`::
+(array) An array of shard-level following task statistics.
++
+.Properties of objects in `shards`
+[%collapsible%open]
+=====
+`bytes_read`::
+(long) The total of transferred bytes read from the leader.
++
+--
+NOTE: This is only an estimate and does not account for compression if enabled.
+
+--
+
+`failed_read_requests`::
+(long) The number of failed reads.
+
+`failed_write_requests`::
+(long) The number of failed bulk write requests executed on the follower.
+
+`follower_aliases_version`::
+(long) The index aliases version the follower is synced up to.
+
+`follower_global_checkpoint`::
+(long) The current global checkpoint on the follower. The difference between the
+`leader_global_checkpoint` and the `follower_global_checkpoint` is an
+indication of how much the follower is lagging the leader.
+
+`follower_index`::
+(string) The name of the follower index.
+
+`follower_mapping_version`::
+(long) The mapping version the follower is synced up to.
+
+`follower_max_seq_no`::
+(long) The current maximum sequence number on the follower.
+
+`follower_settings_version`::
+(long) The index settings version the follower is synced up to.
+
+`last_requested_seq_no`::
+(long) The starting sequence number of the last batch of operations requested
+from the leader.
+
+`leader_global_checkpoint`::
+(long) The current global checkpoint on the leader known to the follower task.
+
+`leader_index`::
+(string) The name of the index in the leader cluster being followed.
+
+`leader_max_seq_no`::
+(long) The current maximum sequence number on the leader known to the follower
+task.
+
+`operations_read`::
+(long) The total number of operations read from the leader.
+
+`operations_written`::
+(long) The number of operations written on the follower.
+
+`outstanding_read_requests`::
+(integer) The number of active read requests from the follower.
+
+`outstanding_write_requests`::
+(integer) The number of active bulk write requests on the follower.
+
+//Begin read_exceptions
+`read_exceptions`::
+(array) An array of objects representing failed reads.
++
+.Properties of objects in `read_exceptions`
+[%collapsible%open]
+======
+`exception`::
+(object) Represents the exception that caused the read to fail.
+
+`from_seq_no`::
+(long) The starting sequence number of the batch requested from the leader.
+
+`retries`::
+(integer) The number of times the batch has been retried.
+======
+//End read_exceptions
+
+`remote_cluster`::
+(string) The <<modules-remote-clusters,remote cluster>> containing the leader
+index.
+
+`shard_id`::
+(integer) The numerical shard ID, with values from 0 to one less than the
+number of replicas.
+
+`successful_read_requests`::
+(long) The number of successful fetches.
+
+`successful_write_requests`::
+(long) The number of bulk write requests executed on the follower.
+
+`time_since_last_read_millis`::
+(long) The number of milliseconds since a read request was sent to the leader.
++
+NOTE: When the follower is caught up to the leader, this number will increase up
+to the configured `read_poll_timeout` at which point another read request will
+be sent to the leader.
+
+`total_read_remote_exec_time_millis`::
+(long) The total time reads spent executing on the remote cluster.
+
+`total_read_time_millis`::
+(long) The total time reads were outstanding, measured from the time a read was
+sent to the leader to the time a reply was returned to the follower.
+
+`total_write_time_millis`::
+(long) The total time spent writing on the follower.
+
+`write_buffer_operation_count`::
+(integer) The number of write operations queued on the follower.
+
+`write_buffer_size_in_bytes`::
+(long) The total number of bytes of operations currently queued for writing.
+=====
+//End shards
+====
+//End indices
+
+[[ccr-get-follow-stats-examples]]
+==== {api-examples-title}
 
 This example retrieves follower stats:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /follower_index/_ccr/stats
 --------------------------------------------------
-// CONSOLE
 
 The API returns the following results:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "indices" : [
@@ -219,6 +236,7 @@ The API returns the following results:
           "write_buffer_operation_count" : 64,
           "follower_mapping_version" : 4,
           "follower_settings_version" : 2,
+          "follower_aliases_version" : 8,
           "total_read_time_millis" : 32768,
           "total_read_remote_exec_time_millis" : 16384,
           "successful_read_requests" : 32,
@@ -248,6 +266,7 @@ The API returns the following results:
 // TESTRESPONSE[s/"write_buffer_operation_count" : 64/"write_buffer_operation_count" : $body.indices.0.shards.0.write_buffer_operation_count/]
 // TESTRESPONSE[s/"follower_mapping_version" : 4/"follower_mapping_version" : $body.indices.0.shards.0.follower_mapping_version/]
 // TESTRESPONSE[s/"follower_settings_version" : 2/"follower_settings_version" : $body.indices.0.shards.0.follower_settings_version/]
+// TESTRESPONSE[s/"follower_aliases_version" : 8/"follower_aliases_version" : $body.indices.0.shards.0.follower_aliases_version/]
 // TESTRESPONSE[s/"total_read_time_millis" : 32768/"total_read_time_millis" : $body.indices.0.shards.0.total_read_time_millis/]
 // TESTRESPONSE[s/"total_read_remote_exec_time_millis" : 16384/"total_read_remote_exec_time_millis" : $body.indices.0.shards.0.total_read_remote_exec_time_millis/]
 // TESTRESPONSE[s/"successful_read_requests" : 32/"successful_read_requests" : $body.indices.0.shards.0.successful_read_requests/]

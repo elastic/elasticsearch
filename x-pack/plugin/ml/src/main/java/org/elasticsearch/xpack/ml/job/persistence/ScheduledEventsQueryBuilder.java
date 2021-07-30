@@ -1,21 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
+import org.elasticsearch.xpack.ml.utils.QueryBuilderHelper;
 
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Query builder for {@link ScheduledEvent}s
@@ -27,11 +25,15 @@ public class ScheduledEventsQueryBuilder {
     private Integer from = 0;
     private Integer size = DEFAULT_SIZE;
 
-    private List<String> calendarIds;
+    private String[] calendarIds;
     private String start;
     private String end;
 
-    public ScheduledEventsQueryBuilder calendarIds(List<String> calendarIds) {
+    public static ScheduledEventsQueryBuilder builder() {
+        return new ScheduledEventsQueryBuilder();
+    }
+
+    public ScheduledEventsQueryBuilder calendarIds(String[] calendarIds) {
         this.calendarIds = calendarIds;
         return this;
     }
@@ -72,46 +74,31 @@ public class ScheduledEventsQueryBuilder {
     }
 
     public SearchSourceBuilder build() {
-        List<QueryBuilder> queries = new ArrayList<>();
-
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(ScheduledEvent.TYPE.getPreferredName(), ScheduledEvent.SCHEDULED_EVENT_TYPE));
         if (start != null) {
             RangeQueryBuilder startQuery = QueryBuilders.rangeQuery(ScheduledEvent.END_TIME.getPreferredName());
             startQuery.gt(start);
-            queries.add(startQuery);
+            boolQueryBuilder.filter(startQuery);
         }
         if (end != null) {
             RangeQueryBuilder endQuery = QueryBuilders.rangeQuery(ScheduledEvent.START_TIME.getPreferredName());
             endQuery.lt(end);
-            queries.add(endQuery);
+            boolQueryBuilder.filter(endQuery);
         }
 
-        if (calendarIds != null && calendarIds.isEmpty() == false) {
-            queries.add(new TermsQueryBuilder(Calendar.ID.getPreferredName(), calendarIds));
-        }
+        QueryBuilderHelper.buildTokenFilterQuery(Calendar.ID.getPreferredName(), calendarIds).ifPresent(boolQueryBuilder::filter);
 
-        QueryBuilder typeQuery = new TermsQueryBuilder(ScheduledEvent.TYPE.getPreferredName(), ScheduledEvent.SCHEDULED_EVENT_TYPE);
-
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.sort(ScheduledEvent.START_TIME.getPreferredName());
-        searchSourceBuilder.sort(ScheduledEvent.DESCRIPTION.getPreferredName());
+        SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource()
+            .sort(ScheduledEvent.START_TIME.getPreferredName())
+            .sort(ScheduledEvent.DESCRIPTION.getPreferredName())
+            .query(boolQueryBuilder);
         if (from != null) {
             searchSourceBuilder.from(from);
         }
         if (size != null) {
             searchSourceBuilder.size(size);
         }
-
-        if (queries.isEmpty()) {
-            searchSourceBuilder.query(typeQuery);
-        } else  {
-            BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-            boolQueryBuilder.filter(typeQuery);
-            for (QueryBuilder query : queries) {
-                boolQueryBuilder.filter(query);
-            }
-            searchSourceBuilder.query(boolQueryBuilder);
-        }
-
         return searchSourceBuilder;
     }
 }

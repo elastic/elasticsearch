@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.get;
@@ -28,19 +17,23 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -51,8 +44,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
+// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
+@SuppressWarnings("unchecked")
 public class MultiGetRequest extends ActionRequest
         implements Iterable<MultiGetRequest.Item>, CompositeIndicesRequest, RealtimeRequest, ToXContentObject {
+    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(MultiGetRequest.class);
 
     private static final ParseField DOCS = new ParseField("docs");
     private static final ParseField INDEX = new ParseField("_index");
@@ -68,10 +64,9 @@ public class MultiGetRequest extends ActionRequest
     /**
      * A single get item.
      */
-    public static class Item implements Streamable, IndicesRequest, ToXContentObject {
+    public static class Item implements Writeable, IndicesRequest, ToXContentObject {
 
         private String index;
-        private String type;
         private String id;
         private String routing;
         private String[] storedFields;
@@ -83,20 +78,18 @@ public class MultiGetRequest extends ActionRequest
 
         }
 
-        /**
-         * Constructs a single get item.
-         *
-         * @param index The index name
-         * @param type  The type (can be null)
-         * @param id    The id
-         *
-         * @deprecated Types are in the process of being removed, use {@link Item(String, String) instead}.
-         */
-        @Deprecated
-        public Item(String index, @Nullable String type, String id) {
-            this.index = index;
-            this.type = type;
-            this.id = id;
+        public Item(StreamInput in) throws IOException {
+            index = in.readString();
+            if (in.getVersion().before(Version.V_8_0_0)) {
+                in.readOptionalString();
+            }
+            id = in.readString();
+            routing = in.readOptionalString();
+            storedFields = in.readOptionalStringArray();
+            version = in.readLong();
+            versionType = VersionType.fromValue(in.readByte());
+
+            fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         }
 
         public Item(String index, String id) {
@@ -121,10 +114,6 @@ public class MultiGetRequest extends ActionRequest
         public Item index(String index) {
             this.index = index;
             return this;
-        }
-
-        public String type() {
-            return this.type;
         }
 
         public String id() {
@@ -182,37 +171,14 @@ public class MultiGetRequest extends ActionRequest
             return this;
         }
 
-        public static Item readItem(StreamInput in) throws IOException {
-            Item item = new Item();
-            item.readFrom(in);
-            return item;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            index = in.readString();
-            type = in.readOptionalString();
-            id = in.readString();
-            routing = in.readOptionalString();
-            if (in.getVersion().before(Version.V_7_0_0)) {
-                in.readOptionalString(); // _parent
-            }
-            storedFields = in.readOptionalStringArray();
-            version = in.readLong();
-            versionType = VersionType.fromValue(in.readByte());
-
-            fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            out.writeOptionalString(type);
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
+            }
             out.writeString(id);
             out.writeOptionalString(routing);
-            if (out.getVersion().before(Version.V_7_0_0)) {
-                out.writeOptionalString(null); // _parent
-            }
             out.writeOptionalStringArray(storedFields);
             out.writeLong(version);
             out.writeByte(versionType.getValue());
@@ -224,7 +190,6 @@ public class MultiGetRequest extends ActionRequest
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(INDEX.getPreferredName(), index);
-            builder.field(TYPE.getPreferredName(), type);
             builder.field(ID.getPreferredName(), id);
             builder.field(ROUTING.getPreferredName(), routing);
             builder.field(STORED_FIELDS.getPreferredName(), storedFields);
@@ -238,18 +203,17 @@ public class MultiGetRequest extends ActionRequest
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof Item)) return false;
+            if ((o instanceof Item) == false) return false;
 
             Item item = (Item) o;
 
             if (version != item.version) return false;
-            if (fetchSourceContext != null ? !fetchSourceContext.equals(item.fetchSourceContext) : item.fetchSourceContext != null)
+            if (fetchSourceContext != null ? fetchSourceContext.equals(item.fetchSourceContext) == false : item.fetchSourceContext != null)
                 return false;
-            if (!Arrays.equals(storedFields, item.storedFields)) return false;
-            if (!id.equals(item.id)) return false;
-            if (!index.equals(item.index)) return false;
-            if (routing != null ? !routing.equals(item.routing) : item.routing != null) return false;
-            if (type != null ? !type.equals(item.type) : item.type != null) return false;
+            if (Arrays.equals(storedFields, item.storedFields) == false) return false;
+            if (id.equals(item.id) == false) return false;
+            if (index.equals(item.index) == false) return false;
+            if (routing != null ? routing.equals(item.routing) == false : item.routing != null) return false;
             if (versionType != item.versionType) return false;
 
             return true;
@@ -258,7 +222,6 @@ public class MultiGetRequest extends ActionRequest
         @Override
         public int hashCode() {
             int result = index.hashCode();
-            result = 31 * result + (type != null ? type.hashCode() : 0);
             result = 31 * result + id.hashCode();
             result = 31 * result + (routing != null ? routing.hashCode() : 0);
             result = 31 * result + (storedFields != null ? Arrays.hashCode(storedFields) : 0);
@@ -279,22 +242,22 @@ public class MultiGetRequest extends ActionRequest
     boolean refresh;
     List<Item> items = new ArrayList<>();
 
+    public MultiGetRequest() {}
+
+    public MultiGetRequest(StreamInput in) throws IOException {
+        super(in);
+        preference = in.readOptionalString();
+        refresh = in.readBoolean();
+        realtime = in.readBoolean();
+        items = in.readList(Item::new);
+    }
+
     public List<Item> getItems() {
         return this.items;
     }
 
     public MultiGetRequest add(Item item) {
         items.add(item);
-        return this;
-    }
-
-    /**
-     * @deprecated Types are in the process of being removed, use
-     * {@link MultiGetRequest#add(String, String)} instead.
-     */
-    @Deprecated
-    public MultiGetRequest add(String index, @Nullable String type, String id) {
-        items.add(new Item(index, type, id));
         return this;
     }
 
@@ -355,7 +318,7 @@ public class MultiGetRequest extends ActionRequest
         return this;
     }
 
-    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields,
+    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String[] defaultFields,
             @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, XContentParser parser,
             boolean allowExplicitIndex) throws IOException {
         Token token;
@@ -373,10 +336,10 @@ public class MultiGetRequest extends ActionRequest
                 currentFieldName = parser.currentName();
             } else if (token == Token.START_ARRAY) {
                 if ("docs".equals(currentFieldName)) {
-                    parseDocuments(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting,
+                    parseDocuments(parser, this.items, defaultIndex, defaultFields, defaultFetchSource, defaultRouting,
                         allowExplicitIndex);
                 } else if ("ids".equals(currentFieldName)) {
-                    parseIds(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting);
+                    parseIds(parser, this.items, defaultIndex, defaultFields, defaultFetchSource, defaultRouting);
                 } else {
                     final String message = String.format(
                             Locale.ROOT,
@@ -398,7 +361,7 @@ public class MultiGetRequest extends ActionRequest
         return this;
     }
 
-    private static void parseDocuments(XContentParser parser, List<Item> items, @Nullable String defaultIndex, @Nullable String defaultType,
+    private static void parseDocuments(XContentParser parser, List<Item> items, @Nullable String defaultIndex,
                                        @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource,
                                        @Nullable String defaultRouting, boolean allowExplicitIndex) throws IOException {
         String currentFieldName = null;
@@ -408,7 +371,6 @@ public class MultiGetRequest extends ActionRequest
                 throw new IllegalArgumentException("docs array element should include an object");
             }
             String index = defaultIndex;
-            String type = defaultType;
             String id = null;
             String routing = defaultRouting;
             List<String> storedFields = null;
@@ -422,14 +384,15 @@ public class MultiGetRequest extends ActionRequest
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
                     if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
-                        if (!allowExplicitIndex) {
+                        if (allowExplicitIndex == false) {
                             throw new IllegalArgumentException("explicit index in multi get is not allowed");
                         }
                         index = parser.text();
-                    } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        type = parser.text();
                     } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         id = parser.text();
+                    } else if(parser.getRestApiVersion() == RestApiVersion.V_7 &&
+                        TYPE.match(currentFieldName,parser.getDeprecationHandler())) {
+                        deprecationLogger.compatibleApiWarning("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
                     } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                         routing = parser.text();
                     } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -510,26 +473,22 @@ public class MultiGetRequest extends ActionRequest
             } else {
                 aFields = defaultFields;
             }
-            items.add(new Item(index, type, id).routing(routing).storedFields(aFields).version(version).versionType(versionType)
+            items.add(new Item(index, id).routing(routing).storedFields(aFields).version(version).versionType(versionType)
                     .fetchSourceContext(fetchSourceContext == FetchSourceContext.FETCH_SOURCE ? defaultFetchSource : fetchSourceContext));
         }
     }
 
-    public static void parseIds(XContentParser parser, List<Item> items, @Nullable String defaultIndex, @Nullable String defaultType,
+    public static void parseIds(XContentParser parser, List<Item> items, @Nullable String defaultIndex,
                                 @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource,
                                 @Nullable String defaultRouting) throws IOException {
         Token token;
         while ((token = parser.nextToken()) != Token.END_ARRAY) {
-            if (!token.isValue()) {
+            if (token.isValue() == false) {
                 throw new IllegalArgumentException("ids array element should only contain ids");
             }
-            items.add(new Item(defaultIndex, defaultType, parser.text()).storedFields(defaultFields).fetchSourceContext(defaultFetchSource)
+            items.add(new Item(defaultIndex, parser.text()).storedFields(defaultFields).fetchSourceContext(defaultFetchSource)
                 .routing(defaultRouting));
         }
-    }
-
-    public static void parseIds(XContentParser parser, List<Item> items) throws IOException {
-        parseIds(parser, items, null, null, null, null, null);
     }
 
     @Override
@@ -538,30 +497,12 @@ public class MultiGetRequest extends ActionRequest
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        preference = in.readOptionalString();
-        refresh = in.readBoolean();
-        realtime = in.readBoolean();
-
-        int size = in.readVInt();
-        items = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            items.add(Item.readItem(in));
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(preference);
         out.writeBoolean(refresh);
         out.writeBoolean(realtime);
-
-        out.writeVInt(items.size());
-        for (Item item : items) {
-            item.writeTo(out);
-        }
+        out.writeList(items);
     }
 
     @Override

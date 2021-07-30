@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.security.user.privileges;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -29,14 +18,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -55,10 +41,10 @@ public final class ApplicationPrivilege implements ToXContentObject {
 
     private final String application;
     private final String name;
-    private final Set<String> actions;
+    private final List<String> actions;
     private final Map<String, Object> metadata;
 
-    public ApplicationPrivilege(String application, String name, Collection<String> actions, @Nullable Map<String, Object> metadata) {
+    public ApplicationPrivilege(String application, String name, List<String> actions, @Nullable Map<String, Object> metadata) {
         if (Strings.isNullOrEmpty(application)) {
             throw new IllegalArgumentException("application name must be provided");
         } else {
@@ -72,12 +58,12 @@ public final class ApplicationPrivilege implements ToXContentObject {
         if (actions == null || actions.isEmpty()) {
             throw new IllegalArgumentException("actions must be provided");
         } else {
-            this.actions = Collections.unmodifiableSet(new HashSet<>(actions));
+            this.actions = List.copyOf(actions);
         }
         if (metadata == null || metadata.isEmpty()) {
             this.metadata = Collections.emptyMap();
         } else {
-            this.metadata = Collections.unmodifiableMap(metadata);
+            this.metadata = Map.copyOf(metadata);
         }
     }
 
@@ -89,7 +75,7 @@ public final class ApplicationPrivilege implements ToXContentObject {
         return name;
     }
 
-    public Set<String> getActions() {
+    public List<String> getActions() {
         return actions;
     }
 
@@ -100,7 +86,7 @@ public final class ApplicationPrivilege implements ToXContentObject {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ApplicationPrivilege, String> PARSER = new ConstructingObjectParser<>(
         "application_privilege",
-        true, args -> new ApplicationPrivilege((String) args[0], (String) args[1], (Collection<String>) args[2],
+        true, args -> new ApplicationPrivilege((String) args[0], (String) args[1], (List<String>) args[2],
         (Map<String, Object>) args[3]));
 
     static {
@@ -137,7 +123,7 @@ public final class ApplicationPrivilege implements ToXContentObject {
     public static final class Builder {
         private String applicationName = null;
         private String privilegeName = null;
-        private Collection<String> actions = null;
+        private List<String> actions = null;
         private Map<String, Object> metadata = null;
 
         private Builder() {
@@ -158,7 +144,7 @@ public final class ApplicationPrivilege implements ToXContentObject {
             return this;
         }
 
-        public Builder actions(Collection<String> actions) {
+        public Builder actions(List<String> actions) {
             this.actions = Objects.requireNonNull(actions);
             return this;
         }

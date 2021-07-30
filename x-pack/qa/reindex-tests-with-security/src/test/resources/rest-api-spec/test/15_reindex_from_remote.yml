@@ -6,7 +6,6 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
@@ -26,7 +25,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: test_admin
               password: x-pack-test-password
             index: source
@@ -42,7 +41,6 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
@@ -63,7 +61,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: minimal_user
               password: x-pack-test-password
             index: source
@@ -89,7 +87,6 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
@@ -110,7 +107,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: readonly_user
               password: x-pack-test-password
             index: source
@@ -135,7 +132,6 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
@@ -156,7 +152,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: dest_only_user
               password: x-pack-test-password
             index: source
@@ -170,13 +166,11 @@
   - do:
       index:
         index:        source
-        type:         tweet
         id:           1
         body:         { "user": "kimchy" }
   - do:
       index:
         index:        source
-        type:         tweet
         id:           2
         body:         { "user": "another" }
   - do:
@@ -198,7 +192,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: test_admin
               password: x-pack-test-password
             index: source
@@ -232,13 +226,11 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      2
         body:    { "text": "test", "hidden": true }
   - do:
@@ -259,7 +251,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: can_not_see_hidden_docs_user
               password: x-pack-test-password
             index: source
@@ -297,7 +289,6 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test", "foo": "z", "bar": "z" }
   - do:
@@ -318,7 +309,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: can_not_see_hidden_fields_user
               password: x-pack-test-password
             index: source
@@ -365,7 +356,6 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
@@ -386,9 +376,9 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: test_admin
-              password: badpass
+              password: bad-x-pack-test-password
             index: source
           dest:
             index: dest
@@ -401,7 +391,6 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
@@ -422,7 +411,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
             index: source
           dest:
             index: dest

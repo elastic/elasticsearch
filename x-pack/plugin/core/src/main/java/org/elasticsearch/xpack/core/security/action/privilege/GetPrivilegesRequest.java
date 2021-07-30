@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +27,12 @@ public final class GetPrivilegesRequest extends ActionRequest implements Applica
     @Nullable
     private String application;
     private String[] privileges;
+
+    public GetPrivilegesRequest(StreamInput in) throws IOException {
+        super(in);
+        application = in.readOptionalString();
+        privileges = in.readStringArray();
+    }
 
     public GetPrivilegesRequest() {
         privileges = Strings.EMPTY_ARRAY;
@@ -62,17 +69,9 @@ public final class GetPrivilegesRequest extends ActionRequest implements Applica
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        application = in.readOptionalString();
-        privileges = in.readStringArray();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(application);
         out.writeStringArray(privileges);
     }
-
 }

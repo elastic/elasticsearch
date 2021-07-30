@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.apache.lucene.search.grouping;
 
@@ -27,9 +16,11 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -58,8 +49,8 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
         private long value;
         private boolean hasValue;
 
-        Numeric(String field) {
-            super(field);
+        Numeric(MappedFieldType fieldType) {
+            super(fieldType.name());
         }
 
         @Override
@@ -138,6 +129,9 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
                         type + "` for field `" + field + "`");
             }
         }
+
+        @Override
+        public void setScorer(Scorable scorer) throws IOException {}
     }
 
     /**
@@ -148,8 +142,8 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
         private SortedDocValues values;
         private int ord;
 
-        Keyword(String field) {
-            super(field);
+        Keyword(MappedFieldType fieldType) {
+            super(fieldType.name());
         }
 
         @Override
@@ -250,6 +244,9 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
                         + type + "` for field `" + field + "`");
             }
         }
+
+        @Override
+        public void setScorer(Scorable scorer) throws IOException {}
     }
 
     private static DocValuesType getDocValuesType(LeafReader in, String field) {

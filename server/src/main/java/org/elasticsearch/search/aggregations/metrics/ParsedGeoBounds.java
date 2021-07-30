@@ -1,25 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -29,16 +20,18 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.geo.GeoBoundingBox.BOTTOM_RIGHT_FIELD;
+import static org.elasticsearch.common.geo.GeoBoundingBox.BOUNDS_FIELD;
+import static org.elasticsearch.common.geo.GeoBoundingBox.LAT_FIELD;
+import static org.elasticsearch.common.geo.GeoBoundingBox.LON_FIELD;
+import static org.elasticsearch.common.geo.GeoBoundingBox.TOP_LEFT_FIELD;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.search.aggregations.metrics.InternalGeoBounds.BOTTOM_RIGHT_FIELD;
-import static org.elasticsearch.search.aggregations.metrics.InternalGeoBounds.BOUNDS_FIELD;
-import static org.elasticsearch.search.aggregations.metrics.InternalGeoBounds.LAT_FIELD;
-import static org.elasticsearch.search.aggregations.metrics.InternalGeoBounds.LON_FIELD;
-import static org.elasticsearch.search.aggregations.metrics.InternalGeoBounds.TOP_LEFT_FIELD;
 
 public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {
-    private GeoPoint topLeft;
-    private GeoPoint bottomRight;
+
+    // A top of Double.NEGATIVE_INFINITY yields an empty xContent, so the bounding box is null
+    @Nullable
+    private GeoBoundingBox geoBoundingBox;
 
     @Override
     public String getType() {
@@ -47,29 +40,24 @@ public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        if (topLeft != null) {
-            builder.startObject(BOUNDS_FIELD.getPreferredName());
-            builder.startObject(TOP_LEFT_FIELD.getPreferredName());
-            builder.field(LAT_FIELD.getPreferredName(), topLeft.getLat());
-            builder.field(LON_FIELD.getPreferredName(), topLeft.getLon());
-            builder.endObject();
-            builder.startObject(BOTTOM_RIGHT_FIELD.getPreferredName());
-            builder.field(LAT_FIELD.getPreferredName(), bottomRight.getLat());
-            builder.field(LON_FIELD.getPreferredName(), bottomRight.getLon());
-            builder.endObject();
+        if (geoBoundingBox != null) {
+            builder.startObject(GeoBoundingBox.BOUNDS_FIELD.getPreferredName());
+            geoBoundingBox.toXContentFragment(builder, true);
             builder.endObject();
         }
         return builder;
     }
 
     @Override
+    @Nullable
     public GeoPoint topLeft() {
-        return topLeft;
+        return geoBoundingBox != null ? geoBoundingBox.topLeft() : null;
     }
 
     @Override
+    @Nullable
     public GeoPoint bottomRight() {
-        return bottomRight;
+        return geoBoundingBox != null ? geoBoundingBox.bottomRight() : null;
     }
 
     private static final ObjectParser<ParsedGeoBounds, Void> PARSER = new ObjectParser<>(ParsedGeoBounds.class.getSimpleName(), true,
@@ -85,8 +73,7 @@ public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {
     static {
         declareAggregationFields(PARSER);
         PARSER.declareObject((agg, bbox) -> {
-            agg.topLeft = bbox.v1();
-            agg.bottomRight = bbox.v2();
+            agg.geoBoundingBox = new GeoBoundingBox(bbox.v1(), bbox.v2());
         }, BOUNDS_PARSER, BOUNDS_FIELD);
 
         BOUNDS_PARSER.declareObject(constructorArg(), GEO_POINT_PARSER, TOP_LEFT_FIELD);

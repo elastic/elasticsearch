@@ -1,32 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.optional-base'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 publishing {
   publications {
-    nebula {
+    elastic {
       artifactId 'elasticsearch'
     }
   }
@@ -34,297 +21,327 @@ publishing {
 
 archivesBaseName = 'elasticsearch'
 
-// we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 9 so we do not include this source set in our IDEs
-if (!isEclipse && !isIdea) {
-  sourceSets {
-    java9 {
-      java {
-        srcDirs = ['src/main/java9']
-      }
-    }
-  }
-  
-  configurations {
-    java9Compile.extendsFrom(compile)
-  }
-  
-  dependencies {
-    java9Compile sourceSets.main.output
-  }
-
-  compileJava9Java {
-    sourceCompatibility = 9
-    targetCompatibility = 9
-  }
-
-  forbiddenApisJava9 {
-    if (project.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
-      targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
-    }
-  }
-
-  jar {
-    metaInf {
-      into 'versions/9'
-      from sourceSets.java9.output
-    }
-    manifest.attributes('Multi-Release': 'true')
-  }
-}
-
 dependencies {
 
-  compile "org.elasticsearch:elasticsearch-core:${version}"
-  compile "org.elasticsearch:elasticsearch-secure-sm:${version}"
-  compile "org.elasticsearch:elasticsearch-x-content:${version}"
+  api project(':libs:elasticsearch-core')
+  api project(':libs:elasticsearch-secure-sm')
+  api project(':libs:elasticsearch-x-content')
+  api project(":libs:elasticsearch-geo")
 
-  compileOnly project(':libs:plugin-classloader')
-  testRuntime project(':libs:plugin-classloader')
+  implementation project(':libs:elasticsearch-plugin-classloader')
 
   // lucene
-  compile "org.apache.lucene:lucene-core:${versions.lucene}"
-  compile "org.apache.lucene:lucene-analyzers-common:${versions.lucene}"
-  compile "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
-  compile "org.apache.lucene:lucene-grouping:${versions.lucene}"
-  compile "org.apache.lucene:lucene-highlighter:${versions.lucene}"
-  compile "org.apache.lucene:lucene-join:${versions.lucene}"
-  compile "org.apache.lucene:lucene-memory:${versions.lucene}"
-  compile "org.apache.lucene:lucene-misc:${versions.lucene}"
-  compile "org.apache.lucene:lucene-queries:${versions.lucene}"
-  compile "org.apache.lucene:lucene-queryparser:${versions.lucene}"
-  compile "org.apache.lucene:lucene-sandbox:${versions.lucene}"
-  compile "org.apache.lucene:lucene-spatial:${versions.lucene}"
-  compile "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
-  compile "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
-  compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
+  api "org.apache.lucene:lucene-core:${versions.lucene}"
+  api "org.apache.lucene:lucene-analyzers-common:${versions.lucene}"
+  api "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
+  api "org.apache.lucene:lucene-grouping:${versions.lucene}"
+  api "org.apache.lucene:lucene-highlighter:${versions.lucene}"
+  api "org.apache.lucene:lucene-join:${versions.lucene}"
+  api "org.apache.lucene:lucene-memory:${versions.lucene}"
+  api "org.apache.lucene:lucene-misc:${versions.lucene}"
+  api "org.apache.lucene:lucene-queries:${versions.lucene}"
+  api "org.apache.lucene:lucene-queryparser:${versions.lucene}"
+  api "org.apache.lucene:lucene-sandbox:${versions.lucene}"
+  api "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
+  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
-  compile "org.elasticsearch:elasticsearch-cli:${version}"
-  compile 'com.carrotsearch:hppc:0.7.1'
+  api project(":libs:elasticsearch-cli")
+  api 'com.carrotsearch:hppc:0.8.1'
+
+  // LZ4
+  api 'org.lz4:lz4-java:1.8.0'
 
   // time handling, remove with java 8 time
-  compile "joda-time:joda-time:${versions.joda}"
+  api "joda-time:joda-time:${versions.joda}"
 
   // percentiles aggregation
-  compile 'com.tdunning:t-digest:3.2'
+  api 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
-  compile 'org.hdrhistogram:HdrHistogram:2.1.9'
+  api 'org.hdrhistogram:HdrHistogram:2.1.9'
 
   // lucene spatial
-  compile "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
-  compile "org.locationtech.jts:jts-core:${versions.jts}", optional
+  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
+  api "org.locationtech.jts:jts-core:${versions.jts}", optional
 
   // logging
-  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  compile "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
-  // to bridge dependencies that are still on Log4j 1 to Log4j 2
-  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}", optional
+  api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
 
   // repackaged jna with native bits linked against all elastic supported platforms
-  compile "org.elasticsearch:jna:${versions.jna}"
+  api "org.elasticsearch:jna:${versions.jna}"
 
-  if (!isEclipse && !isIdea) {
-    java9Compile sourceSets.main.output
+  api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
+  api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
+
+  testImplementation(project(":test:framework")) {
+    // tests use the locally compiled version of server
+    exclude group: 'org.elasticsearch', module: 'server'
+  }
+  internalClusterTestImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'server'
   }
 
-  if (isEclipse == false || project.path == ":server-tests") {
-    testCompile("org.elasticsearch.test:framework:${version}") {
-      // tests use the locally compiled version of server
-      exclude group: 'org.elasticsearch', module: 'elasticsearch'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
+}
+
+// Until this project is always being formatted with spotless, we need to
+// guard against `spotless()` not existing.
+try {
+  spotless {
+    java {
+      // Contains large data tables that do not format well.
+      targetExclude 'src/main/java/org/elasticsearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'
     }
   }
-  testCompile 'com.google.jimfs:jimfs:1.1'
-  testCompile 'com.google.guava:guava:18.0'
+}
+catch (Exception e) {
+  if (e.getMessage().contains("Could not find method spotless") == false) {
+    throw e;
+  }
 }
 
-if (isEclipse) {
-  // in eclipse the project is under a fake root, we need to change around the source sets
-  sourceSets {
-    if (project.path == ":server") {
-      main.java.srcDirs = ['java']
-      main.resources.srcDirs = ['resources']
-    } else {
-      test.java.srcDirs = ['java']
-      test.resources.srcDirs = ['resources']
+tasks.named("forbiddenPatterns").configure {
+    exclude '**/*.json'
+    exclude '**/*.jmx'
+    exclude '**/*.dic'
+    exclude '**/*.binary'
+    exclude '**/*.st'
+}
+
+tasks.named("testingConventions").configure {
+    naming.clear()
+    naming {
+        Tests {
+            baseClass "org.apache.lucene.util.LuceneTestCase"
+        }
+        IT {
+            baseClass "org.elasticsearch.test.ESIntegTestCase"
+            baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
+        }
     }
-  }
 }
 
-compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
-
-forbiddenPatterns {
-  exclude '**/*.json'
-  exclude '**/*.jmx'
-  exclude '**/*.dic'
-  exclude '**/*.binary'
-  exclude '**/*.st'
+def generateModulesList = tasks.register("generateModulesList") {
+    List<String> modules = project(':modules').subprojects.collect { it.name }
+    modules.add('x-pack')
+    File modulesFile = new File(buildDir, 'generated-resources/modules.txt')
+    processResources.from(modulesFile)
+    inputs.property('modules', modules)
+    outputs.file(modulesFile)
+    doLast {
+        modulesFile.parentFile.mkdirs()
+        modulesFile.setText(modules.join('\n'), 'UTF-8')
+    }
 }
 
-task generateModulesList {
-  List<String> modules = project(':modules').subprojects.collect { it.name }
-  modules.add('x-pack')
-  File modulesFile = new File(buildDir, 'generated-resources/modules.txt')
-  processResources.from(modulesFile)
-  inputs.property('modules', modules)
-  outputs.file(modulesFile)
-  doLast {
-    modulesFile.parentFile.mkdirs()
-    modulesFile.setText(modules.join('\n'), 'UTF-8')
-  }
+def generatePluginsList = tasks.register("generatePluginsList") {
+    Set<String> plugins = new TreeSet<>(project(':plugins').childProjects.keySet())
+    plugins.remove('example')
+
+    File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
+    processResources.from(pluginsFile)
+    inputs.property('plugins', plugins)
+    outputs.file(pluginsFile)
+    doLast {
+        pluginsFile.parentFile.mkdirs()
+        pluginsFile.setText(plugins.join('\n'), 'UTF-8')
+    }
 }
 
-task generatePluginsList {
-  Set<String> plugins = new TreeSet<>(project(':plugins').childProjects.keySet())
-  plugins.remove('example')
-
-  File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
-  processResources.from(pluginsFile)
-  inputs.property('plugins', plugins)
-  outputs.file(pluginsFile)
-  doLast {
-    pluginsFile.parentFile.mkdirs()
-    pluginsFile.setText(plugins.join('\n'), 'UTF-8')
-  }
+tasks.named("processResources").configure {
+    dependsOn generateModulesList, generatePluginsList
 }
 
-processResources {
-  dependsOn generateModulesList, generatePluginsList
+tasks.named("thirdPartyAudit").configure {
+    ignoreMissingClasses(
+            // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
+            'com.fasterxml.jackson.databind.ObjectMapper',
+
+            // from log4j
+            'com.conversantmedia.util.concurrent.DisruptorBlockingQueue',
+            'com.conversantmedia.util.concurrent.SpinPolicy',
+            'com.fasterxml.jackson.databind.SerializationFeature',
+            'com.fasterxml.jackson.annotation.JsonInclude$Include',
+            'com.fasterxml.jackson.databind.DeserializationContext',
+            'com.fasterxml.jackson.databind.DeserializationFeature',
+            'com.fasterxml.jackson.databind.JsonMappingException',
+            'com.fasterxml.jackson.databind.JsonNode',
+            'com.fasterxml.jackson.databind.Module$SetupContext',
+            'com.fasterxml.jackson.databind.ObjectReader',
+            'com.fasterxml.jackson.databind.ObjectWriter',
+            'com.fasterxml.jackson.databind.SerializerProvider',
+            'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
+            'com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer',
+            'com.fasterxml.jackson.databind.module.SimpleModule',
+            'com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter',
+            'com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider',
+            'com.fasterxml.jackson.databind.ser.std.StdScalarSerializer',
+            'com.fasterxml.jackson.databind.ser.std.StdSerializer',
+            'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
+            'com.fasterxml.jackson.dataformat.xml.XmlMapper',
+            'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
+            'com.fasterxml.jackson.databind.node.ObjectNode',
+            'org.fusesource.jansi.Ansi',
+            'org.fusesource.jansi.AnsiRenderer$Code',
+            'com.lmax.disruptor.BlockingWaitStrategy',
+            'com.lmax.disruptor.BusySpinWaitStrategy',
+            'com.lmax.disruptor.EventFactory',
+            'com.lmax.disruptor.EventTranslator',
+            'com.lmax.disruptor.EventTranslatorTwoArg',
+            'com.lmax.disruptor.EventTranslatorVararg',
+            'com.lmax.disruptor.ExceptionHandler',
+            'com.lmax.disruptor.LifecycleAware',
+            'com.lmax.disruptor.RingBuffer',
+            'com.lmax.disruptor.Sequence',
+            'com.lmax.disruptor.SequenceReportingEventHandler',
+            'com.lmax.disruptor.SleepingWaitStrategy',
+            'com.lmax.disruptor.TimeoutBlockingWaitStrategy',
+            'com.lmax.disruptor.WaitStrategy',
+            'com.lmax.disruptor.YieldingWaitStrategy',
+            'com.lmax.disruptor.dsl.Disruptor',
+            'com.lmax.disruptor.dsl.ProducerType',
+            'javax.jms.Connection',
+            'javax.jms.ConnectionFactory',
+            'javax.jms.Destination',
+            'javax.jms.JMSException',
+            'javax.jms.MapMessage',
+            'javax.jms.Message',
+            'javax.jms.MessageConsumer',
+            'javax.jms.MessageProducer',
+            'javax.jms.Session',
+            'javax.mail.Authenticator',
+            'javax.mail.Message$RecipientType',
+            'javax.mail.PasswordAuthentication',
+            'javax.mail.Session',
+            'javax.mail.Transport',
+            'javax.mail.internet.InternetAddress',
+            'javax.mail.internet.InternetHeaders',
+            'javax.mail.internet.MimeBodyPart',
+            'javax.mail.internet.MimeMessage',
+            'javax.mail.internet.MimeMultipart',
+            'javax.mail.internet.MimeUtility',
+            'javax.mail.util.ByteArrayDataSource',
+            'org.apache.commons.compress.compressors.CompressorStreamFactory',
+            'org.apache.commons.compress.utils.IOUtils',
+            'org.apache.commons.csv.CSVFormat',
+            'org.apache.commons.csv.QuoteMode',
+            'org.apache.kafka.clients.producer.Callback',
+            'org.apache.kafka.clients.producer.KafkaProducer',
+            'org.apache.kafka.clients.producer.Producer',
+            'org.apache.kafka.clients.producer.ProducerRecord',
+            'org.apache.kafka.clients.producer.RecordMetadata',
+            'org.codehaus.stax2.XMLStreamWriter2',
+            'org.jctools.queues.MessagePassingQueue$Consumer',
+            'org.jctools.queues.MpscArrayQueue',
+            'org.osgi.framework.AdaptPermission',
+            'org.osgi.framework.AdminPermission',
+            'org.osgi.framework.Bundle',
+            'org.osgi.framework.BundleActivator',
+            'org.osgi.framework.BundleContext',
+            'org.osgi.framework.BundleEvent',
+            'org.osgi.framework.BundleReference',
+            'org.osgi.framework.FrameworkUtil',
+            'org.osgi.framework.ServiceRegistration',
+            'org.osgi.framework.SynchronousBundleListener',
+            'org.osgi.framework.wiring.BundleWire',
+            'org.osgi.framework.wiring.BundleWiring',
+            'org.zeromq.ZMQ$Context',
+            'org.zeromq.ZMQ$Socket',
+            'org.zeromq.ZMQ',
+
+            // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
+            'org.noggit.JSONParser',
+
+            // from lucene-spatial
+            'com.fasterxml.jackson.databind.JsonSerializer',
+            'com.fasterxml.jackson.databind.JsonDeserializer',
+            'com.fasterxml.jackson.databind.node.ArrayNode',
+            'com.google.common.geometry.S2Cell',
+            'com.google.common.geometry.S2CellId',
+            'com.google.common.geometry.S2Projections',
+            'com.google.common.geometry.S2Point',
+            'com.google.common.geometry.S2$Metric',
+            'com.google.common.geometry.S2LatLng'
+    )
+    ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
+
+    ignoreViolations(
+      // from java-lz4
+      'net.jpountz.util.UnsafeUtils'
+    )
 }
 
-thirdPartyAudit.excludes = [
-  // classes are missing!
-
-  // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
-  'com.fasterxml.jackson.databind.ObjectMapper',
-
-  // from log4j
-  'com.conversantmedia.util.concurrent.DisruptorBlockingQueue',
-  'com.conversantmedia.util.concurrent.SpinPolicy',
-  'com.fasterxml.jackson.annotation.JsonInclude$Include',
-  'com.fasterxml.jackson.databind.DeserializationContext',
-  'com.fasterxml.jackson.databind.DeserializationFeature',
-  'com.fasterxml.jackson.databind.JsonMappingException',
-  'com.fasterxml.jackson.databind.JsonNode',
-  'com.fasterxml.jackson.databind.Module$SetupContext',
-  'com.fasterxml.jackson.databind.ObjectReader',
-  'com.fasterxml.jackson.databind.ObjectWriter',
-  'com.fasterxml.jackson.databind.SerializerProvider',
-  'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
-  'com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer',
-  'com.fasterxml.jackson.databind.module.SimpleModule',
-  'com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter',
-  'com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider',
-  'com.fasterxml.jackson.databind.ser.std.StdScalarSerializer',
-  'com.fasterxml.jackson.databind.ser.std.StdSerializer',
-  'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
-  'com.fasterxml.jackson.dataformat.xml.XmlMapper',
-  'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-  'com.fasterxml.jackson.databind.node.ObjectNode',
-  'org.fusesource.jansi.Ansi',
-  'org.fusesource.jansi.AnsiRenderer$Code',
-  'com.lmax.disruptor.BlockingWaitStrategy',
-  'com.lmax.disruptor.BusySpinWaitStrategy',
-  'com.lmax.disruptor.EventFactory',
-  'com.lmax.disruptor.EventTranslator',
-  'com.lmax.disruptor.EventTranslatorTwoArg',
-  'com.lmax.disruptor.EventTranslatorVararg',
-  'com.lmax.disruptor.ExceptionHandler',
-  'com.lmax.disruptor.LifecycleAware',
-  'com.lmax.disruptor.RingBuffer',
-  'com.lmax.disruptor.Sequence',
-  'com.lmax.disruptor.SequenceReportingEventHandler',
-  'com.lmax.disruptor.SleepingWaitStrategy',
-  'com.lmax.disruptor.TimeoutBlockingWaitStrategy',
-  'com.lmax.disruptor.WaitStrategy',
-  'com.lmax.disruptor.YieldingWaitStrategy',
-  'com.lmax.disruptor.dsl.Disruptor',
-  'com.lmax.disruptor.dsl.ProducerType',
-  'javax.jms.Connection',
-  'javax.jms.ConnectionFactory',
-  'javax.jms.Destination',
-  'javax.jms.JMSException',
-  'javax.jms.MapMessage',
-  'javax.jms.Message',
-  'javax.jms.MessageConsumer',
-  'javax.jms.MessageProducer',
-  'javax.jms.Session',
-  'javax.mail.Authenticator',
-  'javax.mail.Message$RecipientType',
-  'javax.mail.PasswordAuthentication',
-  'javax.mail.Session',
-  'javax.mail.Transport',
-  'javax.mail.internet.InternetAddress',
-  'javax.mail.internet.InternetHeaders',
-  'javax.mail.internet.MimeBodyPart',
-  'javax.mail.internet.MimeMessage',
-  'javax.mail.internet.MimeMultipart',
-  'javax.mail.internet.MimeUtility',
-  'javax.mail.util.ByteArrayDataSource',
-  'org.apache.commons.compress.compressors.CompressorStreamFactory',
-  'org.apache.commons.compress.utils.IOUtils',
-  'org.apache.commons.csv.CSVFormat',
-  'org.apache.commons.csv.QuoteMode',
-  'org.apache.kafka.clients.producer.Callback',
-  'org.apache.kafka.clients.producer.KafkaProducer',
-  'org.apache.kafka.clients.producer.Producer',
-  'org.apache.kafka.clients.producer.ProducerRecord',
-  'org.apache.kafka.clients.producer.RecordMetadata',
-  'org.codehaus.stax2.XMLStreamWriter2',
-  'org.jctools.queues.MessagePassingQueue$Consumer',
-  'org.jctools.queues.MpscArrayQueue',
-  'org.osgi.framework.AdaptPermission',
-  'org.osgi.framework.AdminPermission',
-  'org.osgi.framework.Bundle',
-  'org.osgi.framework.BundleActivator',
-  'org.osgi.framework.BundleContext',
-  'org.osgi.framework.BundleEvent',
-  'org.osgi.framework.BundleReference',
-  'org.osgi.framework.FrameworkUtil',
-  'org.osgi.framework.ServiceRegistration',
-  'org.osgi.framework.SynchronousBundleListener',
-  'org.osgi.framework.wiring.BundleWire',
-  'org.osgi.framework.wiring.BundleWiring',
-  'org.zeromq.ZMQ$Context',
-  'org.zeromq.ZMQ$Socket',
-  'org.zeromq.ZMQ',
-
-  // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
-  'org.noggit.JSONParser',
-
-  // from lucene-spatial
-  'com.fasterxml.jackson.databind.JsonSerializer',
-  'com.fasterxml.jackson.databind.JsonDeserializer',
-  'com.fasterxml.jackson.databind.node.ArrayNode',
-  'com.google.common.geometry.S2Cell',
-  'com.google.common.geometry.S2CellId',
-  'com.google.common.geometry.S2Projections',
-  'com.google.common.geometry.S2Point',
-  'com.google.common.geometry.S2$Metric',
-  'com.google.common.geometry.S2LatLng',
-]
-
-if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
+tasks.named("dependencyLicenses").configure {
+    mapping from: /lucene-.*/, to: 'lucene'
+    dependencies = project.configurations.runtimeClasspath.fileCollection {
+        it.group.startsWith('org.elasticsearch') == false ||
+                // keep the following org.elasticsearch jars in
+                (it.name == 'jna' ||
+                        it.name == 'securesm')
+    }
 }
 
-dependencyLicenses {
-  mapping from: /lucene-.*/, to: 'lucene'
-  dependencies = project.configurations.runtime.fileCollection {
-    it.group.startsWith('org.elasticsearch') == false ||
-            // keep the following org.elasticsearch jars in
-            (it.name == 'jna' ||
-             it.name == 'securesm')
-  }
+tasks.named("licenseHeaders").configure {
+    // Ignore our vendored version of Google Guice
+    excludes << 'org/elasticsearch/common/inject/**/*'
+    // Ignore temporary copies of impending 8.7 Lucene classes
+    excludes << 'org/apache/lucene/search/RegExp87*'
+    excludes << 'org/apache/lucene/search/RegexpQuery87*'
 }
 
-if (isEclipse == false || project.path == ":server-tests") {
-  task integTest(type: RandomizedTestingTask,
-                 group: JavaBasePlugin.VERIFICATION_GROUP,
-                 description: 'Multi-node tests',
-                 dependsOn: test.dependsOn) {
-    include '**/*IT.class'
-  }
-  check.dependsOn integTest
-  integTest.mustRunAfter test
+tasks.named('splitPackagesAudit').configure {
+    // Lucene packages should be owned by Lucene!
+  ignoreClasses 'org.apache.lucene.analysis.miscellaneous.DeDuplicatingTokenFilter',
+    'org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute',
+    'org.apache.lucene.analysis.miscellaneous.DisableGraphAttributeImpl',
+    'org.apache.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter',
+    'org.apache.lucene.analysis.miscellaneous.DuplicateSequenceAttribute',
+    'org.apache.lucene.analysis.miscellaneous.DuplicateSequenceAttributeImpl',
+    'org.apache.lucene.document.BinaryRange',
+    'org.apache.lucene.queryparser.classic.XQueryParser',
+    'org.apache.lucene.queries.BinaryDocValuesRangeQuery',
+    'org.apache.lucene.queries.BlendedTermQuery',
+    'org.apache.lucene.queries.MinDocQuery',
+    'org.apache.lucene.queries.SearchAfterSortedDocQuery',
+    'org.apache.lucene.queries.SpanMatchNoDocsQuery',
+    'org.apache.lucene.search.grouping.CollapseTopFieldDocs',
+    'org.apache.lucene.search.grouping.CollapsingDocValuesSource',
+    'org.apache.lucene.search.grouping.CollapsingTopDocsCollector',
+    'org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner',
+    'org.apache.lucene.search.uhighlight.CustomFieldHighlighter',
+    'org.apache.lucene.search.uhighlight.CustomPassageFormatter',
+    'org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter',
+    'org.apache.lucene.search.uhighlight.Snippet',
+    'org.apache.lucene.util.CombinedBitSet',
+    'org.apache.lucene.search.vectorhighlight.CustomFieldQuery',
+
+    // These are tricky because Lucene itself splits the index package,
+    // but this should be fixed in Lucene 9
+    'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper',
+    'org.apache.lucene.index.OneMergeHelper',
+    'org.apache.lucene.index.ShuffleForcedMergePolicy',
+
+    // Joda should own its own packages! This should be a simple move.
+    'org.joda.time.format.StrictISODateTimeFormat',
+
+    // xcontent should not have common, all it's common packages should be renamed to xcontent
+    'org.elasticsearch.common.xcontent.*',
+    'org.elasticsearch.common.xcontent.support.XContentMapValues',
+
+    // cli is owned by the libs/cli, so these should be moved to o.e.server.cli
+    'org.elasticsearch.cli.CommandLoggingConfigurator',
+    'org.elasticsearch.cli.EnvironmentAwareCommand',
+    'org.elasticsearch.cli.KeyStoreAwareCommand',
+    'org.elasticsearch.cli.LoggingAwareCommand',
+    'org.elasticsearch.cli.LoggingAwareMultiCommand',
+
+    // these should be temporary, query needs package private access to TermScorer though
+   'org.apache.lucene.search.XCombinedFieldQuery', 
+   'org.apache.lucene.search.XMultiNormsLeafSimScorer' 
+
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -16,8 +17,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -82,7 +83,7 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
     @Override
     protected void doCheck(final RestClient client, final ActionListener<Boolean> listener) {
         // if we should be adding, then we need to check for existence
-        if (isWatchDefined() && licenseState.isMonitoringClusterAlertsAllowed()) {
+        if (isWatchDefined() && licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)) {
             final CheckedFunction<Response, Boolean, IOException> watchChecker =
                     (response) -> shouldReplaceClusterAlert(response, XContentType.JSON.xContent(), LAST_UPDATED_VERSION);
 
@@ -103,9 +104,9 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
      * Publish the missing {@linkplain #watchId Watch}.
      */
     @Override
-    protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    protected void doPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         putResource(client, listener, logger,
-                    "/_watcher/watch", watchId.get(), this::watchToHttpEntity, "monitoring cluster alert",
+                    "/_watcher/watch", watchId.get(), Collections.emptyMap(), this::watchToHttpEntity, "monitoring cluster alert",
                     resourceOwnerName, "monitoring cluster");
     }
 

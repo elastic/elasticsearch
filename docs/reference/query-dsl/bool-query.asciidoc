@@ -1,5 +1,8 @@
 [[query-dsl-bool-query]]
-=== Bool Query
+=== Boolean query
+++++
+<titleabbrev>Boolean</titleabbrev>
+++++
 
 A query that matches documents matching boolean combinations of other
 queries. The bool query maps to Lucene `BooleanQuery`. It is built using
@@ -20,7 +23,7 @@ and clauses are considered for caching.
 |`should` |The clause (query) should appear in the matching document.
 
 |`must_not` |The clause (query) must not appear in the matching
-documents.  Clauses are executed in <<query-filter-context,filter context>> meaning
+documents. Clauses are executed in <<query-filter-context,filter context>> meaning
 that scoring is ignored and clauses are considered for caching. Because scoring is
 ignored, a score of `0` for all documents is returned.
 |=======================================================================
@@ -29,17 +32,17 @@ The `bool` query takes a _more-matches-is-better_ approach, so the score from
 each matching `must` or `should` clause will be added together to provide the
 final `_score` for each document.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
   "query": {
     "bool" : {
       "must" : {
-        "term" : { "user" : "kimchy" }
+        "term" : { "user.id" : "kimchy" }
       },
       "filter": {
-        "term" : { "tag" : "tech" }
+        "term" : { "tags" : "production" }
       },
       "must_not" : {
         "range" : {
@@ -47,8 +50,8 @@ POST _search
         }
       },
       "should" : [
-        { "term" : { "tag" : "wow" } },
-        { "term" : { "tag" : "elasticsearch" } }
+        { "term" : { "tags" : "env1" } },
+        { "term" : { "tags" : "deployed" } }
       ],
       "minimum_should_match" : 1,
       "boost" : 1.0
@@ -56,19 +59,32 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
+[[bool-min-should-match]]
+==== Using `minimum_should_match`
+
+You can use the `minimum_should_match` parameter to specify the number or
+percentage of `should` clauses returned documents _must_ match.
+
+If the `bool` query includes at least one `should` clause and no `must` or
+`filter` clauses, the default value is `1`.
+Otherwise, the default value is `0`.
+
+For other valid values, see the
+<<query-dsl-minimum-should-match, `minimum_should_match` parameter>>.
+
+[[score-bool-filter]]
 ==== Scoring with `bool.filter`
 
 Queries specified under the `filter` element have no effect on scoring --
-scores are returned as `0`.  Scores are only affected by the query that has
-been specified.  For instance, all three of the following queries return
+scores are returned as `0`. Scores are only affected by the query that has
+been specified. For instance, all three of the following queries return
 all documents where the `status` field contains the term `active`.
 
 This first query assigns a score of `0` to all documents, as no scoring
 query has been specified:
 
-[source,js]
+[source,console]
 ---------------------------------
 GET _search
 {
@@ -83,12 +99,11 @@ GET _search
   }
 }
 ---------------------------------
-// CONSOLE
 
 This `bool` query has a `match_all` query, which assigns a score of `1.0` to
 all documents.
 
-[source,js]
+[source,console]
 ---------------------------------
 GET _search
 {
@@ -106,13 +121,12 @@ GET _search
   }
 }
 ---------------------------------
-// CONSOLE
 
 This `constant_score` query behaves in exactly the same way as the second example above.
 The `constant_score` query assigns a score of `1.0` to all documents matched
 by the filter.
 
-[source,js]
+[source,console]
 ---------------------------------
 GET _search
 {
@@ -127,11 +141,31 @@ GET _search
   }
 }
 ---------------------------------
-// CONSOLE
 
-==== Using named queries to see which clauses matched
+[[named-queries]]
+==== Named queries
 
-If you need to know which of the clauses in the bool query matched the documents
-returned from the query, you can use
-<<search-request-named-queries-and-filters,named queries>> to assign a name to
-each clause.
+Each query accepts a `_name` in its top level definition. You can use named
+queries to track which queries matched returned documents. If named queries are
+used, the response includes a `matched_queries` property for each hit.
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "bool": {
+      "should": [
+        { "match": { "name.first": { "query": "shay", "_name": "first" } } },
+        { "match": { "name.last": { "query": "banon", "_name": "last" } } }
+      ],
+      "filter": {
+        "terms": {
+          "name.last": [ "banon", "kimchy" ],
+          "_name": "test"
+        }
+      }
+    }
+  }
+}
+----

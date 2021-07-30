@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.slack;
 
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -19,9 +21,10 @@ import org.elasticsearch.xpack.watcher.notification.slack.SlackAccount;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
 import org.elasticsearch.xpack.watcher.notification.slack.message.SlackMessage;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.mockito.ArgumentCaptor;
+
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
 import static org.hamcrest.Matchers.is;
@@ -40,13 +43,15 @@ public class ExecutableSlackActionTests extends ESTestCase {
         ArgumentCaptor<HttpRequest> argumentCaptor = ArgumentCaptor.forClass(HttpRequest.class);
         when(httpClient.execute(argumentCaptor.capture())).thenReturn(new HttpResponse(200));
 
-        Settings accountSettings = Settings.builder().put("url", "http://example.org").build();
-        SlackAccount account = new SlackAccount("account1", accountSettings, Settings.EMPTY, httpClient, logger);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("secure_url", "http://example.org");
+        Settings accountSettings = Settings.builder().setSecureSettings(secureSettings).build();
+        SlackAccount account = new SlackAccount("account1", accountSettings, httpClient, logger);
 
         SlackService service = mock(SlackService.class);
         when(service.getAccount(eq("account1"))).thenReturn(account);
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 
         Wid wid = new Wid(randomAlphaOfLength(5), now);
         WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId())

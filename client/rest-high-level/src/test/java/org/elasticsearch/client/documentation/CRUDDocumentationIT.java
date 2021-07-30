@@ -1,32 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.documentation;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
@@ -54,16 +42,20 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.RethrottleRequest;
+import org.elasticsearch.client.core.GetSourceRequest;
+import org.elasticsearch.client.core.GetSourceResponse;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.MultiTermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsResponse;
+import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -82,7 +74,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.Collections;
@@ -116,8 +107,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             jsonMap.put("user", "kimchy");
             jsonMap.put("postDate", new Date());
             jsonMap.put("message", "trying out Elasticsearch");
-            IndexRequest indexRequest = new IndexRequest("posts", "_doc", "1")
-                    .source(jsonMap); // <1>
+            IndexRequest indexRequest = new IndexRequest("posts")
+                .id("1").source(jsonMap); // <1>
             //end::index-request-map
             IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
@@ -132,34 +123,33 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 builder.field("message", "trying out Elasticsearch");
             }
             builder.endObject();
-            IndexRequest indexRequest = new IndexRequest("posts", "_doc", "1")
-                    .source(builder);  // <1>
+            IndexRequest indexRequest = new IndexRequest("posts")
+                .id("1").source(builder);  // <1>
             //end::index-request-xcontent
             IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(DocWriteResponse.Result.UPDATED, indexResponse.getResult());
         }
         {
             //tag::index-request-shortcut
-            IndexRequest indexRequest = new IndexRequest("posts", "_doc", "1")
-                    .source("user", "kimchy",
-                            "postDate", new Date(),
-                            "message", "trying out Elasticsearch"); // <1>
+            IndexRequest indexRequest = new IndexRequest("posts")
+                .id("1")
+                .source("user", "kimchy",
+                    "postDate", new Date(),
+                    "message", "trying out Elasticsearch"); // <1>
             //end::index-request-shortcut
             IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(DocWriteResponse.Result.UPDATED, indexResponse.getResult());
         }
         {
             //tag::index-request-string
-            IndexRequest request = new IndexRequest(
-                    "posts", // <1>
-                    "_doc",  // <2>
-                    "1");   // <3>
+            IndexRequest request = new IndexRequest("posts"); // <1>
+            request.id("1"); // <2>
             String jsonString = "{" +
                     "\"user\":\"kimchy\"," +
                     "\"postDate\":\"2013-01-30\"," +
                     "\"message\":\"trying out Elasticsearch\"" +
                     "}";
-            request.source(jsonString, XContentType.JSON); // <4>
+            request.source(jsonString, XContentType.JSON); // <3>
             //end::index-request-string
 
             // tag::index-execute
@@ -169,9 +159,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::index-response
             String index = indexResponse.getIndex();
-            String type = indexResponse.getType();
             String id = indexResponse.getId();
-            long version = indexResponse.getVersion();
             if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                 // <1>
             } else if (indexResponse.getResult() == DocWriteResponse.Result.UPDATED) {
@@ -190,7 +178,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::index-response
         }
         {
-            IndexRequest request = new IndexRequest("posts", "_doc", "1");
+            IndexRequest request = new IndexRequest("posts").id("1");
             // tag::index-request-routing
             request.routing("routing"); // <1>
             // end::index-request-routing
@@ -218,9 +206,11 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             // tag::index-conflict
-            IndexRequest request = new IndexRequest("posts", "_doc", "1")
-                    .source("field", "value")
-                    .version(1);
+            IndexRequest request = new IndexRequest("posts")
+                .id("1")
+                .source("field", "value")
+                .setIfSeqNo(10L)
+                .setIfPrimaryTerm(20);
             try {
                 IndexResponse response = client.index(request, RequestOptions.DEFAULT);
             } catch(ElasticsearchException e) {
@@ -232,9 +222,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             // tag::index-optype
-            IndexRequest request = new IndexRequest("posts", "_doc", "1")
-                    .source("field", "value")
-                    .opType(DocWriteRequest.OpType.CREATE);
+            IndexRequest request = new IndexRequest("posts")
+                .id("1")
+                .source("field", "value")
+                .opType(DocWriteRequest.OpType.CREATE);
             try {
                 IndexResponse response = client.index(request, RequestOptions.DEFAULT);
             } catch(ElasticsearchException e) {
@@ -245,7 +236,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::index-optype
         }
         {
-            IndexRequest request = new IndexRequest("posts", "_doc", "async").source("field", "value");
+            IndexRequest request = new IndexRequest("posts")
+                .id("async")
+                .source("field", "value");
             ActionListener<IndexResponse> listener;
             // tag::index-execute-listener
             listener = new ActionListener<IndexResponse>() {
@@ -277,7 +270,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testUpdate() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            IndexRequest indexRequest = new IndexRequest("posts", "_doc", "1").source("field", 0);
+            IndexRequest indexRequest = new IndexRequest("posts").id("1").source("field", 0);
             IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
             assertSame(RestStatus.CREATED, indexResponse.status());
 
@@ -296,8 +289,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::update-request
             UpdateRequest request = new UpdateRequest(
                     "posts", // <1>
-                    "_doc",  // <2>
-                    "1");   // <3>
+                    "1");   // <2>
             //end::update-request
             request.fetchSource(true);
             //tag::update-request-with-inline-script
@@ -311,7 +303,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
             assertEquals(4, updateResponse.getGetResult().getSource().get("field"));
 
-            request = new UpdateRequest("posts", "_doc", "1").fetchSource(true);
+            request = new UpdateRequest("posts", "1").fetchSource(true);
             //tag::update-request-with-stored-script
             Script stored = new Script(
                     ScriptType.STORED, null, "increment-field", parameters);  // <1>
@@ -326,7 +318,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             Map<String, Object> jsonMap = new HashMap<>();
             jsonMap.put("updated", new Date());
             jsonMap.put("reason", "daily update");
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1")
+            UpdateRequest request = new UpdateRequest("posts", "1")
                     .doc(jsonMap); // <1>
             //end::update-request-with-doc-as-map
             UpdateResponse updateResponse = client.update(request, RequestOptions.DEFAULT);
@@ -341,7 +333,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 builder.field("reason", "daily update");
             }
             builder.endObject();
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1")
+            UpdateRequest request = new UpdateRequest("posts", "1")
                     .doc(builder);  // <1>
             //end::update-request-with-doc-as-xcontent
             UpdateResponse updateResponse = client.update(request, RequestOptions.DEFAULT);
@@ -349,7 +341,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             //tag::update-request-shortcut
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1")
+            UpdateRequest request = new UpdateRequest("posts", "1")
                     .doc("updated", new Date(),
                          "reason", "daily update"); // <1>
             //end::update-request-shortcut
@@ -358,7 +350,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             //tag::update-request-with-doc-as-string
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1");
+            UpdateRequest request = new UpdateRequest("posts", "1");
             String jsonString = "{" +
                     "\"updated\":\"2017-01-01\"," +
                     "\"reason\":\"daily update\"" +
@@ -374,7 +366,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::update-response
             String index = updateResponse.getIndex();
-            String type = updateResponse.getType();
             String id = updateResponse.getId();
             long version = updateResponse.getVersion();
             if (updateResponse.getResult() == DocWriteResponse.Result.CREATED) {
@@ -415,7 +406,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             //tag::update-docnotfound
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "does_not_exist")
+            UpdateRequest request = new UpdateRequest("posts", "does_not_exist")
                     .doc("field", "value");
             try {
                 UpdateResponse updateResponse = client.update(
@@ -429,9 +420,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             // tag::update-conflict
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1")
+            UpdateRequest request = new UpdateRequest("posts", "1")
                     .doc("field", "value")
-                    .version(1);
+                    .setIfSeqNo(101L)
+                    .setIfPrimaryTerm(200L);
             try {
                 UpdateResponse updateResponse = client.update(
                         request, RequestOptions.DEFAULT);
@@ -443,7 +435,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::update-conflict
         }
         {
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1").doc("reason", "no source");
+            UpdateRequest request = new UpdateRequest("posts", "1").doc("reason", "no source");
             //tag::update-request-no-source
             request.fetchSource(true); // <1>
             //end::update-request-no-source
@@ -453,7 +445,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertEquals(3, updateResponse.getGetResult().sourceAsMap().size());
         }
         {
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1").doc("reason", "source includes");
+            UpdateRequest request = new UpdateRequest("posts", "1").doc("reason", "source includes");
             //tag::update-request-source-include
             String[] includes = new String[]{"updated", "r*"};
             String[] excludes = Strings.EMPTY_ARRAY;
@@ -468,7 +460,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(sourceAsMap.containsKey("updated"));
         }
         {
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "1").doc("reason", "source excludes");
+            UpdateRequest request = new UpdateRequest("posts", "1").doc("reason", "source excludes");
             //tag::update-request-source-exclude
             String[] includes = Strings.EMPTY_ARRAY;
             String[] excludes = new String[]{"updated"};
@@ -483,7 +475,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(sourceAsMap.containsKey("field"));
         }
         {
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "id");
+            UpdateRequest request = new UpdateRequest("posts", "id");
             // tag::update-request-routing
             request.routing("routing"); // <1>
             // end::update-request-routing
@@ -498,9 +490,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL); // <1>
             request.setRefreshPolicy("wait_for");                            // <2>
             // end::update-request-refresh
-            // tag::update-request-version
-            request.version(2); // <1>
-            // end::update-request-version
+            // tag::update-request-cas
+            request.setIfSeqNo(2L); // <1>
+            request.setIfPrimaryTerm(1L); // <2>
+            // end::update-request-cas
             // tag::update-request-detect-noop
             request.detectNoop(false); // <1>
             // end::update-request-detect-noop
@@ -520,7 +513,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::update-request-active-shards
         }
         {
-            UpdateRequest request = new UpdateRequest("posts", "_doc", "async").doc("reason", "async update").docAsUpsert(true);
+            UpdateRequest request = new UpdateRequest("posts", "async").doc("reason", "async update").docAsUpsert(true);
 
             ActionListener<UpdateResponse> listener;
             // tag::update-execute-listener
@@ -554,7 +547,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            IndexRequest indexRequest = new IndexRequest("posts", "_doc", "1").source("field", "value");
+            IndexRequest indexRequest = new IndexRequest("posts").id("1").source("field", "value");
             IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
             assertSame(RestStatus.CREATED, indexResponse.status());
         }
@@ -622,14 +615,14 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            IndexResponse indexResponse = client.index(new IndexRequest("posts", "_doc", "1").source("field", "value")
+            IndexResponse indexResponse = client.index(new IndexRequest("posts").id("1").source("field", "value")
                     , RequestOptions.DEFAULT);
             assertSame(RestStatus.CREATED, indexResponse.status());
 
             // tag::delete-conflict
             try {
                 DeleteResponse deleteResponse = client.delete(
-                        new DeleteRequest("posts", "1").version(2),
+                    new DeleteRequest("posts", "1").setIfSeqNo(100).setIfPrimaryTerm(2),
                         RequestOptions.DEFAULT);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.CONFLICT) {
@@ -639,7 +632,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::delete-conflict
         }
         {
-            IndexResponse indexResponse = client.index(new IndexRequest("posts", "_doc", "async").source("field", "value"),
+            IndexResponse indexResponse = client.index(new IndexRequest("posts").id("async").source("field", "value"),
                     RequestOptions.DEFAULT);
             assertSame(RestStatus.CREATED, indexResponse.status());
 
@@ -678,11 +671,11 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::bulk-request
             BulkRequest request = new BulkRequest(); // <1>
-            request.add(new IndexRequest("posts", "_doc", "1")  // <2>
+            request.add(new IndexRequest("posts").id("1")  // <2>
                     .source(XContentType.JSON,"field", "foo"));
-            request.add(new IndexRequest("posts", "_doc", "2")  // <3>
+            request.add(new IndexRequest("posts").id("2")  // <3>
                     .source(XContentType.JSON,"field", "bar"));
-            request.add(new IndexRequest("posts", "_doc", "3")  // <4>
+            request.add(new IndexRequest("posts").id("3")  // <4>
                     .source(XContentType.JSON,"field", "baz"));
             // end::bulk-request
             // tag::bulk-execute
@@ -695,9 +688,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::bulk-request-with-mixed-operations
             BulkRequest request = new BulkRequest();
             request.add(new DeleteRequest("posts", "3")); // <1>
-            request.add(new UpdateRequest("posts", "_doc", "2") // <2>
+            request.add(new UpdateRequest("posts", "2") // <2>
                     .doc(XContentType.JSON,"other", "test"));
-            request.add(new IndexRequest("posts", "_doc", "4")  // <3>
+            request.add(new IndexRequest("posts").id("4")  // <3>
                     .source(XContentType.JSON,"field", "baz"));
             // end::bulk-request-with-mixed-operations
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
@@ -757,7 +750,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::bulk-request-routing
 
             // tag::bulk-request-index-type
-            BulkRequest defaulted = new BulkRequest("posts","_doc"); // <1>
+            BulkRequest defaulted = new BulkRequest("posts"); // <1>
             // end::bulk-request-index-type
 
             // tag::bulk-execute-listener
@@ -791,17 +784,15 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             String mapping =
-                "\"_doc\": {\n" +
-                    "    \"properties\": {\n" +
-                    "      \"user\": {\n" +
-                    "        \"type\": \"text\"\n" +
-                    "      },\n" +
-                    "      \"field1\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      },\n" +
-                    "      \"field2\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      }\n" +
+                    "  \"properties\": {\n" +
+                    "    \"user\": {\n" +
+                    "      \"type\": \"text\"\n" +
+                    "    },\n" +
+                    "    \"field1\": {\n" +
+                    "      \"type\": \"integer\"\n" +
+                    "    },\n" +
+                    "    \"field2\": {\n" +
+                    "      \"type\": \"integer\"\n" +
                     "    }\n" +
                     "  }";
             createIndex("source1", Settings.EMPTY, mapping);
@@ -823,22 +814,15 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::reindex-request-conflicts
             request.setConflicts("proceed"); // <1>
             // end::reindex-request-conflicts
-            // tag::reindex-request-query
-            request.setSourceQuery(new TermQueryBuilder("user", "kimchy")); // <1>
-            // end::reindex-request-query
-            // tag::reindex-request-size
-            request.setSize(10); // <1>
-            // end::reindex-request-size
+            // tag::reindex-request-maxDocs
+            request.setMaxDocs(10); // <1>
+            // end::reindex-request-maxDocs
             // tag::reindex-request-sourceSize
             request.setSourceBatchSize(100); // <1>
             // end::reindex-request-sourceSize
             // tag::reindex-request-pipeline
             request.setDestPipeline("my_pipeline"); // <1>
             // end::reindex-request-pipeline
-            // tag::reindex-request-sort
-            request.addSortField("field1", SortOrder.DESC); // <1>
-            request.addSortField("field2", SortOrder.ASC); // <2>
-            // end::reindex-request-sort
             // tag::reindex-request-script
             request.setScript(
                 new Script(
@@ -846,27 +830,29 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     "if (ctx._source.user == 'kimchy') {ctx._source.likes++;}",
                     Collections.emptyMap())); // <1>
             // end::reindex-request-script
+            HttpHost host = getClusterHosts().get(0);
+            Integer remotePort = host.getPort();
+            String remoteHost = host.getHostName();
+            String user = "test_user";
+            String password = "test-user-password";
+
             // tag::reindex-request-remote
             request.setRemoteInfo(
                 new RemoteInfo(
-                    "https", "localhost", 9002, null,
+                    "http", remoteHost, remotePort, null,
                     new BytesArray(new MatchAllQueryBuilder().toString()),
-                    "user", "pass", Collections.emptyMap(),
+                    user, password, Collections.emptyMap(),
                     new TimeValue(100, TimeUnit.MILLISECONDS),
                     new TimeValue(100, TimeUnit.SECONDS)
                 )
             ); // <1>
             // end::reindex-request-remote
-            request.setRemoteInfo(null); // Remove it for tests
             // tag::reindex-request-timeout
             request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
             // end::reindex-request-timeout
             // tag::reindex-request-refresh
             request.setRefresh(true); // <1>
             // end::reindex-request-refresh
-            // tag::reindex-request-slices
-            request.setSlices(2); // <1>
-            // end::reindex-request-slices
             // tag::reindex-request-scroll
             request.setScroll(TimeValue.timeValueMinutes(10)); // <1>
             // end::reindex-request-scroll
@@ -903,6 +889,14 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             ReindexRequest request = new ReindexRequest();
             request.setSourceIndices("source1");
             request.setDestIndex("dest");
+
+            // These cannot be set with a remote set, so its set here instead for the docs
+            // tag::reindex-request-query
+            request.setSourceQuery(new TermQueryBuilder("user", "kimchy")); // <1>
+            // end::reindex-request-query
+            // tag::reindex-request-slices
+            request.setSlices(2); // <1>
+            // end::reindex-request-slices
 
             ActionListener<BulkByScrollResponse> listener;
             // tag::reindex-execute-listener
@@ -992,19 +986,17 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             String mapping =
-                "\"_doc\": {\n" +
-                    "    \"properties\": {\n" +
-                    "      \"user\": {\n" +
-                    "        \"type\": \"text\"\n" +
-                    "      },\n" +
-                    "      \"field1\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      },\n" +
-                    "      \"field2\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      }\n" +
-                    "    }\n" +
-                    "  }";
+                "  \"properties\": {\n" +
+                "    \"user\": {\n" +
+                "      \"type\": \"text\"\n" +
+                "    },\n" +
+                "    \"field1\": {\n" +
+                "      \"type\": \"integer\"\n" +
+                "    },\n" +
+                "    \"field2\": {\n" +
+                "      \"type\": \"integer\"\n" +
+                "    }\n" +
+                "  }";
             createIndex("source1", Settings.EMPTY, mapping);
             createIndex("source2", Settings.EMPTY, mapping);
             createPipeline("my_pipeline");
@@ -1020,9 +1012,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::update-by-query-request-query
             request.setQuery(new TermQueryBuilder("user", "kimchy")); // <1>
             // end::update-by-query-request-query
-            // tag::update-by-query-request-size
-            request.setSize(10); // <1>
-            // end::update-by-query-request-size
+            // tag::update-by-query-request-maxDocs
+            request.setMaxDocs(10); // <1>
+            // end::update-by-query-request-maxDocs
             // tag::update-by-query-request-scrollSize
             request.setBatchSize(100); // <1>
             // end::update-by-query-request-scrollSize
@@ -1117,19 +1109,17 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             String mapping =
-                "\"_doc\": {\n" +
-                    "    \"properties\": {\n" +
-                    "      \"user\": {\n" +
-                    "        \"type\": \"text\"\n" +
-                    "      },\n" +
-                    "      \"field1\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      },\n" +
-                    "      \"field2\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      }\n" +
-                    "    }\n" +
-                    "  }";
+                "  \"properties\": {\n" +
+                "    \"user\": {\n" +
+                "      \"type\": \"text\"\n" +
+                "    },\n" +
+                "    \"field1\": {\n" +
+                "      \"type\": \"integer\"\n" +
+                "    },\n" +
+                "    \"field2\": {\n" +
+                "      \"type\": \"integer\"\n" +
+                "    }\n" +
+                "  }";
             createIndex("source1", Settings.EMPTY, mapping);
             createIndex("source2", Settings.EMPTY, mapping);
         }
@@ -1144,9 +1134,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-by-query-request-query
             request.setQuery(new TermQueryBuilder("user", "kimchy")); // <1>
             // end::delete-by-query-request-query
-            // tag::delete-by-query-request-size
-            request.setSize(10); // <1>
-            // end::delete-by-query-request-size
+            // tag::delete-by-query-request-maxDocs
+            request.setMaxDocs(10); // <1>
+            // end::delete-by-query-request-maxDocs
             // tag::delete-by-query-request-scrollSize
             request.setBatchSize(100); // <1>
             // end::delete-by-query-request-scrollSize
@@ -1233,12 +1223,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             createIndex.setJsonEntity(
                     "{\n" +
                     "    \"mappings\" : {\n" +
-                    "        \"_doc\" : {\n" +
-                    "            \"properties\" : {\n" +
-                    "                \"message\" : {\n" +
-                    "                    \"type\": \"text\",\n" +
-                    "                    \"store\": true\n" +
-                    "                }\n" +
+                    "        \"properties\" : {\n" +
+                    "            \"message\" : {\n" +
+                    "                \"type\": \"text\",\n" +
+                    "                \"store\": true\n" +
                     "            }\n" +
                     "        }\n" +
                     "    }\n" +
@@ -1246,7 +1234,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             Response response = client().performRequest(createIndex);
             assertEquals(200, response.getStatusLine().getStatusCode());
 
-            IndexRequest indexRequest = new IndexRequest("posts", "_doc", "1")
+            IndexRequest indexRequest = new IndexRequest("posts").id("1")
                     .source("user", "kimchy",
                             "postDate", new Date(),
                             "message", "trying out Elasticsearch");
@@ -1267,7 +1255,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertEquals(3, getResponse.getSourceAsMap().size());
             //tag::get-response
             String index = getResponse.getIndex();
-            String type = getResponse.getType();
             String id = getResponse.getId();
             if (getResponse.isExists()) {
                 long version = getResponse.getVersion();
@@ -1402,6 +1389,103 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetSource() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            Request createIndex = new Request("PUT", "/posts");
+            createIndex.setJsonEntity(
+                "{\n" +
+                    "    \"mappings\" : {\n" +
+                    "        \"properties\" : {\n" +
+                    "            \"message\" : {\n" +
+                    "                \"type\": \"text\",\n" +
+                    "                \"store\": true\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
+                    "}");
+            Response response = client().performRequest(createIndex);
+            assertEquals(200, response.getStatusLine().getStatusCode());
+
+            IndexRequest indexRequest = new IndexRequest("posts").id("1")
+                .source("user", "kimchy",
+                    "postDate", new Date(),
+                    "message", "trying out Elasticsearch");
+            IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
+            assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+        }
+
+        // tag::get-source-request
+        GetSourceRequest getSourceRequest = new GetSourceRequest(
+            "posts", // <1>
+            "1");   // <2>
+        // end::get-source-request
+
+        //tag::get-source-request-optional
+        String[] includes = Strings.EMPTY_ARRAY;  // <2>
+        String[] excludes = new String[]{"postDate"};
+        getSourceRequest.fetchSourceContext(
+            new FetchSourceContext(true, includes, excludes)); // <1>
+        // end::get-source-request-optional
+
+        //tag::get-source-request-routing
+        getSourceRequest.routing("routing"); // <1>
+        //end::get-source-request-routing
+        //tag::get-source-request-preference
+        getSourceRequest.preference("preference"); // <1>
+        //end::get-source-request-preference
+        //tag::get-source-request-realtime
+        getSourceRequest.realtime(false); // <1>
+        //end::get-source-request-realtime
+        //tag::get-source-request-refresh
+        getSourceRequest.refresh(true); // <1>
+        //end::get-source-request-refresh
+
+        {
+            // tag::get-source-execute
+            GetSourceResponse response =
+                client.getSource(getSourceRequest, RequestOptions.DEFAULT);
+            // end::get-source-execute
+            // tag::get-source-response
+            Map<String, Object> source = response.getSource();
+            // end::get-source-response
+
+            Map<String, Object> expectSource = new HashMap<>();
+            expectSource.put("user", "kimchy");
+            expectSource.put("message", "trying out Elasticsearch");
+            assertEquals(expectSource, source);
+        }
+        {
+            GetSourceRequest request = new GetSourceRequest("posts", "1");
+
+            // tag::get-source-execute-listener
+            ActionListener<GetSourceResponse> listener =
+                new ActionListener<GetSourceResponse>() {
+                    @Override
+                    public void onResponse(GetSourceResponse getResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-source-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::get-source-execute-async
+            client.getSourceAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            //end::get-source-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+    }
+
     public void testExists() throws Exception {
         RestHighLevelClient client = highLevelClient();
         // tag::exists-request
@@ -1470,18 +1554,18 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             BulkProcessor bulkProcessor = BulkProcessor.builder(
                     (request, bulkListener) ->
                         client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
-                    listener).build(); // <5>
+                    listener, "bulk-processor-name").build(); // <5>
             // end::bulk-processor-init
             assertNotNull(bulkProcessor);
 
             // tag::bulk-processor-add
-            IndexRequest one = new IndexRequest("posts", "_doc", "1").
-                    source(XContentType.JSON, "title",
+            IndexRequest one = new IndexRequest("posts").id("1")
+                    .source(XContentType.JSON, "title",
                             "In which order are my Elasticsearch queries executed?");
-            IndexRequest two = new IndexRequest("posts", "_doc", "2")
+            IndexRequest two = new IndexRequest("posts").id("2")
                     .source(XContentType.JSON, "title",
                             "Current status and upcoming changes in Elasticsearch");
-            IndexRequest three = new IndexRequest("posts", "_doc", "3")
+            IndexRequest three = new IndexRequest("posts").id("3")
                     .source(XContentType.JSON, "title",
                             "The Future of Federated Search in Elasticsearch");
 
@@ -1532,7 +1616,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             BulkProcessor.Builder builder = BulkProcessor.builder(
                     (request, bulkListener) ->
                         client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
-                    listener);
+                    listener, "bulk-processor-name");
             builder.setBulkActions(500); // <1>
             builder.setBulkSize(new ByteSizeValue(1L, ByteSizeUnit.MB)); // <2>
             builder.setConcurrentRequests(0); // <3>
@@ -1546,10 +1630,17 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
     // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
     public void testTermVectors() throws Exception {
         RestHighLevelClient client = highLevelClient();
-        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors").mapping("_doc", "user", "type=keyword");
+        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors")
+            .mapping(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("user")
+                        .field("type", "keyword")
+                    .endObject()
+                .endObject()
+            .endObject());
         CreateIndexResponse authorsResponse = client.indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
-        client.index(new IndexRequest("index", "_doc", "1").source("user", "kimchy"), RequestOptions.DEFAULT);
+        client.index(new IndexRequest("index").id("1").source("user", "kimchy"), RequestOptions.DEFAULT);
         Response refreshResponse = client().performRequest(new Request("POST", "/authors/_refresh"));
         assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
 
@@ -1606,9 +1697,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::term-vectors-response
         String index = response.getIndex(); // <1>
-        String type = response.getType(); // <2>
-        String id = response.getId(); // <3>
-        boolean found = response.getFound(); // <4>
+        String id = response.getId(); // <2>
+        boolean found = response.getFound(); // <3>
         // end::term-vectors-response
 
         if (response.getTermVectorsList() != null) {
@@ -1670,11 +1760,18 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
     // Not entirely sure if _mtermvectors belongs to CRUD, and in the absence of a better place, will have it here
     public void testMultiTermVectors() throws Exception {
         RestHighLevelClient client = highLevelClient();
-        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors").mapping("_doc", "user", "type=text");
+        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors")
+            .mapping(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("user")
+                        .field("type", "keyword")
+                    .endObject()
+                .endObject()
+            .endObject());
         CreateIndexResponse authorsResponse = client.indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
-        client.index(new IndexRequest("index", "_doc", "1").source("user", "kimchy"), RequestOptions.DEFAULT);
-        client.index(new IndexRequest("index", "_doc", "2").source("user", "s1monw"), RequestOptions.DEFAULT);
+        client.index(new IndexRequest("index").id("1").source("user", "kimchy"), RequestOptions.DEFAULT);
+        client.index(new IndexRequest("index").id("2").source("user", "s1monw"), RequestOptions.DEFAULT);
         Response refreshResponse = client().performRequest(new Request("POST", "/authors/_refresh"));
         assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
 
@@ -1749,12 +1846,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             createIndex.setJsonEntity(
                     "{\n" +
                     "    \"mappings\" : {\n" +
-                    "        \"_doc\" : {\n" +
-                    "            \"properties\" : {\n" +
-                    "                \"foo\" : {\n" +
-                    "                    \"type\": \"text\",\n" +
-                    "                    \"store\": true\n" +
-                    "                }\n" +
+                    "        \"properties\" : {\n" +
+                    "            \"foo\" : {\n" +
+                    "                \"type\": \"text\",\n" +
+                    "                \"store\": true\n" +
                     "            }\n" +
                     "        }\n" +
                     "    }\n" +
@@ -1767,7 +1862,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         source.put("foo", "val1");
         source.put("bar", "val2");
         source.put("baz", "val3");
-        client.index(new IndexRequest("index", "_doc", "example_id")
+        client.index(new IndexRequest("index")
+            .id("example_id")
             .source(source)
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
 
@@ -1930,7 +2026,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getResponses(), arrayWithSize(1));
         MultiGetItemResponse item = response.getResponses()[0];
         assertEquals("index", item.getIndex());
-        assertEquals("_doc", item.getType());
         assertEquals("example_id", item.getId());
         return item;
     }

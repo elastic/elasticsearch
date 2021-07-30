@@ -1,0 +1,66 @@
+{
+  "index_patterns": [
+    ".slm-history-${xpack.slm.template.version}*"
+  ],
+  "priority": 2147483647,
+  "data_stream": {
+    "hidden": true
+  },
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "index.number_of_replicas": 0,
+      "index.auto_expand_replicas": "0-1",
+      "index.lifecycle.name": "slm-history-ilm-policy"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "@timestamp": {
+          "type": "date",
+          "format": "epoch_millis"
+        },
+        "policy": {
+          "type": "keyword"
+        },
+        "repository": {
+          "type": "keyword"
+        },
+        "snapshot_name": {
+          "type": "keyword"
+        },
+        "operation": {
+          "type": "keyword"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "configuration": {
+          "type": "object",
+          "dynamic": false,
+          "properties": {
+            "indices": {
+              "type": "keyword"
+            },
+            "partial": {
+              "type": "boolean"
+            },
+            "include_global_state": {
+              "type": "boolean"
+            }
+          }
+        },
+        "error_details": {
+          "type": "text",
+          "index": false
+        }
+      }
+    }
+  },
+  "allow_auto_create": true,
+  "_meta": {
+    "description": "index template for SLM history indices",
+    "managed": true
+  },
+  "version": ${xpack.slm.template.version}
+}

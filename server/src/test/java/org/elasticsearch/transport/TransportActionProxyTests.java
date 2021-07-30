@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -26,6 +15,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -33,7 +25,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class TransportActionProxyTests extends ESTestCase {
     protected ThreadPool threadPool;
@@ -83,34 +78,38 @@ public class TransportActionProxyTests extends ESTestCase {
 
 
     public void testSendMessage() throws InterruptedException {
-        serviceA.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+        serviceA.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new,
             (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
                 SimpleTestResponse response = new SimpleTestResponse("TS_A");
                 channel.sendResponse(response);
             });
-        TransportActionProxy.registerProxyAction(serviceA, "internal:test", SimpleTestResponse::new);
-        serviceA.connectToNode(nodeB);
+        final boolean cancellable = randomBoolean();
+        TransportActionProxy.registerProxyAction(serviceA, "internal:test", cancellable, SimpleTestResponse::new);
+        AbstractSimpleTransportTestCase.connectToNode(serviceA, nodeB);
 
-        serviceB.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+        serviceB.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new,
             (request, channel, task) -> {
+                assertThat(task instanceof CancellableTask, equalTo(cancellable));
                 assertEquals(request.sourceNode, "TS_A");
                 SimpleTestResponse response = new SimpleTestResponse("TS_B");
                 channel.sendResponse(response);
             });
-        TransportActionProxy.registerProxyAction(serviceB, "internal:test", SimpleTestResponse::new);
-        serviceB.connectToNode(nodeC);
-        serviceC.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+        TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
+        AbstractSimpleTransportTestCase.connectToNode(serviceB, nodeC);
+        serviceC.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new,
             (request, channel, task) -> {
+                assertThat(task instanceof CancellableTask, equalTo(cancellable));
                 assertEquals(request.sourceNode, "TS_A");
                 SimpleTestResponse response = new SimpleTestResponse("TS_C");
                 channel.sendResponse(response);
             });
-        TransportActionProxy.registerProxyAction(serviceC, "internal:test", SimpleTestResponse::new);
+
+        TransportActionProxy.registerProxyAction(serviceC, "internal:test", cancellable, SimpleTestResponse::new);
 
         CountDownLatch latch = new CountDownLatch(1);
         serviceA.sendRequest(nodeB, TransportActionProxy.getProxyAction("internal:test"), TransportActionProxy.wrapRequest(nodeC,
-            new SimpleTestRequest("TS_A")), new TransportResponseHandler<SimpleTestResponse>() {
+            new SimpleTestRequest("TS_A", cancellable)), new TransportResponseHandler<SimpleTestResponse>() {
                 @Override
                 public SimpleTestResponse read(StreamInput in) throws IOException {
                     return new SimpleTestResponse(in);
@@ -133,42 +132,38 @@ public class TransportActionProxyTests extends ESTestCase {
                         latch.countDown();
                     }
                 }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
             });
         latch.await();
     }
 
     public void testException() throws InterruptedException {
-        serviceA.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+        boolean cancellable = randomBoolean();
+        serviceA.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new,
             (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
                 SimpleTestResponse response = new SimpleTestResponse("TS_A");
                 channel.sendResponse(response);
             });
-        TransportActionProxy.registerProxyAction(serviceA, "internal:test", SimpleTestResponse::new);
-        serviceA.connectToNode(nodeB);
+        TransportActionProxy.registerProxyAction(serviceA, "internal:test", cancellable, SimpleTestResponse::new);
+        AbstractSimpleTransportTestCase.connectToNode(serviceA, nodeB);
 
-        serviceB.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+        serviceB.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new,
             (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
                 SimpleTestResponse response = new SimpleTestResponse("TS_B");
                 channel.sendResponse(response);
             });
-        TransportActionProxy.registerProxyAction(serviceB, "internal:test", SimpleTestResponse::new);
-        serviceB.connectToNode(nodeC);
-        serviceC.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+        TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
+        AbstractSimpleTransportTestCase.connectToNode(serviceB, nodeC);
+        serviceC.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new,
             (request, channel, task) -> {
                 throw new ElasticsearchException("greetings from TS_C");
             });
-        TransportActionProxy.registerProxyAction(serviceC, "internal:test", SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceC, "internal:test", cancellable, SimpleTestResponse::new);
 
         CountDownLatch latch = new CountDownLatch(1);
         serviceA.sendRequest(nodeB, TransportActionProxy.getProxyAction("internal:test"), TransportActionProxy.wrapRequest(nodeC,
-            new SimpleTestRequest("TS_A")), new TransportResponseHandler<SimpleTestResponse>() {
+            new SimpleTestRequest("TS_A", cancellable)), new TransportResponseHandler<SimpleTestResponse>() {
                 @Override
                 public SimpleTestResponse read(StreamInput in) throws IOException {
                     return new SimpleTestResponse(in);
@@ -192,33 +187,44 @@ public class TransportActionProxyTests extends ESTestCase {
                         latch.countDown();
                     }
                 }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
             });
         latch.await();
     }
 
     public static class SimpleTestRequest extends TransportRequest {
-        String sourceNode;
+        final boolean cancellable;
+        final String sourceNode;
 
-        public SimpleTestRequest(String sourceNode) {
+        public SimpleTestRequest(String sourceNode, boolean cancellable) {
             this.sourceNode = sourceNode;
+            this.cancellable = cancellable;
         }
-        public SimpleTestRequest() {}
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public SimpleTestRequest(StreamInput in) throws IOException {
+            super(in);
             sourceNode = in.readString();
+            cancellable = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(sourceNode);
+            out.writeBoolean(cancellable);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            if (cancellable) {
+                return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+                    @Override
+                    public boolean shouldCancelChildrenOnCancellation() {
+                        return randomBoolean();
+                    }
+                };
+            } else {
+                return super.createTask(id, type, action, parentTaskId, headers);
+            }
         }
     }
 
@@ -235,13 +241,7 @@ public class TransportActionProxyTests extends ESTestCase {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(targetNode);
         }
     }

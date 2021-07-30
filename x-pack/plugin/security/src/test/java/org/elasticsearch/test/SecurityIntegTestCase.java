@@ -1,51 +1,42 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.test;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
-
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -53,7 +44,6 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 
-import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
@@ -67,9 +57,9 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_S
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
 /**
  * Base class to run tests against a cluster with X-Pack installed and security enabled.
@@ -86,7 +76,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
      * Settings used when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
      * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      * so that some of the configuration parameters can be overridden through test instance methods, similarly
-     * to how {@link #nodeSettings(int)} and {@link #transportClientSettings()} work.
+     * to how {@link ESIntegTestCase#nodeSettings(int, Settings)} works.
      */
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
 
@@ -229,22 +219,20 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             // TODO: disable this assertion for now, due to random runs with mock plugins. perhaps run without mock plugins?
 //            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
             Collection<String> pluginNames =
-                nodeInfo.getPlugins().getPluginInfos().stream().map(p -> p.getClassname()).collect(Collectors.toList());
+                nodeInfo.getInfo(PluginsAndModules.class).getPluginInfos().stream().map(p -> p.getClassname()).collect(Collectors.toList());
             assertThat("plugin [" + LocalStateSecurity.class.getName() + "] not found in [" + pluginNames + "]", pluginNames,
                 hasItem(LocalStateSecurity.class.getName()));
         }
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         // Disable native ML autodetect_process as the c++ controller won't be available
 //        builder.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
-        Settings customSettings = customSecuritySettingsSource.nodeSettings(nodeOrdinal);
+        Settings customSettings = customSecuritySettingsSource.nodeSettings(nodeOrdinal, otherSettings);
         builder.put(customSettings, false); // handle secure settings separately
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO);
-        builder.put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO);
         Settings.Builder customBuilder = Settings.builder().put(customSettings);
         if (customBuilder.getSecureSettings() != null) {
             SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
@@ -263,14 +251,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings transportClientSettings() {
-        return Settings.builder().put(super.transportClientSettings())
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NIO)
-                .put(customSecuritySettingsSource.transportClientSettings())
-                .build();
-    }
-
-    @Override
     protected boolean addMockTransportService() {
         return false; // security has its own transport service
     }
@@ -278,19 +258,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return customSecuritySettingsSource.nodePlugins();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return customSecuritySettingsSource.transportClientPlugins();
-    }
-
-    @Override
-    protected Settings externalClusterClientSettings() {
-        return Settings.builder()
-                .put(SecurityField.USER_SETTING.getKey(), SecuritySettingsSource.TEST_USER_NAME + ":"
-                        + SecuritySettingsSourceField.TEST_PASSWORD)
-                .build();
     }
 
     /**
@@ -336,24 +303,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Allows to override the transport client username (used while sending requests to the test cluster) when the
-     * {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
-     */
-    protected String transportClientUsername() {
-        return SECURITY_DEFAULT_SETTINGS.transportClientUsername();
-    }
-
-    /**
-     * Allows to override the transport client password (used while sending requests to the test cluster) when the
-     * {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
-     */
-    protected SecureString transportClientPassword() {
-        return SECURITY_DEFAULT_SETTINGS.transportClientPassword();
-    }
-
-    /**
      * Allows to control whether ssl key information is auto generated or not on the transport layer
      */
     protected boolean transportSSLEnabled() {
@@ -394,16 +343,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         protected SecureString nodeClientPassword() {
             return SecurityIntegTestCase.this.nodeClientPassword();
         }
-
-        @Override
-        protected String transportClientUsername() {
-            return SecurityIntegTestCase.this.transportClientUsername();
-        }
-
-        @Override
-        protected SecureString transportClientPassword() {
-            return SecurityIntegTestCase.this.transportClientPassword();
-        }
     }
 
     protected static void assertGreenClusterState(Client client) {
@@ -429,8 +368,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                     aliasAdded = true;
                 }
             }
-            // If we get to this point and we haven't added an alias to the request we need to add one 
-            // or the request will fail so use noAliasAdded to force adding the alias in this case 
+            // If we get to this point and we haven't added an alias to the request we need to add one
+            // or the request will fail so use noAliasAdded to force adding the alias in this case
             if (aliasAdded == false || randomBoolean()) {
                 //one alias pointing to all indices
                 for (String index : indices) {
@@ -441,7 +380,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
 
         for (String index : indices) {
-            client().prepareIndex(index, "type").setSource("field", "value").get();
+            client().prepareIndex(index).setSource("field", "value").get();
         }
         refresh(indices);
     }
@@ -453,30 +392,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         // we need to wrap node clients because we do not specify a user for nodes and all requests will use the system
         // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
         // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
-        // are randomized to return both node clients and transport clients
-        // transport clients do not need to be wrapped since we specify the xpack.security.user setting that sets the default user to be
-        // used for the transport client. If we did not set a default user then the transport client would not even be allowed
-        // to connect
+        // return a node client
         return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
-    }
-
-    protected SecurityClient securityClient() {
-        return securityClient(client());
-    }
-
-    public static SecurityClient securityClient(Client client) {
-        return randomBoolean() ? new XPackClient(client).security() : new SecurityClient(client);
-    }
-
-    protected String getHttpURL() {
-        final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
-        final List<NodeInfo> nodes = nodeInfos.getNodes();
-        assertTrue("there is at least one node", nodes.size() > 0);
-        NodeInfo ni = randomFrom(nodes);
-        boolean useSSL = XPackSettings.HTTP_SSL_ENABLED.get(ni.getSettings());
-        TransportAddress publishAddress = ni.getHttp().address().publishAddress();
-        InetSocketAddress address = publishAddress.address();
-        return (useSSL ? "https://" : "http://") + NetworkAddress.format(address.getAddress()) + ":" + address.getPort();
     }
 
     public void assertSecurityIndexActive() throws Exception {
@@ -489,11 +406,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
                 XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().startObject();
-                assertTrue("security index mapping not sufficient to read:\n" +
-                                Strings.toString(clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject()),
-                    SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, logger,
-                        Version.CURRENT.minimumIndexCompatibilityVersion()::onOrBefore));
-                Index securityIndex = resolveSecurityIndex(clusterState.metaData());
+                Index securityIndex = resolveSecurityIndex(clusterState.metadata());
                 if (securityIndex != null) {
                     IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
                     if (indexRoutingTable != null) {
@@ -509,7 +422,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
                         SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         GetIndexRequest getIndexRequest = new GetIndexRequest();
-        getIndexRequest.indices(SECURITY_INDEX_NAME);
+        getIndexRequest.indices(SECURITY_MAIN_ALIAS);
         getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         GetIndexResponse getIndexResponse = client.admin().indices().getIndex(getIndexRequest).actionGet();
         if (getIndexResponse.getIndices().length > 0) {
@@ -519,10 +432,10 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    private static Index resolveSecurityIndex(MetaData metaData) {
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(SECURITY_INDEX_NAME);
-        if (aliasOrIndex != null) {
-            return aliasOrIndex.getIndices().get(0).getIndex();
+    private static Index resolveSecurityIndex(Metadata metadata) {
+        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
+        if (indexAbstraction != null) {
+            return indexAbstraction.getIndices().get(0).getIndex();
         }
         return null;
     }
@@ -531,7 +444,14 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         return customSecuritySettingsSource.isSslEnabled();
     }
 
-    protected static Hasher getFastStoredHashAlgoForTests() {
-        return Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+    public static Hasher getFastStoredHashAlgoForTests() {
+        return inFipsJvm() ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_stretch_1000", "pbkdf2_stretch"))
+            : Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_stretch_1000", "pbkdf2_stretch", "bcrypt", "bcrypt9"));
+    }
+
+    protected class TestRestHighLevelClient extends RestHighLevelClient {
+        public TestRestHighLevelClient() {
+            super(getRestClient(), client -> {}, List.of());
+        }
     }
 }

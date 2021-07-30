@@ -1,28 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
+
+import org.elasticsearch.core.CheckedConsumer;
 
 import java.io.Closeable;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
@@ -112,6 +104,12 @@ public interface XContentGenerator extends Closeable, Flushable {
     void writeRawValue(InputStream value, XContentType xContentType) throws IOException;
 
     void copyCurrentStructure(XContentParser parser) throws IOException;
+
+    /**
+     * Write a field whose value is written directly to the output stream. As the content is copied as is,
+     * the writer must a valid XContent value (e.g., string is properly escaped and quoted)
+     */
+    void writeDirectField(String name, CheckedConsumer<OutputStream, IOException> writer) throws IOException;
 
     default void copyCurrentEvent(XContentParser parser) throws IOException {
         switch (parser.currentToken()) {

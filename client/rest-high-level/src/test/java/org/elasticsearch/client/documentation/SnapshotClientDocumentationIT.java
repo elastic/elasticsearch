@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.documentation;
@@ -27,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -38,7 +28,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
@@ -46,10 +35,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
@@ -94,6 +85,11 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
     private static final String repositoryName = "test_repository";
     private static final String snapshotName = "test_snapshot";
     private static final String indexName = "test_index";
+
+    @Override
+    protected boolean waitForAllSnapshotsWiped() {
+        return true;
+    }
 
     public void testSnapshotCreateRepository() throws IOException {
         RestHighLevelClient client = highLevelClient();
@@ -228,10 +224,10 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-repository-execute
 
         // tag::get-repository-response
-        List<RepositoryMetaData> repositoryMetaDataResponse = response.repositories();
+        List<RepositoryMetadata> repositoryMetadataResponse = response.repositories();
         // end::get-repository-response
-        assertThat(1, equalTo(repositoryMetaDataResponse.size()));
-        assertThat(repositoryName, equalTo(repositoryMetaDataResponse.get(0).name()));
+        assertThat(1, equalTo(repositoryMetadataResponse.size()));
+        assertThat(repositoryName, equalTo(repositoryMetadataResponse.get(0).name()));
     }
 
     public void testSnapshotGetRepositoryAsync() throws InterruptedException {
@@ -301,7 +297,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
 
 
         // tag::restore-snapshot-request-indices
-        request.indices("test_index");
+        request.indices("test_index"); // <1>
         // end::restore-snapshot-request-indices
 
         String restoredIndexName = "restored_index";
@@ -449,10 +445,15 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::verify-repository-execute
 
         // tag::verify-repository-response
-        List<VerifyRepositoryResponse.NodeView> repositoryMetaDataResponse = response.getNodes();
+        List<VerifyRepositoryResponse.NodeView> repositoryMetadataResponse = response.getNodes();
         // end::verify-repository-response
-        assertThat(1, equalTo(repositoryMetaDataResponse.size()));
-        assertThat("node-0", equalTo(repositoryMetaDataResponse.get(0).getName()));
+        assertThat(1, equalTo(repositoryMetadataResponse.size()));
+        final boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
+        if (async) {
+            assertThat("asyncIntegTest-0", equalTo(repositoryMetadataResponse.get(0).getName()));
+        } else {
+            assertThat("integTest-0", equalTo(repositoryMetadataResponse.get(0).getName()));
+        }
     }
 
     public void testSnapshotVerifyRepositoryAsync() throws InterruptedException {
@@ -590,7 +591,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-snapshots-request
 
         // tag::get-snapshots-request-repositoryName
-        request.repository(repositoryName); // <1>
+        request.repositories(repositoryName); // <1>
         // end::get-snapshots-request-repositoryName
 
         // tag::get-snapshots-request-snapshots
@@ -742,7 +743,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
 
         // tag::delete-snapshot-request
         DeleteSnapshotRequest request = new DeleteSnapshotRequest(repositoryName);
-        request.snapshot(snapshotName);
+        request.snapshots(snapshotName);
         // end::delete-snapshot-request
 
         // tag::delete-snapshot-request-masterTimeout
@@ -787,6 +788,83 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             // tag::delete-snapshot-execute-async
             client.snapshot().deleteAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::delete-snapshot-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testCloneSnapshot() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        createTestRepositories();
+        createTestIndex();
+        createTestSnapshots();
+
+        String sourceSnapshotName = snapshotName;
+        String targetSnapshotName = snapshotName + "_clone";
+        String[] indices = new String[]{indexName};
+
+        // tag::clone-snapshot-request
+        CloneSnapshotRequest request = new CloneSnapshotRequest(repositoryName, sourceSnapshotName, targetSnapshotName, indices);
+        // end::clone-snapshot-request
+
+        // tag::clone-snapshot-request-indices
+        request.indices("test_index"); // <1>
+        // end::clone-snapshot-request-indices
+
+        // tag::clone-snapshot-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::clone-snapshot-request-masterTimeout
+
+        // tag::clone-snapshot-request-index-settings
+        request.indicesOptions(new IndicesOptions(
+            EnumSet.of(IndicesOptions.Option.IGNORE_UNAVAILABLE),  // <1>
+            EnumSet.of(
+                IndicesOptions.WildcardStates.OPEN,
+                IndicesOptions.WildcardStates.CLOSED,
+                IndicesOptions.WildcardStates.HIDDEN))
+        );
+        // end::clone-snapshot-request-index-settings
+
+        // tag::clone-snapshot-execute
+        AcknowledgedResponse response = client.snapshot().clone(request, RequestOptions.DEFAULT);
+        // end::clone-snapshot-execute
+
+        // tag::clone-snapshot-response
+        boolean acknowledged = response.isAcknowledged();  // <1>
+        // end::clone-snapshot-response
+        assertTrue(acknowledged);
+    }
+
+    public void testCloneSnapshotAsync() throws InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            String targetSnapshot = snapshotName + "_clone";
+            CloneSnapshotRequest request = new CloneSnapshotRequest(repositoryName, snapshotName, targetSnapshot, new String[]{indexName});
+
+            // tag::clone-snapshot-execute-listener
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::clone-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::clone-snapshot-execute-async
+            client.snapshot().cloneAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::clone-snapshot-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

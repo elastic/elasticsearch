@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc;
 
@@ -27,9 +28,15 @@ public class RealmConfig {
         this.identifier = identifier;
         this.settings = settings;
         this.env = env;
-        this.enabled = getSetting(RealmSettings.ENABLED_SETTING);
-        this.order = getSetting(RealmSettings.ORDER_SETTING);
         this.threadContext = threadContext;
+        this.enabled = getSetting(RealmSettings.ENABLED_SETTING);
+        if (enabled && false == hasSetting(RealmSettings.ORDER_SETTING.apply(type()))) {
+            throw new IllegalArgumentException("'order' is a mandatory parameter for realm config. " +
+                "Found invalid config for realm: '" + identifier.name + "'\n" +
+                "Please see the breaking changes documentation."
+            );
+        }
+        this.order = getSetting(RealmSettings.ORDER_SETTING);
     }
 
     public RealmIdentifier identifier() {

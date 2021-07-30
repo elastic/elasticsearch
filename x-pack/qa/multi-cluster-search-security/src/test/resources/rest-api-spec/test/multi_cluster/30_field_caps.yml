@@ -11,7 +11,7 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "s3krit",
+              "password": "s3krit-password",
               "roles" : [ "x_cluster_role" ]
             }
   - do:
@@ -44,28 +44,27 @@ teardown:
           index: field_caps_index_2
           body:
               mappings:
-                t:
-                  properties:
-                    text:
-                      type:     text
-                    keyword:
-                      type:     keyword
-                    number:
-                      type:     double
-                    geo:
-                      type:     geo_point
-                    object:
-                      type: object
-                      properties:
-                        nested1 :
-                          type : text
-                          index: true
-                        nested2:
-                          type: float
-                          doc_values: true
+                properties:
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     double
+                  geo:
+                    type:     geo_point
+                  object:
+                    type: object
+                    properties:
+                      nested1 :
+                        type : text
+                        index: true
+                      nested2:
+                        type: float
+                        doc_values: true
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       field_caps:
         index: 'field_caps_index_2,my_remote_cluster:field_caps_index_1,my_remote_cluster:field_caps_index_3'
         fields: [text, keyword, number, geo]

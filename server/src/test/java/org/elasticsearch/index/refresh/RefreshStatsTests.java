@@ -1,54 +1,33 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.refresh;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.test.ESTestCase;
 
-public class RefreshStatsTests extends AbstractStreamableTestCase<RefreshStats> {
-    @Override
-    protected RefreshStats createTestInstance() {
-        return new RefreshStats(randomNonNegativeLong(), randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
-    }
+import java.io.IOException;
 
-    @Override
-    protected RefreshStats createBlankInstance() {
-        return new RefreshStats();
-    }
+public class RefreshStatsTests extends ESTestCase {
 
-    @Override
-    protected RefreshStats mutateInstance(RefreshStats instance) {
-        long total = instance.getTotal();
-        long totalInMillis = instance.getTotalTimeInMillis();
-        int listeners = instance.getListeners();
-        switch (randomInt(2)) {
-        case 0:
-            total += between(1, 2000);
-            break;
-        case 1:
-            totalInMillis += between(1, 2000);
-            break;
-        case 2:
-        default:
-            listeners += between(1, 2000);
-            break;
-        }
-        return new RefreshStats(total, totalInMillis, listeners);
+    public void testSerialize() throws IOException {
+        RefreshStats stats = new RefreshStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+            randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
+        BytesStreamOutput out = new BytesStreamOutput();
+        stats.writeTo(out);
+        StreamInput input = out.bytes().streamInput();
+        RefreshStats read = new RefreshStats(input);
+        assertEquals(-1, input.read());
+        assertEquals(stats.getTotal(), read.getTotal());
+        assertEquals(stats.getExternalTotal(), read.getExternalTotal());
+        assertEquals(stats.getListeners(), read.getListeners());
+        assertEquals(stats.getTotalTimeInMillis(), read.getTotalTimeInMillis());
+        assertEquals(stats.getExternalTotalTimeInMillis(), read.getExternalTotalTimeInMillis());
     }
 }

@@ -1,28 +1,63 @@
 [[docs-bulk]]
-== Bulk API
+=== Bulk API
+++++
+<titleabbrev>Bulk</titleabbrev>
+++++
 
-The bulk API makes it possible to perform many index/delete operations
-in a single API call. This can greatly increase the indexing speed.
+Performs multiple indexing or delete operations in a single API call. 
+This reduces overhead and can greatly increase indexing speed.
 
-.Client support for bulk requests
-*********************************************
+[source,console]
+--------------------------------------------------
+POST _bulk
+{ "index" : { "_index" : "test", "_id" : "1" } }
+{ "field1" : "value1" }
+{ "delete" : { "_index" : "test", "_id" : "2" } }
+{ "create" : { "_index" : "test", "_id" : "3" } }
+{ "field1" : "value3" }
+{ "update" : {"_id" : "1", "_index" : "test"} }
+{ "doc" : {"field2" : "value2"} }
+--------------------------------------------------
 
-Some of the officially supported clients provide helpers to assist with
-bulk requests and reindexing of documents from one index to another:
+[[docs-bulk-api-request]]
+==== {api-request-title}
 
-Perl::
+`POST /_bulk`
 
-    See https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Bulk[Search::Elasticsearch::Client::5_0::Bulk]
-    and https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Scroll[Search::Elasticsearch::Client::5_0::Scroll]
+`POST /<target>/_bulk`
 
-Python::
+[[docs-bulk-api-prereqs]]
+==== {api-prereq-title}
 
-    See http://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
+* If the {es} {security-features} are enabled, you must have the following
+<<privileges-list-indices,index privileges>> for the target data stream, index,
+or index alias:
 
-*********************************************
+** To use the `create` action, you must have the `create_doc`, `create`,
+`index`, or `write` index privilege. Data streams support only the `create`
+action.
 
-The REST API endpoint is `/_bulk`, and it expects the following newline delimited JSON
-(NDJSON) structure:
+** To use the `index` action, you must have the `create`, `index`, or `write`
+index privilege.
+
+** To use the `delete` action, you must have the `delete` or `write` index
+privilege.
+
+** To use the `update` action, you must have the `index` or `write` index
+privilege.
+
+** To automatically create a data stream or index with a bulk API request, you
+must have the `auto_configure`, `create_index`, or `manage` index privilege.
+
+* Automatic data stream creation requires a matching index template with data
+stream enabled. See <<set-up-a-data-stream>>.
+
+[[docs-bulk-api-desc]]
+==== {api-description-title}
+
+Provides a way to perform multiple `index`, `create`, `delete`, and `update` actions in a single request.
+
+The actions are specified in the request body using a newline delimited JSON (NDJSON) structure:
 
 [source,js]
 --------------------------------------------------
@@ -36,19 +71,80 @@ optional_source\n
 --------------------------------------------------
 // NOTCONSOLE
 
-*NOTE*: the final line of data must end with a newline character `\n`. Each newline character
-may be preceded by a carriage return `\r`. When sending requests to this endpoint the
-`Content-Type` header should be set to `application/x-ndjson`.
+The `index` and `create` actions expect a source on the next line, 
+and have the same semantics as the `op_type` parameter in the standard index API: 
+`create` fails if a document with the same ID already exists in the target,
+`index` adds or replaces a document as necessary. 
 
-The possible actions are `index`, `create`, `delete` and `update`.
-`index` and `create` expect a source on the next
-line, and have the same semantics as the `op_type` parameter to the
-standard index API (i.e. create will fail if a document with the same
-index and type exists already, whereas index will add or replace a
-document as necessary). `delete` does not expect a source on the
-following line, and has the same semantics as the standard delete API.
-`update` expects that the partial doc, upsert and script and its options
-are specified on the next line.
+NOTE: <<data-streams,Data streams>> support only the `create` action. To update
+or delete a document in a data stream, you must target the backing index
+containing the document. See <<update-delete-docs-in-a-backing-index>>.
+
+`update` expects that the partial doc, upsert, 
+and script and its options are specified on the next line.
+
+`delete` does not expect a source on the next line and 
+has the same semantics as the standard delete API.
+
+[NOTE]
+====
+The final line of data must end with a newline character `\n`. 
+Each newline character may be preceded by a carriage return `\r`.
+When sending NDJSON data to the `_bulk` endpoint, use a `Content-Type` header of
+`application/json` or `application/x-ndjson`.
+====
+
+Because this format uses literal `\n`'s as delimiters, 
+make sure that the JSON actions and sources are not pretty printed.
+
+If you provide a `<target>` in the request path, 
+it is used for any actions that don't explicitly specify an `_index` argument.
+
+A note on the format: The idea here is to make processing of this as
+fast as possible. As some of the actions are redirected to other
+shards on other nodes, only `action_meta_data` is parsed on the
+receiving node side.
+
+Client libraries using this protocol should try and strive to do
+something similar on the client side, and reduce buffering as much as
+possible.
+
+There is no "correct" number of actions to perform in a single bulk request. 
+Experiment with different settings to find the optimal size for your particular workload.
+
+When using the HTTP API, make sure that the client does not send HTTP chunks, 
+as this will slow things down.
+
+[discrete]
+[[bulk-clients]]
+===== Client support for bulk requests
+
+Some of the officially supported clients provide helpers to assist with
+bulk requests and reindexing:
+
+Go::
+
+    See https://github.com/elastic/go-elasticsearch/tree/master/_examples/bulk#indexergo[esutil.BulkIndexer]
+
+Perl::
+
+    See https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Bulk[Search::Elasticsearch::Client::5_0::Bulk]
+    and https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Scroll[Search::Elasticsearch::Client::5_0::Scroll]
+
+Python::
+
+    See https://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
+
+JavaScript::
+
+    See {jsclient-current}/client-helpers.html[client.helpers.*]
+
+.NET::
+    See https://www.elastic.co/guide/en/elasticsearch/client/net-api/current/indexing-documents.html#bulkall-observable[`BulkAllObservable`]
+
+[discrete]
+[[bulk-curl]]
+===== Submitting bulk requests with cURL
 
 If you're providing text file input to `curl`, you *must* use the
 `--data-binary` flag instead of plain `-d`. The latter doesn't preserve
@@ -57,34 +153,353 @@ newlines. Example:
 [source,js]
 --------------------------------------------------
 $ cat requests
-{ "index" : { "_index" : "test", "_type" : "_doc", "_id" : "1" } }
+{ "index" : { "_index" : "test", "_id" : "1" } }
 { "field1" : "value1" }
 $ curl -s -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/_bulk --data-binary "@requests"; echo
-{"took":7, "errors": false, "items":[{"index":{"_index":"test","_type":"_doc","_id":"1","_version":1,"result":"created","forced_refresh":false}}]}
+{"took":7, "errors": false, "items":[{"index":{"_index":"test","_id":"1","_version":1,"result":"created","forced_refresh":false}}]}
 --------------------------------------------------
 // NOTCONSOLE
 // Not converting to console because this shows how curl works
 
-Because this format uses literal `\n`'s as delimiters, please be sure
-that the JSON actions and sources are not pretty printed. Here is an
-example of a correct sequence of bulk commands:
+[discrete]
+[[bulk-optimistic-concurrency-control]]
+===== Optimistic concurrency control
 
-[source,js]
+Each `index` and `delete` action within a bulk API call may include the
+`if_seq_no` and `if_primary_term` parameters in their respective action
+and meta data lines. The `if_seq_no` and `if_primary_term` parameters control
+how operations are executed, based on the last modification to existing
+documents. See <<optimistic-concurrency-control>> for more details.
+
+
+[discrete]
+[[bulk-versioning]]
+===== Versioning
+
+Each bulk item can include the version value using the
+`version` field. It automatically follows the behavior of the
+index / delete operation based on the `_version` mapping. It also
+support the `version_type` (see <<index-versioning, versioning>>).
+
+[discrete]
+[[bulk-routing]]
+===== Routing
+
+Each bulk item can include the routing value using the
+`routing` field. It automatically follows the behavior of the
+index / delete operation based on the `_routing` mapping.
+
+NOTE: Data streams do not support custom routing. Instead, target the
+appropriate backing index for the stream.
+
+[discrete]
+[[bulk-wait-for-active-shards]]
+===== Wait for active shards
+
+When making bulk calls, you can set the `wait_for_active_shards`
+parameter to require a minimum number of shard copies to be active
+before starting to process the bulk request. See
+<<index-wait-for-active-shards,here>> for further details and a usage
+example.
+
+[discrete]
+[[bulk-refresh]]
+===== Refresh
+
+Control when the changes made by this request are visible to search. See
+<<docs-refresh,refresh>>.
+
+NOTE: Only the shards that receive the bulk request will be affected by
+`refresh`. Imagine a `_bulk?refresh=wait_for` request with three
+documents in it that happen to be routed to different shards in an index
+with five shards. The request will only wait for those three shards to
+refresh. The other two shards that make up the index do not
+participate in the `_bulk` request at all.
+
+[discrete]
+[[bulk-security]]
+===== Security
+
+See <<url-access-control>>.
+
+[[docs-bulk-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string)
+Name of the data stream, index, or index alias to perform bulk actions
+on.
+
+[[docs-bulk-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+
+`require_alias`::
+(Optional, Boolean) If `true`, the request's actions must target an index alias.
+Defaults to `false`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
+
+`timeout`::
++
+--
+(Optional, <<time-units, time units>>)
+Period each action waits for the following operations:
+
+* <<index-creation,Automatic index creation>>
+* <<dynamic-mapping,Dynamic mapping>> updates
+* <<index-wait-for-active-shards,Waiting for active shards>>
+
+Defaults to `1m` (one minute). This guarantees {es} waits for at least the
+timeout before failing. The actual wait time could be longer, particularly when
+multiple waits occur.
+--
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+
+[[bulk-api-request-body]]
+==== {api-request-body-title}
+The request body contains a newline-delimited list of `create`, `delete`, `index`, 
+and `update` actions and their associated source data.
+
+`create`::
+(Optional, string) 
+Indexes the specified document if it does not already exist.
+The following line must contain the source data to be indexed. 
++
+--
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-dynamic-templates]
+--
+
+`delete`::
+(Optional, string) 
+Removes the specified document from the index.
++
+--
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+
+`_id`::
+(Required, string) 
+The document ID.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
+--
+
+`index`::
+(Optional, string) 
+Indexes the specified document. 
+If the document exists, replaces the document and increments the version.
+The following line must contain the source data to be indexed. 
++
+--
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-dynamic-templates]
+--
+
+`update`::
+(Optional, string) 
+Performs a partial document update. 
+The following line must contain the partial document and update options.
++
+--
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
+--
+
+`doc`::
+(Optional, object) 
+The partial document to index.
+Required for `update` operations. 
+
+`<fields>`::
+(Optional, object) 
+The document source to index.
+Required for `create` and `index` operations. 
+
+[role="child_attributes"]
+[[bulk-api-response-body]]
+==== {api-response-body-title}
+
+The bulk API's response contains the individual results of each operation in the
+request, returned in the order submitted. The success or failure of an
+individual operation does not affect other operations in the request.
+
+[[bulk-partial-responses]]
+.Partial responses
+****
+To ensure fast responses, the bulk API will respond with partial results if one
+or more shards fail. See <<shard-failures, Shard failures>> for more
+information.
+****
+
+`took`::
+(integer)
+How long, in milliseconds, it took to process the bulk request.
+
+`errors`::
+(Boolean)
+If `true`, one or more of the operations in the bulk request did not complete
+successfully.
+
+`items`::
+(array of objects)
+Contains the result of each operation in the bulk request, in the order they
+were submitted.
++
+.Properties of `items` objects
+[%collapsible%open]
+====
+<action>::
+(object)
+The parameter name is an action associated with the operation. Possible values
+are `create`, `delete`, `index`, and `update`.
++
+The parameter value is an object that contains information for the associated
+operation.
++
+.Properties of `<action>`
+[%collapsible%open]
+=====
+`_index`::
+(string)
+Name of the index associated with the operation. If the operation targeted a
+data stream, this is the backing index into which the document was written.
+
+`_id`::
+(integer)
+The document ID associated with the operation.
+
+`_version`::
+(integer)
+The document version associated with the operation. The document version is
+incremented each time the document is updated.
++
+This parameter is only returned for successful actions.
+
+`result`::
+(string)
+Result of the operation. Successful values are `created`, `deleted`, and
+`updated`.
++
+This parameter is only returned for successful operations.
+
+`_shards`::
+(object)
+Contains shard information for the operation.
++
+This parameter is only returned for successful operations.
++
+.Properties of `_shards`
+[%collapsible%open]
+======
+`total`::
+(integer)
+Number of shards the operation attempted to execute on.
+
+`successful`::
+(integer)
+Number of shards the operation succeeded on.
+
+`failed`::
+(integer)
+Number of shards the operation attempted to execute on but failed.
+======
+
+`_seq_no`::
+(integer)
+The sequence number assigned to the document for the operation.
+Sequence numbers are used to ensure an older version of a document
+doesn’t overwrite a newer version. See <<optimistic-concurrency-control-index>>.
++
+This parameter is only returned for successful operations.
+
+`_primary_term`::
+(integer)
+The primary term assigned to the document for the operation.
+See <<optimistic-concurrency-control-index>>.
++
+This parameter is only returned for successful operations.
+
+`status`::
+(integer)
+HTTP status code returned for the operation.
+
+`error`::
+(object)
+Contains additional information about the failed operation.
++
+The parameter is only returned for failed operations.
++
+.Properties of `error`
+[%collapsible%open]
+======
+`type`::
+(string)
+Error type for the operation.
+
+`reason`::
+(string)
+Reason for the failed operation.
+
+`index_uuid`::
+(string)
+The universally unique identifier (UUID) of the index associated with the failed
+operation.
+
+`shard`::
+(string)
+ID of the shard associated with the failed operation.
+
+`index`::
+(string)
+Name of the index associated with the failed operation. If the operation
+targeted a data stream, this is the backing index into which the document was
+attempted to be written.
+======
+=====
+====
+
+[[docs-bulk-api-example]]
+==== {api-examples-title}
+
+[source,console]
 --------------------------------------------------
 POST _bulk
-{ "index" : { "_index" : "test", "_type" : "_doc", "_id" : "1" } }
+{ "index" : { "_index" : "test", "_id" : "1" } }
 { "field1" : "value1" }
-{ "delete" : { "_index" : "test", "_type" : "_doc", "_id" : "2" } }
-{ "create" : { "_index" : "test", "_type" : "_doc", "_id" : "3" } }
+{ "delete" : { "_index" : "test", "_id" : "2" } }
+{ "create" : { "_index" : "test", "_id" : "3" } }
 { "field1" : "value3" }
-{ "update" : {"_id" : "1", "_type" : "_doc", "_index" : "test"} }
+{ "update" : {"_id" : "1", "_index" : "test"} }
 { "doc" : {"field2" : "value2"} }
 --------------------------------------------------
-// CONSOLE
 
-The result of this bulk operation is:
+The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 30,
@@ -93,7 +508,6 @@ The result of this bulk operation is:
       {
          "index": {
             "_index": "test",
-            "_type": "_doc",
             "_id": "1",
             "_version": 1,
             "result": "created",
@@ -110,7 +524,6 @@ The result of this bulk operation is:
       {
          "delete": {
             "_index": "test",
-            "_type": "_doc",
             "_id": "2",
             "_version": 1,
             "result": "not_found",
@@ -127,7 +540,6 @@ The result of this bulk operation is:
       {
          "create": {
             "_index": "test",
-            "_type": "_doc",
             "_id": "3",
             "_version": 1,
             "result": "created",
@@ -144,7 +556,6 @@ The result of this bulk operation is:
       {
          "update": {
             "_index": "test",
-            "_type": "_doc",
             "_id": "1",
             "_version": 2,
             "result": "updated",
@@ -172,104 +583,197 @@ The result of this bulk operation is:
 // TESTRESPONSE[s/"_seq_no" : 3/"_seq_no" : $body.items.3.update._seq_no/]
 // TESTRESPONSE[s/"_primary_term" : 4/"_primary_term" : $body.items.3.update._primary_term/]
 
-The endpoints are `/_bulk`, `/{index}/_bulk`, and `{index}/{type}/_bulk`.
-When the index or the index/type are provided, they will be used by
-default on bulk items that don't provide them explicitly.
-
-A note on the format. The idea here is to make processing of this as
-fast as possible. As some of the actions will be redirected to other
-shards on other nodes, only `action_meta_data` is parsed on the
-receiving node side.
-
-Client libraries using this protocol should try and strive to do
-something similar on the client side, and reduce buffering as much as
-possible.
-
-The response to a bulk action is a large JSON structure with the individual
-results of each action that was performed in the same order as the actions that
-appeared in the request. The failure of a single action does not affect the
-remaining actions.
-
-There is no "correct" number of actions to perform in a single bulk
-call. You should experiment with different settings to find the optimum
-size for your particular workload.
-
-If using the HTTP API, make sure that the client does not send HTTP
-chunks, as this will slow things down.
-
-[float]
-[[bulk-versioning]]
-=== Versioning
-
-Each bulk item can include the version value using the
-`version` field. It automatically follows the behavior of the
-index / delete operation based on the `_version` mapping. It also
-support the `version_type` (see <<index-versioning, versioning>>)
-
-[float]
-[[bulk-routing]]
-=== Routing
-
-Each bulk item can include the routing value using the
-`routing` field. It automatically follows the behavior of the
-index / delete operation based on the `_routing` mapping.
-
-[float]
-[[bulk-wait-for-active-shards]]
-=== Wait For Active Shards
-
-When making bulk calls, you can set the `wait_for_active_shards`
-parameter to require a minimum number of shard copies to be active
-before starting to process the bulk request. See
-<<index-wait-for-active-shards,here>> for further details and a usage
-example.
-
-[float]
-[[bulk-refresh]]
-=== Refresh
-
-Control when the changes made by this request are visible to search. See
-<<docs-refresh,refresh>>.
-
-NOTE: Only the shards that receive the bulk request will be affected by
-`refresh`. Imagine a `_bulk?refresh=wait_for` request with three
-documents in it that happen to be routed to different shards in an index
-with five shards. The request will only wait for those three shards to
-refresh. The other two shards of that make up the index do not
-participate in the `_bulk` request at all.
-
-[float]
+[discrete]
 [[bulk-update]]
-=== Update
+===== Bulk update example
 
-When using `update` action `retry_on_conflict` can be used as field in
+When using the `update` action, `retry_on_conflict` can be used as a field in
 the action itself (not in the extra payload line), to specify how many
 times an update should be retried in the case of a version conflict.
 
-The `update` action payload, supports the following options: `doc`
+The `update` action payload supports the following options: `doc`
 (partial document), `upsert`, `doc_as_upsert`, `script`, `params` (for
-script), `lang` (for script) and `_source`. See update documentation for details on
+script), `lang` (for script), and `_source`. See update documentation for details on
 the options. Example with update actions:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _bulk
-{ "update" : {"_id" : "1", "_type" : "_doc", "_index" : "index1", "retry_on_conflict" : 3} }
+{ "update" : {"_id" : "1", "_index" : "index1", "retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"} }
-{ "update" : { "_id" : "0", "_type" : "_doc", "_index" : "index1", "retry_on_conflict" : 3} }
+{ "update" : { "_id" : "0", "_index" : "index1", "retry_on_conflict" : 3} }
 { "script" : { "source": "ctx._source.counter += params.param1", "lang" : "painless", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
-{ "update" : {"_id" : "2", "_type" : "_doc", "_index" : "index1", "retry_on_conflict" : 3} }
+{ "update" : {"_id" : "2", "_index" : "index1", "retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"}, "doc_as_upsert" : true }
-{ "update" : {"_id" : "3", "_type" : "_doc", "_index" : "index1", "_source" : true} }
+{ "update" : {"_id" : "3", "_index" : "index1", "_source" : true} }
 { "doc" : {"field" : "value"} }
-{ "update" : {"_id" : "4", "_type" : "_doc", "_index" : "index1"} }
+{ "update" : {"_id" : "4", "_index" : "index1"} }
 { "doc" : {"field" : "value"}, "_source": true}
 --------------------------------------------------
-// CONSOLE
+
+[discrete]
+[[bulk-failures-ex]]
+===== Example with failed actions
+
+The following bulk API request includes operations that update non-existent
+documents.
+
+[source,console]
+----
+POST /_bulk
+{ "update": {"_id": "5", "_index": "index1"} }
+{ "doc": {"my_field": "foo"} }
+{ "update": {"_id": "6", "_index": "index1"} }
+{ "doc": {"my_field": "foo"} }
+{ "create": {"_id": "7", "_index": "index1"} }
+{ "my_field": "foo" }
+----
+
+Because these operations cannot complete successfully, the API returns a
+response with an `errors` flag of `true`.
+
+The response also includes an `error` object for any failed operations. The
+`error` object contains additional information about the failure, such as the
+error type and reason.
+
+[source,console-result]
+----
+{
+  "took": 486,
+  "errors": true,
+  "items": [
+    {
+      "update": {
+        "_index": "index1",
+        "_id": "5",
+        "status": 404,
+        "error": {
+          "type": "document_missing_exception",
+          "reason": "[5]: document missing",
+          "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
+          "shard": "0",
+          "index": "index1"
+        }
+      }
+    },
+    {
+      "update": {
+        "_index": "index1",
+        "_id": "6",
+        "status": 404,
+        "error": {
+          "type": "document_missing_exception",
+          "reason": "[6]: document missing",
+          "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
+          "shard": "0",
+          "index": "index1"
+        }
+      }
+    },
+    {
+      "create": {
+        "_index": "index1",
+        "_id": "7",
+        "_version": 1,
+        "result": "created",
+        "_shards": {
+          "total": 2,
+          "successful": 1,
+          "failed": 0
+        },
+        "_seq_no": 0,
+        "_primary_term": 1,
+        "status": 201
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"took": 486/"took": $body.took/]
+// TESTRESPONSE[s/"_seq_no": 0/"_seq_no": $body.items.2.create._seq_no/]
+// TESTRESPONSE[s/"index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA"/"index_uuid": $body.$_path/]
+
+To return only information about failed operations, use the
+<<common-options-response-filtering,`filter_path`>> query parameter with an
+argument of `items.*.error`.
+
+[source,console]
+----
+POST /_bulk?filter_path=items.*.error
+{ "update": {"_id": "5", "_index": "index1"} }
+{ "doc": {"my_field": "baz"} }
+{ "update": {"_id": "6", "_index": "index1"} }
+{ "doc": {"my_field": "baz"} }
+{ "update": {"_id": "7", "_index": "index1"} }
+{ "doc": {"my_field": "baz"} }
+----
 // TEST[continued]
 
-[float]
-[[bulk-security]]
-=== Security
+The API returns the following result.
 
-See <<url-access-control>>
+[source,console-result]
+----
+{
+  "items": [
+    {
+      "update": {
+        "error": {
+          "type": "document_missing_exception",
+          "reason": "[5]: document missing",
+          "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
+          "shard": "0",
+          "index": "index1"
+        }
+      }
+    },
+    {
+      "update": {
+        "error": {
+          "type": "document_missing_exception",
+          "reason": "[6]: document missing",
+          "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
+          "shard": "0",
+          "index": "index1"
+        }
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA"/"index_uuid": $body.$_path/]
+
+
+[discrete]
+[[bulk-dynamic-templates]]
+===== Example with dynamic templates parameter
+
+The below example creates a dynamic template, then performs a bulk request
+consisting of index/create requests with the `dynamic_templates` parameter.
+
+[source,console]
+----
+PUT my-index/
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "geo_point": {
+             "mapping": {
+                "type" : "geo_point"
+             }
+        }
+      }
+    ]
+  }
+}
+
+POST /_bulk
+{ "index" : { "_index" : "my_index", "_id" : "1", "dynamic_templates": {"work_location": "geo_point"}} }
+{ "field" : "value1", "work_location": "41.12,-71.34", "raw_location": "41.12,-71.34"}
+{ "create" : { "_index" : "my_index", "_id" : "2", "dynamic_templates": {"home_location": "geo_point"}} }
+{ "field" : "value2", "home_location": "41.12,-71.34"}
+----
+
+The bulk request creates two new fields `work_location` and `home_location` with type `geo_point` according
+to the `dynamic_templates` parameter; however, the `raw_location` field is created using default dynamic mapping
+rules, as a `text` field in that case since it is supplied as a string in the JSON document.

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
@@ -22,12 +11,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -38,7 +27,7 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
 
         public Bucket(String key, double from, double to, long docCount, List<InternalAggregation> aggregations, boolean keyed,
                 DocValueFormat formatter) {
-            super(key, from, to, docCount, new InternalAggregations(aggregations), keyed, formatter);
+            super(key, from, to, docCount, InternalAggregations.from(aggregations), keyed, formatter);
         }
 
         public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
@@ -47,13 +36,15 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
         }
 
         @Override
-        public Object getFrom() {
-            return Double.isInfinite(((Number) from).doubleValue()) ? null : new DateTime(((Number) from).longValue(), DateTimeZone.UTC);
+        public ZonedDateTime getFrom() {
+            return Double.isInfinite(((Number) from).doubleValue()) ? null :
+                Instant.ofEpochMilli(((Number) from).longValue()).atZone(ZoneOffset.UTC);
         }
 
         @Override
-        public Object getTo() {
-            return Double.isInfinite(((Number) to).doubleValue()) ? null : new DateTime(((Number) to).longValue(), DateTimeZone.UTC);
+        public ZonedDateTime getTo() {
+            return Double.isInfinite(((Number) to).doubleValue()) ? null :
+                Instant.ofEpochMilli(((Number) to).longValue()).atZone(ZoneOffset.UTC);
         }
 
         private Double internalGetFrom() {
@@ -86,14 +77,14 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
 
         @Override
         public InternalDateRange create(String name, List<InternalDateRange.Bucket> ranges, DocValueFormat formatter, boolean keyed,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-            return new InternalDateRange(name, ranges, formatter, keyed, pipelineAggregators, metaData);
+                Map<String, Object> metadata) {
+            return new InternalDateRange(name, ranges, formatter, keyed, metadata);
         }
 
         @Override
         public InternalDateRange create(List<Bucket> ranges, InternalDateRange prototype) {
-            return new InternalDateRange(prototype.name, ranges, prototype.format, prototype.keyed, prototype.pipelineAggregators(),
-                    prototype.metaData);
+            return new InternalDateRange(prototype.name, ranges, prototype.format, prototype.keyed, prototype.metadata);
+
         }
 
         @Override
@@ -110,8 +101,8 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
     }
 
     InternalDateRange(String name, List<InternalDateRange.Bucket> ranges, DocValueFormat formatter, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, ranges, formatter, keyed, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, ranges, formatter, keyed, metadata);
     }
 
     /**

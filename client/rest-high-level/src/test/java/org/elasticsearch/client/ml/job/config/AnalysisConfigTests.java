@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.job.config;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
@@ -40,7 +29,10 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
         int numDetectors = randomIntBetween(1, 10);
         for (int i = 0; i < numDetectors; i++) {
             Detector.Builder builder = new Detector.Builder("count", null);
-            builder.setPartitionFieldName(isCategorization ? "mlcategory" : "part");
+            if (isCategorization) {
+                builder.setByFieldName("mlcategory");
+            }
+            builder.setPartitionFieldName("part");
             detectors.add(builder.build());
         }
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(detectors);
@@ -81,6 +73,11 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
                     }
                 }
                 builder.setCategorizationAnalyzerConfig(analyzerBuilder.build());
+            }
+            if (randomBoolean()) {
+                boolean enabled = randomBoolean();
+                builder.setPerPartitionCategorizationConfig(
+                    new PerPartitionCategorizationConfig(enabled, enabled && randomBoolean()));
             }
         }
         if (randomBoolean()) {
@@ -256,7 +253,7 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

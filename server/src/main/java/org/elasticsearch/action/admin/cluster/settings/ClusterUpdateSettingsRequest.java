@@ -1,36 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -60,6 +46,12 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
 
     private Settings transientSettings = EMPTY_SETTINGS;
     private Settings persistentSettings = EMPTY_SETTINGS;
+
+    public ClusterUpdateSettingsRequest(StreamInput in) throws IOException {
+        super(in);
+        transientSettings = readSettingsFromStream(in);
+        persistentSettings = readSettingsFromStream(in);
+    }
 
     public ClusterUpdateSettingsRequest() {
     }
@@ -109,13 +101,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
      * Sets the transient settings to be updated. They will not survive a full cluster restart
      */
     public ClusterUpdateSettingsRequest transientSettings(Map<String, ?> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            transientSettings(Strings.toString(builder), builder.contentType());
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
+        this.transientSettings = Settings.builder().loadFromMap(source).build();
         return this;
     }
 
@@ -147,21 +133,8 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
      * Sets the persistent settings to be updated. They will get applied cross restarts
      */
     public ClusterUpdateSettingsRequest persistentSettings(Map<String, ?> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            persistentSettings(Strings.toString(builder), builder.contentType());
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
+        this.persistentSettings = Settings.builder().loadFromMap(source).build();
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        transientSettings = readSettingsFromStream(in);
-        persistentSettings = readSettingsFromStream(in);
     }
 
     @Override
@@ -184,7 +157,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         return builder;
     }
 
-    public static ClusterUpdateSettingsRequest fromXContent(XContentParser parser) throws IOException {
+    public static ClusterUpdateSettingsRequest fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

@@ -1,17 +1,20 @@
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-dependencies {
-    testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
-    testCompile project(path: xpackModule('ml'), configuration: 'runtime')
+apply plugin: 'elasticsearch.java-rest-test'
+
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 3
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.monitoring.elasticsearch.collection.enabled', 'false'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'slm.history_index_enabled', 'false'
 }
 
-integTestCluster {
-    setting 'xpack.ilm.enabled', 'false'
-    setting 'xpack.security.enabled', 'false'
-    setting 'xpack.monitoring.enabled', 'false'
-    setting 'xpack.watcher.enabled', 'false'
-    setting 'xpack.ml.enabled', 'true'
-    setting 'xpack.license.self_generated.type', 'trial'
-    numNodes = 3
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
 }

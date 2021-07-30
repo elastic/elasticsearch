@@ -1,0 +1,24 @@
+apply plugin: 'elasticsearch.java-rest-test'
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+dependencies {
+  javaRestTestImplementation project(path: xpackModule('eql:qa:common'))
+}
+
+if (BuildParams.inFipsJvm){
+  // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
+  tasks.named("javaRestTest").configure{enabled = false }
+}
+
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'basic'
+  setting 'xpack.monitoring.collection.enabled', 'true'
+  setting 'xpack.security.enabled', 'true'
+  numberOfNodes = 2
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: "test-admin", password: 'x-pack-test-password', role: "test-admin"
+  user username: "user1", password: 'x-pack-test-password', role: "user1"
+  user username: "user2", password: 'x-pack-test-password', role: "user2"
+}

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.cli;
 
@@ -21,10 +22,10 @@ import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 
 import javax.security.auth.x500.X500Principal;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -154,7 +154,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
     }
 
     public static void main(String[] args) throws Exception {
-        new CertificateGenerateTool().main(args, Terminal.DEFAULT);
+        exit(new CertificateGenerateTool().main(args, Terminal.DEFAULT));
     }
 
     @Override
@@ -286,12 +286,12 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
             final List<String> errors = certInfo.validate();
             if (errors.size() > 0) {
                 hasError = true;
-                terminal.println(Terminal.Verbosity.SILENT, "Configuration for instance " + certInfo.name.originalName
+                terminal.errorPrintln(Terminal.Verbosity.SILENT, "Configuration for instance " + certInfo.name.originalName
                     + " has invalid details");
                 for (String message : errors) {
-                    terminal.println(Terminal.Verbosity.SILENT, " * " + message);
+                    terminal.errorPrintln(Terminal.Verbosity.SILENT, " * " + message);
                 }
-                terminal.println("");
+                terminal.errorPrintln("");
             }
         }
         if (hasError) {
@@ -530,7 +530,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
             terminal.println("      the certificate and private key will also be included in the output file.");
         }
         terminal.println("* Information about each instance");
-        terminal.println("    * An instance is any piece of the Elastic Stack that requires a SSL certificate.");
+        terminal.println("    * An instance is any piece of the Elastic Stack that requires an SSL certificate.");
         terminal.println("      Depending on your configuration, Elasticsearch, Logstash, Kibana, and Beats");
         terminal.println("      may all require a certificate and private key.");
         terminal.println("    * The minimum required value for each instance is a name. This can simply be the");

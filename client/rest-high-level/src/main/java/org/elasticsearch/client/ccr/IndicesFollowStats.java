@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 
 import java.util.AbstractMap;
@@ -41,6 +30,7 @@ public final class IndicesFollowStats {
     private static final ConstructingObjectParser<Tuple<String, List<ShardFollowStats>>, Void> ENTRY_PARSER =
         new ConstructingObjectParser<>(
             "entry",
+            true,
             args -> {
                 String index = (String) args[0];
                 @SuppressWarnings("unchecked")
@@ -54,7 +44,9 @@ public final class IndicesFollowStats {
         ENTRY_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), ShardFollowStats.PARSER, SHARDS_FIELD);
     }
 
-    static final ConstructingObjectParser<IndicesFollowStats, Void> PARSER = new ConstructingObjectParser<>("indices",
+    static final ConstructingObjectParser<IndicesFollowStats, Void> PARSER = new ConstructingObjectParser<>(
+        "indices",
+        true,
         args -> {
             @SuppressWarnings("unchecked")
             List<Tuple<String, List<ShardFollowStats>>> entries = (List<Tuple<String, List<ShardFollowStats>>>) args[0];
@@ -98,6 +90,7 @@ public final class IndicesFollowStats {
         static final ParseField WRITE_BUFFER_SIZE_IN_BYTES_FIELD = new ParseField("write_buffer_size_in_bytes");
         static final ParseField FOLLOWER_MAPPING_VERSION_FIELD = new ParseField("follower_mapping_version");
         static final ParseField FOLLOWER_SETTINGS_VERSION_FIELD = new ParseField("follower_settings_version");
+        static final ParseField FOLLOWER_ALIASES_VERSION_FIELD = new ParseField("follower_aliases_version");
         static final ParseField TOTAL_READ_TIME_MILLIS_FIELD = new ParseField("total_read_time_millis");
         static final ParseField TOTAL_READ_REMOTE_EXEC_TIME_MILLIS_FIELD = new ParseField("total_read_remote_exec_time_millis");
         static final ParseField SUCCESSFUL_READ_REQUESTS_FIELD = new ParseField("successful_read_requests");
@@ -114,44 +107,47 @@ public final class IndicesFollowStats {
 
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<ShardFollowStats, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "shard-follow-stats",
-                args -> new ShardFollowStats(
-                    (String) args[0],
-                    (String) args[1],
-                    (String) args[2],
-                    (int) args[3],
-                    (long) args[4],
-                    (long) args[5],
-                    (long) args[6],
-                    (long) args[7],
-                    (long) args[8],
-                    (int) args[9],
-                    (int) args[10],
-                    (int) args[11],
-                    (long) args[12],
-                    (long) args[13],
-                    (long) args[14],
-                    (long) args[15],
-                    (long) args[16],
-                    (long) args[17],
-                    (long) args[18],
-                    (long) args[19],
-                    (long) args[20],
-                    (long) args[21],
-                    (long) args[22],
-                    (long) args[23],
-                    (long) args[24],
-                    (long) args[25],
-                    new TreeMap<>(
-                        ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[26])
-                            .stream()
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
-                    (ElasticsearchException) args[27]));
+                new ConstructingObjectParser<>(
+                        "shard-follow-stats",
+                        true,
+                        args -> new ShardFollowStats(
+                                (String) args[0],
+                                (String) args[1],
+                                (String) args[2],
+                                (int) args[3],
+                                (long) args[4],
+                                (long) args[5],
+                                (long) args[6],
+                                (long) args[7],
+                                (long) args[8],
+                                (int) args[9],
+                                (int) args[10],
+                                (int) args[11],
+                                (long) args[12],
+                                (long) args[13],
+                                (long) args[14],
+                                (long) args[15],
+                                (long) args[16],
+                                (long) args[17],
+                                (long) args[18],
+                                (long) args[19],
+                                (long) args[20],
+                                (long) args[21],
+                                (long) args[22],
+                                (long) args[23],
+                                (long) args[24],
+                                (long) args[25],
+                                (long) args[26],
+                                new TreeMap<>(
+                                        ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[27])
+                                                .stream()
+                                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
+                                (ElasticsearchException) args[28]));
 
         static final ConstructingObjectParser<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>, Void> READ_EXCEPTIONS_ENTRY_PARSER =
             new ConstructingObjectParser<>(
                 "shard-follow-stats-read-exceptions-entry",
+                true,
                 args -> new AbstractMap.SimpleEntry<>((long) args[0], Tuple.tuple((Integer) args[1], (ElasticsearchException)args[2])));
 
         static {
@@ -170,6 +166,7 @@ public final class IndicesFollowStats {
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), WRITE_BUFFER_SIZE_IN_BYTES_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_MAPPING_VERSION_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_SETTINGS_VERSION_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_ALIASES_VERSION_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_READ_TIME_MILLIS_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_READ_REMOTE_EXEC_TIME_MILLIS_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), SUCCESSFUL_READ_REQUESTS_FIELD);
@@ -215,6 +212,7 @@ public final class IndicesFollowStats {
         private final long writeBufferSizeInBytes;
         private final long followerMappingVersion;
         private final long followerSettingsVersion;
+        private final long followerAliasesVersion;
         private final long totalReadTimeMillis;
         private final long totalReadRemoteExecTimeMillis;
         private final long successfulReadRequests;
@@ -244,6 +242,7 @@ public final class IndicesFollowStats {
                          long writeBufferSizeInBytes,
                          long followerMappingVersion,
                          long followerSettingsVersion,
+                         long followerAliasesVersion,
                          long totalReadTimeMillis,
                          long totalReadRemoteExecTimeMillis,
                          long successfulReadRequests,
@@ -272,6 +271,7 @@ public final class IndicesFollowStats {
             this.writeBufferSizeInBytes = writeBufferSizeInBytes;
             this.followerMappingVersion = followerMappingVersion;
             this.followerSettingsVersion = followerSettingsVersion;
+            this.followerAliasesVersion = followerAliasesVersion;
             this.totalReadTimeMillis = totalReadTimeMillis;
             this.totalReadRemoteExecTimeMillis = totalReadRemoteExecTimeMillis;
             this.successfulReadRequests = successfulReadRequests;
@@ -345,6 +345,10 @@ public final class IndicesFollowStats {
 
         public long getFollowerSettingsVersion() {
             return followerSettingsVersion;
+        }
+
+        public long getFollowerAliasesVersion() {
+            return followerAliasesVersion;
         }
 
         public long getTotalReadTimeMillis() {

@@ -1,91 +1,83 @@
 [role="xpack"]
 [testenv="basic"]
 [[sql-functions-math]]
-=== Math Functions
-
-beta[]
+=== Mathematical Functions
 
 All math and trigonometric functions require their input (where applicable)
 to be numeric.
 
-==== Generic
+[[sql-functions-math-generic]]
+[discrete]
+=== Generic
 
 [[sql-functions-math-abs]]
-===== `ABS`
+==== `ABS`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ABS(numeric_exp<1>)
+ABS(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: numeric
 
-.Description:
-
-Returns the https://en.wikipedia.org/wiki/Absolute_value[absolute value] of `numeric_exp`. The return type is the same as the input type.
+*Description*: Returns the {wikipedia}/Absolute_value[absolute value] of `numeric_exp`. The return type is the same as the input type.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[abs]
+include-tagged::{sql-specs}/docs/docs.csv-spec[abs]
 --------------------------------------------------
 
 [[sql-functions-math-cbrt]]
-===== `CBRT`
+==== `CBRT`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-CBRT(numeric_exp<1>)
+CBRT(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns the https://en.wikipedia.org/wiki/Cube_root[cube root] of `numeric_exp`.
+*Description*: Returns the {wikipedia}/Cube_root[cube root] of `numeric_exp`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineCbrtWithNegativeValue]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineCbrtWithNegativeValue]
 --------------------------------------------------
 
 [[sql-functions-math-ceil]]
-===== `CEIL/CEILING`
+==== `CEIL/CEILING`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-CEIL(numeric_exp<1>)
-CEILING(numeric_exp<2>)
+CEIL(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
-<2> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: integer or long numeric value
 
-.Description:
-
-Returns the smallest integer greater than or equal to `numeric_exp`.
+*Description*: Returns the smallest integer greater than or equal to `numeric_exp`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineCeiling]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineCeiling]
 --------------------------------------------------
 
 [[sql-functions-math-e]]
-===== `E`
+==== `E`
 
 .Synopsis:
 [source, sql]
@@ -97,137 +89,125 @@ E()
 
 *Output*: `2.718281828459045`
 
-.Description:
-
-Returns https://en.wikipedia.org/wiki/E_%28mathematical_constant%29[Euler's number].
+*Description*: Returns {wikipedia}/E_%28mathematical_constant%29[Euler's number].
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathEulersNumber]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathEulersNumber]
 --------------------------------------------------
 
 [[sql-functions-math-exp]]
-===== `EXP`
+==== `EXP`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-EXP(numeric_exp<1>)
+EXP(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> float numeric expression
+<1> float numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns https://en.wikipedia.org/wiki/Exponential_function[Euler's number at the power] of `numeric_exp` e^numeric_exp^.
+*Description*: Returns {wikipedia}/Exponential_function[Euler's number at the power] of `numeric_exp` e^numeric_exp^.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathExpInline]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathExpInline]
 --------------------------------------------------
 
 [[sql-functions-math-expm1]]
-===== `EXPM1`
+==== `EXPM1`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-EXPM1(numeric_exp<1>)
+EXPM1(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> float numeric expression
+<1> float numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns https://docs.oracle.com/javase/8/docs/api/java/lang/Math.html#expm1-double-[Euler's number at the power] of `numeric_exp` minus 1 (e^numeric_exp^ - 1).
+*Description*: Returns https://docs.oracle.com/javase/8/docs/api/java/lang/Math.html#expm1-double-[Euler's number at the power] of `numeric_exp` minus 1 (e^numeric_exp^ - 1).
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathExpm1Inline]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathExpm1Inline]
 --------------------------------------------------
 
 [[sql-functions-math-floor]]
-===== `FLOOR`
+==== `FLOOR`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-FLOOR(numeric_exp<1>)
+FLOOR(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: integer or long numeric value
 
-.Description:
-
-Returns the largest integer less than or equal to `numeric_exp`.
+*Description*: Returns the largest integer less than or equal to `numeric_exp`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineFloor]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineFloor]
 --------------------------------------------------
 
 [[sql-functions-math-log]]
-===== `LOG`
+==== `LOG`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-LOG(numeric_exp<1>)
+LOG(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns the https://en.wikipedia.org/wiki/Natural_logarithm[natural logarithm] of `numeric_exp`.
+*Description*: Returns the {wikipedia}/Natural_logarithm[natural logarithm] of `numeric_exp`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineLog]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineLog]
 --------------------------------------------------
 
 [[sql-functions-math-log10]]
-===== `LOG10`
+==== `LOG10`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-LOG10(numeric_exp<1>)
+LOG10(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns the https://en.wikipedia.org/wiki/Common_logarithm[base 10 logarithm] of `numeric_exp`.
+*Description*: Returns the {wikipedia}/Common_logarithm[base 10 logarithm] of `numeric_exp`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineLog10]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineLog10]
 --------------------------------------------------
 
 [[sql-functions-math-pi]]
-===== `PI`
+==== `PI`
 
 .Synopsis:
 [source, sql]
@@ -239,469 +219,443 @@ PI()
 
 *Output*: `3.141592653589793`
 
-.Description:
-
-Returns https://en.wikipedia.org/wiki/Pi[PI number].
+*Description*: Returns {wikipedia}/Pi[PI number].
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathPINumber]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathPINumber]
 --------------------------------------------------
 
 [[sql-functions-math-power]]
-===== `POWER`
+==== `POWER`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-POWER(numeric_exp<1>, integer_exp<2>)
+POWER(
+    numeric_exp, <1>
+    integer_exp) <2>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
-<2> integer expression
+<1> numeric expression. If `null`, the function returns `null`.
+<2> integer expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns the value of `numeric_exp` to the power of `integer_exp`.
+*Description*: Returns the value of `numeric_exp` to the power of `integer_exp`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlinePowerPositive]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlinePowerPositive]
 --------------------------------------------------
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlinePowerNegative]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlinePowerNegative]
 --------------------------------------------------
 
 [[sql-functions-math-random]]
-===== `RANDOM`
+==== `RANDOM/RAND`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-RANDOM(seed<1>)
+RANDOM(seed) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns a random double using the given seed.
+*Description*: Returns a random double using the given seed.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathRandom]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathRandom]
 --------------------------------------------------
 
 [[sql-functions-math-round]]
-===== `ROUND`
+==== `ROUND`
 
 .Synopsis:
 [source, sql]
 ----
-ROUND(numeric_exp<1>[, integer_exp<2>])
+ROUND(
+    numeric_exp      <1>
+    [, integer_exp]) <2>
 ----
 *Input*:
 
-<1> numeric expression
-<2> integer expression; optional
+<1> numeric expression. If `null`, the function returns `null`.
+<2> integer expression; optional. If `null`, the function returns `null`.
 
 *Output*: numeric 
 
-.Description:
-Returns `numeric_exp` rounded to `integer_exp` places right of the decimal point. If `integer_exp` is negative,
+*Description*: Returns `numeric_exp` rounded to `integer_exp` places right of the decimal point. If `integer_exp` is negative,
 `numeric_exp` is rounded to |`integer_exp`| places to the left of the decimal point. If `integer_exp` is omitted,
 the function will perform as if `integer_exp` would be 0. The returned numeric data type is the same as the data type 
 of `numeric_exp`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathRoundWithPositiveParameter]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathRoundWithPositiveParameter]
 --------------------------------------------------
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathRoundWithNegativeParameter]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathRoundWithNegativeParameter]
 --------------------------------------------------
 
 [[sql-functions-math-sign]]
-===== `SIGN`
+==== `SIGN/SIGNUM`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-SIGN(numeric_exp<1>)
+SIGN(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: [-1, 0, 1]
 
-.Description:
-
-Returns an indicator of the sign of `numeric_exp`. If `numeric_exp` is less than zero, –1 is returned. If `numeric_exp` equals zero, 0 is returned. If `numeric_exp` is greater than zero, 1 is returned.
+*Description*: Returns an indicator of the sign of `numeric_exp`. If `numeric_exp` is less than zero, –1 is returned. If `numeric_exp` equals zero, 0 is returned. If `numeric_exp` is greater than zero, 1 is returned.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineSign]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineSign]
 --------------------------------------------------
 
 
 [[sql-functions-math-sqrt]]
-===== `SQRT`
+==== `SQRT`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-SQRT(numeric_exp<1>)
+SQRT(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns https://en.wikipedia.org/wiki/Square_root[square root] of `numeric_exp`.
+*Description*: Returns {wikipedia}/Square_root[square root] of `numeric_exp`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineSqrt]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineSqrt]
 --------------------------------------------------
 
 [[sql-functions-math-truncate]]
-===== `TRUNCATE`
+==== `TRUNCATE/TRUNC`
 
 .Synopsis:
 [source, sql]
 ----
-TRUNCATE(numeric_exp<1>[, integer_exp<2>])
+TRUNCATE(
+    numeric_exp      <1>
+    [, integer_exp]) <2>
 ----
 *Input*:
 
-<1> numeric expression
-<2> integer expression; optional
+<1> numeric expression. If `null`, the function returns `null`.
+<2> integer expression; optional. If `null`, the function returns `null`.
 
 *Output*: numeric 
 
-.Description:
-Returns `numeric_exp` truncated to `integer_exp` places right of the decimal point. If `integer_exp` is negative,
-`numeric_exp` is truncated to |`integer_exp`| places to the left of the decimal point.  If `integer_exp` is omitted,
+*Description*: Returns `numeric_exp` truncated to `integer_exp` places right of the decimal point. If `integer_exp` is negative,
+`numeric_exp` is truncated to |`integer_exp`| places to the left of the decimal point. If `integer_exp` is omitted,
 the function will perform as if `integer_exp` would be 0. The returned numeric data type is the same as the data type 
 of `numeric_exp`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathTruncateWithPositiveParameter]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathTruncateWithPositiveParameter]
 --------------------------------------------------
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathTruncateWithNegativeParameter]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathTruncateWithNegativeParameter]
 --------------------------------------------------
 
-==== Trigonometric
+[[sql-functions-math-trigonometric]]
+[discrete]
+=== Trigonometric
 
 [[sql-functions-math-acos]]
-===== `ACOS`
+==== `ACOS`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ACOS(numeric_exp<1>)
+ACOS(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns the https://en.wikipedia.org/wiki/Inverse_trigonometric_functions[arccosine] of `numeric_exp` as an angle, expressed in radians.
+*Description*: Returns the {wikipedia}/Inverse_trigonometric_functions[arccosine] of `numeric_exp` as an angle, expressed in radians.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineAcos]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineAcos]
 --------------------------------------------------
 
 [[sql-functions-math-asin]]
-===== `ASIN`
+==== `ASIN`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ASIN(numeric_exp<1>)
+ASIN(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns the https://en.wikipedia.org/wiki/Inverse_trigonometric_functions[arcsine] of `numeric_exp` as an angle, expressed in radians.
+*Description*: Returns the {wikipedia}/Inverse_trigonometric_functions[arcsine] of `numeric_exp` as an angle, expressed in radians.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineAsin]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineAsin]
 --------------------------------------------------
 
 [[sql-functions-math-atan]]
-===== `ATAN`
+==== `ATAN`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ATAN(numeric_exp<1>)
+ATAN(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns the https://en.wikipedia.org/wiki/Inverse_trigonometric_functions[arctangent] of `numeric_exp` as an angle, expressed in radians.
+*Description*: Returns the {wikipedia}/Inverse_trigonometric_functions[arctangent] of `numeric_exp` as an angle, expressed in radians.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineAtan]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineAtan]
 --------------------------------------------------
 
 [[sql-functions-math-atan2]]
-===== `ATAN2`
+==== `ATAN2`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ATAN2(ordinate<1>, abscisa<2>)
+ATAN2(
+    ordinate, <1>
+    abscisa)  <2>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
-<2> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
+<2> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns the https://en.wikipedia.org/wiki/Atan2[arctangent of the `ordinate` and `abscisa` coordinates] specified as an angle, expressed in radians.
+*Description*: Returns the {wikipedia}/Atan2[arctangent of the `ordinate` and `abscisa` coordinates] specified as an angle, expressed in radians.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineAtan2]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineAtan2]
 --------------------------------------------------
 
 [[sql-functions-math-cos]]
-===== `COS`
+==== `COS`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-COS(numeric_exp<1>)
+COS(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns the https://en.wikipedia.org/wiki/Trigonometric_functions#cosine[cosine] of `numeric_exp`, where `numeric_exp` is an angle expressed in radians.
+*Description*: Returns the {wikipedia}/Trigonometric_functions#cosine[cosine] of `numeric_exp`, where `numeric_exp` is an angle expressed in radians.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineCosine]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineCosine]
 --------------------------------------------------
 
 [[sql-functions-math-cosh]]
-===== `COSH`
+==== `COSH`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-COSH(numeric_exp<1>)
+COSH(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns the https://en.wikipedia.org/wiki/Hyperbolic_function[hyperbolic cosine] of `numeric_exp`.
+*Description*: Returns the {wikipedia}/Hyperbolic_function[hyperbolic cosine] of `numeric_exp`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineCosh]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineCosh]
 --------------------------------------------------
 
 [[sql-functions-math-cot]]
-===== `COT`
+==== `COT`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-COT(numeric_exp<1>)
+COT(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns the https://en.wikipedia.org/wiki/Trigonometric_functions#Cosecant,_secant,_and_cotangent[cotangent] of `numeric_exp`, where `numeric_exp` is an angle expressed in radians.
+*Description*: Returns the {wikipedia}/Trigonometric_functions#Cosecant,_secant,_and_cotangent[cotangent] of `numeric_exp`, where `numeric_exp` is an angle expressed in radians.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineCotangent]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineCotangent]
 --------------------------------------------------
 
 [[sql-functions-math-degrees]]
-===== `DEGREES`
+==== `DEGREES`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-DEGREES(numeric_exp<1>)
+DEGREES(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Convert from https://en.wikipedia.org/wiki/Radian[radians]
-to https://en.wikipedia.org/wiki/Degree_(angle)[degrees].
+*Description*: Convert from {wikipedia}/Radian[radians]
+to {wikipedia}/Degree_(angle)[degrees].
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineDegrees]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineDegrees]
 --------------------------------------------------
 
 [[sql-functions-math-radians]]
-===== `RADIANS`
+==== `RADIANS`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-RADIANS(numeric_exp<1>)
+RADIANS(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Convert from https://en.wikipedia.org/wiki/Degree_(angle)[degrees]
-to https://en.wikipedia.org/wiki/Radian[radians].
+*Description*: Convert from {wikipedia}/Degree_(angle)[degrees]
+to {wikipedia}/Radian[radians].
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineRadians]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineRadians]
 --------------------------------------------------
 
 [[sql-functions-math-sin]]
-===== `SIN`
+==== `SIN`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-SIN(numeric_exp<1>)
+SIN(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns the https://en.wikipedia.org/wiki/Trigonometric_functions#sine[sine] of `numeric_exp`, where `numeric_exp` is an angle expressed in radians.
+*Description*: Returns the {wikipedia}/Trigonometric_functions#sine[sine] of `numeric_exp`, where `numeric_exp` is an angle expressed in radians.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineSine]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineSine]
 --------------------------------------------------
 
 [[sql-functions-math-sinh]]
-===== `SINH`
+==== `SINH`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-SINH(numeric_exp<1>)
+SINH(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns the https://en.wikipedia.org/wiki/Hyperbolic_function[hyperbolic sine] of `numeric_exp`.
+*Description*: Returns the {wikipedia}/Hyperbolic_function[hyperbolic sine] of `numeric_exp`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineSinh]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineSinh]
 --------------------------------------------------
 
 [[sql-functions-math-tan]]
-===== `TAN`
+==== `TAN`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-TAN(numeric_exp<1>)
+TAN(numeric_exp) <1>
 --------------------------------------------------
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
-.Description:
-
-Returns the https://en.wikipedia.org/wiki/Trigonometric_functions#tangent[tangent] of `numeric_exp`, where `numeric_exp` is an angle expressed in radians.
+*Description*: Returns the {wikipedia}/Trigonometric_functions#tangent[tangent] of `numeric_exp`, where `numeric_exp` is an angle expressed in radians.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[mathInlineTanget]
+include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineTanget]
 --------------------------------------------------

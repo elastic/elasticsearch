@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
@@ -19,19 +20,17 @@ import java.io.IOException;
 
 public class PagerDutyAccount {
 
-    private static final String SERVICE_KEY_SETTING = "service_api_key";
     private static final String TRIGGER_DEFAULTS_SETTING = "event_defaults";
-    private static final Setting<SecureString> SECURE_SERVICE_API_KEY_SETTING =
-            SecureSetting.secureString("secure_" + SERVICE_KEY_SETTING, null);
+    public static final Setting<SecureString> SECURE_SERVICE_API_KEY_SETTING = SecureSetting.secureString("secure_service_api_key", null);
 
     private final String name;
     private final String serviceKey;
     private final HttpClient httpClient;
     private final IncidentEventDefaults eventDefaults;
 
-    PagerDutyAccount(String name, Settings accountSettings, Settings serviceSettings, HttpClient httpClient) {
+    PagerDutyAccount(String name, Settings accountSettings, HttpClient httpClient) {
         this.name = name;
-        this.serviceKey = getServiceKey(name, accountSettings, serviceSettings);
+        this.serviceKey = getServiceKey(name, accountSettings);
         this.httpClient = httpClient;
 
         this.eventDefaults = new IncidentEventDefaults(accountSettings.getAsSettings(TRIGGER_DEFAULTS_SETTING));
@@ -51,17 +50,12 @@ public class PagerDutyAccount {
         return SentEvent.responded(event, request, response);
     }
 
-    private static String getServiceKey(String name, Settings accountSettings, Settings serviceSettings) {
-        String serviceKey = accountSettings.get(SERVICE_KEY_SETTING, serviceSettings.get(SERVICE_KEY_SETTING, null));
-        if (serviceKey == null) {
-            SecureString secureString = SECURE_SERVICE_API_KEY_SETTING.get(accountSettings);
-            if (secureString == null || secureString.length() < 1) {
-                throw new SettingsException("invalid pagerduty account [" + name + "]. missing required [" + SERVICE_KEY_SETTING +
-                                            "] setting");
-            }
-            serviceKey = secureString.toString();
+    private static String getServiceKey(String name, Settings accountSettings) {
+        SecureString secureString = SECURE_SERVICE_API_KEY_SETTING.get(accountSettings);
+        if (secureString == null || secureString.length() < 1) {
+            throw new SettingsException(
+                    "invalid pagerduty account [" + name + "]. missing required [" + SECURE_SERVICE_API_KEY_SETTING.getKey() + "] setting");
         }
-
-        return serviceKey;
+        return secureString.toString();
     }
 }

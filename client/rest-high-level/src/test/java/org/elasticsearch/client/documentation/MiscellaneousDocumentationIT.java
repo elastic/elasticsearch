@@ -1,35 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.documentation;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.client.core.MainResponse;
 import org.elasticsearch.client.xpack.XPackInfoRequest;
 import org.elasticsearch.client.xpack.XPackInfoResponse;
 import org.elasticsearch.client.xpack.XPackInfoResponse.BuildInfo;
@@ -61,17 +47,31 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
             MainResponse response = client.info(RequestOptions.DEFAULT);
             //end::main-execute
             //tag::main-response
-            ClusterName clusterName = response.getClusterName(); // <1>
-            String clusterUuid = response.getClusterUuid(); // <2>
-            String nodeName = response.getNodeName(); // <3>
-            Version version = response.getVersion(); // <4>
-            Build build = response.getBuild(); // <5>
+            String clusterName = response.getClusterName();
+            String clusterUuid = response.getClusterUuid();
+            String nodeName = response.getNodeName();
+            MainResponse.Version version = response.getVersion();
+            String buildDate = version.getBuildDate();
+            String buildFlavor = version.getBuildFlavor();
+            String buildHash = version.getBuildHash();
+            String buildType = version.getBuildType();
+            String luceneVersion = version.getLuceneVersion();
+            String minimumIndexCompatibilityVersion= version.getMinimumIndexCompatibilityVersion();
+            String minimumWireCompatibilityVersion = version.getMinimumWireCompatibilityVersion();
+            String number = version.getNumber();
             //end::main-response
             assertNotNull(clusterName);
             assertNotNull(clusterUuid);
             assertNotNull(nodeName);
             assertNotNull(version);
-            assertNotNull(build);
+            assertNotNull(buildDate);
+            assertNotNull(buildFlavor);
+            assertNotNull(buildHash);
+            assertNotNull(buildType);
+            assertNotNull(luceneVersion);
+            assertNotNull(minimumIndexCompatibilityVersion);
+            assertNotNull(minimumWireCompatibilityVersion);
+            assertNotNull(number);
         }
     }
 

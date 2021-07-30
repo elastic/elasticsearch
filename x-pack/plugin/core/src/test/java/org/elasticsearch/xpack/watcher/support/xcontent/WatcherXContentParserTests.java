@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.support.xcontent;
 
@@ -14,11 +15,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
-import org.joda.time.DateTime;
+
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class WatcherXContentParserTests extends ESTestCase {
 
@@ -34,7 +36,9 @@ public class WatcherXContentParserTests extends ESTestCase {
                 assertThat(xContentParser.currentName(), is(fieldName));
                 xContentParser.nextToken();
                 assertThat(xContentParser.currentToken(), is(XContentParser.Token.VALUE_STRING));
-                WatcherXContentParser parser = new WatcherXContentParser(xContentParser, DateTime.now(UTC), null, false);
+                ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+
+                WatcherXContentParser parser = new WatcherXContentParser(xContentParser, now, null, false);
                 ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
                         () -> WatcherXContentParser.secretOrNull(parser));
                 assertThat(e.getMessage(), is("found redacted password in field [" + fieldName + "]"));

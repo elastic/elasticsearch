@@ -1,23 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -76,20 +76,14 @@ public class MlFilter implements ToXContentObject, Writeable {
 
     public MlFilter(StreamInput in) throws IOException {
         id = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            description = in.readOptionalString();
-        } else {
-            description = null;
-        }
+        description = in.readOptionalString();
         items = new TreeSet<>(Arrays.asList(in.readStringArray()));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeOptionalString(description);
-        }
+        out.writeOptionalString(description);
         out.writeStringArray(items.toArray(new String[items.size()]));
     }
 
@@ -101,7 +95,7 @@ public class MlFilter implements ToXContentObject, Writeable {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
         builder.field(ITEMS.getPreferredName(), items);
-        if (params.paramAsBoolean(MlMetaIndex.INCLUDE_TYPE_KEY, false)) {
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(TYPE.getPreferredName(), FILTER_TYPE);
         }
         builder.endObject();
@@ -126,7 +120,7 @@ public class MlFilter implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (!(obj instanceof MlFilter)) {
+        if ((obj instanceof MlFilter) == false) {
             return false;
         }
 
@@ -192,7 +186,7 @@ public class MlFilter implements ToXContentObject, Writeable {
         public MlFilter build() {
             ExceptionsHelper.requireNonNull(id, MlFilter.ID.getPreferredName());
             ExceptionsHelper.requireNonNull(items, MlFilter.ITEMS.getPreferredName());
-            if (!MlStrings.isValidId(id)) {
+            if (MlStrings.isValidId(id) == false) {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
             }
             if (items.size() > MAX_ITEMS) {

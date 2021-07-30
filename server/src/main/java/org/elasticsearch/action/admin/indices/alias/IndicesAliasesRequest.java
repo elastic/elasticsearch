@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -60,14 +49,21 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 /**
  * A request to add/remove aliases for one or more indices.
  */
-public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements ToXContentObject {
+public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements IndicesRequest, ToXContentObject {
 
     private List<AliasActions> allAliasActions = new ArrayList<>();
+    private String origin = "";
 
     // indices options that require every specified index to exist, expand wildcards only to open
     // indices, don't allow that no indices are resolved from wildcard expressions and resolve the
     // expressions only against indices
     private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
+
+    public IndicesAliasesRequest(StreamInput in) throws IOException {
+        super(in);
+        allAliasActions = in.readList(AliasActions::new);
+        origin = in.readOptionalString();
+    }
 
     public IndicesAliasesRequest() {
     }
@@ -86,6 +82,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private static final ParseField INDEX_ROUTING = new ParseField("index_routing", "indexRouting", "index-routing");
         private static final ParseField SEARCH_ROUTING = new ParseField("search_routing", "searchRouting", "search-routing");
         private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
+        private static final ParseField IS_HIDDEN = new ParseField("is_hidden");
+        private static final ParseField MUST_EXIST = new ParseField("must_exist");
 
         private static final ParseField ADD = new ParseField("add");
         private static final ParseField REMOVE = new ParseField("remove");
@@ -169,6 +167,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         }
 
         private static final ObjectParser<AliasActions, Void> ADD_PARSER = parser(ADD.getPreferredName(), AliasActions::add);
+        private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
+        private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser(REMOVE_INDEX.getPreferredName(),
+            AliasActions::removeIndex);
         static {
             ADD_PARSER.declareObject(AliasActions::filter, (parser, m) -> {
                 try {
@@ -182,10 +183,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             ADD_PARSER.declareField(AliasActions::indexRouting, XContentParser::text, INDEX_ROUTING, ValueType.INT);
             ADD_PARSER.declareField(AliasActions::searchRouting, XContentParser::text, SEARCH_ROUTING, ValueType.INT);
             ADD_PARSER.declareField(AliasActions::writeIndex, XContentParser::booleanValue, IS_WRITE_INDEX, ValueType.BOOLEAN);
+            ADD_PARSER.declareField(AliasActions::isHidden, XContentParser::booleanValue, IS_HIDDEN, ValueType.BOOLEAN);
+            REMOVE_PARSER.declareField(AliasActions::mustExist, XContentParser::booleanValue, MUST_EXIST, ValueType.BOOLEAN);
         }
-        private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
-        private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser(REMOVE_INDEX.getPreferredName(),
-                AliasActions::removeIndex);
 
         /**
          * Parser for any one {@link AliasAction}.
@@ -220,6 +220,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private String indexRouting;
         private String searchRouting;
         private Boolean writeIndex;
+        private Boolean isHidden;
+        private Boolean mustExist;
 
         public AliasActions(AliasActions.Type type) {
             this.type = type;
@@ -236,12 +238,10 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             routing = in.readOptionalString();
             searchRouting = in.readOptionalString();
             indexRouting = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-                writeIndex = in.readOptionalBoolean();
-            }
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                originalAliases = in.readStringArray();
-            }
+            writeIndex = in.readOptionalBoolean();
+            isHidden = in.readOptionalBoolean();
+            originalAliases = in.readStringArray();
+            mustExist = in.readOptionalBoolean();
         }
 
         @Override
@@ -253,12 +253,10 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalString(routing);
             out.writeOptionalString(searchRouting);
             out.writeOptionalString(indexRouting);
-            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-                out.writeOptionalBoolean(writeIndex);
-            }
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                out.writeStringArray(originalAliases);
-            }
+            out.writeOptionalBoolean(writeIndex);
+            out.writeOptionalBoolean(isHidden);
+            out.writeStringArray(originalAliases);
+            out.writeOptionalBoolean(mustExist);
         }
 
         /**
@@ -364,6 +362,10 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return this;
         }
 
+        public String routing() {
+            return routing;
+        }
+
         public String indexRouting() {
             return indexRouting == null ? routing : indexRouting;
         }
@@ -431,6 +433,30 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return writeIndex;
         }
 
+        public AliasActions isHidden(Boolean isHidden) {
+            if (type != AliasActions.Type.ADD) {
+                throw new IllegalArgumentException("[" + IS_HIDDEN.getPreferredName() + "] is unsupported for [" + type + "]");
+            }
+            this.isHidden = isHidden;
+            return this;
+        }
+
+        public Boolean isHidden() {
+            return isHidden;
+        }
+
+        public AliasActions mustExist(Boolean mustExist) {
+            if (type != Type.REMOVE) {
+                throw new IllegalArgumentException("[" + MUST_EXIST.getPreferredName() + "] is unsupported for [" + type + "]");
+            }
+            this.mustExist = mustExist;
+            return this;
+        }
+
+        public Boolean mustExist() {
+            return mustExist;
+        }
+
         @Override
         public String[] aliases() {
             return aliases;
@@ -455,6 +481,11 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         @Override
         public String[] indices() {
             return indices;
+        }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
         }
 
         @Override
@@ -489,6 +520,12 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (null != writeIndex) {
                 builder.field(IS_WRITE_INDEX.getPreferredName(), writeIndex);
             }
+            if (null != isHidden) {
+                builder.field(IS_HIDDEN.getPreferredName(), isHidden);
+            }
+            if (null != mustExist) {
+                builder.field(MUST_EXIST.getPreferredName(), mustExist);
+            }
             builder.endObject();
             builder.endObject();
             return builder;
@@ -509,6 +546,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     + ",indexRouting=" + indexRouting
                     + ",searchRouting=" + searchRouting
                     + ",writeIndex=" + writeIndex
+                    + ",mustExist=" + mustExist
                     + "]";
         }
 
@@ -526,13 +564,24 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     && Objects.equals(routing, other.routing)
                     && Objects.equals(indexRouting, other.indexRouting)
                     && Objects.equals(searchRouting, other.searchRouting)
-                    && Objects.equals(writeIndex, other.writeIndex);
+                    && Objects.equals(writeIndex, other.writeIndex)
+                    && Objects.equals(isHidden, other.isHidden)
+                    && Objects.equals(mustExist, other.mustExist);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex);
+            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex, isHidden, mustExist);
         }
+    }
+
+    public String origin() {
+        return origin;
+    }
+
+    public IndicesAliasesRequest origin(final String origin) {
+        this.origin = Objects.requireNonNull(origin);
+        return this;
     }
 
     /**
@@ -562,19 +611,26 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        allAliasActions = in.readList(AliasActions::new);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeList(allAliasActions);
+        out.writeOptionalString(origin);
     }
 
     public IndicesOptions indicesOptions() {
         return INDICES_OPTIONS;
+    }
+
+    @Override
+    public String[] indices() {
+        return allAliasActions.stream()
+            .flatMap(aliasActions -> Arrays.stream(aliasActions.indices()))
+            .toArray(String[]::new);
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     @Override

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -36,14 +25,9 @@ public enum SearchType {
      * document content. The return number of hits is exactly as specified in size, since they are the only ones that
      * are fetched. This is very handy when the index has a lot of shards (not replicas, shard id groups).
      */
-    QUERY_THEN_FETCH((byte) 1),
+    QUERY_THEN_FETCH((byte) 1);
     // 2 used to be DFS_QUERY_AND_FETCH
-
-    /**
-     * Only used for pre 5.3 request where this type is still needed
-     */
-    @Deprecated
-    QUERY_AND_FETCH((byte) 3);
+    // 3 used to be QUERY_AND_FETCH
 
     /**
      * The default search type ({@link #QUERY_THEN_FETCH}.
@@ -74,8 +58,7 @@ public enum SearchType {
     public static SearchType fromId(byte id) {
         if (id == 0) {
             return DFS_QUERY_THEN_FETCH;
-        } else if (id == 1
-            || id == 3) { // TODO this bwc layer can be removed once this is back-ported to 5.3 QUERY_AND_FETCH is removed now
+        } else if (id == 1) {
             return QUERY_THEN_FETCH;
         } else {
             throw new IllegalArgumentException("No search type for [" + id + "]");
@@ -84,8 +67,7 @@ public enum SearchType {
 
     /**
      * The a string representation search type to execute, defaults to {@link SearchType#DEFAULT}. Can be
-     * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
-     * "query_then_fetch"/"queryThenFetch" and "query_and_fetch"/"queryAndFetch".
+     * one of "dfs_query_then_fetch" or "query_then_fetch".
      */
     public static SearchType fromString(String searchType) {
         if (searchType == null) {
@@ -99,5 +81,5 @@ public enum SearchType {
             throw new IllegalArgumentException("No search type for [" + searchType + "]");
         }
     }
-    
+
 }

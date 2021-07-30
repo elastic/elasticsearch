@@ -1,15 +1,20 @@
+[role="xpack"]
 [[transform-script]]
-=== Script Transform
+=== {watcher} script {watcher-transform}
+++++
+<titleabbrev>Script {watcher-transform}</titleabbrev>
+++++
 
-A <<transform, Transform>> that executes a script on the current payload in the
-watch execution context and replaces it with a newly generated one. The following
-snippet shows how a simple script transform can be defined on the watch level:
+A <<transform,{watcher-transform}>> that executes a script on the current
+payload in the watch execution context and replaces it with a newly generated
+one. The following snippet shows how a simple script {watcher-transform} can be
+defined on the watch level:
 
-TIP:  The `script` transform is often useful when used in combination with the
-      <<transform-search, `search`>> transform, where the script can extract only
-      the significant data from a search result, and by that, keep the payload
-      minimal. This can be achieved with the <<transform-chain, `chain`>>
-      transform.
+TIP:  The `script` {watcher-transform} is often useful when used in combination
+      with the <<transform-search,`search`>> {watcher-transform}, where the
+      script can extract only the significant data from a search result, and by
+      that, keep the payload minimal. This can be achieved with the
+      <<transform-chain,`chain`>> {watcher-transform}.
 
 
 [source,js]
@@ -32,33 +37,32 @@ NOTE: The executed script may either return a valid model that is the equivalent
 
 The `script` attribute may hold a string value in which case it will be treated
 as an inline script and the default elasticsearch script languages will be assumed
-(as described in {ref}/modules-scripting.html#modules-scripting[here]). You can
+(as described in <<modules-scripting>>). You can
 use the other scripting languages supported by Elasticsearch. For this, you need
 to set the `script` field to an object describing the script and its language.
 The following table lists the possible settings that can be configured:
 
 [[transform-script-settings]]
-.Script Transform Settings
-[options="header,footer"]
+.Script {watcher-transform} settings
+[options="header"]
 |======
 | Name      |Required | Default    | Description
 
-| `inline`  | yes*    | -          | When using an inline script, this field holds
+| `inline`  | yes     | -          | When using an inline script, this field holds
                                      the script itself.
 
-| `id`      | yes*    | -          | When referring to a stored script, this
+| `id`      | yes     | -          | When referring to a stored script, this
                                      field holds the id of the script.
 
 | `lang`    | no      | `painless` | The script language
 
 | `params`  | no      | -          | Additional parameters/variables that are
                                      accessible by the script
-
 |======
 
 When using the object notation of the script, one (and only one) of `inline`,
-or `id` fields must be defined
+or `id` fields must be defined.
 
 NOTE: In addition to the provided `params`, the scripts also have access to the
-      <<watch-execution-context, Standard Watch Execution Context Parameters>>.
+      <<watch-execution-context,standard watch execution context parameters>>.
 

@@ -1,55 +1,30 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+public class CamelCaseFieldNameTests extends MapperServiceTestCase {
 
-public class CamelCaseFieldNameTests extends ESSingleNodeTestCase {
     public void testCamelCaseFieldNameStaysAsIs() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .endObject().endObject());
 
-        IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
-        DocumentMapper documentMapper = index.mapperService().documentMapper("type");
+        MapperService mapperService = createMapperService(mapping(b -> {}));
 
-        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1",
-                        BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                                .field("thisIsCamelCase", "value1")
-                                .endObject()),
-                        XContentType.JSON));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("thisIsCamelCase", "value1")));
 
         assertNotNull(doc.dynamicMappingsUpdate());
-        client().admin().indices().preparePutMapping("test").setType("type")
-            .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
-        documentMapper = index.mapperService().documentMapper("type");
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+
+        DocumentMapper documentMapper = mapperService.documentMapper();
         assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));
         assertNull(documentMapper.mappers().getMapper("this_is_camel_case"));
 
-        documentMapper = index.mapperService().documentMapperParser().parse("type", documentMapper.mappingSource());
+        documentMapper = mapperService.merge("_doc", documentMapper.mappingSource(), MapperService.MergeReason.MAPPING_UPDATE);
 
         assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));
         assertNull(documentMapper.mappers().getMapper("this_is_camel_case"));

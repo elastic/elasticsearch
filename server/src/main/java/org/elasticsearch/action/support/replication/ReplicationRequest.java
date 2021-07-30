@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.replication;
@@ -26,10 +15,10 @@ import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshActio
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -54,9 +43,9 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * shard id gets resolved by the transport action before performing request operation
      * and at request creation time for shard-level bulk, refresh and flush requests.
      */
-    protected ShardId shardId;
+    protected final ShardId shardId;
 
-    protected TimeValue timeout = DEFAULT_TIMEOUT;
+    protected TimeValue timeout;
     protected String index;
 
     /**
@@ -66,16 +55,39 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
 
     private long routedBasedOnClusterVersion = 0;
 
-    public ReplicationRequest() {
+    public ReplicationRequest(StreamInput in) throws IOException {
+        this(null, in);
+    }
 
+    public ReplicationRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        super(in);
+        final boolean thinRead = shardId != null;
+        if (thinRead) {
+            this.shardId = shardId;
+        } else {
+            this.shardId = in.readOptionalWriteable(ShardId::new);
+       }
+        waitForActiveShards = ActiveShardCount.readFrom(in);
+        timeout = in.readTimeValue();
+        if (thinRead) {
+            if (in.readBoolean()) {
+                index = in.readString();
+            } else {
+                index = shardId.getIndexName();
+            }
+        } else {
+            index = in.readString();
+        }
+        routedBasedOnClusterVersion = in.readVLong();
     }
 
     /**
      * Creates a new request with resolved shard id
      */
-    public ReplicationRequest(ShardId shardId) {
-        this.index = shardId.getIndexName();
+    public ReplicationRequest(@Nullable ShardId shardId) {
+        this.index = shardId == null ? null : shardId.getIndexName();
         this.shardId = shardId;
+        this.timeout = DEFAULT_TIMEOUT;
     }
 
     /**
@@ -159,7 +171,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * Used to prevent redirect loops, see also {@link TransportReplicationAction.ReroutePhase#doRun()}
      */
     @SuppressWarnings("unchecked")
-    Request routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {
+    protected Request routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {
         this.routedBasedOnClusterVersion = routedBasedOnClusterVersion;
         return (Request) this;
     }
@@ -178,47 +190,35 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        if (in.readBoolean()) {
-            shardId = ShardId.readShardId(in);
-        } else {
-            shardId = null;
-        }
-        waitForActiveShards = ActiveShardCount.readFrom(in);
-        timeout = in.readTimeValue();
-        index = in.readString();
-        routedBasedOnClusterVersion = in.readVLong();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (shardId != null) {
-            out.writeBoolean(true);
-            shardId.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalWriteable(shardId);
         waitForActiveShards.writeTo(out);
         out.writeTimeValue(timeout);
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);
     }
 
+    /**
+     * Thin serialization that does not write {@link #shardId} and will only write {@link #index} if it is different from the index name in
+     * {@link #shardId}.
+     */
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        waitForActiveShards.writeTo(out);
+        out.writeTimeValue(timeout);
+        if (shardId != null && index.equals(shardId.getIndexName())) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeString(index);
+        }
+        out.writeVLong(routedBasedOnClusterVersion);
+    }
+
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new ReplicationTask(id, type, action, getDescription(), parentTaskId, headers);
-    }
-
-    /**
-     * Sets the target shard id for the request. The shard id is set when a
-     * index/delete request is resolved by the transport action
-     */
-    @SuppressWarnings("unchecked")
-    public Request setShardId(ShardId shardId) {
-        this.shardId = shardId;
-        return (Request) this;
     }
 
     @Override

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action;
 
@@ -42,10 +31,9 @@ public class ShardValidateQueryRequestTests extends ESTestCase {
 
     public void setUp() throws Exception {
         super.setUp();
-        IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(indicesModule.getNamedWriteables());
+        entries.addAll(IndicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
     }
@@ -56,15 +44,12 @@ public class ShardValidateQueryRequestTests extends ESTestCase {
             validateQueryRequest.query(QueryBuilders.termQuery("field", "value"));
             validateQueryRequest.rewrite(true);
             validateQueryRequest.explain(false);
-            validateQueryRequest.types("type1", "type2");
             ShardValidateQueryRequest request = new ShardValidateQueryRequest(new ShardId("index", "foobar", 1),
-                new AliasFilter(QueryBuilders.termQuery("filter_field", "value"), new String[] {"alias0", "alias1"}), validateQueryRequest);
+                new AliasFilter(QueryBuilders.termQuery("filter_field", "value"), "alias0", "alias1"), validateQueryRequest);
             request.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                ShardValidateQueryRequest readRequest = new ShardValidateQueryRequest();
-                readRequest.readFrom(in);
+                ShardValidateQueryRequest readRequest = new ShardValidateQueryRequest(in);
                 assertEquals(request.filteringAliases(), readRequest.filteringAliases());
-                assertArrayEquals(request.types(), readRequest.types());
                 assertEquals(request.explain(), readRequest.explain());
                 assertEquals(request.query(), readRequest.query());
                 assertEquals(request.rewrite(), readRequest.rewrite());

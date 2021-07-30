@@ -1,29 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -69,11 +60,20 @@ public abstract class Decision implements ToXContent, Writeable {
             }
             return result;
         } else {
-            Single result = new Single();
-            result.type = Type.readFrom(in);
-            result.label = in.readOptionalString();
-            result.explanationString = in.readOptionalString();
-            return result;
+            final Type type = Type.readFrom(in);
+            final String label = in.readOptionalString();
+            final String explanation = in.readOptionalString();
+            if (label == null && explanation == null) {
+                switch (type) {
+                    case YES:
+                        return YES;
+                    case THROTTLE:
+                        return THROTTLE;
+                    case NO:
+                        return NO;
+                }
+            }
+            return new Single(type, label, explanation);
         }
     }
 
@@ -150,22 +150,16 @@ public abstract class Decision implements ToXContent, Writeable {
     /**
      * Simple class representing a single decision
      */
-    public static class Single extends Decision {
-        private Type type;
-        private String label;
-        private String explanation;
-        private String explanationString;
-        private Object[] explanationParams;
-
-        public Single() {
-
-        }
+    public static class Single extends Decision implements ToXContentObject {
+        private final Type type;
+        private final String label;
+        private final String explanationString;
 
         /**
          * Creates a new {@link Single} decision of a given type
          * @param type {@link Type} of the decision
          */
-        public Single(Type type) {
+        private Single(Type type) {
             this(type, null, null, (Object[]) null);
         }
 
@@ -179,8 +173,11 @@ public abstract class Decision implements ToXContent, Writeable {
         public Single(Type type, @Nullable String label, @Nullable String explanation, @Nullable Object... explanationParams) {
             this.type = type;
             this.label = label;
-            this.explanation = explanation;
-            this.explanationParams = explanationParams;
+            if (explanationParams != null && explanationParams.length > 0) {
+                this.explanationString = String.format(Locale.ROOT, explanation, explanationParams);
+            } else {
+                this.explanationString = explanation;
+            }
         }
 
         @Override
@@ -205,9 +202,6 @@ public abstract class Decision implements ToXContent, Writeable {
         @Override
         @Nullable
         public String getExplanation() {
-            if (explanationString == null && explanation != null) {
-                explanationString = String.format(Locale.ROOT, explanation, explanationParams);
-            }
             return this.explanationString;
         }
 
@@ -224,22 +218,22 @@ public abstract class Decision implements ToXContent, Writeable {
             Decision.Single s = (Decision.Single) object;
             return this.type == s.type &&
                        Objects.equals(label, s.label) &&
-                       Objects.equals(getExplanation(), s.getExplanation());
+                       Objects.equals(explanationString, s.explanationString);
         }
 
         @Override
         public int hashCode() {
             int result = type.hashCode();
             result = 31 * result + (label == null ? 0 : label.hashCode());
-            String explanationStr = getExplanation();
+            String explanationStr = explanationString;
             result = 31 * result + (explanationStr == null ? 0 : explanationStr.hashCode());
             return result;
         }
 
         @Override
         public String toString() {
-            if (explanationString != null || explanation != null) {
-                return type + "(" + getExplanation() + ")";
+            if (explanationString != null) {
+                return type + "(" + explanationString + ")";
             }
             return type + "()";
         }
@@ -249,8 +243,7 @@ public abstract class Decision implements ToXContent, Writeable {
             builder.startObject();
             builder.field("decider", label);
             builder.field("decision", type);
-            String explanation = getExplanation();
-            builder.field("explanation", explanation != null ? explanation : "none");
+            builder.field("explanation", explanationString != null ? explanationString : "none");
             builder.endObject();
             return builder;
         }
@@ -262,14 +255,14 @@ public abstract class Decision implements ToXContent, Writeable {
             out.writeOptionalString(label);
             // Flatten explanation on serialization, so that explanationParams
             // do not need to be serialized
-            out.writeOptionalString(getExplanation());
+            out.writeOptionalString(explanationString);
         }
     }
 
     /**
      * Simple class representing a list of decisions
      */
-    public static class Multi extends Decision {
+    public static class Multi extends Decision implements ToXContentFragment {
 
         private final List<Decision> decisions = new ArrayList<>();
 

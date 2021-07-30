@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -31,6 +20,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -61,7 +51,7 @@ public class BytesChannelContextTests extends ESTestCase {
         channelBuffer = InboundChannelBuffer.allocatingInstance();
         TestReadWriteHandler handler = new TestReadWriteHandler(readConsumer);
         when(channel.getRawChannel()).thenReturn(rawChannel);
-        context = new BytesChannelContext(channel, selector, mock(Consumer.class), handler, channelBuffer);
+        context = new BytesChannelContext(channel, selector, mock(Config.Socket.class), mock(Consumer.class), handler, channelBuffer);
 
         when(selector.isOnCurrentThread()).thenReturn(true);
         ByteBuffer buffer = ByteBuffer.allocate(1 << 14);
@@ -168,7 +158,7 @@ public class BytesChannelContextTests extends ESTestCase {
 
         assertTrue(context.readyForFlush());
 
-        when(flushOperation.getBuffersToWrite()).thenReturn(buffers);
+        when(flushOperation.getBuffersToWrite(anyInt())).thenReturn(buffers);
         when(flushOperation.isFullyFlushed()).thenReturn(false, true);
         when(flushOperation.getListener()).thenReturn(listener);
         context.flushChannel();
@@ -187,7 +177,7 @@ public class BytesChannelContextTests extends ESTestCase {
         assertTrue(context.readyForFlush());
 
         when(flushOperation.isFullyFlushed()).thenReturn(false);
-        when(flushOperation.getBuffersToWrite()).thenReturn(new ByteBuffer[] {ByteBuffer.allocate(3)});
+        when(flushOperation.getBuffersToWrite(anyInt())).thenReturn(new ByteBuffer[] {ByteBuffer.allocate(3)});
         context.flushChannel();
 
         verify(listener, times(0)).accept(null, null);
@@ -201,8 +191,8 @@ public class BytesChannelContextTests extends ESTestCase {
         BiConsumer<Void, Exception> listener2 = mock(BiConsumer.class);
         FlushReadyWrite flushOperation1 = mock(FlushReadyWrite.class);
         FlushReadyWrite flushOperation2 = mock(FlushReadyWrite.class);
-        when(flushOperation1.getBuffersToWrite()).thenReturn(new ByteBuffer[] {ByteBuffer.allocate(3)});
-        when(flushOperation2.getBuffersToWrite()).thenReturn(new ByteBuffer[] {ByteBuffer.allocate(3)});
+        when(flushOperation1.getBuffersToWrite(anyInt())).thenReturn(new ByteBuffer[] {ByteBuffer.allocate(3)});
+        when(flushOperation2.getBuffersToWrite(anyInt())).thenReturn(new ByteBuffer[] {ByteBuffer.allocate(3)});
         when(flushOperation1.getListener()).thenReturn(listener);
         when(flushOperation2.getListener()).thenReturn(listener2);
 
@@ -237,7 +227,7 @@ public class BytesChannelContextTests extends ESTestCase {
         assertTrue(context.readyForFlush());
 
         IOException exception = new IOException();
-        when(flushOperation.getBuffersToWrite()).thenReturn(buffers);
+        when(flushOperation.getBuffersToWrite(anyInt())).thenReturn(buffers);
         when(rawChannel.write(any(ByteBuffer.class))).thenThrow(exception);
         when(flushOperation.getListener()).thenReturn(listener);
         expectThrows(IOException.class, () -> context.flushChannel());
@@ -252,7 +242,7 @@ public class BytesChannelContextTests extends ESTestCase {
         context.queueWriteOperation(flushOperation);
 
         IOException exception = new IOException();
-        when(flushOperation.getBuffersToWrite()).thenReturn(buffers);
+        when(flushOperation.getBuffersToWrite(anyInt())).thenReturn(buffers);
         when(rawChannel.write(any(ByteBuffer.class))).thenThrow(exception);
 
         assertFalse(context.selectorShouldClose());

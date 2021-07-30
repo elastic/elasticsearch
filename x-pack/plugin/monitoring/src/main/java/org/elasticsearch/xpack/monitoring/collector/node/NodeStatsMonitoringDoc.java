@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.node;
 
@@ -104,6 +105,11 @@ public class NodeStatsMonitoringDoc extends FilteredMonitoringDoc {
                         "node_stats.indices.segments.index_writer_memory_in_bytes",
                         "node_stats.indices.segments.version_map_memory_in_bytes",
                         "node_stats.indices.segments.fixed_bit_set_memory_in_bytes",
+                        "node_stats.indices.bulk.total_operations",
+                        "node_stats.indices.bulk.total_time_in_millis",
+                        "node_stats.indices.bulk.total_size_in_bytes",
+                        "node_stats.indices.bulk.avg_time_in_millis",
+                        "node_stats.indices.bulk.avg_size_in_bytes",
                         "node_stats.fs.io_stats.total.operations",
                         "node_stats.fs.io_stats.total.read_operations",
                         "node_stats.fs.io_stats.total.write_operations",

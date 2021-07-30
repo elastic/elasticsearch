@@ -1,26 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.rule.RuleExecutor.Batch;
-import org.elasticsearch.xpack.sql.rule.RuleExecutor.ExecutionInfo;
-import org.elasticsearch.xpack.sql.rule.RuleExecutor.Transformation;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.rule.RuleExecutor.Batch;
+import org.elasticsearch.xpack.ql.rule.RuleExecutor.ExecutionInfo;
+import org.elasticsearch.xpack.ql.rule.RuleExecutor.Transformation;
+import org.elasticsearch.xpack.ql.tree.Node;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.NodeUtils;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.KeywordEsField;
+import org.elasticsearch.xpack.ql.util.Graphviz;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.Node;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.NodeUtils;
-import org.elasticsearch.xpack.sql.type.KeywordEsField;
-import org.elasticsearch.xpack.sql.util.Graphviz;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,8 +46,8 @@ public class Debug extends Command {
     private final Format format;
     private final Type type;
 
-    public Debug(Location location, LogicalPlan plan, Type type, Format format) {
-        super(location);
+    public Debug(Source source, LogicalPlan plan, Type type, Format format) {
+        super(source);
         this.plan = plan;
         this.format = format == null ? Format.TEXT : format;
         this.type = type == null ? Type.OPTIMIZED : type;
@@ -71,11 +72,11 @@ public class Debug extends Command {
 
     @Override
     public List<Attribute> output() {
-        return singletonList(new FieldAttribute(location(), "plan", new KeywordEsField("plan")));
+        return singletonList(new FieldAttribute(source(), "plan", new KeywordEsField("plan")));
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
+    public void execute(SqlSession session, ActionListener<Page> listener) {
         switch (type) {
             case ANALYZED:
                 session.debugAnalyzedPlan(plan, wrap(i -> handleInfo(i, listener), listener::onFailure));
@@ -90,7 +91,7 @@ public class Debug extends Command {
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private void handleInfo(ExecutionInfo info, ActionListener<SchemaRowSet> listener) {
+    private void handleInfo(ExecutionInfo info, ActionListener<Page> listener) {
         String planString = null;
 
         if (format == Format.TEXT) {
@@ -135,7 +136,7 @@ public class Debug extends Command {
             }
         }
 
-        listener.onResponse(Rows.singleton(output(), planString));
+        listener.onResponse(Page.last(Rows.singleton(output(), planString)));
     }
 
     @Override

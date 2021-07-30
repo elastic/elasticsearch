@@ -1,0 +1,56 @@
+{
+  "indices.simulate_template":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
+      "description": "Simulate resolving the given template name or body"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_index_template/_simulate",
+          "methods":[
+            "POST"
+          ]
+        },
+        {
+          "path":"/_index_template/_simulate/{name}",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "name":{
+              "type":"string",
+              "description":"The name of the index template"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "create":{
+        "type":"boolean",
+        "description":"Whether the index template we optionally defined in the body should only be dry-run added if new or can also replace an existing one",
+        "default":false
+      },
+      "cause":{
+        "type":"string",
+        "description":"User defined reason for dry-run creating the new template for simulation purposes",
+        "default":false
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Specify timeout for connection to master"
+      }
+    },
+    "body":{
+      "description":"New index template definition to be simulated, if no index template name is specified",
+      "required":false
+    }
+  }
+}

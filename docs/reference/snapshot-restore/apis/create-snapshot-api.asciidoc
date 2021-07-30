@@ -1,0 +1,212 @@
+[[create-snapshot-api]]
+=== Create snapshot API
+++++
+<titleabbrev>Create snapshot</titleabbrev>
+++++
+
+Takes a <<snapshot-restore,snapshot>> of a cluster or specified data streams and
+indices.
+
+////
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_repository
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+-----------------------------------
+// TESTSETUP
+////
+
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_repository/my_snapshot
+-----------------------------------
+// TEST[s/my_snapshot/my_snapshot?wait_for_completion=true/]
+
+[[create-snapshot-api-request]]
+==== {api-request-title}
+
+`PUT /_snapshot/<repository>/<snapshot>`
+
+`POST /_snapshot/<repository>/<snapshot>`
+
+[[create-snapshot-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`create_snapshot` or `manage` <<privileges-list-cluster,cluster privilege>> to
+use this API.
+
+[[create-snapshot-api-desc]]
+==== {api-description-title}
+
+You can use the create snapshot API to create a <<snapshot-restore,snapshot>>, which is a
+backup taken from a running {es} cluster.
+
+By default, a snapshot includes all data streams and open indices in the
+cluster, as well as the cluster state. You can change this behavior by
+specifying a list of data streams and indices to back up in the body of the
+snapshot request.
+
+NOTE: You must register a snapshot repository before performing snapshot and
+restore operations. Use the <<put-snapshot-repo-api,create or update snapshot
+repository API>> to register new repositories and update existing ones.
+
+The snapshot process is incremental. When creating a snapshot, {es} analyzes the list of files that are already stored in the repository and copies only files that were created or changed since the last snapshot. This process allows multiple snapshots to be preserved in the repository in a compact form.
+
+The snapshot process is executed in non-blocking fashion, so all indexing and searching operations can run concurrently against the data stream or index that {es} is snapshotting.
+
+A snapshot represents a point-in-time view of the moment when the snapshot was created. No records that were added to a data stream or index after the snapshot process started will be present in the snapshot.
+
+For primary shards that have not been started and are not currently relocating, the snapshot process starts immediately. If shards are in the process of starting or relocating, {es} waits for these processes to complete before taking a snapshot.
+
+IMPORTANT: While a snapshot of a particular shard is being created, this shard cannot be moved to another node. Relocating a shard during the snapshot process can interfere with rebalancing and allocation filtering. {es} can move a shard to another node (according to the current allocation filtering settings and rebalancing algorithm) only after the snapshot process completes.
+
+Besides creating a copy of each data stream and index, the snapshot process can also store global cluster metadata, including persistent cluster settings and templates. The transient settings and registered snapshot repositories are not stored as part of the snapshot.
+
+[[create-snapshot-api-path-params]]
+==== {api-path-parms-title}
+
+`<repository>`::
+(Required, string)
+Name of the repository to create a snapshot in.
+
+`<snapshot>`::
+(Required, string)
+Name of the snapshot to create. This name must be unique in the snapshot repository.
+
+[role="child_attributes"]
+[[create-snapshot-api-request-body]]
+==== {api-request-body-title}
+
+`ignore_unavailable`::
+(Optional, Boolean)
+If `false`, the request returns an error for any data stream or index that is missing or closed. Defaults to `false`.
++
+If `true`, the request ignores data streams and indices in `indices` that are missing or closed.
+
+`indices`::
+(Optional, string)
+A comma-separated list of data streams and indices to include in the snapshot.
+<<multi-index,Multi-index syntax>> is supported.
++
+By default, a snapshot includes all data streams and indices in the cluster. If this
+argument is provided, the snapshot only includes the specified data streams and clusters.
+
+`include_global_state`::
++
+--
+(Optional, Boolean)
+If `true`, the current global state is included in the snapshot.
+Defaults to `true`.
+
+The global state includes:
+
+* Persistent cluster settings
+* Index templates
+* Legacy index templates
+* Ingest pipelines
+* {ilm-init} lifecycle policies
+* Data stored in system indices, such as Watches and task records (configurable via `feature_states`)
+--
++
+IMPORTANT: By default, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. You can change this behavior by setting <<create-snapshot-api-partial,`partial`>> to `true`.
+
+[[create-snapshot-api-feature-states]]
+`feature_states`::
+(Optional, array of strings)
+A list of feature states to be included in this snapshot. A list of features
+available for inclusion in the snapshot and their descriptions be can be
+retrieved using the <<get-features-api,get features API>>.
+Each feature state includes one or more system indices containing data necessary
+for the function of that feature. Providing an empty array will include no feature
+states in the snapshot, regardless of the value of `include_global_state`.
++
+By default, all available feature states will be included in the snapshot if
+`include_global_state` is `true`, or no feature states if `include_global_state`
+is `false`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+`metadata`::
+(Optional, string)
+Attaches arbitrary metadata to the snapshot, such as a record of who took the snapshot, why it was taken, or any other useful data. Metadata must be less than 1024 bytes.
+
+[[create-snapshot-api-partial]]
+`partial`::
+(Optional, Boolean)
+If `false`, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. Defaults to `false`.
++
+If `true`, allows taking a partial snapshot of indices with unavailable shards.
+
+`wait_for_completion`::
+(Optional, Boolean)
+If `true`, the request returns a response when the snapshot is complete.
+If `false`, the request returns a response when the snapshot initializes.
+Defaults to `false`.
+
+[[create-snapshot-api-example]]
+==== {api-examples-title}
+
+The following request takes a snapshot of `index_1` and `index_2`.
+
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_repository/snapshot_2?wait_for_completion=true
+{
+  "indices": "index_1,index_2",
+  "ignore_unavailable": true,
+  "include_global_state": false,
+  "metadata": {
+    "taken_by": "user123",
+    "taken_because": "backup before upgrading"
+  }
+}
+-----------------------------------
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "snapshot": {
+    "snapshot": "snapshot_2",
+    "uuid": "vdRctLCxSketdKb54xw67g",
+    "repository": "my_repository",
+    "version_id": <version_id>,
+    "version": <version>,
+    "indices": [],
+    "data_streams": [],
+    "feature_states": [],
+    "include_global_state": false,
+    "metadata": {
+      "taken_by": "user123",
+      "taken_because": "backup before upgrading"
+    },
+    "state": "SUCCESS",
+    "start_time": "2020-06-25T14:00:28.850Z",
+    "start_time_in_millis": 1593093628850,
+    "end_time": "2020-06-25T14:00:28.850Z",
+    "end_time_in_millis": 1593094752018,
+    "duration_in_millis": 0,
+    "failures": [],
+    "shards": {
+      "total": 0,
+      "failed": 0,
+      "successful": 0
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"uuid": "vdRctLCxSketdKb54xw67g"/"uuid": $body.snapshot.uuid/]
+// TESTRESPONSE[s/"version_id": <version_id>/"version_id": $body.snapshot.version_id/]
+// TESTRESPONSE[s/"version": <version>/"version": $body.snapshot.version/]
+// TESTRESPONSE[s/"start_time": "2020-06-25T14:00:28.850Z"/"start_time": $body.snapshot.start_time/]
+// TESTRESPONSE[s/"start_time_in_millis": 1593093628850/"start_time_in_millis": $body.snapshot.start_time_in_millis/]
+// TESTRESPONSE[s/"end_time": "2020-06-25T14:00:28.850Z"/"end_time": $body.snapshot.end_time/]
+// TESTRESPONSE[s/"end_time_in_millis": 1593094752018/"end_time_in_millis": $body.snapshot.end_time_in_millis/]
+// TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.snapshot.duration_in_millis/]

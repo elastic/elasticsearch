@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -22,34 +22,20 @@ package org.elasticsearch.client;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.StatusLine;
-import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.conn.ConnectTimeoutException;
-import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.message.BasicHttpResponse;
-import org.apache.http.message.BasicStatusLine;
-import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
-import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.junit.After;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
-import java.net.SocketTimeoutException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 import static org.elasticsearch.client.RestClientTestUtil.randomErrorNoRetryStatusCode;
 import static org.elasticsearch.client.RestClientTestUtil.randomErrorRetryStatusCode;
@@ -61,9 +47,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link RestClient} behaviour against multiple hosts: fail-over, blacklisting etc.
@@ -75,39 +58,8 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     private List<Node> nodes;
     private HostsTrackingFailureListener failureListener;
 
-    @SuppressWarnings("unchecked")
     public RestClient createRestClient(NodeSelector nodeSelector) {
-        CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
-        when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
-               any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
-            @Override
-            public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
-                HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
-                final HttpUriRequest request = (HttpUriRequest)requestProducer.generateRequest();
-                final HttpHost httpHost = requestProducer.getTarget();
-                HttpClientContext context = (HttpClientContext) invocationOnMock.getArguments()[2];
-                assertThat(context.getAuthCache().get(httpHost), instanceOf(BasicScheme.class));
-                final FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
-                //return the desired status code or exception depending on the path
-                exec.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (request.getURI().getPath().equals("/soe")) {
-                            futureCallback.failed(new SocketTimeoutException(httpHost.toString()));
-                        } else if (request.getURI().getPath().equals("/coe")) {
-                            futureCallback.failed(new ConnectTimeoutException(httpHost.toString()));
-                        } else if (request.getURI().getPath().equals("/ioe")) {
-                            futureCallback.failed(new IOException(httpHost.toString()));
-                        } else {
-                            int statusCode = Integer.parseInt(request.getURI().getPath().substring(1));
-                            StatusLine statusLine = new BasicStatusLine(new ProtocolVersion("http", 1, 1), statusCode, "");
-                            futureCallback.completed(new BasicHttpResponse(statusLine));
-                        }
-                    }
-                });
-                return null;
-            }
-        });
+        CloseableHttpAsyncClient httpClient = RestClientSingleHostTests.mockHttpClient(exec);
         int numNodes = RandomNumbers.randomIntBetween(getRandom(), 2, 5);
         nodes = new ArrayList<>(numNodes);
         for (int i = 0; i < numNodes; i++) {
@@ -115,7 +67,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         }
         nodes = Collections.unmodifiableList(nodes);
         failureListener = new HostsTrackingFailureListener();
-        return new RestClient(httpClient, 10000, new Header[0], nodes, null, failureListener, nodeSelector, false);
+        return new RestClient(httpClient, new Header[0], nodes, null, failureListener, nodeSelector, false, false);
     }
 
     /**
@@ -126,14 +78,15 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         exec.shutdown();
     }
 
-    public void testRoundRobinOkStatusCodes() throws IOException {
+    public void testRoundRobinOkStatusCodes() throws Exception {
         RestClient restClient = createRestClient(NodeSelector.ANY);
         int numIters = RandomNumbers.randomIntBetween(getRandom(), 1, 5);
         for (int i = 0; i < numIters; i++) {
             Set<HttpHost> hostsSet = hostsSet();
             for (int j = 0; j < nodes.size(); j++) {
                 int statusCode = randomOkStatusCode(getRandom());
-                Response response = restClient.performRequest(new Request(randomHttpMethod(getRandom()), "/" + statusCode));
+                Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient,
+                    new Request(randomHttpMethod(getRandom()), "/" + statusCode));
                 assertEquals(statusCode, response.getStatusLine().getStatusCode());
                 assertTrue("host not found: " + response.getHost(), hostsSet.remove(response.getHost()));
             }
@@ -142,7 +95,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         failureListener.assertNotCalled();
     }
 
-    public void testRoundRobinNoRetryErrors() throws IOException {
+    public void testRoundRobinNoRetryErrors() throws Exception {
         RestClient restClient = createRestClient(NodeSelector.ANY);
         int numIters = RandomNumbers.randomIntBetween(getRandom(), 1, 5);
         for (int i = 0; i < numIters; i++) {
@@ -151,7 +104,8 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                 String method = randomHttpMethod(getRandom());
                 int statusCode = randomErrorNoRetryStatusCode(getRandom());
                 try {
-                    Response response = restClient.performRequest(new Request(method, "/" + statusCode));
+                    Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient,
+                        new Request(method, "/" + statusCode));
                     if (method.equals("HEAD") && statusCode == 404) {
                         //no exception gets thrown although we got a 404
                         assertEquals(404, response.getStatusLine().getStatusCode());
@@ -175,18 +129,13 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         failureListener.assertNotCalled();
     }
 
-    public void testRoundRobinRetryErrors() throws IOException {
+    public void testRoundRobinRetryErrors() throws Exception {
         RestClient restClient = createRestClient(NodeSelector.ANY);
         String retryEndpoint = randomErrorRetryEndpoint();
         try  {
-            restClient.performRequest(new Request(randomHttpMethod(getRandom()), retryEndpoint));
+            RestClientSingleHostTests.performRequestSyncOrAsync(restClient, new Request(randomHttpMethod(getRandom()), retryEndpoint));
             fail("request should have failed");
         } catch (ResponseException e) {
-            /*
-             * Unwrap the top level failure that was added so the stack trace contains
-             * the caller. It wraps the exception that contains the failed hosts.
-             */
-            e = (ResponseException) e.getCause();
             Set<HttpHost> hostsSet = hostsSet();
             //first request causes all the hosts to be blacklisted, the returned exception holds one suppressed exception each
             failureListener.assertCalled(nodes);
@@ -206,11 +155,6 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             } while(e != null);
             assertEquals("every host should have been used but some weren't: " + hostsSet, 0, hostsSet.size());
         } catch (IOException e) {
-            /*
-             * Unwrap the top level failure that was added so the stack trace contains
-             * the caller. It wraps the exception that contains the failed hosts.
-             */
-            e = (IOException) e.getCause();
             Set<HttpHost> hostsSet = hostsSet();
             //first request causes all the hosts to be blacklisted, the returned exception holds one suppressed exception each
             failureListener.assertCalled(nodes);
@@ -236,7 +180,8 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             for (int j = 0; j < nodes.size(); j++) {
                 retryEndpoint = randomErrorRetryEndpoint();
                 try  {
-                    restClient.performRequest(new Request(randomHttpMethod(getRandom()), retryEndpoint));
+                    RestClientSingleHostTests.performRequestSyncOrAsync(restClient,
+                        new Request(randomHttpMethod(getRandom()), retryEndpoint));
                     fail("request should have failed");
                 } catch (ResponseException e) {
                     Response response = e.getResponse();
@@ -247,11 +192,6 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                     failureListener.assertCalled(response.getHost());
                     assertEquals(0, e.getSuppressed().length);
                 } catch (IOException e) {
-                    /*
-                     * Unwrap the top level failure that was added so the stack trace contains
-                     * the caller. It wraps the exception that contains the failed hosts.
-                     */
-                    e = (IOException) e.getCause();
                     HttpHost httpHost = HttpHost.create(e.getMessage());
                     assertTrue("host [" + httpHost + "] not found, most likely used multiple times", hostsSet.remove(httpHost));
                     //after the first request, all hosts are blacklisted, a single one gets resurrected each time
@@ -268,7 +208,8 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                     int statusCode = randomErrorNoRetryStatusCode(getRandom());
                     Response response;
                     try {
-                        response = restClient.performRequest(new Request(randomHttpMethod(getRandom()), "/" + statusCode));
+                        response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient,
+                            new Request(randomHttpMethod(getRandom()), "/" + statusCode));
                     } catch (ResponseException e) {
                         response = e.getResponse();
                     }
@@ -285,7 +226,8 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                 for (int y = 0; y < i + 1; y++) {
                     retryEndpoint = randomErrorRetryEndpoint();
                     try {
-                        restClient.performRequest(new Request(randomHttpMethod(getRandom()), retryEndpoint));
+                        RestClientSingleHostTests.performRequestSyncOrAsync(restClient,
+                            new Request(randomHttpMethod(getRandom()), retryEndpoint));
                         fail("request should have failed");
                     } catch (ResponseException e) {
                         Response response = e.getResponse();
@@ -293,11 +235,6 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                         assertThat(response.getHost(), equalTo(selectedHost));
                         failureListener.assertCalled(selectedHost);
                     } catch(IOException e) {
-                        /*
-                         * Unwrap the top level failure that was added so the stack trace contains
-                         * the caller. It wraps the exception that contains the failed hosts.
-                         */
-                        e = (IOException) e.getCause();
                         HttpHost httpHost = HttpHost.create(e.getMessage());
                         assertThat(httpHost, equalTo(selectedHost));
                         failureListener.assertCalled(selectedHost);
@@ -307,20 +244,17 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         }
     }
 
-    public void testNodeSelector() throws IOException {
-        NodeSelector firstPositionOnly = new NodeSelector() {
-            @Override
-            public void select(Iterable<Node> restClientNodes) {
-                boolean found = false;
-                for (Iterator<Node> itr = restClientNodes.iterator(); itr.hasNext();) {
-                    if (nodes.get(0) == itr.next()) {
-                        found = true;
-                    } else {
-                        itr.remove();
-                    }
+    public void testNodeSelector() throws Exception {
+        NodeSelector firstPositionOnly = restClientNodes -> {
+            boolean found = false;
+            for (Iterator<Node> itr = restClientNodes.iterator(); itr.hasNext();) {
+                if (nodes.get(0) == itr.next()) {
+                    found = true;
+                } else {
+                    itr.remove();
                 }
-                assertTrue(found);
             }
+            assertTrue(found);
         };
         RestClient restClient = createRestClient(firstPositionOnly);
         int rounds = between(1, 10);
@@ -330,16 +264,18 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
              * NodeSelector overrides the round robin behavior.
              */
             Request request = new Request("GET", "/200");
-            Response response = restClient.performRequest(request);
+            Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
             assertEquals(nodes.get(0).getHost(), response.getHost());
         }
     }
 
-    public void testSetNodes() throws IOException {
+    public void testSetNodes() throws Exception {
         RestClient restClient = createRestClient(NodeSelector.SKIP_DEDICATED_MASTERS);
         List<Node> newNodes = new ArrayList<>(nodes.size());
         for (int i = 0; i < nodes.size(); i++) {
-            Node.Roles roles = i == 0 ? new Node.Roles(false, true, true) : new Node.Roles(true, false, false);
+            Node.Roles roles = i == 0 ?
+                new Node.Roles(new TreeSet<>(Arrays.asList("data", "ingest"))) :
+                new Node.Roles(new TreeSet<>(Arrays.asList("master")));
             newNodes.add(new Node(nodes.get(i).getHost(), null, null, null, roles, null));
         }
         restClient.setNodes(newNodes);
@@ -350,7 +286,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
              * NodeSelector overrides the round robin behavior.
              */
             Request request = new Request("GET", "/200");
-            Response response = restClient.performRequest(request);
+            Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
             assertEquals(newNodes.get(0).getHost(), response.getHost());
         }
     }

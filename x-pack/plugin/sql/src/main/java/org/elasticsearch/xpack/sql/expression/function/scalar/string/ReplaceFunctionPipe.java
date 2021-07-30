@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
@@ -17,82 +18,77 @@ import java.util.Objects;
 
 public class ReplaceFunctionPipe extends Pipe {
 
-    private final Pipe source, pattern, replacement;
+    private final Pipe input, pattern, replacement;
 
-    public ReplaceFunctionPipe(Location location, Expression expression, Pipe source,
-            Pipe pattern, Pipe replacement) {
-        super(location, expression, Arrays.asList(source, pattern, replacement));
-        this.source = source;
+    public ReplaceFunctionPipe(Source source, Expression expression, Pipe input, Pipe pattern, Pipe replacement) {
+        super(source, expression, Arrays.asList(input, pattern, replacement));
+        this.input = input;
         this.pattern = pattern;
         this.replacement = replacement;
     }
 
     @Override
     public final Pipe replaceChildren(List<Pipe> newChildren) {
-        if (newChildren.size() != 3) {
-            throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
-        }
         return replaceChildren(newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
-    
+
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
-        Pipe newSource = source.resolveAttributes(resolver);
+        Pipe newInput = input.resolveAttributes(resolver);
         Pipe newPattern = pattern.resolveAttributes(resolver);
         Pipe newReplacement = replacement.resolveAttributes(resolver);
-        if (newSource == source && newPattern == pattern && newReplacement == replacement) {
+        if (newInput == input && newPattern == pattern && newReplacement == replacement) {
             return this;
         }
-        return replaceChildren(newSource, newPattern, newReplacement);
+        return replaceChildren(newInput, newPattern, newReplacement);
     }
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return source.supportedByAggsOnlyQuery() && pattern.supportedByAggsOnlyQuery() && replacement.supportedByAggsOnlyQuery();
+        return input.supportedByAggsOnlyQuery() && pattern.supportedByAggsOnlyQuery() && replacement.supportedByAggsOnlyQuery();
     }
 
     @Override
     public boolean resolved() {
-        return source.resolved() && pattern.resolved() && replacement.resolved();
+        return input.resolved() && pattern.resolved() && replacement.resolved();
     }
-    
-    protected Pipe replaceChildren(Pipe newSource, Pipe newPattern,
-            Pipe newReplacement) {
-        return new ReplaceFunctionPipe(location(), expression(), newSource, newPattern, newReplacement);
+
+    protected Pipe replaceChildren(Pipe newInput, Pipe newPattern, Pipe newReplacement) {
+        return new ReplaceFunctionPipe(source(), expression(), newInput, newPattern, newReplacement);
     }
 
     @Override
-    public final void collectFields(SqlSourceBuilder sourceBuilder) {
-        source.collectFields(sourceBuilder);
+    public final void collectFields(QlSourceBuilder sourceBuilder) {
+        input.collectFields(sourceBuilder);
         pattern.collectFields(sourceBuilder);
         replacement.collectFields(sourceBuilder);
     }
 
     @Override
     protected NodeInfo<ReplaceFunctionPipe> info() {
-        return NodeInfo.create(this, ReplaceFunctionPipe::new, expression(), source, pattern, replacement);
+        return NodeInfo.create(this, ReplaceFunctionPipe::new, expression(), input, pattern, replacement);
     }
 
     @Override
     public ReplaceFunctionProcessor asProcessor() {
-        return new ReplaceFunctionProcessor(source.asProcessor(), pattern.asProcessor(), replacement.asProcessor());
+        return new ReplaceFunctionProcessor(input.asProcessor(), pattern.asProcessor(), replacement.asProcessor());
     }
-    
-    public Pipe source() {
-        return source;
+
+    public Pipe input() {
+        return input;
     }
-    
+
     public Pipe pattern() {
         return pattern;
     }
-    
+
     public Pipe replacement() {
         return replacement;
     }
-    
+
     @Override
     public int hashCode() {
-        return Objects.hash(source, pattern, replacement);
+        return Objects.hash(input, pattern, replacement);
     }
 
     @Override
@@ -106,7 +102,7 @@ public class ReplaceFunctionPipe extends Pipe {
         }
 
         ReplaceFunctionPipe other = (ReplaceFunctionPipe) obj;
-        return Objects.equals(source, other.source)
+        return Objects.equals(input, other.input)
                 && Objects.equals(pattern, other.pattern)
                 && Objects.equals(replacement, other.replacement);
     }

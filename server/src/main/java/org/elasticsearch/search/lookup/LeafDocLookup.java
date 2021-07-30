@@ -1,35 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,31 +25,18 @@ import java.util.function.Function;
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);
-
-    private final MapperService mapperService;
+    private final Function<String, MappedFieldType> fieldTypeLookup;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
-
-    @Nullable
-    private final String[] types;
 
     private final LeafReaderContext reader;
 
     private int docId = -1;
 
-    LeafDocLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup, @Nullable String[] types,
+    LeafDocLookup(Function<String, MappedFieldType> fieldTypeLookup, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
                   LeafReaderContext reader) {
-        this.mapperService = mapperService;
+        this.fieldTypeLookup = fieldTypeLookup;
         this.fieldDataLookup = fieldDataLookup;
-        this.types = types;
         this.reader = reader;
-    }
-
-    public MapperService mapperService() {
-        return this.mapperService;
-    }
-
-    public IndexFieldData<?> getForField(MappedFieldType fieldType) {
-        return fieldDataLookup.apply(fieldType);
     }
 
     public void setDocument(int docId) {
@@ -76,10 +49,9 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         String fieldName = key.toString();
         ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
         if (scriptValues == null) {
-            final MappedFieldType fieldType = mapperService.fullName(fieldName);
+            final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
             if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " +
-                        Arrays.toString(types));
+                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
             }
             // load fielddata on behalf of the script: otherwise it would need additional permissions
             // to deal with pagedbytes/ramusagestimator/etc
@@ -104,13 +76,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         // assume its a string...
         String fieldName = key.toString();
         ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
-        if (scriptValues == null) {
-            MappedFieldType fieldType = mapperService.fullName(fieldName);
-            if (fieldType == null) {
-                return false;
-            }
-        }
-        return true;
+        return scriptValues != null || fieldTypeLookup.apply(fieldName) != null;
     }
 
     @Override

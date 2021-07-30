@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
@@ -19,6 +21,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -26,8 +29,9 @@ import org.apache.lucene.util.FilterIterator;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -47,7 +51,7 @@ import java.util.Map;
  * of fields from the underlying wrapped reader.
  */
 // based on lucene/test-framework's FieldFilterLeafReader.
-public final class FieldSubsetReader extends FilterLeafReader {
+public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     /**
      * Wraps a provided DirectoryReader, exposing a subset of fields.
@@ -156,6 +160,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
     }
 
     /** Filter a map by a {@link CharacterRunAutomaton} that defines the fields to retain. */
+    @SuppressWarnings("unchecked")
     static Map<String, Object> filter(Map<String, ?> map, CharacterRunAutomaton includeAutomaton, int initialState) {
         Map<String, Object> filtered = new HashMap<>();
         for (Map.Entry<String, ?> entry : map.entrySet()) {
@@ -193,6 +198,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
     }
 
     /** Filter a list by a {@link CharacterRunAutomaton} that defines the fields to retain. */
+    @SuppressWarnings("unchecked")
     private static List<Object> filter(Iterable<?> iterable, CharacterRunAutomaton includeAutomaton, int initialState) {
         List<Object> filtered = new ArrayList<>();
         for (Object value : iterable) {
@@ -226,51 +232,12 @@ public final class FieldSubsetReader extends FilterLeafReader {
 
     @Override
     public void document(final int docID, final StoredFieldVisitor visitor) throws IOException {
-        super.document(docID, new StoredFieldVisitor() {
-            @Override
-            public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
-                if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
-                    // for _source, parse, filter out the fields we care about, and serialize back downstream
-                    BytesReference bytes = new BytesArray(value);
-                    Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(bytes, true);
-                    Map<String, Object> transformedSource = filter(result.v2(), filter, 0);
-                    XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
-                    visitor.binaryField(fieldInfo, BytesReference.toBytes(BytesReference.bytes(xContentBuilder)));
-                } else {
-                    visitor.binaryField(fieldInfo, value);
-                }
-            }
+        super.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
+    }
 
-            @Override
-            public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
-                visitor.stringField(fieldInfo, value);
-            }
-
-            @Override
-            public void intField(FieldInfo fieldInfo, int value) throws IOException {
-                visitor.intField(fieldInfo, value);
-            }
-
-            @Override
-            public void longField(FieldInfo fieldInfo, long value) throws IOException {
-                visitor.longField(fieldInfo, value);
-            }
-
-            @Override
-            public void floatField(FieldInfo fieldInfo, float value) throws IOException {
-                visitor.floatField(fieldInfo, value);
-            }
-
-            @Override
-            public void doubleField(FieldInfo fieldInfo, double value) throws IOException {
-                visitor.doubleField(fieldInfo, value);
-            }
-
-            @Override
-            public Status needsField(FieldInfo fieldInfo) throws IOException {
-                return hasField(fieldInfo.name) ? visitor.needsField(fieldInfo) : Status.NO;
-            }
-        });
+    @Override
+    protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+        return new FieldSubsetStoredFieldsReader(reader);
     }
 
     @Override
@@ -321,6 +288,102 @@ public final class FieldSubsetReader extends FilterLeafReader {
     }
 
     /**
+     * StoredFields impl that filters out stored fields and source fields that should not be visible.
+     */
+    class FieldSubsetStoredFieldsReader extends StoredFieldsReader {
+        final StoredFieldsReader reader;
+
+        FieldSubsetStoredFieldsReader(StoredFieldsReader reader) {
+            this.reader = reader;
+        }
+
+        @Override
+        public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
+            reader.visitDocument(docID, new FieldSubsetStoredFieldVisitor(visitor));
+        }
+
+        @Override
+        public StoredFieldsReader clone() {
+            return new FieldSubsetStoredFieldsReader(reader.clone());
+        }
+
+        @Override
+        public StoredFieldsReader getMergeInstance() {
+            return new FieldSubsetStoredFieldsReader(reader.getMergeInstance());
+        }
+
+        @Override
+        public void checkIntegrity() throws IOException {
+            reader.checkIntegrity();
+        }
+
+        @Override
+        public void close() throws IOException {
+            reader.close();
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return reader.ramBytesUsed();
+        }
+    }
+
+    /**
+     * A field visitor that filters out stored fields and source fields that should not be visible.
+     */
+    class FieldSubsetStoredFieldVisitor extends StoredFieldVisitor {
+        final StoredFieldVisitor visitor;
+
+        FieldSubsetStoredFieldVisitor(StoredFieldVisitor visitor) {
+            this.visitor = visitor;
+        }
+
+        @Override
+        public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
+            if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
+                // for _source, parse, filter out the fields we care about, and serialize back downstream
+                BytesReference bytes = new BytesArray(value);
+                Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(bytes, true);
+                Map<String, Object> transformedSource = filter(result.v2(), filter, 0);
+                XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
+                visitor.binaryField(fieldInfo, BytesReference.toBytes(BytesReference.bytes(xContentBuilder)));
+            } else {
+                visitor.binaryField(fieldInfo, value);
+            }
+        }
+
+        @Override
+        public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
+            visitor.stringField(fieldInfo, value);
+        }
+
+        @Override
+        public void intField(FieldInfo fieldInfo, int value) throws IOException {
+            visitor.intField(fieldInfo, value);
+        }
+
+        @Override
+        public void longField(FieldInfo fieldInfo, long value) throws IOException {
+            visitor.longField(fieldInfo, value);
+        }
+
+        @Override
+        public void floatField(FieldInfo fieldInfo, float value) throws IOException {
+            visitor.floatField(fieldInfo, value);
+        }
+
+        @Override
+        public void doubleField(FieldInfo fieldInfo, double value) throws IOException {
+            visitor.doubleField(fieldInfo, value);
+        }
+
+        @Override
+        public StoredFieldVisitor.Status needsField(FieldInfo fieldInfo) throws IOException {
+            return hasField(fieldInfo.name) ? visitor.needsField(fieldInfo) : StoredFieldVisitor.Status.NO;
+        }
+    }
+
+    /**
      * Filters the Fields instance from the postings.
      * <p>
      * In addition to only returning fields allowed in this subset,
@@ -356,7 +419,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
     }
 
     private Terms wrapTerms(Terms terms, String field) throws IOException {
-        if (!hasField(field)) {
+        if (hasField(field) == false) {
             return null;
         } else if (FieldNamesFieldMapper.NAME.equals(field)) {
             // for the _field_names field, fields for the document
@@ -439,6 +502,14 @@ public final class FieldSubsetReader extends FilterLeafReader {
         @Override
         public boolean seekExact(BytesRef term) throws IOException {
             return accept(term) && in.seekExact(term);
+        }
+
+        @Override
+        public void seekExact(BytesRef term, TermState state) throws IOException {
+            if (accept(term) == false) {
+                throw new IllegalStateException("Tried to seek using a TermState from a different reader!");
+            }
+            in.seekExact(term, state);
         }
 
         @Override

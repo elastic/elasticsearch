@@ -10,10 +10,10 @@ Indices are sorted into priority order as follows:
 
 This means that, by default, newer indices will be recovered before older indices.
 
-Use the per-index dynamically updateable `index.priority` setting to customise
-the index prioritization order.  For instance:
+Use the per-index dynamically updatable `index.priority` setting to customise
+the index prioritization order. For instance:
 
-[source,js]
+[source,console]
 ------------------------------
 PUT index_1
 
@@ -33,7 +33,6 @@ PUT index_4
   }
 }
 ------------------------------
-// CONSOLE
 
 In the above example:
 
@@ -45,12 +44,11 @@ In the above example:
 This setting accepts an integer, and can be updated on a live index with the
 <<indices-update-settings,update index settings API>>:
 
-[source,js]
+[source,console]
 ------------------------------
 PUT index_4/_settings
 {
   "index.priority": 1
 }
 ------------------------------
-// CONSOLE
 // TEST[continued]

@@ -1,0 +1,342 @@
+[[snapshots-register-repository]]
+== Register a snapshot repository
+++++
+<titleabbrev>Register a repository</titleabbrev>
+++++
+
+You must register a snapshot repository before you can perform snapshot and
+restore operations. Use the <<put-snapshot-repo-api,create or update snapshot
+repository API>> to register or update a snapshot repository. We recommend
+creating a new snapshot repository for each major version. The valid repository
+settings depend on the repository type.
+
+If you register the same snapshot repository with multiple clusters, only
+one cluster should have write access to the repository. All other clusters
+connected to that repository should set the repository to `readonly` mode.
+
+[IMPORTANT]
+====
+The snapshot format can change across major versions, so if you have
+clusters on different versions trying to write to the same repository, snapshots
+written by one version may not be visible to the other and the repository could
+be corrupted. While setting the repository to `readonly` on all but one of the
+clusters should work with multiple clusters differing by one major version, it
+is not a supported configuration.
+====
+
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+-----------------------------------
+// TESTSETUP
+
+Use the <<get-snapshot-api,get snapshot API>> to retrieve information about a registered repository:
+
+[source,console]
+-----------------------------------
+GET /_snapshot/my_backup
+-----------------------------------
+
+This request returns the following response:
+
+[source,console-result]
+-----------------------------------
+{
+  "my_backup": {
+    "type": "fs",
+    "uuid": "0JLknrXbSUiVPuLakHjBrQ",
+    "settings": {
+      "location": "my_backup_location"
+    }
+  }
+}
+-----------------------------------
+// TESTRESPONSE[s/"uuid": "0JLknrXbSUiVPuLakHjBrQ"/"uuid": $body.my_backup.uuid/]
+
+To retrieve information about multiple repositories, specify a comma-delimited
+list of repositories. You can also use a wildcard (`*`) when
+specifying repository names. For example, the following request retrieves
+information about all of the snapshot repositories that start with `repo` or
+contain `backup`:
+
+[source,console]
+-----------------------------------
+GET /_snapshot/repo*,*backup*
+-----------------------------------
+
+To retrieve information about all registered snapshot repositories, omit the
+repository name:
+
+[source,console]
+-----------------------------------
+GET /_snapshot
+-----------------------------------
+
+Alternatively, you can specify `_all`:
+
+[source,console]
+-----------------------------------
+GET /_snapshot/_all
+-----------------------------------
+
+You can unregister a repository using the
+<<delete-snapshot-repo-api,delete snapshot repository API>>:
+
+[source,console]
+-----------------------------------
+DELETE /_snapshot/my_backup
+-----------------------------------
+
+When a repository is unregistered, {es} only removes the reference to the
+location where the repository is storing the snapshots. The snapshots themselves
+are left untouched and in place.
+
+[discrete]
+[[snapshots-filesystem-repository]]
+=== Shared file system repository
+
+Use a shared file system repository (`"type": "fs"`) to store snapshots on a
+shared file system.
+
+To register a shared file system repository, first mount the file system to the
+same location on all master and data nodes. Then add the file system's
+path or parent directory to the `path.repo` setting in `elasticsearch.yml` for
+each master and data node. For running clusters, this requires a
+<<restart-cluster-rolling,rolling restart>> of each node.
+
+IMPORTANT: By default, a network file system (NFS) uses user IDs (UIDs) and
+group IDs (GIDs) to match accounts across nodes. If your shared file system is
+an NFS and your nodes don't use the same UIDs and GIDs, update your NFS
+configuration to account for this.
+
+Supported `path.repo` values vary by platform:
+
+include::{es-repo-dir}/tab-widgets/code.asciidoc[]
+
+include::{es-repo-dir}/tab-widgets/register-fs-repo-widget.asciidoc[]
+
+[discrete]
+[[snapshots-read-only-repository]]
+=== Read-only URL repository
+
+If you register the same snapshot repository with multiple clusters, only one
+cluster should have write access to the repository. Having multiple clusters
+write to the repository at the same time risks corrupting the contents of the
+repository.
+
+To reduce this risk, you can use URL repositories (`"type": "url"`) to give one
+or more clusters read-only access to a shared file system repository. As URL
+repositories are always read-only, they are a safer and more convenient
+alternative to registering a read-only shared filesystem repository.
+
+The URL specified in the `url` parameter should point to the root of the shared
+filesystem repository.
+
+[source,console]
+----
+PUT /_snapshot/my_read_only_url_repository
+{
+  "type": "url",
+  "settings": {
+    "url": "file:/mount/backups/my_fs_backup_location"
+  }
+}
+----
+// TEST[skip:no access to url file path]
+
+The following settings are supported:
+
+`url`::
+(Required)
+URL where the snapshots are stored.
+
+The `url` parameter supports the following protocols:
+
+* `file`
+* `ftp`
+* `http`
+* `https`
+* `jar`
+
+`http_max_retries`::
+
+    Specifies the maximun number of retries that are performed in case of transient failures for `http` and `https` URLs.
+    The default value is `5`.
+
+`http_socket_timeout`::
+
+     Specifies the maximum time to wait for data to be transferred over a connection before timing out. The default value is `50s`.
+
+URLs using the `file` protocol must point to the location of a shared filesystem
+accessible to all master and data nodes in the cluster. This location must be
+registered in the `path.repo` setting, similar to a
+<<snapshots-filesystem-repository,shared file system repository>>.
+
+URLs using the `ftp`, `http`, or `https` protocols must be explicitly allowed with the
+`repositories.url.allowed_urls` setting. This setting supports wildcards (`*`)
+in place of a host, path, query, or fragment in the URL. For example:
+
+[source,yaml]
+----
+repositories.url.allowed_urls: ["http://www.example.org/root/*", "https://*.mydomain.com/*?*#*"]
+----
+
+NOTE: URLs using the `ftp`, `http`, `https`, or `jar` protocols do not need to
+be registered in the `path.repo` setting.
+
+[discrete]
+[role="xpack"]
+[testenv="basic"]
+[[snapshots-source-only-repository]]
+=== Source only repository
+
+A source repository enables you to create minimal, source-only snapshots that take up to 50% less space on disk.
+Source only snapshots contain stored fields and index metadata. They do not include index or doc values structures
+and are not searchable when restored. After restoring a source-only snapshot, you must <<docs-reindex,reindex>>
+the data into a new index.
+
+Source repositories delegate to another snapshot repository for storage.
+
+[IMPORTANT]
+==================================================
+
+Source only snapshots are only supported if the `_source` field is enabled and no source-filtering is applied.
+When you restore a source only snapshot:
+
+ * The restored index is read-only and can only serve `match_all` search or scroll requests to enable reindexing.
+
+ * Queries other than `match_all` and `_get` requests are not supported.
+
+ * The mapping of the restored index is empty, but the original mapping is available from the types top
+   level `meta` element.
+
+==================================================
+
+When you create a source repository, you must specify the type and name of the delegate repository
+where the snapshots will be stored:
+
+[source,console]
+-----------------------------------
+PUT _snapshot/my_src_only_repository
+{
+  "type": "source",
+  "settings": {
+    "delegate_type": "fs",
+    "location": "my_backup_location"
+  }
+}
+-----------------------------------
+// TEST[continued]
+
+[discrete]
+[[snapshots-repository-plugins]]
+=== Repository plugins
+
+Other repository backends are available in these official plugins:
+
+* {plugins}/repository-s3.html[repository-s3] for S3 repository support
+* {plugins}/repository-hdfs.html[repository-hdfs] for HDFS repository support in Hadoop environments
+* {plugins}/repository-azure.html[repository-azure] for Azure storage repositories
+* {plugins}/repository-gcs.html[repository-gcs] for Google Cloud Storage repositories
+
+[discrete]
+[[snapshots-repository-verification]]
+=== Repository verification
+When a repository is registered, it's immediately verified on all master and data nodes to make sure that it is functional
+on all nodes currently present in the cluster. The `verify` parameter can be used to explicitly disable the repository
+verification when registering or updating a repository:
+
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_unverified_backup?verify=false
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_unverified_backup_location"
+  }
+}
+-----------------------------------
+// TEST[continued]
+
+The verification process can also be executed manually by running the following command:
+
+[source,console]
+-----------------------------------
+POST /_snapshot/my_unverified_backup/_verify
+-----------------------------------
+// TEST[continued]
+
+It returns a list of nodes where repository was successfully verified or an error message if verification process failed.
+
+If desired, you can also test a repository more thoroughly using the
+<<repo-analysis-api,Repository analysis API>>.
+
+[discrete]
+[[snapshots-repository-cleanup]]
+=== Repository cleanup
+Repositories can over time accumulate data that is not referenced by any existing snapshot. This is a result of the data safety guarantees
+the snapshot functionality provides in failure scenarios during snapshot creation and the decentralized nature of the snapshot creation
+process. This unreferenced data does in no way negatively impact the performance or safety of a snapshot repository but leads to higher
+than necessary storage use. In order to clean up this unreferenced data, users can call the cleanup endpoint for a repository which will
+trigger a complete accounting of the repositories contents and subsequent deletion of all unreferenced data that was found.
+
+[source,console]
+-----------------------------------
+POST /_snapshot/my_repository/_cleanup
+-----------------------------------
+// TEST[continued]
+
+The response to a cleanup request looks as follows:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "results": {
+    "deleted_bytes": 20,
+    "deleted_blobs": 5
+  }
+}
+--------------------------------------------------
+
+Depending on the concrete repository implementation the numbers shown for bytes free as well as the number of blobs removed will either
+be an approximation or an exact result. Any non-zero value for the number of blobs removed implies that unreferenced blobs were found and
+subsequently cleaned up.
+
+Please note that most of the cleanup operations executed by this endpoint are automatically executed when deleting any snapshot from a
+repository. If you regularly delete snapshots, you will in most cases not get any or only minor space savings from using this functionality
+and should lower your frequency of invoking it accordingly.
+
+[discrete]
+[[snapshots-repository-backup]]
+=== Repository backup
+
+You may wish to make an independent backup of your repository, for instance so
+that you have an archive copy of its contents that you can use to recreate the
+repository in its current state at a later date.
+
+You must ensure that {es} does not write to the repository while you are taking
+the backup of its contents. You can do this by unregistering it, or registering
+it with `readonly: true`, on all your clusters. If {es} writes any data to the
+repository during the backup then the contents of the backup may not be
+consistent and it may not be possible to recover any data from it in future.
+
+Alternatively, if your repository supports it, you may take an atomic snapshot
+of the underlying filesystem and then take a backup of this filesystem
+snapshot. It is very important that the filesystem snapshot is taken
+atomically.
+
+WARNING: You cannot use filesystem snapshots of individual nodes as a backup
+mechanism. You must use the {es} snapshot and restore feature to copy the
+cluster contents to a separate repository. Then, if desired, you can take a
+filesystem snapshot of this repository.
+
+When restoring a repository from a backup, you must not register the repository
+with {es} until the repository contents are fully restored. If you alter the
+contents of a repository while it is registered with {es} then the repository
+may become unreadable or may silently lose some of its contents.

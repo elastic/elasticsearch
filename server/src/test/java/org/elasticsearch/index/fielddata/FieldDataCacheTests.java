@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.fielddata;
@@ -30,17 +19,14 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.FieldMaskingReader;
 
@@ -69,11 +55,11 @@ public class FieldDataCacheTests extends ESTestCase {
             ElasticsearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId("_index", "_na_", 0));
 
         DummyAccountingFieldDataCache fieldDataCache = new DummyAccountingFieldDataCache();
-        // Testing SortedSetDVOrdinalsIndexFieldData:
-        SortedSetDVOrdinalsIndexFieldData sortedSetDVOrdinalsIndexFieldData = createSortedDV("field1", fieldDataCache);
-        sortedSetDVOrdinalsIndexFieldData.loadGlobal(ir);
+        // Testing SortedSetOrdinalsIndexFieldData:
+        SortedSetOrdinalsIndexFieldData sortedSetOrdinalsIndexFieldData = createSortedDV("field1", fieldDataCache);
+        sortedSetOrdinalsIndexFieldData.loadGlobal(ir);
         assertThat(fieldDataCache.cachedGlobally, equalTo(1));
-        sortedSetDVOrdinalsIndexFieldData.loadGlobal(new FieldMaskingReader("field1", ir));
+        sortedSetOrdinalsIndexFieldData.loadGlobal(new FieldMaskingReader("field1", ir));
         assertThat(fieldDataCache.cachedGlobally, equalTo(1));
 
         // Testing PagedBytesIndexFieldData
@@ -87,27 +73,21 @@ public class FieldDataCacheTests extends ESTestCase {
         dir.close();
     }
 
-    private SortedSetDVOrdinalsIndexFieldData createSortedDV(String fieldName, IndexFieldDataCache indexFieldDataCache) {
-        return new SortedSetDVOrdinalsIndexFieldData(createIndexSettings(), indexFieldDataCache, fieldName, new NoneCircuitBreakerService(),
-                AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+    private SortedSetOrdinalsIndexFieldData createSortedDV(String fieldName, IndexFieldDataCache indexFieldDataCache) {
+        return new SortedSetOrdinalsIndexFieldData(indexFieldDataCache, fieldName, CoreValuesSourceType.KEYWORD,
+            new NoneCircuitBreakerService(), AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
     }
 
     private PagedBytesIndexFieldData createPagedBytes(String fieldName, IndexFieldDataCache indexFieldDataCache) {
-        return new PagedBytesIndexFieldData(createIndexSettings(), fieldName, indexFieldDataCache, new NoneCircuitBreakerService(),
-                TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
-                TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
-                TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
-    }
-
-    private IndexSettings createIndexSettings() {
-        Settings settings = Settings.EMPTY;
-        IndexMetaData indexMetaData = IndexMetaData.builder("_name")
-                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .creationDate(System.currentTimeMillis())
-                .build();
-        return new IndexSettings(indexMetaData, settings);
+        return new PagedBytesIndexFieldData(
+            fieldName,
+            CoreValuesSourceType.KEYWORD,
+            indexFieldDataCache,
+            new NoneCircuitBreakerService(),
+            TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
+            TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
+            TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE
+        );
     }
 
     private class DummyAccountingFieldDataCache implements IndexFieldDataCache {
@@ -115,16 +95,16 @@ public class FieldDataCacheTests extends ESTestCase {
         private int cachedGlobally = 0;
 
         @Override
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData)
+        public <FD extends LeafFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData)
             throws Exception {
             return indexFieldData.loadDirect(context);
         }
 
         @Override
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
-            IFD indexFieldData) throws Exception {
+        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
+                                                                                          IFD indexFieldData) throws Exception {
             cachedGlobally++;
-            return (IFD) indexFieldData.localGlobalDirect(indexReader);
+            return (IFD) indexFieldData.loadGlobalDirect(indexReader);
         }
 
         @Override

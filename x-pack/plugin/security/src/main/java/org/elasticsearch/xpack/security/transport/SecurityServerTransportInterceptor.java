@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport;
 
@@ -11,18 +12,17 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -33,7 +33,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
+import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -44,24 +44,12 @@ import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.Executor;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
-    private static final Function<String, Setting<String>> TRANSPORT_TYPE_SETTING_TEMPLATE = key -> new Setting<>(key, "node", v -> {
-        if (v.equals("node") || v.equals("client")) {
-            return v;
-        }
-        throw new IllegalArgumentException("type must be one of [client, node]");
-    }, Setting.Property.NodeScope);
-    private static final String TRANSPORT_TYPE_SETTING_KEY = "xpack.security.type";
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
-
-    public static final Setting.AffixSetting<String> TRANSPORT_TYPE_PROFILE_SETTING = Setting.affixKeySetting("transport.profiles.",
-            TRANSPORT_TYPE_SETTING_KEY, TRANSPORT_TYPE_SETTING_TEMPLATE);
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
@@ -71,7 +59,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
-    private final boolean reservedRealmEnabled;
 
     private volatile boolean isStateNotRecovered = true;
 
@@ -92,7 +79,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
-        this.reservedRealmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         clusterService.addListener(e -> isStateNotRecovered = e.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
     }
 
@@ -102,50 +88,55 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             @Override
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                // make a local copy of isStateNotRecovered as this is a volatile variable and it
-                // is used multiple times in the method. The copy to a local variable allows us to
-                // guarantee we use the same value wherever we would check the value for the state
-                // being recovered
-                final boolean stateNotRecovered = isStateNotRecovered;
-                final boolean sendWithAuth = licenseState.isAuthAllowed() || stateNotRecovered;
-                if (sendWithAuth) {
-                    // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
-                    // ourselves otherwise we wind up using a version newer than what we can actually send
-                    final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
+                final boolean requireAuth = shouldRequireExistingAuthentication();
+                // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
+                // ourselves otherwise we wind up using a version newer than what we can actually send
+                final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
 
-                    // Sometimes a system action gets executed like a internal create index request or update mappings request
-                    // which means that the user is copied over to system actions so we need to change the user
-                    if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
-                        securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
-                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                        , handler), sender, stateNotRecovered), minVersion);
-                    } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadPool.getThreadContext())) {
-                        AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadPool.getThreadContext(), securityContext,
-                                (original) -> sendWithUser(connection, action, request, options,
-                                        new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                                , handler), sender, stateNotRecovered));
-                    } else if (securityContext.getAuthentication() != null &&
-                            securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
-                        // re-write the authentication since we want the authentication version to match the version of the connection
-                        securityContext.executeAfterRewritingAuthentication(original -> sendWithUser(connection, action, request, options,
-                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender,
-                            stateNotRecovered), minVersion);
-                    } else {
-                        sendWithUser(connection, action, request, options, handler, sender, stateNotRecovered);
-                    }
+                // Sometimes a system action gets executed like a internal create index request or update mappings request
+                // which means that the user is copied over to system actions so we need to change the user
+                if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
+                    securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
+                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
+                                    , handler), sender, requireAuth), minVersion);
+                } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadPool.getThreadContext())) {
+                    AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadPool.getThreadContext(), securityContext,
+                            (original) -> sendWithUser(connection, action, request, options,
+                                    new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
+                                            , handler), sender, requireAuth));
+                } else if (securityContext.getAuthentication() != null &&
+                        securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
+                    // re-write the authentication since we want the authentication version to match the version of the connection
+                    securityContext.executeAfterRewritingAuthentication(original -> sendWithUser(connection, action, request, options,
+                        new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender,
+                        requireAuth), minVersion);
                 } else {
-                    sender.sendRequest(connection, action, request, options, handler);
+                    sendWithUser(connection, action, request, options, handler, sender, requireAuth);
                 }
             }
         };
     }
 
+    /**
+     * Based on the current cluster state &amp; license, should we require that all outgoing actions have an authentication header
+     * of some sort?
+     */
+    private boolean shouldRequireExistingAuthentication() {
+        // If the license state is MISSING, then auth is not allowed.
+        // However this makes it difficult to installing a valid license, because that might implicitly turn on security.
+        // When security is enabled on the master node it will then reject any actions that do not have authentication headers
+        // but there may be in-flight internal actions (that will not have authentication headers) such as "cluster/shard/started"
+        // which we don't want to reject.
+        // So, we always send authentication headers for actions that have an implied user (system-user or explicit-origin)
+        // and then for other (user originated) actions we enforce that there is an authentication header that we can send, iff the
+        // current license allows authentication.
+        return licenseState.isSecurityEnabled() && isStateNotRecovered == false;
+    }
+
     private <T extends TransportResponse> void sendWithUser(Transport.Connection connection, String action, TransportRequest request,
                                                             TransportRequestOptions options, TransportResponseHandler<T> handler,
-                                                            AsyncSender sender, final boolean stateNotRecovered) {
-        // There cannot be a request outgoing from this node that is not associated with a user
-        // unless we do not know the actual license of the cluster
-        if (securityContext.getAuthentication() == null && stateNotRecovered == false) {
+                                                            AsyncSender sender, final boolean requireAuthentication) {
+        if (securityContext.getAuthentication() == null && requireAuthentication) {
             // we use an assertion here to ensure we catch this in our testing infrastructure, but leave the ISE for cases we do not catch
             // in tests and may be hit by a user
             assertNoAuthentication(action);
@@ -155,7 +146,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         try {
             sender.sendRequest(connection, action, request, options, handler);
         } catch (Exception e) {
-            handler.handleException(new TransportException("failed sending request", e));
+            handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
         }
     }
 
@@ -172,10 +163,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 licenseState, threadPool);
     }
 
-    protected Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
-        final SSLConfiguration transportSslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl"));
-        final Map<String, SSLConfiguration> profileConfigurations = SecurityNetty4Transport.getTransportProfileConfigurations(settings,
-            sslService, transportSslConfiguration);
+    private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl"));
+        final Map<String, SSLConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, sslConfiguration);
 
         Map<String, ServerTransportFilter> profileFilters = new HashMap<>(profileConfigurations.size() + 1);
 
@@ -183,21 +173,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         for (Map.Entry<String, SSLConfiguration> entry : profileConfigurations.entrySet()) {
             final SSLConfiguration profileConfiguration = entry.getValue();
             final boolean extractClientCert = transportSSLEnabled && sslService.isSSLClientAuthEnabled(profileConfiguration);
-            final String type = TRANSPORT_TYPE_PROFILE_SETTING.getConcreteSettingForNamespace(entry.getKey()).get(settings);
-            switch (type) {
-                case "client":
-                    profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService,
-                            threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled,
-                            securityContext));
-                    break;
-                case "node":
-                    profileFilters.put(entry.getKey(), new ServerTransportFilter.NodeProfile(authcService, authzService,
-                            threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled,
-                            securityContext));
-                    break;
-                default:
-                   throw new IllegalStateException("unknown profile type: " + type);
-            }
+            profileFilters.put(entry.getKey(), new ServerTransportFilter(authcService, authzService, threadPool.getThreadContext(),
+                extractClientCert, destructiveOperations, securityContext, licenseState));
         }
 
         return Collections.unmodifiableMap(profileFilters);
@@ -230,6 +207,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
 
         AbstractRunnable getReceiveRunnable(T request, TransportChannel channel, Task task) {
+            final Runnable releaseRequest = new RunOnce(request::decRef);
+            request.incRef();
             return new AbstractRunnable() {
                 @Override
                 public boolean isForceExecution() {
@@ -250,6 +229,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 protected void doRun() throws Exception {
                     handler.messageReceived(request, channel, task);
                 }
+
+                @Override
+                public void onAfter() {
+                    releaseRequest.run();
+                }
             };
         }
 
@@ -263,10 +247,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
 
         @Override
-        public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
-            final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
+        public void messageReceived(T request, TransportChannel channel, Task task) {
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
-                if (licenseState.isAuthAllowed()) {
+                if (licenseState.isSecurityEnabled()) {
                     String profile = channel.getProfileName();
                     ServerTransportFilter filter = profileFilters.get(profile);
 
@@ -280,34 +263,61 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         }
                     }
                     assert filter != null;
-                    final Thread executingThread = Thread.currentThread();
 
-                    CheckedConsumer<Void, Exception> consumer = (x) -> {
-                        final Executor executor;
-                        if (executingThread == Thread.currentThread()) {
-                            // only fork off if we get called on another thread this means we moved to
-                            // an async execution and in this case we need to go back to the thread pool
-                            // that was actually executing it. it's also possible that the
-                            // thread-pool we are supposed to execute on is `SAME` in that case
-                            // the handler is OK with executing on a network thread and we can just continue even if
-                            // we are on another thread due to async operations
-                            executor = threadPool.executor(ThreadPool.Names.SAME);
-                        } else {
-                            executor = threadPool.executor(executorName);
-                        }
-
-                        try {
-                            executor.execute(receiveMessage);
-                        } catch (Exception e) {
-                            receiveMessage.onFailure(e);
-                        }
-
-                    };
-                    ActionListener<Void> filterListener = ActionListener.wrap(consumer, receiveMessage::onFailure);
+                    final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
+                    final ActionListener<Void> filterListener;
+                    if (ThreadPool.Names.SAME.equals(executorName)) {
+                        filterListener = new AbstractFilterListener(receiveMessage) {
+                            @Override
+                            public void onResponse(Void unused) {
+                                receiveMessage.run();
+                            }
+                        };
+                    } else {
+                        final Thread executingThread = Thread.currentThread();
+                        filterListener = new AbstractFilterListener(receiveMessage) {
+                            @Override
+                            public void onResponse(Void unused) {
+                                if (executingThread == Thread.currentThread()) {
+                                    // only fork off if we get called on another thread this means we moved to
+                                    // an async execution and in this case we need to go back to the thread pool
+                                    // that was actually executing it. it's also possible that the
+                                    // thread-pool we are supposed to execute on is `SAME` in that case
+                                    // the handler is OK with executing on a network thread and we can just continue even if
+                                    // we are on another thread due to async operations
+                                    receiveMessage.run();
+                                } else {
+                                    try {
+                                        threadPool.executor(executorName).execute(receiveMessage);
+                                    } catch (Exception e) {
+                                        onFailure(e);
+                                    }
+                                }
+                            }
+                        };
+                    }
                     filter.inbound(action, request, channel, filterListener);
                 } else {
-                    receiveMessage.run();
+                    getReceiveRunnable(request, channel, task).run();
                 }
+            }
+        }
+    }
+
+    private abstract static class AbstractFilterListener implements ActionListener<Void> {
+
+        protected final AbstractRunnable receiveMessage;
+
+        protected AbstractFilterListener(AbstractRunnable receiveMessage) {
+            this.receiveMessage = receiveMessage;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            try {
+                receiveMessage.onFailure(e);
+            } finally {
+                receiveMessage.onAfter();
             }
         }
     }

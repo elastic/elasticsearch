@@ -1,20 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -37,21 +40,38 @@ import org.elasticsearch.xpack.watcher.support.Variables;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ReportingAttachmentParser implements EmailAttachmentParser<ReportingAttachment> {
 
     public static final String TYPE = "reporting";
 
     // total polling of 10 minutes happens this way by default
-    public static final Setting<TimeValue> INTERVAL_SETTING =
+    static final Setting<TimeValue> INTERVAL_SETTING =
             Setting.timeSetting("xpack.notification.reporting.interval", TimeValue.timeValueSeconds(15), Setting.Property.NodeScope);
-    public static final Setting<Integer> RETRIES_SETTING =
+    static final Setting<Integer> RETRIES_SETTING =
             Setting.intSetting("xpack.notification.reporting.retries", 40, 0, Setting.Property.NodeScope);
+
+    static final Setting<Boolean> REPORT_WARNING_ENABLED_SETTING =
+        Setting.boolSetting("xpack.notification.reporting.warning.enabled", true, Setting.Property.NodeScope, Setting.Property.Dynamic);
+
+    static final Setting.AffixSetting<String> REPORT_WARNING_TEXT =
+        Setting.affixKeySetting("xpack.notification.reporting.warning.", "text",
+            key -> Setting.simpleString(key, Setting.Property.NodeScope, Setting.Property.Dynamic));
 
     private static final ObjectParser<Builder, AuthParseContext> PARSER = new ObjectParser<>("reporting_attachment");
     private static final ObjectParser<KibanaReportingPayload, Void> PAYLOAD_PARSER =
             new ObjectParser<>("reporting_attachment_kibana_payload", true, null);
+
+    static final Map<String, String> WARNINGS = Map.of("kbn-csv-contains-formulas", "Warning: The attachment [%s] contains " +
+        "characters which spreadsheet applications may interpret as formulas. Please ensure that the attachment is safe prior to opening.");
 
     static {
         PARSER.declareInt(Builder::retries, ReportingAttachment.RETRIES);
@@ -63,18 +83,52 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
         PAYLOAD_PARSER.declareString(KibanaReportingPayload::setPath, new ParseField("path"));
     }
 
+    private static List<Setting<?>> getDynamicSettings() {
+        return Arrays.asList(REPORT_WARNING_ENABLED_SETTING, REPORT_WARNING_TEXT);
+    }
+
+    private static List<Setting<?>> getStaticSettings() {
+        return Arrays.asList(INTERVAL_SETTING, RETRIES_SETTING);
+    }
+
+    public static List<Setting<?>> getSettings() {
+        List<Setting<?>> allSettings = new ArrayList<Setting<?>>(getDynamicSettings());
+        allSettings.addAll(getStaticSettings());
+        return allSettings;
+    }
     private final Logger logger;
     private final TimeValue interval;
     private final int retries;
     private HttpClient httpClient;
     private final TextTemplateEngine templateEngine;
+    private boolean warningEnabled = REPORT_WARNING_ENABLED_SETTING.getDefault(Settings.EMPTY);
+    private final Map<String, String> customWarnings = new ConcurrentHashMap<>(1);
 
-    public ReportingAttachmentParser(Settings settings, HttpClient httpClient, TextTemplateEngine templateEngine) {
+    public ReportingAttachmentParser(Settings settings, HttpClient httpClient, TextTemplateEngine templateEngine,
+                                     ClusterSettings clusterSettings) {
         this.interval = INTERVAL_SETTING.get(settings);
         this.retries = RETRIES_SETTING.get(settings);
         this.httpClient = httpClient;
         this.templateEngine = templateEngine;
         this.logger = LogManager.getLogger(getClass());
+        clusterSettings.addSettingsUpdateConsumer(REPORT_WARNING_ENABLED_SETTING, this::setWarningEnabled);
+        clusterSettings.addAffixUpdateConsumer(REPORT_WARNING_TEXT, this::addWarningText, this::warningValidator);
+    }
+
+    void setWarningEnabled(boolean warningEnabled) {
+        this.warningEnabled = warningEnabled;
+    }
+
+    void addWarningText(String name, String value) {
+        customWarnings.put(name, value);
+    }
+
+    void warningValidator(String name, String value) {
+        if (WARNINGS.keySet().contains(name) == false) {
+            throw new IllegalArgumentException(new ParameterizedMessage(
+                "Warning [{}] is not supported. Only the following warnings are supported [{}]",
+                name, String.join(", ", WARNINGS.keySet())).getFormattedMessage());
+        }
     }
 
     @Override
@@ -139,8 +193,24 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
                         "method[{}], path[{}], status[{}], body[{}]", context.watch().id(), attachment.id(), request.host(),
                         request.port(), request.method(), request.path(), response.status(), body);
             } else if (response.status() == 200) {
-                return new Attachment.Bytes(attachment.id(), BytesReference.toBytes(response.body()),
-                        response.contentType(), attachment.inline());
+                Set<String> warnings = new HashSet<>(1);
+                if (warningEnabled) {
+                    WARNINGS.forEach((warningKey, defaultWarning) -> {
+                        String[] text = response.header(warningKey);
+                        if (text != null && text.length > 0) {
+                            if (Boolean.valueOf(text[0])) {
+                                String warning = String.format(Locale.ROOT, defaultWarning, attachment.id());
+                                String customWarning = customWarnings.get(warningKey);
+                                if (Strings.isNullOrEmpty(customWarning) == false) {
+                                    warning = String.format(Locale.ROOT, customWarning, attachment.id());
+                                }
+                                warnings.add(warning);
+                            }
+                        }
+                    });
+                }
+                return new Attachment.Bytes(attachment.id(), attachment.id(), BytesReference.toBytes(response.body()),
+                    response.contentType(), attachment.inline(), warnings);
             } else {
                 String body = response.body() != null ? response.body().utf8ToString() : null;
                 String message = LoggerMessageFormat.format("", "Watch[{}] reporting[{}] Unexpected status code host[{}], port[{}], " +
@@ -186,8 +256,8 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
         HttpResponse response = httpClient.execute(request);
         if (response.status() != 200) {
             throw new ElasticsearchException("Watch[{}] reporting[{}] Error response when trying to trigger reporting generation " +
-                    "host[{}], port[{}] method[{}], path[{}], status[{}]", watchId, attachmentId, request.host(),
-                    request.port(), request.method(), request.path(), response.status());
+                    "host[{}], port[{}] method[{}], path[{}], response[{}]", watchId, attachmentId, request.host(),
+                    request.port(), request.method(), request.path(), response);
         }
 
         return response;

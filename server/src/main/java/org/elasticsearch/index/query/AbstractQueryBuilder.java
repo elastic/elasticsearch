@@ -1,30 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanBoostQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,15 +19,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -64,6 +55,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     protected AbstractQueryBuilder(StreamInput in) throws IOException {
         boost = in.readFloat();
+        checkNegativeBoost(boost);
         queryName = in.readOptionalString();
     }
 
@@ -94,13 +86,11 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     @Override
-    public final Query toQuery(QueryShardContext context) throws IOException {
+    public final Query toQuery(SearchExecutionContext context) throws IOException {
         Query query = doToQuery(context);
         if (query != null) {
             if (boost != DEFAULT_BOOST) {
-                if (query instanceof SpanQuery) {
-                    query = new SpanBoostQuery((SpanQuery) query, boost);
-                } else {
+                if (query instanceof MatchNoDocsQuery == false) {
                     query = new BoostQuery(query, boost);
                 }
             }
@@ -111,7 +101,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return query;
     }
 
-    protected abstract Query doToQuery(QueryShardContext context) throws IOException;
+    protected abstract Query doToQuery(SearchExecutionContext context) throws IOException;
 
     /**
      * Sets the query name for the query.
@@ -139,6 +129,13 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return this.boost;
     }
 
+    protected final void checkNegativeBoost(float boost) {
+        if (Float.compare(boost, 0f) < 0) {
+            throw new IllegalArgumentException("negative [boost] are not allowed in [" + toString() + "], " +
+                "use a value between 0 and 1 to deboost");
+        }
+    }
+
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
@@ -146,10 +143,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     @SuppressWarnings("unchecked")
     @Override
     public final QB boost(float boost) {
-        if (Float.compare(boost, 0f) < 0) {
-            throw new IllegalArgumentException("negative [boost] are not allowed in [" + toString() + "], " +
-                "use a value between 0 and 1 to deboost");
-        }
+        checkNegativeBoost(boost);
         this.boost = boost;
         return (QB) this;
     }
@@ -196,6 +190,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             return BytesRefs.toBytesRef(obj);
         } else if (obj instanceof CharBuffer) {
             return new BytesRef((CharBuffer) obj);
+        } else if (obj instanceof BigInteger) {
+            return BytesRefs.toBytesRef(obj);
         }
         return obj;
     }
@@ -218,14 +214,14 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     /**
      * Helper method to convert collection of {@link QueryBuilder} instances to lucene
      * {@link Query} instances. {@link QueryBuilder} that return {@code null} calling
-     * their {@link QueryBuilder#toQuery(QueryShardContext)} method are not added to the
+     * their {@link QueryBuilder#toQuery(SearchExecutionContext)} method are not added to the
      * resulting collection.
      */
-    static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, QueryShardContext context) throws QueryShardException,
+    static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, SearchExecutionContext context) throws QueryShardException,
             IOException {
         List<Query> queries = new ArrayList<>(queryBuilders.size());
         for (QueryBuilder queryBuilder : queryBuilders) {
-            Query query = queryBuilder.toQuery(context);
+            Query query = queryBuilder.rewrite(context).toQuery(context);
             if (query != null) {
                 queries.add(query);
             }
@@ -256,8 +252,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     @Override
-    public final QueryBuilder rewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder rewritten = doRewrite(queryShardContext);
+    public final QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder rewritten = doRewrite(queryRewriteContext);
         if (rewritten == this) {
             return rewritten;
         }
@@ -270,7 +266,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return rewritten;
     }
 
-    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         return this;
     }
 
@@ -287,6 +283,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * Parses a query excluding the query element that wraps it
      */
     public static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
+        return parseInnerQueryBuilder(parser, Integer.valueOf(0));
+    }
+
+    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser, Integer nestedDepth) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, must start with start_object");
@@ -306,12 +306,11 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         }
         QueryBuilder result;
         try {
-            result = parser.namedObject(QueryBuilder.class, queryName, null);
+            result = parser.namedObject(QueryBuilder.class, queryName, nestedDepth);
         } catch (NamedObjectNotFoundException e) {
-            // Preserve the error message from 5.0 until we have a compellingly better message so we don't break BWC.
-            // This intentionally doesn't include the causing exception because that'd change the "root_cause" of any unknown query errors
-            throw new ParsingException(new XContentLocation(e.getLineNumber(), e.getColumnNumber()),
-                    "no [query] registered for [" + queryName + "]");
+            String message = String.format(Locale.ROOT, "unknown query [%s]%s", queryName,
+                    SuggestingErrorOnUnknown.suggest(queryName, e.getCandidates()));
+            throw new ParsingException(new XContentLocation(e.getLineNumber(), e.getColumnNumber()), message, e);
         }
         //end_object of the specific query (e.g. match, multi_match etc.) element
         if (parser.currentToken() != XContentParser.Token.END_OBJECT) {

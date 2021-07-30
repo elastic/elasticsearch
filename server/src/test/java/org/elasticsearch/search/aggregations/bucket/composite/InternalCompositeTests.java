@@ -1,39 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
-import org.joda.time.DateTimeZone;
 import org.junit.After;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -42,9 +30,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class InternalCompositeTests extends InternalMultiBucketAggregationTestCase<InternalComposite> {
@@ -58,7 +54,8 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         if (isLong) {
             // we use specific format only for date histogram on a long/date field
             if (randomBoolean()) {
-                return new DocValueFormat.DateTime(DateFormatter.forPattern("epoch_second"), DateTimeZone.forOffsetHours(1));
+                return new DocValueFormat.DateTime(DateFormatter.forPattern("epoch_second"), ZoneOffset.ofHours(1),
+                    DateFieldMapper.Resolution.MILLISECONDS);
             } else {
                 return DocValueFormat.RAW;
             }
@@ -94,11 +91,6 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         formats = null;
         reverseMuls = null;
         types = null;
-    }
-
-    @Override
-    protected Writeable.Reader<InternalComposite> instanceReader() {
-        return InternalComposite::new;
     }
 
     @Override
@@ -145,8 +137,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     }
 
     @Override
-    protected InternalComposite createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                   Map<String, Object> metaData, InternalAggregations aggregations) {
+    protected InternalComposite createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         int numBuckets = randomIntBetween(0, size);
         List<InternalComposite.InternalBucket> buckets = new ArrayList<>();
         TreeSet<CompositeKey> keys = new TreeSet<>(getKeyComparator());
@@ -162,14 +153,13 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         }
         Collections.sort(buckets, (o1, o2) -> o1.compareKey(o2));
         CompositeKey lastBucket = buckets.size() > 0 ? buckets.get(buckets.size()-1).getRawKey() : null;
-        return new InternalComposite(name, size, sourceNames, formats, buckets, lastBucket, reverseMuls,
-            Collections.emptyList(), metaData);
+        return new InternalComposite(name, size, sourceNames, formats, buckets, lastBucket, reverseMuls, randomBoolean(), metadata);
     }
 
     @Override
     protected InternalComposite mutateInstance(InternalComposite instance) throws IOException {
         List<InternalComposite.InternalBucket> buckets = instance.getBuckets();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         int code = randomIntBetween(0, 2);
         int[] reverseMuls = instance.getReverseMuls();
         switch(code) {
@@ -187,19 +177,19 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
                 );
                 break;
             case 2:
-                if (metaData == null) {
-                    metaData = new HashMap<>(1);
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
                 } else {
-                    metaData = new HashMap<>(instance.getMetaData());
+                    metadata = new HashMap<>(instance.getMetadata());
                 }
-                metaData.put(randomAlphaOfLength(15), randomInt());
+                metadata.put(randomAlphaOfLength(15), randomInt());
                 break;
             default:
                 throw new AssertionError("illegal branch");
         }
         CompositeKey lastBucket = buckets.size() > 0 ? buckets.get(buckets.size()-1).getRawKey() : null;
         return new InternalComposite(instance.getName(), instance.getSize(), sourceNames, formats, buckets, lastBucket, reverseMuls,
-            instance.pipelineAggregators(), metaData);
+            randomBoolean(), metadata);
     }
 
     @Override
@@ -223,15 +213,14 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     }
 
     public void testReduceSame() throws IOException {
-        InternalComposite result = createTestInstance(randomAlphaOfLength(10), Collections.emptyList(), Collections.emptyMap(),
+        InternalComposite result = createTestInstance(randomAlphaOfLength(10), Collections.emptyMap(),
             InternalAggregations.EMPTY);
         List<InternalAggregation> toReduce = new ArrayList<>();
         int numSame = randomIntBetween(1, 10);
         for (int i = 0; i < numSame; i++) {
             toReduce.add(result);
         }
-        InternalComposite finalReduce = (InternalComposite) result.reduce(toReduce,
-            new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, true));
+        InternalComposite finalReduce = (InternalComposite) result.reduce(toReduce, emptyReduceContextBuilder().forFinalReduction());
         assertThat(finalReduce.getBuckets().size(), equalTo(result.getBuckets().size()));
         Iterator<InternalComposite.InternalBucket> expectedIt = result.getBuckets().iterator();
         for (InternalComposite.InternalBucket bucket : finalReduce.getBuckets()) {
@@ -239,5 +228,194 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             assertThat(bucket.getRawKey(), equalTo(expectedBucket.getRawKey()));
             assertThat(bucket.getDocCount(), equalTo(expectedBucket.getDocCount()*numSame));
         }
+    }
+
+    /**
+     * Check that reducing with an unmapped index produces useful formats.
+     */
+    public void testReduceUnmapped() throws IOException {
+        var mapped = createTestInstance(randomAlphaOfLength(10), emptyMap(), InternalAggregations.EMPTY);
+        var rawFormats = formats.stream().map(f -> DocValueFormat.RAW).collect(toList());
+        var unmapped = new InternalComposite(mapped.getName(), mapped.getSize(), sourceNames,
+                rawFormats, emptyList(), null, reverseMuls, true, emptyMap());
+        List<InternalAggregation> toReduce = Arrays.asList(unmapped, mapped);
+        Collections.shuffle(toReduce, random());
+        InternalComposite finalReduce = (InternalComposite) unmapped.reduce(toReduce, emptyReduceContextBuilder().forFinalReduction());
+        assertThat(finalReduce.getBuckets().size(), equalTo(mapped.getBuckets().size()));
+        if (false == mapped.getBuckets().isEmpty()) {
+            assertThat(finalReduce.getFormats(), equalTo(mapped.getFormats()));
+        }
+        var expectedIt = mapped.getBuckets().iterator();
+        for (var bucket : finalReduce.getBuckets()) {
+            InternalComposite.InternalBucket expectedBucket = expectedIt.next();
+            assertThat(bucket.getRawKey(), equalTo(expectedBucket.getRawKey()));
+            assertThat(bucket.getDocCount(), equalTo(expectedBucket.getDocCount()));
+            assertThat(bucket.getFormats(), equalTo(expectedBucket.getFormats()));
+        }
+    }
+
+    public void testCompareCompositeKeyBiggerFieldName() {
+        InternalComposite.ArrayMap key1 = createMap(
+            Arrays.asList("field1", "field2"),
+            new Comparable[]{1, 2}
+        );
+        InternalComposite.ArrayMap key2 = createMap(
+            Arrays.asList("field3", "field2"),
+            new Comparable[]{1, 2}
+        );
+        assertThat(key1.compareTo(key2), lessThan(0));
+    }
+
+    public void testCompareCompositeKeySmallerFieldName() {
+        InternalComposite.ArrayMap key1 = createMap(
+            Arrays.asList("field3", "field2"),
+            new Comparable[]{1, 2}
+        );
+        InternalComposite.ArrayMap key2 = createMap(
+            Arrays.asList("field1", "field2"),
+            new Comparable[]{1, 2}
+        );
+        assertThat(key1.compareTo(key2), greaterThan(0));
+    }
+
+    public void testCompareCompositeKeyBiggerValue() {
+        InternalComposite.ArrayMap key1 = createMap(
+            Arrays.asList("field1", "field2"),
+            new Comparable[]{1, 2}
+        );
+        InternalComposite.ArrayMap key2 = createMap(
+            Arrays.asList("field3", "field2"),
+            new Comparable[]{2, 3}
+        );
+        assertThat(key1.compareTo(key2), lessThan(0));
+    }
+
+    public void testCompareCompositeKeySmallerValue() {
+        InternalComposite.ArrayMap key1 = createMap(
+            Arrays.asList("field3", "field2"),
+            new Comparable[]{1, 2}
+        );
+        InternalComposite.ArrayMap key2 = createMap(
+            Arrays.asList("field1", "field2"),
+            new Comparable[]{2, 3}
+        );
+        assertThat(key1.compareTo(key2), greaterThan(0));
+    }
+
+    public void testCompareCompositeKeyNullValueIsSmaller1() {
+        InternalComposite.ArrayMap key1 = createMap(
+            Arrays.asList("field1", "field2"),
+            new Comparable[]{null, 20}
+        );
+        InternalComposite.ArrayMap key2 = createMap(
+            Arrays.asList("field1", "field2"),
+            new Comparable[]{1, 2}
+        );
+        assertThat(key1.compareTo(key2), lessThan(0));
+    }
+
+    public void testCompareCompositeKeyNullValueIsSmaller2() {
+        InternalComposite.ArrayMap key1 = createMap(
+            Arrays.asList("field1", "field2"),
+            new Comparable[]{1, 2}
+        );
+        InternalComposite.ArrayMap key2 = createMap(
+            Arrays.asList("field1", "field2"),
+            new Comparable[]{null, 20}
+        );
+        assertThat(key1.compareTo(key2), greaterThan(0));
+    }
+
+    public void testCompareCompositeKeyMoreFieldsIsGreater() {
+        InternalComposite.ArrayMap key1 = createMap(
+            Arrays.asList("field1", "field2"),
+            new Comparable[]{1, 2}
+        );
+        InternalComposite.ArrayMap key2 = createMap(Arrays.asList("field1", "field2", "field3"),new Comparable[]{1, 2, null});
+        assertThat(key1.compareTo(key2), lessThan(0));
+    }
+
+    public void testCompareCompositeKeyLessFieldsIsLesser() {
+        InternalComposite.ArrayMap key1 = createMap(
+            Arrays.asList("field1", "field2", "field3"),
+            new Comparable[]{1, 2, null}
+        );
+        InternalComposite.ArrayMap key2 = createMap(Arrays.asList("field1", "field2"),new Comparable[]{1, 2});
+        assertThat(key1.compareTo(key2), greaterThan(0));
+    }
+
+    public void testCompareCompositeKeyEqual() {
+        InternalComposite.ArrayMap key1 = createMap(
+            Arrays.asList("field1", "field2", "field3"),
+            new Comparable[]{null, 1, 2}
+        );
+        InternalComposite.ArrayMap key2 = createMap(
+            Arrays.asList("field1", "field2", "field3"),
+            new Comparable[]{null, 1, 2}
+        );
+        assertThat(key1.compareTo(key1), equalTo(0));
+        assertThat(key1.equals(key1), is(true));
+
+        assertThat(key1.compareTo(key2), equalTo(0));
+        assertThat(key1.equals(key2), is(true));
+        assertThat(key2.equals(key1), is(true));
+    }
+
+    public void testCompareCompositeKeyValuesHaveDifferentTypes() {
+        InternalComposite.ArrayMap key1 = createMap(
+            Arrays.asList("field1", "field2"),
+            new Comparable[]{1, 2}
+        );
+
+        InternalComposite.ArrayMap key2 = createMap(
+            Arrays.asList("field1", "field2"),
+            new Comparable[]{"1", 2}
+        );
+
+        ClassCastException exception = expectThrows(ClassCastException.class, () -> key1.compareTo(key2));
+        assertThat(exception.getMessage(),
+            containsString("java.lang.String cannot be cast to"));
+    }
+
+    public void testFormatObjectChecked() {
+        DocValueFormat weekYearMonth = new DocValueFormat.DateTime(
+            // YYYY is week-based year.  The parser will ignore MM (month-of-year) and dd (day-of-month)
+            DateFormatter.forPattern("YYYY-MM-dd"),
+            ZoneOffset.UTC,
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        long epoch = 1622060077L; // May 25th 2021, evening
+        expectThrows(IllegalArgumentException.class, () -> InternalComposite.formatObject(epoch, weekYearMonth));
+    }
+
+    public void testFormatDateEpochTimezone() {
+        DocValueFormat epochSecond = new DocValueFormat.DateTime(
+            // YYYY is week-based year.  The parser will ignore MM (month-of-year) and dd (day-of-month)
+            DateFormatter.forPattern("epoch_second"),
+            ZoneOffset.ofHours(-2),
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        DocValueFormat epochMillis = new DocValueFormat.DateTime(
+            // YYYY is week-based year.  The parser will ignore MM (month-of-year) and dd (day-of-month)
+            DateFormatter.forPattern("epoch_millis"),
+            ZoneOffset.ofHours(-2),
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        long epoch = 1622060077L; // May 25th 2021, evening
+        Object actual = InternalComposite.formatObject(epoch, epochSecond);
+        assertEquals("1622060.077", actual.toString());
+
+        actual = InternalComposite.formatObject(epoch, epochMillis);
+        assertEquals("1622060077", actual.toString());
+    }
+
+    private InternalComposite.ArrayMap createMap(List<String> fields, Comparable[] values) {
+        List<DocValueFormat> formats = IntStream.range(0, fields.size())
+            .mapToObj(i -> DocValueFormat.RAW).collect(Collectors.toList());
+        return new InternalComposite.ArrayMap(
+            fields,
+            formats,
+            values
+        );
     }
 }

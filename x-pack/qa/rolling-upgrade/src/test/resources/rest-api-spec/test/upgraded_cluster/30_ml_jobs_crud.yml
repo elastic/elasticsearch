@@ -23,6 +23,19 @@ setup:
 
   - do:
       ml.open_job:
+        job_id: old-cluster-categorization-job
+
+  - do:
+      ml.get_job_stats:
+        job_id: old-cluster-categorization-job
+  - match: { jobs.0.state: "opened" }
+  - match: { jobs.0.data_counts.processed_record_count: 2 }
+  - is_true: jobs.0.model_size_stats
+  - is_true: jobs.0.node
+  - is_true: jobs.0.open_time
+
+  - do:
+      ml.open_job:
         job_id: mixed-cluster-job
 
   - do:
@@ -40,62 +53,88 @@ setup:
 
   - do:
       ml.close_job:
-        job_id: mixed-cluster-job
-
-  - do:
-      ml.get_buckets:
-        job_id: old-cluster-job
-  - match: { count: 1 }
-
-  - do:
-      ml.get_buckets:
-        job_id: mixed-cluster-job
-  - match: { count: 1 }
-
-  - do:
-      ml.delete_job:
-        job_id: old-cluster-job
-  - match: { acknowledged: true }
-
-  - do:
-      catch: missing
-      ml.get_jobs:
-        job_id: old-cluster-job
-
-  - do:
-      ml.delete_job:
-        job_id: mixed-cluster-job
-  - match: { acknowledged: true }
-
-  - do:
-      catch: missing
-      ml.get_jobs:
-        job_id: mixed-cluster-job
-
----
-"Test job with no model memory limit has established model memory after reopening":
-  - do:
-      ml.open_job:
-        job_id: no-model-memory-limit-job
-
-  - do:
-      ml.get_jobs:
-        job_id: no-model-memory-limit-job
-  - is_true: jobs.0.established_model_memory
-  - lt: { jobs.0.established_model_memory: 100000 }
+        job_id: old-cluster-categorization-job
 
   - do:
       ml.close_job:
-        job_id: no-model-memory-limit-job
+        job_id: mixed-cluster-job
+
+  - do:
+      ml.get_buckets:
+        job_id: old-cluster-job
+  - match: { count: 1 }
+
+  - do:
+      ml.get_categories:
+        job_id: old-cluster-categorization-job
+  - match: { count: 1 }
+
+  - do:
+      ml.get_buckets:
+        job_id: mixed-cluster-job
+  - match: { count: 1 }
 
   - do:
       ml.delete_job:
-        job_id: no-model-memory-limit-job
+        job_id: old-cluster-job
   - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ml.get_jobs:
+        job_id: old-cluster-job
+
+  - do:
+      ml.delete_job:
+        job_id: old-cluster-categorization-job
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ml.get_jobs:
+        job_id: old-cluster-categorization-job
+
+  - do:
+      ml.delete_job:
+        job_id: mixed-cluster-job
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ml.get_jobs:
+        job_id: mixed-cluster-job
+
+  - do:
+      indices.exists_alias:
+        name: ".ml-state-write"
+  - is_true: ''
+
+---
+"Test get old cluster job's timing stats":
+  - do:
+      ml.get_job_stats:
+        job_id: old-cluster-job-with-ts
+  - match: { jobs.0.job_id: old-cluster-job-with-ts }
+  - match: { jobs.0.state: "closed" }
+  - match: { jobs.0.timing_stats.job_id: old-cluster-job-with-ts }
+  - match: { jobs.0.timing_stats.bucket_count: 1 }
+  - gte:   { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
+  - gte:   { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
+  - gte:   { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
+  - gte:   { jobs.0.timing_stats.exponential_average_bucket_processing_time_ms: 0.0 }
+
+  - do:
+      ml.delete_job:
+        job_id: old-cluster-job-with-ts
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ml.get_jobs:
+        job_id: old-cluster-job-with-ts
 
 ---
 "Test job with pre 6.4 rules":
-
   - do:
       ml.get_jobs:
         job_id: job-with-old-rules
@@ -105,9 +144,19 @@ setup:
 
 ---
 "Test get job with function shortcut should expand":
-
   - do:
       ml.get_jobs:
         job_id: old-cluster-function-shortcut-expansion
   - match: { count: 1 }
   - match: { jobs.0.analysis_config.detectors.0.function: "non_zero_count" }
+
+---
+"Test annotation index mappings":
+
+  - do:
+      indices.get_mapping:
+        index: .ml-annotations-write
+
+  - match: { \.ml-annotations-6.mappings.properties.type.type: "keyword" }
+  - match: { \.ml-annotations-6.mappings.properties.event.type: "keyword" }
+  - match: { \.ml-annotations-6.mappings.properties.detector_index.type: "integer" }

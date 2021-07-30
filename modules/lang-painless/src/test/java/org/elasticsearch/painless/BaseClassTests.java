@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -126,12 +115,12 @@ public class BaseClassTests extends ScriptTestCase {
 
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
                 scriptEngine.compile("testNoArgs2", "doc", NoArgs.CONTEXT, emptyMap()));
-        assertEquals("Variable [doc] is not defined.", e.getMessage());
+        assertEquals("cannot resolve symbol [doc]", e.getMessage());
         e = expectScriptThrows(IllegalArgumentException.class, () ->
                 scriptEngine.compile("testNoArgs3", "_score", NoArgs.CONTEXT, emptyMap()));
-        assertEquals("Variable [_score] is not defined.", e.getMessage());
+        assertEquals("cannot resolve symbol [_score]", e.getMessage());
 
-        String debug = Debugger.toString(NoArgs.class, "int i = 0", new CompilerSettings());
+        String debug = Debugger.toString(NoArgs.class, "int i = 0", new CompilerSettings(), Whitelist.BASE_WHITELISTS);
         assertThat(debug, containsString("ACONST_NULL"));
         assertThat(debug, containsString("ARETURN"));
     }
@@ -317,7 +306,7 @@ public class BaseClassTests extends ScriptTestCase {
         scriptEngine.compile("testReturnsVoid1", "map.remove('a')", ReturnsVoid.CONTEXT, emptyMap()).newInstance().execute(map);
         assertEquals(emptyMap(), map);
 
-        String debug = Debugger.toString(ReturnsVoid.class, "int i = 0", new CompilerSettings());
+        String debug = Debugger.toString(ReturnsVoid.class, "int i = 0", new CompilerSettings(), Whitelist.BASE_WHITELISTS);
         // The important thing is that this contains the opcode for returning void
         assertThat(debug, containsString(" RETURN"));
         // We shouldn't contain any weird "default to null" logic
@@ -358,7 +347,7 @@ public class BaseClassTests extends ScriptTestCase {
                 scriptEngine.compile("testReturnsPrimitiveBoolean6", "true || false", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
 
-        String debug = Debugger.toString(ReturnsPrimitiveBoolean.class, "false", new CompilerSettings());
+        String debug = Debugger.toString(ReturnsPrimitiveBoolean.class, "false", new CompilerSettings(), Whitelist.BASE_WHITELISTS);
         assertThat(debug, containsString("ICONST_0"));
         // The important thing here is that we have the bytecode for returning an integer instead of an object. booleans are integers.
         assertThat(debug, containsString("IRETURN"));
@@ -396,15 +385,15 @@ public class BaseClassTests extends ScriptTestCase {
         }
 
         public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("returnsprimitiveint", Factory.class);
-        
+
         public static final String[] PARAMETERS = new String[] {};
         public abstract int execute();
     }
     public void testReturnsPrimitiveInt() throws Exception {
-        assertEquals(1, 
+        assertEquals(1,
                 scriptEngine.compile("testReturnsPrimitiveInt0", "1", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                         .newInstance().execute());
-        assertEquals(1, 
+        assertEquals(1,
                 scriptEngine.compile("testReturnsPrimitiveInt1", "(int) 1L", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                         .newInstance().execute());
         assertEquals(1, scriptEngine.compile("testReturnsPrimitiveInt2", "(int) 1.1d", ReturnsPrimitiveInt.CONTEXT, emptyMap())
@@ -426,7 +415,7 @@ public class BaseClassTests extends ScriptTestCase {
         assertEquals(2,
                 scriptEngine.compile("testReturnsPrimitiveInt7", "1 + 1", ReturnsPrimitiveInt.CONTEXT, emptyMap()).newInstance().execute());
 
-        String debug = Debugger.toString(ReturnsPrimitiveInt.class, "1", new CompilerSettings());
+        String debug = Debugger.toString(ReturnsPrimitiveInt.class, "1", new CompilerSettings(), Whitelist.BASE_WHITELISTS);
         assertThat(debug, containsString("ICONST_1"));
         // The important thing here is that we have the bytecode for returning an integer instead of an object
         assertThat(debug, containsString("IRETURN"));
@@ -460,7 +449,7 @@ public class BaseClassTests extends ScriptTestCase {
         }
 
         public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("returnsprimitivefloat", Factory.class);
-        
+
         public static final String[] PARAMETERS = new String[] {};
         public abstract float execute();
     }
@@ -493,7 +482,7 @@ public class BaseClassTests extends ScriptTestCase {
                 "testReturnsPrimitiveFloat7", "def d = Double.valueOf(1.1); d", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
                 .newInstance().execute());
 
-        String debug = Debugger.toString(ReturnsPrimitiveFloat.class, "1f", new CompilerSettings());
+        String debug = Debugger.toString(ReturnsPrimitiveFloat.class, "1f", new CompilerSettings(), Whitelist.BASE_WHITELISTS);
         assertThat(debug, containsString("FCONST_1"));
         // The important thing here is that we have the bytecode for returning a float instead of an object
         assertThat(debug, containsString("FRETURN"));
@@ -509,7 +498,7 @@ public class BaseClassTests extends ScriptTestCase {
        }
 
        public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("returnsprimitivedouble", Factory.class);
-        
+
         public static final String[] PARAMETERS = new String[] {};
         public abstract double execute();
     }
@@ -556,8 +545,7 @@ public class BaseClassTests extends ScriptTestCase {
                 scriptEngine.compile("testReturnsPrimitiveDouble12", "1.1 + 6.7", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
 
-        String debug = Debugger.toString(ReturnsPrimitiveDouble.class, "1", new CompilerSettings());
-        assertThat(debug, containsString("DCONST_1"));
+        String debug = Debugger.toString(ReturnsPrimitiveDouble.class, "1", new CompilerSettings(), Whitelist.BASE_WHITELISTS);
         // The important thing here is that we have the bytecode for returning a double instead of an object
         assertThat(debug, containsString("DRETURN"));
 

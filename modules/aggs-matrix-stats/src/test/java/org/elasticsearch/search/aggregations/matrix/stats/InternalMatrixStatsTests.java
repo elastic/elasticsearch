@@ -1,37 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin;
 import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats.Fields;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
@@ -49,6 +40,11 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
     private boolean hasMatrixStatsResults;
 
     @Override
+    protected SearchPlugin registerPlugin() {
+        return new MatrixAggregationPlugin();
+    }
+
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         hasMatrixStatsResults = frequently();
@@ -61,15 +57,13 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>(getDefaultNamedXContents());
         ContextParser<Object, Aggregation> parser = (p, c) -> ParsedMatrixStats.fromXContent(p, (String) c);
-        namedXContents.add(new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(MatrixStatsAggregationBuilder.NAME), parser));
-        return namedXContents;
+        return CollectionUtils.appendToCopy(getDefaultNamedXContents(),
+                new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(MatrixStatsAggregationBuilder.NAME), parser));
     }
 
     @Override
-    protected InternalMatrixStats createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                     Map<String, Object> metaData) {
+    protected InternalMatrixStats createTestInstance(String name, Map<String, Object> metadata) {
         double[] values = new double[fields.length];
         for (int i = 0; i < fields.length; i++) {
             values[i] = randomDouble();
@@ -78,12 +72,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         RunningStats runningStats = new RunningStats();
         runningStats.add(fields, values);
         MatrixStatsResults matrixStatsResults = hasMatrixStatsResults ? new MatrixStatsResults(runningStats) : null;
-        return new InternalMatrixStats(name, 1L, runningStats, matrixStatsResults, Collections.emptyList(), metaData);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalMatrixStats> instanceReader() {
-        return InternalMatrixStats::new;
+        return new InternalMatrixStats(name, 1L, runningStats, matrixStatsResults, metadata);
     }
 
     @Override
@@ -92,7 +81,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         long docCount = instance.getDocCount();
         RunningStats runningStats = instance.getStats();
         MatrixStatsResults matrixStatsResults = instance.getResults();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -116,15 +105,15 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
             break;
         case 3:
         default:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         }
-        return new InternalMatrixStats(name, docCount, runningStats, matrixStatsResults, Collections.emptyList(), metaData);
+        return new InternalMatrixStats(name, docCount, runningStats, matrixStatsResults, metadata);
     }
 
     @Override
@@ -148,22 +137,22 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
 
             runningStats.add(new String[]{"a", "b"}, new double[]{valueA, valueB});
             if (++valuePerShardCounter == valuesPerShard) {
-                shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyList(), Collections.emptyMap()));
+                shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyMap()));
                 runningStats = new RunningStats();
                 valuePerShardCounter = 0;
             }
         }
 
         if (valuePerShardCounter != 0) {
-            shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyList(), Collections.emptyMap()));
+            shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyMap()));
         }
         MultiPassStats multiPassStats = new MultiPassStats("a", "b");
         multiPassStats.computeStats(aValues, bValues);
 
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-        InternalAggregation.ReduceContext context =
-            new InternalAggregation.ReduceContext(bigArrays, mockScriptService, true);
+        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+                bigArrays, mockScriptService, b -> {}, PipelineTree.EMPTY);
         InternalMatrixStats reduced = (InternalMatrixStats) shardResults.get(0).reduce(shardResults, context);
         multiPassStats.assertNearlyEqual(reduced.getResults());
     }

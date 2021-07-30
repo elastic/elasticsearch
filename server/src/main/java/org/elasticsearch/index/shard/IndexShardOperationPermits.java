@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.shard;
@@ -22,12 +11,12 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -88,49 +77,27 @@ final class IndexShardOperationPermits implements Closeable {
     }
 
     /**
-     * Wait for in-flight operations to finish and executes {@code onBlocked} under the guarantee that no new operations are started. Queues
-     * operations that are occurring in the meanwhile and runs them once {@code onBlocked} has executed.
-     *
-     * @param timeout   the maximum time to wait for the in-flight operations block
-     * @param timeUnit  the time unit of the {@code timeout} argument
-     * @param onBlocked the action to run once the block has been acquired
-     * @param <E>       the type of checked exception thrown by {@code onBlocked}
-     * @throws InterruptedException      if calling thread is interrupted
-     * @throws TimeoutException          if timed out waiting for in-flight operations to finish
-     * @throws IndexShardClosedException if operation permit has been closed
-     */
-    <E extends Exception> void blockOperations(
-            final long timeout,
-            final TimeUnit timeUnit,
-            final CheckedRunnable<E> onBlocked) throws InterruptedException, TimeoutException, E {
-        delayOperations();
-        try (Releasable ignored = acquireAll(timeout, timeUnit)) {
-            onBlocked.run();
-        } finally {
-            releaseDelayedOperations();
-        }
-    }
-
-    /**
-     * Immediately delays operations and on another thread waits for in-flight operations to finish and then acquires all permits. When all
-     * permits are acquired, the provided {@link ActionListener} is called under the guarantee that no new operations are started. Delayed
-     * operations are run once the {@link Releasable} is released or if a failure occurs while acquiring all permits; in this case the
-     * {@code onFailure} handler will be invoked after delayed operations are released.
+     * Immediately delays operations and uses the {@code executor} to wait for in-flight operations to finish and then acquires all
+     * permits. When all permits are acquired, the provided {@link ActionListener} is called under the guarantee that no new operations are
+     * started. Delayed operations are run once the {@link Releasable} is released or if a failure occurs while acquiring all permits; in
+     * this case the {@code onFailure} handler will be invoked after delayed operations are released.
      *
      * @param onAcquired {@link ActionListener} that is invoked once acquisition is successful or failed
      * @param timeout    the maximum time to wait for the in-flight operations block
      * @param timeUnit   the time unit of the {@code timeout} argument
+     * @param executor   executor on which to wait for in-flight operations to finish and acquire all permits
      */
-    public void asyncBlockOperations(final ActionListener<Releasable> onAcquired, final long timeout, final TimeUnit timeUnit)  {
+    public void blockOperations(final ActionListener<Releasable> onAcquired, final long timeout, final TimeUnit timeUnit,
+                                String executor)  {
         delayOperations();
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
+        threadPool.executor(executor).execute(new AbstractRunnable() {
 
-            final RunOnce released = new RunOnce(() -> releaseDelayedOperations());
+            final Releasable released = Releasables.releaseOnce(() -> releaseDelayedOperations());
 
             @Override
             public void onFailure(final Exception e) {
                 try {
-                    released.run(); // resume delayed operations as soon as possible
+                    released.close(); // resume delayed operations as soon as possible
                 } finally {
                     onAcquired.onFailure(e);
                 }
@@ -139,13 +106,7 @@ final class IndexShardOperationPermits implements Closeable {
             @Override
             protected void doRun() throws Exception {
                 final Releasable releasable = acquireAll(timeout, timeUnit);
-                onAcquired.onResponse(() -> {
-                    try {
-                        releasable.close();
-                    } finally {
-                        released.run();
-                    }
-                });
+                onAcquired.onResponse(() -> Releasables.close(releasable, released));
             }
         });
     }
@@ -168,11 +129,11 @@ final class IndexShardOperationPermits implements Closeable {
             }
         }
         if (semaphore.tryAcquire(TOTAL_PERMITS, timeout, timeUnit)) {
-            final RunOnce release = new RunOnce(() -> {
+            final Releasable release = Releasables.releaseOnce(() -> {
                 assert semaphore.availablePermits() == 0;
                 semaphore.release(TOTAL_PERMITS);
             });
-            return release::run;
+            return release;
         } else {
             throw new TimeoutException("timeout while blocking operations");
         }
@@ -190,7 +151,7 @@ final class IndexShardOperationPermits implements Closeable {
                 queuedActions = Collections.emptyList();
             }
         }
-        if (!queuedActions.isEmpty()) {
+        if (queuedActions.isEmpty() == false) {
             /*
              * Try acquiring permits on fresh thread (for two reasons):
              *   - blockOperations can be called on a recovery thread which can be expected to be interrupted when recovery is cancelled;
@@ -210,8 +171,7 @@ final class IndexShardOperationPermits implements Closeable {
 
     /**
      * Acquires a permit whenever permit acquisition is not blocked. If the permit is directly available, the provided
-     * {@link ActionListener} will be called on the calling thread. During calls of
-     * {@link #blockOperations(long, TimeUnit, CheckedRunnable)}, permit acquisition can be delayed.
+     * {@link ActionListener} will be called on the calling thread.
      * The {@link ActionListener#onResponse(Object)} method will then be called using the provided executor once operations are no
      * longer blocked. Note that the executor will not be used for {@link ActionListener#onFailure(Exception)} calls. Those will run
      * directly on the calling thread, which in case of delays, will be a generic thread. Callers should thus make sure
@@ -249,9 +209,24 @@ final class IndexShardOperationPermits implements Closeable {
                     final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
                     final ActionListener<Releasable> wrappedListener;
                     if (executorOnDelay != null) {
-                        wrappedListener =
-                            new PermitAwareThreadedActionListener(threadPool, executorOnDelay,
-                                        new ContextPreservingActionListener<>(contextSupplier, onAcquired), forceExecution);
+                        wrappedListener = new ContextPreservingActionListener<>(contextSupplier, onAcquired).delegateFailure(
+                            (l, r) -> threadPool.executor(executorOnDelay).execute(new ActionRunnable<>(l) {
+                                @Override
+                                public boolean isForceExecution() {
+                                    return forceExecution;
+                                }
+
+                                @Override
+                                protected void doRun() {
+                                    listener.onResponse(r);
+                                }
+
+                                @Override
+                                public void onRejection(Exception e) {
+                                    IOUtils.closeWhileHandlingException(r);
+                                    super.onRejection(e);
+                                }
+                            }));
                     } else {
                         wrappedListener = new ContextPreservingActionListener<>(contextSupplier, onAcquired);
                     }
@@ -293,19 +268,14 @@ final class IndexShardOperationPermits implements Closeable {
     }
 
     /**
-     * Obtain the active operation count, or zero if all permits are held (even if there are outstanding operations in flight).
+     * Obtain the active operation count, or {@link IndexShard#OPERATIONS_BLOCKED} if all permits are held.
      *
-     * @return the active operation count, or zero when all permits ar eheld
+     * @return the active operation count, or {@link IndexShard#OPERATIONS_BLOCKED} when all permits are held.
      */
     int getActiveOperationsCount() {
         int availablePermits = semaphore.availablePermits();
         if (availablePermits == 0) {
-            /*
-             * This occurs when either doBlockOperations is holding all the permits or there are outstanding operations in flight and the
-             * remainder of the permits are held by doBlockOperations. We do not distinguish between these two cases and simply say that
-             * the active operations count is zero.
-             */
-            return 0;
+            return IndexShard.OPERATIONS_BLOCKED; // This occurs when blockOperations() has acquired all the permits.
         } else {
             return TOTAL_PERMITS - availablePermits;
         }
@@ -342,57 +312,4 @@ final class IndexShardOperationPermits implements Closeable {
             }
         }
     }
-
-    /**
-     * A permit-aware action listener wrapper that spawns onResponse listener invocations off on a configurable thread-pool.
-     * Being permit-aware, it also releases the permit when hitting thread-pool rejections and falls back to the
-     * invoker's thread to communicate failures.
-     */
-    private static class PermitAwareThreadedActionListener implements ActionListener<Releasable> {
-
-        private final ThreadPool threadPool;
-        private final String executor;
-        private final ActionListener<Releasable> listener;
-        private final boolean forceExecution;
-
-        private PermitAwareThreadedActionListener(ThreadPool threadPool, String executor, ActionListener<Releasable> listener,
-                                                  boolean forceExecution) {
-            this.threadPool = threadPool;
-            this.executor = executor;
-            this.listener = listener;
-            this.forceExecution = forceExecution;
-        }
-
-        @Override
-        public void onResponse(final Releasable releasable) {
-            threadPool.executor(executor).execute(new AbstractRunnable() {
-                @Override
-                public boolean isForceExecution() {
-                    return forceExecution;
-                }
-
-                @Override
-                protected void doRun() throws Exception {
-                    listener.onResponse(releasable);
-                }
-
-                @Override
-                public void onRejection(Exception e) {
-                    IOUtils.closeWhileHandlingException(releasable);
-                    super.onRejection(e);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e); // will possibly execute on the caller thread
-                }
-            });
-        }
-
-        @Override
-        public void onFailure(final Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
 }

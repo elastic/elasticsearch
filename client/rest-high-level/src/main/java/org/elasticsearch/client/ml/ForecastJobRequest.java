@@ -1,32 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParseException;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -34,10 +26,11 @@ import java.util.Objects;
 /**
  * Pojo for forecasting an existing and open Machine Learning Job
  */
-public class ForecastJobRequest extends ActionRequest implements ToXContentObject {
+public class ForecastJobRequest implements Validatable, ToXContentObject {
 
     public static final ParseField DURATION = new ParseField("duration");
     public static final ParseField EXPIRES_IN = new ParseField("expires_in");
+    public static final ParseField MAX_MODEL_MEMORY = new ParseField("max_model_memory");
 
     public static final ConstructingObjectParser<ForecastJobRequest, Void> PARSER =
         new ConstructingObjectParser<>("forecast_job_request", (a) -> new ForecastJobRequest((String)a[0]));
@@ -48,11 +41,20 @@ public class ForecastJobRequest extends ActionRequest implements ToXContentObjec
             (request, val) -> request.setDuration(TimeValue.parseTimeValue(val, DURATION.getPreferredName())), DURATION);
         PARSER.declareString(
             (request, val) -> request.setExpiresIn(TimeValue.parseTimeValue(val, EXPIRES_IN.getPreferredName())), EXPIRES_IN);
+        PARSER.declareField(ForecastJobRequest::setMaxModelMemory, (p, c) -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return ByteSizeValue.parseBytesSizeValue(p.text(), MAX_MODEL_MEMORY.getPreferredName());
+            } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                return new ByteSizeValue(p.longValue());
+            }
+            throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
+        }, MAX_MODEL_MEMORY, ObjectParser.ValueType.VALUE);
     }
 
     private final String jobId;
     private TimeValue duration;
     private TimeValue expiresIn;
+    private ByteSizeValue maxModelMemory;
 
     /**
      * A new forecast request
@@ -100,9 +102,25 @@ public class ForecastJobRequest extends ActionRequest implements ToXContentObjec
         this.expiresIn = expiresIn;
     }
 
+    public ByteSizeValue getMaxModelMemory() {
+        return maxModelMemory;
+    }
+
+    /**
+     * Set the amount of memory allowed to be used by this forecast.
+     *
+     * If the projected forecast memory usage exceeds this amount, the forecast will spool results to disk to keep within the limits.
+     * @param maxModelMemory A byte sized value less than 500MB and less than 40% of the associated job's configured memory usage.
+     *                       Defaults to 20MB.
+     */
+    public ForecastJobRequest setMaxModelMemory(ByteSizeValue maxModelMemory) {
+        this.maxModelMemory = maxModelMemory;
+        return this;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, duration, expiresIn);
+        return Objects.hash(jobId, duration, expiresIn, maxModelMemory);
     }
 
     @Override
@@ -116,7 +134,8 @@ public class ForecastJobRequest extends ActionRequest implements ToXContentObjec
         ForecastJobRequest other = (ForecastJobRequest) obj;
         return Objects.equals(jobId, other.jobId)
             && Objects.equals(duration, other.duration)
-            && Objects.equals(expiresIn, other.expiresIn);
+            && Objects.equals(expiresIn, other.expiresIn)
+            && Objects.equals(maxModelMemory, other.maxModelMemory);
     }
 
     @Override
@@ -129,12 +148,11 @@ public class ForecastJobRequest extends ActionRequest implements ToXContentObjec
         if (expiresIn != null) {
             builder.field(EXPIRES_IN.getPreferredName(), expiresIn.getStringRep());
         }
+        if (maxModelMemory != null) {
+            builder.field(MAX_MODEL_MEMORY.getPreferredName(), maxModelMemory.getStringRep());
+        }
         builder.endObject();
         return builder;
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
 }

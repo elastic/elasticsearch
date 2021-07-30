@@ -1,0 +1,22 @@
+---
+"Transport stats":
+  - skip:
+      features: [arbitrary_key]
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats:
+        metric: [ transport ]
+
+  - is_false: nodes.$node_id.store
+  - is_true:  nodes.$node_id.transport
+  - gte: { nodes.$node_id.transport.server_open: 0 }
+  - gte: { nodes.$node_id.transport.total_outbound_connections: 0 }
+  - gte: { nodes.$node_id.transport.rx_count: 0 }
+  - gte: { nodes.$node_id.transport.tx_count: 0 }
+  - gte: { nodes.$node_id.transport.rx_size_in_bytes: 0 }
+  - gte: { nodes.$node_id.transport.tx_size_in_bytes: 0 }

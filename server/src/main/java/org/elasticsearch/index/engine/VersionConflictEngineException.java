@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.engine;
 
@@ -28,25 +17,21 @@ import java.io.IOException;
 public class VersionConflictEngineException extends EngineException {
 
     public VersionConflictEngineException(ShardId shardId, Engine.Operation op, long currentVersion, boolean deleted) {
-        this(shardId, op.type(), op.id(), op.versionType().explainConflictForWrites(currentVersion, op.version(), deleted));
+        this(shardId, op.id(), op.versionType().explainConflictForWrites(currentVersion, op.version(), deleted));
     }
 
-    public VersionConflictEngineException(ShardId shardId, String type, String id,
+    public VersionConflictEngineException(ShardId shardId, String id,
                                           long compareAndWriteSeqNo, long compareAndWriteTerm,
                                           long currentSeqNo, long currentTerm) {
-        this(shardId, type, id, "required seqNo [" + compareAndWriteSeqNo + "], primary term [" + compareAndWriteTerm +"]." +
+        this(shardId, id, "required seqNo [" + compareAndWriteSeqNo + "], primary term [" + compareAndWriteTerm +"]." +
             (currentSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO ?
                 " but no document was found" :
                 " current document has seqNo [" + currentSeqNo + "] and primary term ["+ currentTerm + "]"
             ));
     }
 
-    public VersionConflictEngineException(ShardId shardId, String type, String id, String explanation) {
-        this(shardId, null, type, id, explanation);
-    }
-
-    public VersionConflictEngineException(ShardId shardId, Throwable cause, String type, String id, String explanation) {
-        this(shardId, "[{}][{}]: version conflict, {}", cause, type, id, explanation);
+    public VersionConflictEngineException(ShardId shardId, String id, String explanation) {
+        this(shardId, "[{}]: version conflict, {}", null, id, explanation);
     }
 
     public VersionConflictEngineException(ShardId shardId, String msg, Throwable cause, Object... params) {
@@ -60,5 +45,11 @@ public class VersionConflictEngineException extends EngineException {
 
     public VersionConflictEngineException(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public Throwable fillInStackTrace() {
+        // This is on the hot path for updates; stack traces are expensive to compute and not very useful for VCEEs, so don't fill it in.
+        return this;
     }
 }

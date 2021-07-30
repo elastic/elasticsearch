@@ -1,43 +1,37 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-    compile parent.project('java-version-checker')
-    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-    testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  compileOnly project(':distribution:tools:java-version-checker')
+  compileOnly "org.yaml:snakeyaml:${versions.snakeyaml}"
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 archivesBaseName = 'elasticsearch-launchers'
 
-tasks.withType(CheckForbiddenApis) {
-    replaceSignatureFiles 'jdk-signatures'
+tasks.withType(CheckForbiddenApis).configureEach {
+  replaceSignatureFiles 'jdk-signatures', 'snakeyaml-signatures'
 }
 
-namingConventions {
-    testClass = 'org.elasticsearch.tools.launchers.LaunchersTestCase'
-    skipIntegTestInDisguise = true
+tasks.named("testingConventions").configure {
+  naming.clear()
+  naming {
+    Tests {
+      baseClass 'org.elasticsearch.tools.launchers.LaunchersTestCase'
+    }
+  }
 }
 
-javadoc.enabled = false
-loggerUsageCheck.enabled = false
-jarHell.enabled = false
+["javadoc", "loggerUsageCheck", "jarHell"].each { tsk ->
+  tasks.named(tsk).configure { enabled = false }
+}

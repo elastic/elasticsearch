@@ -1,17 +1,58 @@
 [[indices-get-index]]
-== Get Index
+=== Get index API
+++++
+<titleabbrev>Get index</titleabbrev>
+++++
 
-The get index API allows to retrieve information about one or more indexes.
+Returns information about one or more indices. For data streams, the API
+returns information about the stream's backing indices.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /twitter
+GET /my-index-000001
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-The above example gets the information for an index called `twitter`. Specifying an index,
-alias or wildcard expression is required.
+[[get-index-api-request]]
+==== {api-request-title}
 
-The get index API can also be applied to more than one index, or on
-all indices by using `_all` or `*` as index.
+`GET /<target>`
+
+[[get-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the target data stream, index, or alias.
+
+[[get-index-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Required, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
+
+[[get-index-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
+
+`ignore_unavailable`::
+(Optional, Boolean)
+If `false`, requests that target a missing index return an error. Defaults to
+`false`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]

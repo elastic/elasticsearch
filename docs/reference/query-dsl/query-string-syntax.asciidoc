@@ -1,6 +1,6 @@
 [[query-string-syntax]]
 
-==== Query string syntax
+===== Query string syntax
 
 The query string ``mini-language'' is used by the
 <<query-dsl-query-string-query>> and by the
@@ -14,10 +14,9 @@ phrase, in the same order.
 Operators allow you to customize the search -- the available options are
 explained below.
 
-===== Field names
+====== Field names
 
-As mentioned in <<query-dsl-query-string-query>>, the `default_field` is searched for the
-search terms, but it is possible to specify other fields in the query syntax:
+You can specify fields to search in the query syntax:
 
 * where the `status` field contains `active`
 
@@ -31,6 +30,11 @@ search terms, but it is possible to specify other fields in the query syntax:
 
     author:"John Smith"
 
+* where the `first name` field contains `Alice` (note how we need to escape
+  the space with a backslash)
+
+    first\ name:Alice
+
 * where any of the fields `book.title`, `book.content` or `book.date` contains
   `quick` or `brown` (note how we need to escape the `*` with a backslash):
 
@@ -40,7 +44,8 @@ search terms, but it is possible to specify other fields in the query syntax:
 
     _exists_:title
 
-===== Wildcards
+[[query-string-wildcard]]
+====== Wildcards
 
 Wildcard searches can be run on individual terms, using `?` to replace
 a single character, and `*` to replace zero or more characters:
@@ -74,7 +79,7 @@ value like the following:
 =======
 Allowing a wildcard at the beginning of a word (eg `"*ing"`) is particularly
 heavy, because all terms in the index need to be examined, just in case
-they match.  Leading wildcards can be disabled by setting
+they match. Leading wildcards can be disabled by setting
 `allow_leading_wildcard` to `false`.
 =======
 
@@ -88,7 +93,7 @@ analyzed and a boolean query will be built out of the different tokens, by
 ensuring exact matches on the first N-1 tokens, and prefix match on the last
 token.
 
-===== Regular expressions
+====== Regular expressions
 
 Regular expression patterns can be embedded in the query string by
 wrapping them in forward-slashes (`"/"`):
@@ -100,7 +105,7 @@ The supported regular expression syntax is explained in <<regexp-syntax>>.
 [WARNING]
 =======
 The `allow_leading_wildcard` parameter does not have any control over
-regular expressions.  A query string such as the following would force
+regular expressions. A query string such as the following would force
 Elasticsearch to visit every term in the index:
 
     /.*n/
@@ -108,16 +113,19 @@ Elasticsearch to visit every term in the index:
 Use with caution!
 =======
 
-===== Fuzziness
+[[query-string-fuzziness]]
+====== Fuzziness
 
-We can search for terms that are
-similar to, but not exactly like our search terms, using the ``fuzzy''
-operator:
+You can run <<query-dsl-fuzzy-query,`fuzzy` queries>> using the `~` operator:
 
     quikc~ brwn~ foks~
 
-This uses the
-http://en.wikipedia.org/wiki/Damerau-Levenshtein_distance[Damerau-Levenshtein distance]
+For these queries, the query string is <<analysis-normalizers,normalized>>. If
+present, only certain filters from the analyzer are applied. For a list of
+applicable filters, see <<analysis-normalizers>>.
+
+The query uses the
+{wikipedia}/Damerau-Levenshtein_distance[Damerau-Levenshtein distance]
 to find all terms with a maximum of
 two changes, where a change is the insertion, deletion
 or substitution of a single character, or transposition of two adjacent
@@ -128,11 +136,21 @@ sufficient to catch 80% of all human misspellings. It can be specified as:
 
     quikc~1
 
-===== Proximity searches
+[[avoid-widlcards-fuzzy-searches]]
+[WARNING]
+.Avoid mixing fuzziness with wildcards
+====
+Mixing <<fuzziness,fuzzy>> and <<query-string-wildcard,wildcard>> operators is
+_not_ supported. When mixed, one of the operators is not applied. For example,
+you can search for `app~1` (fuzzy) or `app*` (wildcard), but searches for
+`app*~1` do not apply the fuzzy operator (`~1`).
+====
+
+====== Proximity searches
 
 While a phrase query (eg `"john smith"`) expects all of the terms in exactly
 the same order, a proximity query allows the specified words to be further
-apart or in a different order.  In the same way that fuzzy queries can
+apart or in a different order. In the same way that fuzzy queries can
 specify a maximum edit distance for characters in a word, a proximity search
 allows us to specify a maximum edit distance of words in a phrase:
 
@@ -143,7 +161,7 @@ query string, the more relevant that document is considered to be. When
 compared to the above example query, the phrase `"quick fox"` would be
 considered more relevant than `"quick brown fox"`.
 
-===== Ranges
+====== Ranges
 
 Ranges can be specified for date, numeric or string fields. Inclusive ranges
 are specified with square brackets `[min TO max]` and exclusive ranges with
@@ -197,7 +215,7 @@ The parsing of ranges in query strings can be complex and error prone. It is
 much more reliable to use an explicit <<query-dsl-range-query,`range` query>>.
 
 
-===== Boosting
+====== Boosting
 
 Use the _boost_ operator `^` to make one term more relevant than another.
 For instance, if we want to find all documents about foxes, but we are
@@ -212,11 +230,11 @@ Boosts can also be applied to phrases or to groups:
 
     "john smith"^2   (foo bar)^4
 
-===== Boolean operators
+====== Boolean operators
 
-By default, all terms are optional, as long as one term matches.  A search
+By default, all terms are optional, as long as one term matches. A search
 for `foo bar baz` will find any document that contains one or more of
-`foo` or `bar` or `baz`.  We have already discussed the `default_operator`
+`foo` or `bar` or `baz`. We have already discussed the `default_operator`
 above which allows you to force all terms to be required, but there are
 also _boolean operators_ which can be used in the query string itself
 to provide more control.
@@ -255,7 +273,7 @@ would look like this:
     }
 
 
-===== Grouping
+====== Grouping
 
 Multiple terms or clauses can be grouped together with parentheses, to form
 sub-queries:
@@ -267,23 +285,38 @@ of a sub-query:
 
     status:(active OR pending) title:(full text search)^2
 
-===== Reserved characters
+====== Reserved characters
 
 If you need to use any of the characters which function as operators in your
 query itself (and not as operators), then you should escape them with
 a leading backslash. For instance, to search for `(1+1)=2`, you would
-need to write your query as `\(1\+1\)\=2`.
+need to write your query as `\(1\+1\)\=2`. When using JSON for the request body, two preceding backslashes (`\\`) are required; the backslash is a reserved escaping character in JSON strings.
+
+[source,console]
+----
+GET /my-index-000001/_search
+{
+  "query" : {
+    "query_string" : {
+      "query" : "kimchy\\!",
+      "fields"  : ["user.id"]
+    }
+  }
+}
+----
+// TEST[setup:my_index]
 
 The reserved characters are:  `+ - = && || > < ! ( ) { } [ ] ^ " ~ * ? : \ /`
 
-Failing to escape these special characters correctly could lead to a syntax
-error which prevents your query from running.
+Failing to escape these special characters correctly could lead to a syntax error which prevents your query from running. 
 
 NOTE: `<` and `>` can't be escaped at all. The only way to prevent them from
 attempting to create a range query is to remove them from the query string
 entirely.
 
-===== Empty Query
+====== Whitespaces and empty queries
+
+Whitespace is not considered an operator.
 
 If the query string is empty or only contains whitespaces the query will
 yield an empty result set.

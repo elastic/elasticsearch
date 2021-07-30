@@ -3,15 +3,15 @@
 :request: PutFilterRequest
 :response: PutFilterResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Put Filter API
+=== Create filters API
 
-The Put Filter API can be used to create a new {ml} filter
-in the cluster. The API accepts a +{request}+ object
+Creates a new {ml} filter in the cluster. The API accepts a +{request}+ object
 as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put Filter Request
+==== Request
 
 A +{request}+ requires the following argument:
 
@@ -22,7 +22,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 <1> The configuration of the {ml} filter to create as a `MlFilter`
 
 [id="{upid}-{api}-config"]
-==== Filter Configuration
+==== Filter configuration
 
 The `MlFilter` object contains all the details about the {ml} filter
 configuration.

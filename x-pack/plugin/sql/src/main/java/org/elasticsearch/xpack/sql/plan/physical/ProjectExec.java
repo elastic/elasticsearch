@@ -1,25 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+
 import java.util.List;
 import java.util.Objects;
-
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class ProjectExec extends UnaryExec implements Unexecutable {
 
     private final List<? extends NamedExpression> projections;
 
-    public ProjectExec(Location location, PhysicalPlan child, List<? extends NamedExpression> projections) {
-        super(location, child);
+    public ProjectExec(Source source, PhysicalPlan child, List<? extends NamedExpression> projections) {
+        super(source, child);
         this.projections = projections;
     }
 
@@ -30,7 +31,7 @@ public class ProjectExec extends UnaryExec implements Unexecutable {
 
     @Override
     protected ProjectExec replaceChild(PhysicalPlan newChild) {
-        return new ProjectExec(location(), newChild, projections);
+        return new ProjectExec(source(), newChild, projections);
     }
 
     public List<? extends NamedExpression> projections() {

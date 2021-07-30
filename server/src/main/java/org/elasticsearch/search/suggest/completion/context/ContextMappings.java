@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.suggest.completion.context;
@@ -25,12 +14,11 @@ import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping.Type;
 
 import java.io.IOException;
@@ -43,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.suggest.completion.context.ContextMapping.FIELD_NAME;
 import static org.elasticsearch.search.suggest.completion.context.ContextMapping.FIELD_TYPE;
@@ -95,7 +84,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
      * Adds a context-enabled field for all the defined mappings to <code>document</code>
      * see {@link org.elasticsearch.search.suggest.completion.context.ContextMappings.TypedContextField}
      */
-    public void addField(ParseContext.Document document, String name, String input, int weight, Map<String, Set<String>> contexts) {
+    public void addField(LuceneDocument document, String name, String input, int weight, Map<String, Set<String>> contexts) {
         document.add(new TypedContextField(name, input, weight, contexts, document));
     }
 
@@ -123,10 +112,10 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
      */
     private class TypedContextField extends ContextSuggestField {
         private final Map<String, Set<String>> contexts;
-        private final ParseContext.Document document;
+        private final LuceneDocument document;
 
         TypedContextField(String name, String value, int weight, Map<String, Set<String>> contexts,
-                          ParseContext.Document document) {
+                          LuceneDocument document) {
             super(name, value, weight);
             this.contexts = contexts;
             this.document = document;
@@ -179,7 +168,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
                 if (internalQueryContext != null) {
                     for (ContextMapping.InternalQueryContext context : internalQueryContext) {
                         scratch.append(context.context);
-                        typedContextQuery.addContext(scratch.toCharsRef(), context.boost, !context.isPrefix);
+                        typedContextQuery.addContext(scratch.toCharsRef(), context.boost, context.isPrefix == false);
                         scratch.setLength(1);
                         hasContext = true;
                     }
@@ -223,26 +212,27 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
      *  [{"name": .., "type": .., ..}, {..}]
      *
      */
-    public static ContextMappings load(Object configuration, Version indexVersionCreated) throws ElasticsearchParseException {
+    @SuppressWarnings("unchecked")
+    public static ContextMappings load(Object configuration) throws ElasticsearchParseException {
         final List<ContextMapping<?>> contextMappings;
         if (configuration instanceof List) {
             contextMappings = new ArrayList<>();
             List<Object> configurations = (List<Object>) configuration;
             for (Object contextConfig : configurations) {
-                contextMappings.add(load((Map<String, Object>) contextConfig, indexVersionCreated));
+                contextMappings.add(load((Map<String, Object>) contextConfig));
             }
             if (contextMappings.size() == 0) {
                 throw new ElasticsearchParseException("expected at least one context mapping");
             }
         } else if (configuration instanceof Map) {
-            contextMappings = Collections.singletonList(load(((Map<String, Object>) configuration), indexVersionCreated));
+            contextMappings = Collections.singletonList(load(((Map<String, Object>) configuration)));
         } else {
             throw new ElasticsearchParseException("expected a list or an entry of context mapping");
         }
         return new ContextMappings(contextMappings);
     }
 
-    private static ContextMapping<?> load(Map<String, Object> contextConfig, Version indexVersionCreated) {
+    private static ContextMapping<?> load(Map<String, Object> contextConfig) {
         String name = extractRequiredValue(contextConfig, FIELD_NAME);
         String type = extractRequiredValue(contextConfig, FIELD_TYPE);
         final ContextMapping<?> contextMapping;
@@ -256,7 +246,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
             default:
                 throw new ElasticsearchParseException("unknown context type[" + type + "]");
         }
-        DocumentMapperParser.checkNoRemainingFields(name, contextConfig, indexVersionCreated);
+        MappingParser.checkNoRemainingFields(name, contextConfig);
         return contextMapping;
     }
 
@@ -296,5 +286,10 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
         }
         ContextMappings other = ((ContextMappings) obj);
         return contextMappings.equals(other.contextMappings);
+    }
+
+    @Override
+    public String toString() {
+        return contextMappings.stream().map(ContextMapping::toString).collect(Collectors.joining(",", "[", "]"));
     }
 }

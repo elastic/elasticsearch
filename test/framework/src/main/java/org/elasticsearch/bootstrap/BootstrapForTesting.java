@@ -1,35 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
-
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.network.IfConfig;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.junit.Assert;
@@ -37,6 +27,7 @@ import org.junit.Assert;
 import java.io.InputStream;
 import java.net.SocketPermission;
 import java.net.URL;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Permissions;
@@ -52,8 +43,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
+import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 
 /**
  * Initializes natives and installs test security manager
@@ -79,8 +72,11 @@ public class BootstrapForTesting {
         }
 
         // just like bootstrap, initialize natives, then SM
+        final boolean memoryLock =
+                BootstrapSettings.MEMORY_LOCK_SETTING.get(Settings.EMPTY); // use the default bootstrap.memory_lock setting
+        // some tests need the ability to disable system call filters (so they can fork other processes as part of test execution)
         final boolean systemCallFilter = Booleans.parseBoolean(System.getProperty("tests.system_call_filter", "true"));
-        Bootstrap.initializeNatives(javaTmpDir, true, systemCallFilter, true);
+        Bootstrap.initializeNatives(javaTmpDir, memoryLock, systemCallFilter, true);
 
         // initialize probes
         Bootstrap.initializeProbes();
@@ -106,7 +102,7 @@ public class BootstrapForTesting {
                 Permissions perms = new Permissions();
                 Security.addClasspathPermissions(perms);
                 // java.io.tmpdir
-                FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete");
+                FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete", false);
                 // custom test config file
                 if (Strings.hasLength(System.getProperty("tests.config"))) {
                     FilePermissionUtils.addSingleFilePath(perms, PathUtils.get(System.getProperty("tests.config")), "read,readlink");
@@ -135,21 +131,28 @@ public class BootstrapForTesting {
                 perms.add(new SocketPermission("localhost:1024-", "listen,resolve"));
 
                 // read test-framework permissions
-                Map<String, URL> codebases = Security.getCodebaseJarMap(JarHell.parseClassPath());
-                if (System.getProperty("tests.gradle") == null) {
-                    // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
-                    addClassCodebase(codebases,"plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
-                    addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
-                    addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
-                    addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
+                Map<String, URL> codebases = getCodebases();
+
+                final Policy testFramework = PolicyUtil.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
+                final Policy runnerPolicy;
+                if (System.getProperty("tests.gradle") != null) {
+                    runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("gradle.policy"), codebases);
+                } else if (codebases.containsKey("junit-rt.jar")) {
+                    runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("intellij.policy"), codebases);
+                } else {
+                    runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("eclipse.policy"), codebases);
                 }
-                final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
-                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true);
+                // this mimicks the recursive data path permission added in Security.java
+                Permissions fastPathPermissions = new Permissions();
+                addDirectoryPath(fastPathPermissions, "java.io.tmpdir-fastpath", javaTmpDir, "read,readlink,write,delete", true);
+
+                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true, fastPathPermissions);
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {
                         // implements union
-                        return esPolicy.implies(domain, permission) || testFramework.implies(domain, permission);
+                        return esPolicy.implies(domain, permission) || testFramework.implies(domain, permission) ||
+                            runnerPolicy.implies(domain, permission);
                     }
                 });
                 System.setSecurityManager(SecureSM.createTestSecureSM());
@@ -173,9 +176,23 @@ public class BootstrapForTesting {
         }
     }
 
+    static Map<String, URL> getCodebases() {
+        Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
+        // when testing server, the main elasticsearch code is not yet in a jar, so we need to manually add it
+        addClassCodebase(codebases,"elasticsearch", "org.elasticsearch.plugins.PluginsService");
+        addClassCodebase(codebases,"elasticsearch-plugin-classloader", "org.elasticsearch.plugins.loader.ExtendedPluginsClassLoader");
+        addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
+        addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
+        addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
+        return codebases;
+    }
+
     /** Add the codebase url of the given classname to the codebases map, if the class exists. */
     private static void addClassCodebase(Map<String, URL> codebases, String name, String classname) {
         try {
+            if (codebases.containsKey(name)) {
+                return; // the codebase already exists, from the classpath
+            }
             Class<?> clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
             URL location = clazz.getProtectionDomain().getCodeSource().getLocation();
             if (location.toString().endsWith(".jar") == false) {
@@ -215,11 +232,30 @@ public class BootstrapForTesting {
                 Assert.class.getProtectionDomain().getCodeSource().getLocation()
         ));
         codebases.removeAll(excluded);
+        final Map<String, URL> codebasesMap = PolicyUtil.getCodebaseJarMap(codebases);
 
         // parse each policy file, with codebase substitution from the classpath
         final List<Policy> policies = new ArrayList<>(pluginPolicies.size());
         for (URL policyFile : pluginPolicies) {
-            policies.add(Security.readPolicy(policyFile, Security.getCodebaseJarMap(codebases)));
+            Map<String, URL> policyCodebases = codebasesMap;
+
+            // if the codebases file is inside a jar, then we don't need to load it since the jar will
+            // have already been read from the classpath
+            if (policyFile.toString().contains(".jar!") == false) {
+                Path policyPath = PathUtils.get(policyFile.toURI());
+                Path codebasesPath = policyPath.getParent().resolve("plugin-security.codebases");
+
+                if (Files.exists(codebasesPath)) {
+                    // load codebase to class map used for tests
+                    policyCodebases = new HashMap<>(codebasesMap);
+                    Map<String, String> codebasesProps = parsePropertiesFile(codebasesPath);
+                    for (var entry : codebasesProps.entrySet()) {
+                        addClassCodebase(policyCodebases, entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+
+            policies.add(PolicyUtil.readPolicy(policyFile, policyCodebases));
         }
 
         // consult each policy file for those codebases
@@ -241,6 +277,14 @@ public class BootstrapForTesting {
         return Collections.unmodifiableMap(map);
     }
 
+    static Map<String, String> parsePropertiesFile(Path propertiesFile) throws Exception {
+        Properties props = new Properties();
+        try (InputStream is = Files.newInputStream(propertiesFile)) {
+            props.load(is);
+        }
+        return props.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(), e -> e.getValue().toString()));
+    }
+
     /**
      * return parsed classpath, but with symlinks resolved to destination files for matching
      * this is for matching the toRealPath() in the code where we have a proper plugin structure
@@ -250,9 +294,12 @@ public class BootstrapForTesting {
         Set<URL> raw = JarHell.parseClassPath();
         Set<URL> cooked = new HashSet<>(raw.size());
         for (URL url : raw) {
-            boolean added = cooked.add(PathUtils.get(url.toURI()).toRealPath().toUri().toURL());
-            if (added == false) {
-                throw new IllegalStateException("Duplicate in classpath after resolving symlinks: " + url);
+            Path path = PathUtils.get(url.toURI());
+            if (Files.exists(path)) {
+                boolean added = cooked.add(path.toRealPath().toUri().toURL());
+                if (added == false) {
+                    throw new IllegalStateException("Duplicate in classpath after resolving symlinks: " + url);
+                }
             }
         }
         return raw;

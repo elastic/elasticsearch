@@ -1,9 +1,13 @@
 [[search-aggregations-pipeline-bucket-script-aggregation]]
-=== Bucket Script Aggregation
+=== Bucket script aggregation
+++++
+<titleabbrev>Bucket script</titleabbrev>
+++++
 
 A parent pipeline aggregation which executes a script which can perform per bucket computations on specified metrics
 in the parent multi-bucket aggregation. The specified metric must be numeric and the script must return a numeric value.
 
+[[bucket-script-agg-syntax]]
 ==== Syntax
 
 A `bucket_script` aggregation looks like this in isolation:
@@ -11,21 +15,22 @@ A `bucket_script` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "bucket_script": {
-        "buckets_path": {
-            "my_var1": "the_sum", <1>
-            "my_var2": "the_value_count"
-        },
-        "script": "params.my_var1 / params.my_var2"
-    }
+  "bucket_script": {
+    "buckets_path": {
+      "my_var1": "the_sum",                     <1>
+      "my_var2": "the_value_count"
+    },
+    "script": "params.my_var1 / params.my_var2"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
 <1> Here, `my_var1` is the name of the variable for this buckets path to use in the script, `the_sum` is the path to
 the metrics to use for that variable.
 
-
+[[bucket-script-params]]
 .`bucket_script` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`script` |The script to run for this aggregation. The script can be inline, file or indexed. (see <<modules-scripting>>
@@ -39,57 +44,56 @@ for more details) |Required |
 
 The following snippet calculates the ratio percentage of t-shirt sales compared to total sales each month:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "interval" : "month"
-            },
-            "aggs": {
-                "total_sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                },
-                "t-shirts": {
-                  "filter": {
-                    "term": {
-                      "type": "t-shirt"
-                    }
-                  },
-                  "aggs": {
-                    "sales": {
-                      "sum": {
-                        "field": "price"
-                      }
-                    }
-                  }
-                },
-                "t-shirt-percentage": {
-                    "bucket_script": {
-                        "buckets_path": {
-                          "tShirtSales": "t-shirts>sales",
-                          "totalSales": "total_sales"
-                        },
-                        "script": "params.tShirtSales / params.totalSales * 100"
-                    }
-                }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "total_sales": {
+          "sum": {
+            "field": "price"
+          }
+        },
+        "t-shirts": {
+          "filter": {
+            "term": {
+              "type": "t-shirt"
             }
+          },
+          "aggs": {
+            "sales": {
+              "sum": {
+                "field": "price"
+              }
+            }
+          }
+        },
+        "t-shirt-percentage": {
+          "bucket_script": {
+            "buckets_path": {
+              "tShirtSales": "t-shirts>sales",
+              "totalSales": "total_sales"
+            },
+            "script": "params.tShirtSales / params.totalSales * 100"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,

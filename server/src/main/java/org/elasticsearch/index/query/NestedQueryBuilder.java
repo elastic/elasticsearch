@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -34,8 +23,9 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ParentChildrenBlockJoinQuery;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MaxScoreCollector;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,6 +34,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.index.search.NestedHelper;
@@ -57,6 +48,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.search.fetch.subphase.InnerHitsContext.intersect;
 
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
@@ -265,7 +257,12 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[joining] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
+
         ObjectMapper nestedObjectMapper = context.getObjectMapper(path);
         if (nestedObjectMapper == null) {
             if (ignoreUnmapped) {
@@ -274,20 +271,20 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 throw new IllegalStateException("[" + NAME + "] failed to find nested object under path [" + path + "]");
             }
         }
-        if (!nestedObjectMapper.nested().isNested()) {
+        if (nestedObjectMapper.isNested() == false) {
             throw new IllegalStateException("[" + NAME + "] nested object under path [" + path + "] is not of nested type");
         }
         final BitSetProducer parentFilter;
         Query innerQuery;
-        ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
+        NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         if (objectMapper == null) {
-            parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
+            parentFilter = context.bitsetFilter(Queries.newNonNestedFilter());
         } else {
             parentFilter = context.bitsetFilter(objectMapper.nestedTypeFilter());
         }
 
         try {
-            context.nestedScope().nextLevel(nestedObjectMapper);
+            context.nestedScope().nextLevel((NestedObjectMapper) nestedObjectMapper);
             innerQuery = this.query.toQuery(context);
         } finally {
             context.nestedScope().previousLevel();
@@ -295,8 +292,9 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
         // ToParentBlockJoinQuery requires that the inner query only matches documents
         // in its child space
-        if (new NestedHelper(context.getMapperService()).mightMatchNonNestedDocs(innerQuery, path)) {
-            innerQuery = Queries.filtered(innerQuery, nestedObjectMapper.nestedTypeFilter());
+        NestedHelper nestedHelper = new NestedHelper(context::getObjectMapper, context::isFieldMapped);
+        if (nestedHelper.mightMatchNonNestedDocs(innerQuery, path)) {
+            innerQuery = Queries.filtered(innerQuery, ((NestedObjectMapper)nestedObjectMapper).nestedTypeFilter());
         }
 
         return new ESToParentBlockJoinQuery(innerQuery, parentFilter, scoreMode,
@@ -317,10 +315,14 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     @Override
     public void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         if (innerHitBuilder != null) {
+            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : path;
+            if (innerHits.containsKey(name)) {
+                throw new IllegalArgumentException("[inner_hits] already contains an entry for key [" + name + "]");
+            }
+
             Map<String, InnerHitContextBuilder> children = new HashMap<>();
             InnerHitContextBuilder.extractInnerHits(query, children);
             InnerHitContextBuilder innerHitContextBuilder = new NestedInnerHitContextBuilder(path, query, innerHitBuilder, children);
-            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : path;
             innerHits.put(name, innerHitContextBuilder);
         }
     }
@@ -337,93 +339,98 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         @Override
         protected void doBuild(SearchContext parentSearchContext,
                           InnerHitsContext innerHitsContext) throws IOException {
-            QueryShardContext queryShardContext = parentSearchContext.getQueryShardContext();
-            ObjectMapper nestedObjectMapper = queryShardContext.getObjectMapper(path);
-            if (nestedObjectMapper == null) {
+            SearchExecutionContext searchExecutionContext = parentSearchContext.getSearchExecutionContext();
+            ObjectMapper objectMapper = searchExecutionContext.getObjectMapper(path);
+            if (objectMapper == null || objectMapper.isNested() == false) {
                 if (innerHitBuilder.isIgnoreUnmapped() == false) {
                     throw new IllegalStateException("[" + query.getName() + "] no mapping found for type [" + path + "]");
                 } else {
                     return;
                 }
             }
+            NestedObjectMapper nestedObjectMapper = (NestedObjectMapper) objectMapper;
             String name =  innerHitBuilder.getName() != null ? innerHitBuilder.getName() : nestedObjectMapper.fullPath();
-            ObjectMapper parentObjectMapper = queryShardContext.nestedScope().nextLevel(nestedObjectMapper);
+            NestedObjectMapper parentObjectMapper = searchExecutionContext.nestedScope().nextLevel(nestedObjectMapper);
             NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
                 name, parentSearchContext, parentObjectMapper, nestedObjectMapper
             );
-            setupInnerHitsContext(queryShardContext, nestedInnerHits);
-            queryShardContext.nestedScope().previousLevel();
+            setupInnerHitsContext(searchExecutionContext, nestedInnerHits);
+            searchExecutionContext.nestedScope().previousLevel();
             innerHitsContext.addInnerHitDefinition(nestedInnerHits);
         }
     }
 
     static final class NestedInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
 
-        private final ObjectMapper parentObjectMapper;
-        private final ObjectMapper childObjectMapper;
+        private final NestedObjectMapper parentObjectMapper;
+        private final NestedObjectMapper childObjectMapper;
 
-        NestedInnerHitSubContext(String name, SearchContext context, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper) {
+        NestedInnerHitSubContext(
+            String name,
+            SearchContext context,
+            NestedObjectMapper parentObjectMapper,
+            NestedObjectMapper childObjectMapper
+        ) {
             super(name, context);
             this.parentObjectMapper = parentObjectMapper;
             this.childObjectMapper = childObjectMapper;
         }
 
         @Override
-        public TopDocsAndMaxScore[] topDocs(SearchHit[] hits) throws IOException {
-            Weight innerHitQueryWeight = createInnerHitQueryWeight();
-            TopDocsAndMaxScore[] result = new TopDocsAndMaxScore[hits.length];
-            for (int i = 0; i < hits.length; i++) {
-                SearchHit hit = hits[i];
-                Query rawParentFilter;
-                if (parentObjectMapper == null) {
-                    rawParentFilter = Queries.newNonNestedFilter(context.indexShard().indexSettings().getIndexVersionCreated());
-                } else {
-                    rawParentFilter = parentObjectMapper.nestedTypeFilter();
-                }
+        public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+            assert seqNoAndPrimaryTerm() == false;
+            if (seqNoAndPrimaryTerm) {
+                throw new UnsupportedOperationException("nested documents are not assigned sequence numbers");
+            }
+        }
 
-                int parentDocId = hit.docId();
-                final int readerIndex = ReaderUtil.subIndex(parentDocId, searcher().getIndexReader().leaves());
-                // With nested inner hits the nested docs are always in the same segement, so need to use the other segments
-                LeafReaderContext ctx = searcher().getIndexReader().leaves().get(readerIndex);
+        @Override
+        public TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException {
+            Weight innerHitQueryWeight = getInnerHitQueryWeight();
 
-                Query childFilter = childObjectMapper.nestedTypeFilter();
-                BitSetProducer parentFilter = context.bitsetFilterCache().getBitSetProducer(rawParentFilter);
-                Query q = new ParentChildrenBlockJoinQuery(parentFilter, childFilter, parentDocId);
-                Weight weight = context.searcher().createWeight(context.searcher().rewrite(q),
-                        org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1f);
-                if (size() == 0) {
-                    TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
-                    intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
-                    result[i] = new TopDocsAndMaxScore(new TopDocs(new TotalHits(totalHitCountCollector.getTotalHits(),
-                        TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN);
-                } else {
-                    int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
-                    TopDocsCollector<?> topDocsCollector;
-                    MaxScoreCollector maxScoreCollector = null;
-                    if (sort() != null) {
-                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, Integer.MAX_VALUE);
-                        if (trackScores()) {
-                            maxScoreCollector = new MaxScoreCollector();
-                        }
-                    } else {
-                        topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
+            Query rawParentFilter;
+            if (parentObjectMapper == null) {
+                rawParentFilter = Queries.newNonNestedFilter();
+            } else {
+                rawParentFilter = parentObjectMapper.nestedTypeFilter();
+            }
+
+            int parentDocId = hit.docId();
+            final int readerIndex = ReaderUtil.subIndex(parentDocId, searcher().getIndexReader().leaves());
+            // With nested inner hits the nested docs are always in the same segement, so need to use the other segments
+            LeafReaderContext ctx = searcher().getIndexReader().leaves().get(readerIndex);
+
+            Query childFilter = childObjectMapper.nestedTypeFilter();
+            BitSetProducer parentFilter = context.bitsetFilterCache().getBitSetProducer(rawParentFilter);
+            Query q = new ParentChildrenBlockJoinQuery(parentFilter, childFilter, parentDocId);
+            Weight weight = context.searcher().createWeight(context.searcher().rewrite(q),
+                    org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1f);
+            if (size() == 0) {
+                TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
+                intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
+                return new TopDocsAndMaxScore(new TopDocs(new TotalHits(totalHitCountCollector.getTotalHits(),
+                    TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN);
+            } else {
+                int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
+                TopDocsCollector<?> topDocsCollector;
+                MaxScoreCollector maxScoreCollector = null;
+                if (sort() != null) {
+                    topDocsCollector = TopFieldCollector.create(sort().sort, topN, Integer.MAX_VALUE);
+                    if (trackScores()) {
                         maxScoreCollector = new MaxScoreCollector();
                     }
-                    try {
-                        intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
-                    } finally {
-                        clearReleasables(Lifetime.COLLECTION);
-                    }
-
-                    TopDocs td = topDocsCollector.topDocs(from(), size());
-                    float maxScore = Float.NaN;
-                    if (maxScoreCollector != null) {
-                        maxScore = maxScoreCollector.getMaxScore();
-                    }
-                    result[i] = new TopDocsAndMaxScore(td, maxScore);
+                } else {
+                    topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
+                    maxScoreCollector = new MaxScoreCollector();
                 }
+                intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
+                TopDocs td = topDocsCollector.topDocs(from(), size());
+                float maxScore = Float.NaN;
+                if (maxScoreCollector != null) {
+                    maxScore = maxScoreCollector.getMaxScore();
+                }
+                return new TopDocsAndMaxScore(td, maxScore);
             }
-            return result;
         }
     }
 }

@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -23,10 +23,12 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.client.Node.Roles;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
@@ -43,8 +45,8 @@ public class NodeTests extends RestClientTestCase {
         assertEquals("[host=http://1]", new Node(new HttpHost("1")).toString());
         assertEquals("[host=http://1, attributes={foo=[bar], baz=[bort, zoom]}]",
                 new Node(new HttpHost("1"), null, null, null, null, attributes).toString());
-        assertEquals("[host=http://1, roles=mdi]", new Node(new HttpHost("1"),
-                null, null, null, new Roles(true, true, true), null).toString());
+        assertEquals("[host=http://1, roles=data,ingest,master]", new Node(new HttpHost("1"),
+                null, null, null, new Roles(new TreeSet<>(Arrays.asList("master", "data", "ingest"))), null).toString());
         assertEquals("[host=http://1, version=ver]", new Node(new HttpHost("1"),
                 null, null, "ver", null, null).toString());
         assertEquals("[host=http://1, name=nam]", new Node(new HttpHost("1"),
@@ -52,10 +54,10 @@ public class NodeTests extends RestClientTestCase {
         assertEquals("[host=http://1, bound=[http://1, http://2]]", new Node(new HttpHost("1"),
                 new HashSet<>(Arrays.asList(new HttpHost("1"), new HttpHost("2"))), null, null, null, null).toString());
         assertEquals(
-                "[host=http://1, bound=[http://1, http://2], name=nam, version=ver, roles=m, attributes={foo=[bar], baz=[bort, zoom]}]",
+                "[host=http://1, bound=[http://1, http://2], "
+                    + "name=nam, version=ver, roles=master, attributes={foo=[bar], baz=[bort, zoom]}]",
                 new Node(new HttpHost("1"), new HashSet<>(Arrays.asList(new HttpHost("1"), new HttpHost("2"))),
-                    "nam", "ver", new Roles(true, false, false), attributes).toString());
-
+                    "nam", "ver", new Roles(Collections.singleton("master")), attributes).toString());
     }
 
     public void testEqualsAndHashCode() {
@@ -64,7 +66,7 @@ public class NodeTests extends RestClientTestCase {
                 randomBoolean() ? null : singleton(host),
                 randomBoolean() ? null : randomAsciiAlphanumOfLength(5),
                 randomBoolean() ? null : randomAsciiAlphanumOfLength(5),
-                randomBoolean() ? null : new Roles(true, true, true),
+                randomBoolean() ? null : new Roles(new TreeSet<>(Arrays.asList("master", "data", "ingest"))),
                 randomBoolean() ? null : singletonMap("foo", singletonList("bar")));
         assertFalse(node.equals(null));
         assertTrue(node.equals(node));
@@ -82,8 +84,31 @@ public class NodeTests extends RestClientTestCase {
         assertFalse(node.equals(new Node(host, node.getBoundHosts(), node.getName(),
                 node.getVersion() + "changed", node.getRoles(), node.getAttributes())));
         assertFalse(node.equals(new Node(host, node.getBoundHosts(), node.getName(),
-                node.getVersion(), new Roles(false, false, false), node.getAttributes())));
+                node.getVersion(), new Roles(Collections.emptySet()), node.getAttributes())));
                 assertFalse(node.equals(new Node(host, node.getBoundHosts(), node.getName(),
                 node.getVersion(), node.getRoles(), singletonMap("bort", singletonList("bing")))));
+    }
+
+    public void testDataRole(){
+        Roles roles = new Roles(new TreeSet<>(Arrays.asList("data_hot")));
+        assertTrue(roles.hasDataHotRole());
+        assertTrue(roles.canContainData());
+        roles = new Roles(new TreeSet<>(Arrays.asList("data_warm")));
+        assertTrue(roles.hasDataWarmRole());
+        assertTrue(roles.canContainData());
+        roles = new Roles(new TreeSet<>(Arrays.asList("data_cold")));
+        assertTrue(roles.hasDataColdRole());
+        assertTrue(roles.canContainData());
+        roles = new Roles(new TreeSet<>(Arrays.asList("data_frozen")));
+        assertTrue(roles.hasDataFrozenRole());
+        assertTrue(roles.canContainData());
+        roles = new Roles(new TreeSet<>(Arrays.asList("data_content")));
+        assertTrue(roles.hasDataContentRole());
+        assertTrue(roles.canContainData());
+        roles = new Roles(new TreeSet<>(Arrays.asList("data")));
+        assertTrue(roles.hasDataRole());
+        assertTrue(roles.canContainData());
+        roles = new Roles(new TreeSet<>(Arrays.asList("data_foo")));
+        assertTrue(roles.canContainData());
     }
 }

@@ -1,0 +1,202 @@
+[role="xpack"]
+[[cat-transforms]]
+=== cat {transforms} API
+++++
+<titleabbrev>cat transforms</titleabbrev>
+++++
+
+Returns configuration and usage information about {transforms}.
+
+[[cat-transforms-api-request]]
+==== {api-request-title}
+
+`GET /_cat/transforms/<transform_id>` +
+
+`GET /_cat/transforms/_all` +
+
+`GET /_cat/transforms/*` +
+
+`GET /_cat/transforms`
+
+[[cat-transforms-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_transform`
+cluster privileges to use this API. The built-in `transform_user` role has these
+privileges. For more information, see <<security-privileges>> and
+<<built-in-roles>>.
+
+//[[cat-transforms-api-desc]]
+//==== {api-description-title}
+
+[[cat-transforms-api-path-params]]
+==== {api-path-parms-title}
+
+`<transform_id>`::
+(Optional, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
+
+[[cat-transforms-api-query-params]]
+==== {api-query-parms-title}
+
+`allow_no_match`::
+(Optional, Boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+`from`::
+(Optional, integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
++
+If you do not specify which columns to include, the API returns the default
+columns. If you explicitly specify one or more columns, it returns only the
+specified columns.
++
+Valid columns are:
+
+`changes_last_detection_time`, `cldt`:::
+(Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=checkpointing-changes-last-detected-at]
+
+`checkpoint`, `cp`:::
+(Default)
+The sequence number for the checkpoint.
+
+`checkpoint_duration_time_exp_avg`, `cdtea`, `checkpointTimeExpAvg`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=exponential-avg-checkpoint-duration-ms]
+
+`checkpoint_progress`, `c`, `checkpointProgress`:::
+(Default)
+The progress of the next checkpoint that is currently in progress.
+
+`create_time`, `ct`, `createTime`:::
+The time the {transform} was created.
+
+`delete_time`, `dtime`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=delete-time-ms]
+
+`description`, `d`:::
+The description of the {transform}.
+
+`dest_index`, `di`, `destIndex`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-index]
+
+`documents_deleted`, `docd`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted-transform]
+
+`documents_indexed`, `doci`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-indexed]
+
+`docs_per_second`, `dps`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
+
+`documents_processed`, `docp`:::
+(Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-processed]
+
+`frequency`, `f`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
+
+`id`:::
+(Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
+
+`index_failure`, `if`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-failures]
+
+`index_time`, `itime`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-time-ms]
+
+`index_total`, `it`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-total]
+
+`indexed_documents_exp_avg`, `idea`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-indexed]
+
+`last_search_time`, `lst`, `lastSearchTime`:::
+(Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=checkpointing-last-search-time]
+
+`max_page_search_size`, `mpsz`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
+
+`pages_processed`, `pp`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pages-processed]
+
+`pipeline`, `p`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
+
+`processed_documents_exp_avg`, `pdea`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-processed]
+
+`processing_time`, `pt`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=processing-time-ms]
+
+`reason`, `r`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=state-transform-reason]
+
+`search_failure`, `sf`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-failures]
+
+`search_time`, `stime`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-time-ms]
+
+`search_total`, `st`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-total]
+
+`source_index`, `si`, `sourceIndex`:::
+(Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
+
+`state`, `s`:::
+(Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=state-transform]
+
+`transform_type`, `tt`:::
+Indicates the type of {transform}: `batch` or `continuous`.
+
+`trigger_count`, `tc`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=trigger-count]
+
+`version`, `v`:::
+The version of {es} that existed on the node when the {transform} was
+created.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+`size`::
+(Optional, integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=size-transforms]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+[[cat-transforms-api-examples]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET /_cat/transforms?v=true&format=json
+--------------------------------------------------
+// TEST[skip:kibana sample data]
+
+[source,console-result]
+----
+[
+  {
+    "id" : "ecommerce_transform",
+    "state" : "started",
+    "checkpoint" : "1",
+    "documents_processed" : "705",
+    "checkpoint_progress" : "100.00",
+    "changes_last_detection_time" : null
+  }
+]
+----
+// TESTRESPONSE[skip:kibana sample data]

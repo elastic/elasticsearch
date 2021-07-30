@@ -1,45 +1,52 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-get-lifecycle]]
-=== Get Lifecycle Policy API
+=== Get lifecycle policy API
 ++++
-<titleabbrev>Get Policy</titleabbrev>
+<titleabbrev>Get policy</titleabbrev>
 ++++
-
-beta[]
 
 Retrieves a lifecycle policy.
 
-==== Request
+[[ilm-get-lifecycle-request]]
+==== {api-request-title}
 
 `GET _ilm/policy`
+
 `GET _ilm/policy/<policy_id>`
 
-==== Description
+[[ilm-get-lifecycle-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage_ilm` or
+`read_ilm` or both cluster privileges to use this API. For more information, see
+<<security-privileges>>.
+
+[[ilm-get-lifecycle-desc]]
+==== {api-description-title}
 
 Returns the specified policy definition. Includes the policy version and last
 modified date. If no policy is specified, returns all defined policies.
 
-==== Path Parameters
+[[ilm-get-lifecycle-path-params]]
+==== {api-path-parms-title}
 
-`policy` (optional)::
-  (string) Identifier for the policy.
+`<policy_id>`::
+  (Optional, string) Identifier for the policy.
 
-==== Request Parameters
+[[ilm-get-lifecycle-query-params]]
+==== {api-query-parms-title}
 
-include::{docdir}/rest-api/timeoutparms.asciidoc[]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
-
-include::ilm-cluster-mgt-privilege.asciidoc[]
-
-==== Examples
+[[ilm-get-lifecycle-example]]
+==== {api-examples-title}
 
 The following example retrieves `my_policy`:
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -63,22 +70,19 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET _ilm/policy
+GET _ilm/policy/my_policy
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 
 If the request succeeds, the body of the response contains the policy definition:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "my_policy": {
@@ -97,15 +101,23 @@ If the request succeeds, the body of the response contains the policy definition
         "delete": {
           "min_age": "30d",
           "actions": {
-            "delete": {}
+            "delete": {
+              "delete_searchable_snapshot": true
+            }
           }
         }
       }
+    },
+    "in_use_by" : { <3>
+      "indices" : [],
+      "data_streams" : [],
+      "composable_templates" : []
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[s/"modified_date": 82392349/"modified_date": $body.my_policy.modified_date/]
+
 <1> The policy version is incremented whenever the policy is updated
 <2> When this policy was last modified
+<3> Which indices, data streams, or templates currently use this policy

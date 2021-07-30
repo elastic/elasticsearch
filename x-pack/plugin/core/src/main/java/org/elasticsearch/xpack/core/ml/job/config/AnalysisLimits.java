@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -36,7 +36,7 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
      * the old default value should be used. From 6.3 onwards, the value will always be explicit.
      */
     public static final long DEFAULT_MODEL_MEMORY_LIMIT_MB = 1024L;
-    static final long PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB = 4096L;
+    public static final long PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB = 4096L;
 
     public static final long DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT = 4;
 
@@ -88,9 +88,9 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
         this(DEFAULT_MODEL_MEMORY_LIMIT_MB, categorizationExamplesLimit);
     }
 
-    public AnalysisLimits(Long modelMemoryLimit, Long categorizationExamplesLimit) {
-        if (modelMemoryLimit != null && modelMemoryLimit < 1) {
-            String msg = Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW, modelMemoryLimit);
+    public AnalysisLimits(Long modelMemoryLimitMb, Long categorizationExamplesLimit) {
+        if (modelMemoryLimitMb != null && modelMemoryLimitMb < 1) {
+            String msg = Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW, modelMemoryLimitMb, "1 MiB");
             throw ExceptionsHelper.badRequestException(msg);
         }
         if (categorizationExamplesLimit != null && categorizationExamplesLimit < 0) {
@@ -98,7 +98,7 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
                     categorizationExamplesLimit);
             throw ExceptionsHelper.badRequestException(msg);
         }
-        this.modelMemoryLimit = modelMemoryLimit;
+        this.modelMemoryLimit = modelMemoryLimitMb;
         this.categorizationExamplesLimit = categorizationExamplesLimit;
     }
 
@@ -142,7 +142,7 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
 
         if (maxModelMemoryIsSet && modelMemoryLimit > maxModelMemoryLimit.getMb()) {
             throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX,
-                    new ByteSizeValue(modelMemoryLimit, ByteSizeUnit.MB),
+                    ByteSizeValue.ofMb(modelMemoryLimit),
                     maxModelMemoryLimit));
         }
 

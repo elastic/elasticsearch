@@ -3,14 +3,12 @@
 [[sql-jdbc]]
 == SQL JDBC
 
-beta[]
-
 {es}'s SQL jdbc driver is a rich, fully featured JDBC driver for {es}.
 It is Type 4 driver, meaning it is a platform independent, stand-alone, Direct to Database,
 pure Java driver that converts JDBC calls to {es-sql}.
 
 [[sql-jdbc-installation]]
-[float]
+[discrete]
 === Installation
 
 The JDBC driver can be obtained from:
@@ -18,7 +16,7 @@ The JDBC driver can be obtained from:
 Dedicated page::
 https://www.elastic.co/downloads/jdbc-client[elastic.co] provides links, typically for manual downloads.
 Maven dependency::
-http://maven.apache.org/[Maven]-compatible tools can retrieve it automatically as a dependency:
+https://maven.apache.org/[Maven]-compatible tools can retrieve it automatically as a dependency:
 
 ["source","xml",subs="attributes"]
 ----
@@ -29,7 +27,8 @@ http://maven.apache.org/[Maven]-compatible tools can retrieve it automatically a
 </dependency>
 ----
 
-from `artifacts.elastic.co/maven` by adding it to the repositories list:
+from https://search.maven.org/artifact/org.elasticsearch.plugin/x-pack-sql-jdbc[Maven Central Repository],
+or from `artifacts.elastic.co/maven` by adding it to the repositories list:
 
 ["source","xml",subs="attributes"]
 ----
@@ -41,39 +40,52 @@ from `artifacts.elastic.co/maven` by adding it to the repositories list:
 </repositories>
 ----
 
+[[jdbc-compatibility]]
+[discrete]
+=== Version compatibility
+
+include::version-compat.asciidoc[]
+
 [[jdbc-setup]]
-[float]
+[discrete]
 === Setup
 
-The driver main class is `org.elasticsearch.xpack.sql.jdbc.EsDriver`. 
-Note the driver  implements the JDBC 4.0 +Service Provider+ mechanism meaning it is registered automatically
+The driver main class is `org.elasticsearch.xpack.sql.jdbc.EsDriver`.
+Note the driver implements the JDBC 4.0 +Service Provider+ mechanism meaning it is registered automatically
 as long as it is available in the classpath.
 
 Once registered, the driver understands the following syntax as an URL:
 
 ["source","text",subs="attributes"]
 ----
-jdbc:es://<1>[http|https]?<2>[host[:port]]*<3>/[prefix]*<4>[?[option=value]&<5>]*
+jdbc:[es|elasticsearch]://[[http|https]://]?[host[:port]]?/[prefix]?[\?[option=value]&]*
 ----
+`jdbc:[es|elasticsearch]://`:: Prefix. Mandatory.
 
-<1> `jdbc:es://` prefix. Mandatory.
-<2> type of HTTP connection to make - `http` (default) or `https`. Optional.
-<3> host (`localhost` by default) and port (`9200` by default). Optional.
-<4> prefix (empty by default). Typically used when hosting {es} under a certain path. Optional.
-<5> Parameters for the JDBC driver. Empty by default. Optional.
+`[[http|https]://]`:: Type of HTTP connection to make. Possible values are
+`http` (default) or `https`. Optional.
 
-The driver recognized the following parameters:
+`[host[:port]]`:: Host (`localhost` by default) and port (`9200` by default).
+Optional.
+
+`[prefix]`:: Prefix (empty by default). Typically used when hosting {es} under
+a certain path. Optional.
+
+`[option=value]`:: Properties for the JDBC driver. Empty by default.
+Optional.
+
+The driver recognized the following properties:
 
 [[jdbc-cfg]]
-[float]
+[discrete]
 ===== Essential
-
+[[jdbc-cfg-timezone]]
 `timezone` (default JVM timezone)::
-Timezone used by the driver _per connection_ indicated by its `ID`. 
+Timezone used by the driver _per connection_ indicated by its `ID`.
 *Highly* recommended to set it (to, say, `UTC`) as the JVM timezone can vary, is global for the entire JVM and can't be changed easily when running under a security manager.
 
 [[jdbc-cfg-network]]
-[float]
+[discrete]
 ===== Network
 
 `connect.timeout` (default 30s)::
@@ -92,7 +104,7 @@ Page size (in entries). The number of results returned per page by the server.
 Query timeout (in seconds). That is the maximum amount of time waiting for a query to return.
 
 [[jdbc-cfg-auth]]
-[float]
+[discrete]
 ==== Basic Authentication
 
 `user`:: Basic Authentication user name
@@ -100,7 +112,7 @@ Query timeout (in seconds). That is the maximum amount of time waiting for a que
 `password`:: Basic Authentication password
 
 [[jdbc-cfg-ssl]]
-[float]
+[discrete]
 ==== SSL
 
 `ssl` (default false):: Enable SSL
@@ -115,16 +127,31 @@ Query timeout (in seconds). That is the maximum amount of time waiting for a que
 
 `ssl.truststore.pass`:: trust store password
 
-`ssl.cert.allow.self.signed` (default `false`):: Whether or not to allow self signed certificates
+`ssl.truststore.type` (default `JKS`):: trust store type. `PKCS12` is a common, alternative format
 
 `ssl.protocol`(default `TLS`):: SSL protocol to be used
 
-[float]
+[discrete]
 ==== Proxy
 
 `proxy.http`:: Http proxy host name
 
 `proxy.socks`:: SOCKS proxy host name
+
+[discrete]
+==== Mapping
+`field.multi.value.leniency` (default `true`):: Whether to be lenient and return the first value (without any guarantees of what that
+will be - typically the first in natural ascending order) for fields with multiple values (true) or throw an exception.
+
+[discrete]
+==== Index
+`index.include.frozen` (default `false`):: Whether to include <<freeze-index-api, frozen-indices>> in the query execution or not (default).
+
+[discrete]
+==== Additional
+
+`validate.properties` (default true):: If disabled, it will ignore any misspellings or unrecognizable properties. When enabled, an exception
+will be thrown if the provided property cannot be recognized.
 
 
 To put all of it together, the following URL:
@@ -134,12 +161,13 @@ To put all of it together, the following URL:
 jdbc:es://http://server:3456/?timezone=UTC&page.size=250
 ----
 
-Opens up a {es-sql} connection to `server` on port `3456`, setting the JDBC connection timezone to `UTC` and its pagesize to `250` entries.
+opens up a {es-sql} connection to `server` on port `3456`, setting the JDBC connection timezone to `UTC` and its pagesize to `250` entries.
 
 === API usage
 
 One can use JDBC through the official `java.sql` and `javax.sql` packages:
 
+[[java-sql]]
 ==== `java.sql`
 The former through `java.sql.Driver` and `DriverManager`:
 
@@ -152,6 +180,7 @@ HTTP traffic. The port is by default 9200.
 <2> Properties for connecting to Elasticsearch. An empty `Properties`
 instance is fine for unsecured Elasticsearch.
 
+[[javax-sql]]
 ==== `javax.sql`
 
 Accessible through the `javax.sql.DataSource` API:
@@ -165,10 +194,10 @@ HTTP traffic. By default 9200.
 instance is fine for unsecured Elasticsearch.
 
 Which one to use? Typically client applications that provide most
-configuration parameters in the URL rely on the `DriverManager`-style
+configuration properties in the URL rely on the `DriverManager`-style
 while `DataSource` is preferred when being _passed_ around since it can be
 configured in one place and the consumer only has to call `getConnection`
-without having to worry about any other parameters.
+without having to worry about any other properties.
 
 To connect to a secured Elasticsearch server the `Properties`
 should look like:
@@ -185,3 +214,9 @@ connection. For example:
 --------------------------------------------------
 include-tagged::{jdbc-tests}/SimpleExampleTestCase.java[simple_example]
 --------------------------------------------------
+
+[NOTE]
+{es-sql} doesn't provide a connection pooling mechanism, thus the connections
+the JDBC driver creates are not pooled. In order to achieve pooled connections,
+a third-party connection pooling mechanism is required. Configuring and setting up the
+third-party provider is outside the scope of this documentation.

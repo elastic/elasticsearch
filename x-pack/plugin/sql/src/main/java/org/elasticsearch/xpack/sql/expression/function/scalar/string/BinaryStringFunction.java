@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import static org.elasticsearch.xpack.sql.expression.Expressions.typeMustBeString;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Base class for binary functions that have the first parameter a string, the second parameter a number
@@ -25,8 +27,8 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
 
-    protected BinaryStringFunction(Location location, Expression left, Expression right) {
-        super(location, left, right);
+    protected BinaryStringFunction(Source source, Expression left, Expression right) {
+        super(source, left, right);
     }
 
     /*
@@ -38,11 +40,11 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = typeMustBeString(left(), functionName(), ParamOrdinal.FIRST);
+        TypeResolution resolution = isStringAndExact(left(), sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -66,8 +68,8 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript("doc[{}].value"),
-                paramsBuilder().variable(field.isInexact() ? field.exactAttribute().name() : field.name()).build(),
+        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
+                paramsBuilder().variable(field.exactAttribute().name()).build(),
                 dataType());
     }
 

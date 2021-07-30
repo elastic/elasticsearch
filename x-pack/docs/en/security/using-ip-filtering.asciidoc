@@ -5,23 +5,28 @@
 You can apply IP filtering to application clients, node clients, or transport
 clients, in addition to other nodes that are attempting to join the cluster.
 
-If a node's IP address is on the blacklist, {security} will still allow the
-connection to Elasticsearch, but it will be dropped immediately, and no requests
-will be processed.
+If a node's IP address is on the blacklist, the {es} {security-features} allow
+the connection to {es} but it is be dropped immediately and no requests are
+processed.
 
 NOTE: Elasticsearch installations are not designed to be publicly accessible
-      over the Internet. IP Filtering and the other security capabilities of
-      {security} do not change this condition.
+      over the Internet. IP Filtering and the other capabilities of the
+      {es} {security-features} do not change this condition.
 
-[float]
+[discrete]
 === Enabling IP filtering
 
-{security} features an access control feature that allows or rejects hosts,
-domains, or subnets.
+The {es} {security-features} contain an access control feature that allows or
+rejects hosts, domains, or subnets. If the
+<<operator-privileges,{operator-feature}>> is enabled, only operator users can
+update these settings.
 
 You configure IP filtering by specifying the `xpack.security.transport.filter.allow` and
-`xpack.security.transport.filter.deny` settings in in `elasticsearch.yml`. Allow rules
+`xpack.security.transport.filter.deny` settings in `elasticsearch.yml`. Allow rules
 take precedence over the deny rules.
+
+IMPORTANT: Unless explicitly specified, `xpack.security.http.filter.*` settings default to
+the corresponding `xpack.security.transport.filter.*` setting's value.
 
 [source,yaml]
 --------------------------------------------------
@@ -54,7 +59,7 @@ xpack.security.transport.filter.allow: localhost
 xpack.security.transport.filter.deny: '*.google.com'
 --------------------------------------------------
 
-[float]
+[discrete]
 === Disabling IP Filtering
 
 Disabling IP filtering can slightly improve performance under some conditions.
@@ -75,11 +80,11 @@ xpack.security.transport.filter.enabled: false
 xpack.security.http.filter.enabled: true
 --------------------------------------------------
 
-[float]
+[discrete]
 === Specifying TCP transport profiles
 
-{ref}/modules-transport.html#_tcp_transport_profiles[TCP transport profiles]
-enable Elasticsearch to bind on multiple hosts. {security} enables you to apply
+<<transport-profiles,TCP transport profiles>>
+enable Elasticsearch to bind on multiple hosts. The {es} {security-features} enable you to apply
 different IP filtering on different profiles.
 
 [source,yaml]
@@ -92,7 +97,7 @@ transport.profiles.client.xpack.security.filter.deny: _all
 
 NOTE: When you do not specify a profile, `default` is used automatically.
 
-[float]
+[discrete]
 === HTTP filtering
 
 You may want to have different IP filtering for the transport and HTTP protocols.
@@ -105,7 +110,7 @@ xpack.security.http.filter.allow: 172.16.0.0/16
 xpack.security.http.filter.deny: _all
 --------------------------------------------------
 
-[float]
+[discrete]
 [[dynamic-ip-filtering]]
 ==== Dynamically updating IP filter settings
 
@@ -114,29 +119,27 @@ based hosting, it is very hard to know the IP addresses upfront when provisionin
 a machine. Instead of changing the configuration file and restarting the node,
 you can use the _Cluster Update Settings API_. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings
 {
-    "persistent" : {
-        "xpack.security.transport.filter.allow" : "172.16.0.0/24"
-    }
+  "persistent" : {
+    "xpack.security.transport.filter.allow" : "172.16.0.0/24"
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 You can also dynamically disable filtering completely:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings
 {
-    "persistent" : {
-        "xpack.security.transport.filter.enabled" : false
-    }
+  "persistent" : {
+    "xpack.security.transport.filter.enabled" : false
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 NOTE: In order to avoid locking yourself out of the cluster, the default bound

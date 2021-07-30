@@ -1,55 +1,35 @@
 [[reindex-upgrade]]
 == Reindex before upgrading
 
-Elasticsearch can read indices created in the *previous major version*.
-Older indices must be reindexed or deleted. Elasticsearch 6.x
-can use indices created in Elasticsearch 5.x, but not those created in
-Elasticsearch 2.x or before. Elasticsearch 5.x can use indices created in
-Elasticsearch 2.x, but not those created in 1.x or before.
+{es} can read indices created in the previous major version. If you
+have indices created in 5.x or before, you must reindex or delete them
+before upgrading to {version}. {es} nodes will fail to start if
+incompatible indices are present. Snapshots of 5.x or earlier indices cannot be
+restored to a 7.x cluster even if they were created by a 6.x cluster.
+Any index created in 6.x is compatible with 7.x and does not require a reindex.
 
-Elasticsearch nodes will fail to start if incompatible indices are present.
 
-To upgrade an Elasticsearch 5.x cluster that contains indices created in 2.x,
-you must reindex or delete them before upgrading to 6.x.
-For more information, see <<reindex-upgrade-inplace, Reindex in place>>.
+This restriction also applies to the internal indices that are used by
+{kib} and the {xpack} features. Therefore, before you can use {kib} and
+{xpack} features in {version}, you must ensure the internal indices have a
+compatible index structure.
 
-To upgrade an Elasticsearch cluster running 2.x, you have two options:
+You have two options for reindexing old indices:
 
-* Perform a <<restart-upgrade, full cluster restart upgrade>> to 5.6,
-  <<reindex-upgrade-inplace, reindex>> the 2.x indices, then perform a
-  <<rolling-upgrades, rolling upgrade>> to 6.x. If your Elasticsearch 2.x
-  cluster contains indices that were created before 2.x, you must either
-  delete or reindex them before upgrading to 5.6. For more information about
-  upgrading from 2.x to 5.6, see https://www.elastic.co/guide/en/elasticsearch/reference/5.6/setup-upgrade.html[
-  Upgrading Elasticsearch] in the Elasticsearch 5.6 Reference.
-
-* Create a new 6.x cluster and <<reindex-upgrade-remote, reindex from
-  remote>> to import indices directly from the 2.x cluster.
-
-To upgrade an Elasticsearch 1.x cluster, you have two options:
-
-* Perform a <<restart-upgrade, full cluster restart upgrade>> to Elasticsearch
-  2.4.x and <<reindex-upgrade-inplace, reindex>> or delete the 1.x indices.
-  Then, perform a full cluster restart upgrade to 5.6 and reindex or delete
-  the 2.x indices. Finally, perform a <<rolling-upgrades, rolling upgrade>>
-  to 6.x. For more information about upgrading from 1.x to 2.4, see https://www.elastic.co/guide/en/elasticsearch/reference/2.4/setup-upgrade.html[
-  Upgrading Elasticsearch] in the Elasticsearch 2.4 Reference.
-  For more information about upgrading from 2.4 to 5.6, see https://www.elastic.co/guide/en/elasticsearch/reference/5.6/setup-upgrade.html[
-  Upgrading Elasticsearch] in the Elasticsearch 5.6 Reference.
-
-* Create a new 6.x cluster and <<reindex-upgrade-remote, reindex from
-  remote>> to import indices directly from the 1.x cluster.
+* <<reindex-upgrade-inplace, Reindex in place>> on your 6.x cluster before upgrading.
+* Create a new {version} cluster and <<reindex-upgrade-remote, Reindex from remote>>.
+This enables you to reindex indices that reside on clusters running any version of {es}.
 
 .Upgrading time-based indices
 *******************************************
 
 If you use time-based indices, you likely won't need to carry
-pre-5.x indices forward to 6.x. Data in time-based indices
+pre-6.x indices forward to {version}. Data in time-based indices
 generally becomes less useful as time passes and are
 deleted as they age past your retention period.
 
-Unless you have an unusally long retention period, you can just
-wait to upgrade to 6.x until all of your pre-5.x indices have
+Unless you have an unusually long retention period, you can just
+wait to upgrade to 6.x until all of your pre-6.x indices have
 been deleted.
 
 *******************************************
@@ -58,55 +38,103 @@ been deleted.
 [[reindex-upgrade-inplace]]
 === Reindex in place
 
-To manually reindex your old indices with the <<docs-reindex,`reindex` API>>:
+You can use the Upgrade Assistant in {kib} 6.8 to automatically reindex 5.x
+indices you need to carry forward to {version}.
 
-. Create a new index and copy the mappings and settings from the old index.
+To manually reindex your old indices in place:
+
+. Create an index with 7.x compatible mappings.
 . Set the `refresh_interval` to `-1` and the `number_of_replicas` to `0` for
   efficient reindexing.
-. Reindex all documents from the old index into the new index using the
-  <<docs-reindex,reindex API>>.
+. Use the <<docs-reindex,`reindex` API>> to copy documents from the
+5.x index into the new index. You can use a script to perform any necessary
+modifications to the document data and metadata during reindexing.
 . Reset the `refresh_interval` and `number_of_replicas` to the values
   used in the old index.
 . Wait for the index status to change to `green`.
-. In a single <<indices-aliases,update aliases>> request:
-
+. In a single <<indices-aliases,aliases API>> request:
 .. Delete the old index.
 .. Add an alias with the old index name to the new index.
 .. Add any aliases that existed on the old index to the new index.
 
+ifdef::include-xpack[]
+[TIP]
+====
+If you use {ml-features} and your {ml} indices were created before
+{prev-major-version}, you must temporarily halt the tasks associated with your
+{ml} jobs and {dfeeds} and prevent new jobs from opening during the reindex. Use
+the <<ml-set-upgrade-mode,set upgrade mode API>> or
+{ml-docs}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs].
 
-// Need to update the CSS to override sidebar titles.
-[role="xpack"]
-.Migration assistance and upgrade tools
-*******************************************
-{xpack} 5.6 provides migration assistance and upgrade tools that simplify
-reindexing and upgrading to 6.x. These tools are free with the X-Pack trial
-and Basic licenses and you can use them to upgrade whether or not X-Pack is a
-regular part of your Elastic Stack. For more information, see
-{stack-ref}/upgrading-elastic-stack.html.
-*******************************************
+If you use {es} {security-features}, before you reindex `.security*` internal
+indices it is a good idea to create a temporary superuser account in the `file`
+realm.
+
+. On a single node, add a temporary superuser account to the `file` realm. For
+example, run the <<users-command,elasticsearch-users useradd>> command:
++
+--
+[source,sh]
+----------------------------------------------------------
+bin/elasticsearch-users useradd <user_name> \
+-p <password> -r superuser
+----------------------------------------------------------
+--
+
+. Use these credentials when you reindex the `.security*` index. That is to say,
+use them to log in to {kib} and run the Upgrade Assistant or to call the
+reindex API. You can use your regular administration credentials to
+reindex the other internal indices.
+
+. Delete the temporary superuser account from the file realm. For
+example, run the {ref}/users-command.html[elasticsearch-users userdel] command:
++
+--
+[source,sh]
+----------------------------------------------------------
+bin/elasticsearch-users userdel <user_name>
+----------------------------------------------------------
+--
+
+For more information, see <<file-realm>>.
+====
+endif::include-xpack[]
 
 [[reindex-upgrade-remote]]
 === Reindex from a remote cluster
 
 You can use <<reindex-from-remote,reindex from remote>> to migrate indices from
-your old cluster to a new 6.x cluster. This enables you move to 6.x from a
-pre-5.6 cluster without interrupting service.
+your old cluster to a new {version} cluster. This enables you to move to
+{version} from a pre-6.8 cluster without interrupting service.
 
 [WARNING]
 =============================================
 
-Elasticsearch provides backwards compatibility support that enables
+{es} provides backwards compatibility support that enables
 indices from the previous major version to be upgraded to the
 current major version. Skipping a major version means that you must
 resolve any backward compatibility issues yourself.
+
+{es} does not support forward compatibility across major versions.
+For example, you cannot reindex from a 7.x cluster into a 6.x cluster.
+
+ifdef::include-xpack[]
+If you use {ml-features} and you're migrating indices from a 6.5 or earlier
+cluster, the job and {dfeed} configuration information are not stored in an
+index. You must recreate your {ml} jobs in the new cluster. If you are migrating
+from a 6.6 or later cluster, it is a good idea to temporarily halt the tasks
+associated with your {ml} jobs and {dfeeds} to prevent inconsistencies between
+different {ml} indices that are reindexed at slightly different times. Use the
+<<ml-set-upgrade-mode,set upgrade mode API>> or 
+{ml-docs}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs].
+endif::include-xpack[]
 
 =============================================
 
 To migrate your indices:
 
-. Set up a new 6.x cluster alongside your old cluster. Enable it to access
-your old cluster by adding your old cluster to the `reindex.remote.whitelist` in `elasticsearch.yml`:
+. Set up a new {version} cluster and add the existing cluster to the
+`reindex.remote.whitelist` in `elasticsearch.yml`.
 +
 --
 [source,yaml]
@@ -123,17 +151,19 @@ cluster and remove nodes from the old one.
 =============================================
 --
 
-. For each index that you need to migrate to the 6.x cluster:
+. For each index that you need to migrate to the new cluster:
 
-.. Create a new index in 6.x with the appropriate mappings and settings. Set the
+.. Create an index with the appropriate mappings and settings. Set the
   `refresh_interval` to `-1` and set `number_of_replicas` to `0` for
   faster reindexing.
 
-.. <<reindex-from-remote,Reindex from remote>> to pull documents from the
-  old index into the new 6.x index:
+.. Use the <<docs-reindex,`reindex` API>> to pull documents from the
+remote index into the new {version} index.
++
+include::{es-ref-dir}/docs/reindex.asciidoc[tag=remote-reindex-slicing]
 +
 --
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -155,7 +185,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:host]
 // TEST[s/^/PUT source\n/]
 // TEST[s/oldhost:9200",/\${host}"/]
@@ -172,5 +201,5 @@ monitor progress of the reindex job with the <<tasks,task API>>:
   `number_of_replicas` to the desired values (the default settings are
   `30s` and `1`).
 
-.. Once replication is complete and the status of the new index is `green`,
+.. Once reindexing is complete and the status of the new index is `green`,
   you can delete the old index.

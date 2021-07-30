@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cli;
@@ -26,7 +15,8 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.isEmptyString;
+import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.is;
 
 public class EvilCommandTests extends ESTestCase {
 
@@ -55,14 +45,14 @@ public class EvilCommandTests extends ESTestCase {
         command.getShutdownHookThread().run();
         command.getShutdownHookThread().join();
         assertTrue(closed.get());
-        final String output = terminal.getOutput();
+        final String output = terminal.getErrorOutput();
         if (shouldThrow) {
             // ensure that we dump the exception
             assertThat(output, containsString("java.io.IOException: fail"));
             // ensure that we dump the stack trace too
             assertThat(output, containsString("\tat org.elasticsearch.cli.EvilCommandTests$1.close"));
         } else {
-            assertThat(output, isEmptyString());
+            assertThat(output, is(emptyString()));
         }
     }
 

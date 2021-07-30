@@ -1,0 +1,37 @@
+[role="xpack"]
+[[ilm-freeze]]
+=== Freeze
+
+Phases allowed: cold.
+
+<<freeze-index-api, Freezes>> an index.
+
+IMPORTANT: Freezing an index closes the index and reopens it within the same API call.
+This means that for a short time no primaries are allocated.
+The cluster will go red until the primaries are allocated.
+This limitation might be removed in the future.
+
+[[ilm-freeze-options]]
+==== Options
+
+None.
+
+[[ilm-freeze-ex]]
+==== Example
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "cold": {
+        "actions": {
+          "freeze" : { }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+

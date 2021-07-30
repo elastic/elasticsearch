@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gateway;
@@ -22,18 +11,18 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,14 +32,17 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.shard.ShardStateMetaData;
+import org.elasticsearch.index.shard.ShardStateMetadata;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * This transport action is used to fetch the shard version from each node during primary allocation in {@link GatewayAllocator}.
@@ -61,12 +53,11 @@ public class TransportNodesListGatewayStartedShards extends
     TransportNodesAction<TransportNodesListGatewayStartedShards.Request,
         TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
         TransportNodesListGatewayStartedShards.NodeRequest,
-        TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>
-    implements
-    AsyncShardFetch.Lister<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
         TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
+    public static final ActionType<NodesGatewayStartedShards> TYPE = new ActionType<>(ACTION_NAME, NodesGatewayStartedShards::new);
+
     private final Settings settings;
     private final NodeEnvironment nodeEnv;
     private final IndicesService indicesService;
@@ -86,19 +77,13 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    public void list(ShardId shardId, DiscoveryNode[] nodes,
-                     ActionListener<NodesGatewayStartedShards> listener) {
-        execute(new Request(shardId, nodes), listener);
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest(request);
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId, request);
-    }
-
-    @Override
-    protected NodeGatewayStartedShards newNodeResponse() {
-        return new NodeGatewayStartedShards();
+    protected NodeGatewayStartedShards newNodeResponse(StreamInput in) throws IOException {
+        return new NodeGatewayStartedShards(in);
     }
 
     @Override
@@ -108,33 +93,31 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    protected NodeGatewayStartedShards nodeOperation(NodeRequest request) {
+    protected NodeGatewayStartedShards nodeOperation(NodeRequest request, Task task) {
         try {
             final ShardId shardId = request.getShardId();
             logger.trace("{} loading local shard state info", shardId);
-            ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry,
-                nodeEnv.availableShardPaths(request.shardId));
-            if (shardStateMetaData != null) {
-                IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndex());
-                if (metaData == null) {
-                    // we may send this requests while processing the cluster state that recovered the index
-                    // sometimes the request comes in before the local node processed that cluster state
-                    // in such cases we can load it from disk
-                    metaData = IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry,
-                        nodeEnv.indexPaths(shardId.getIndex()));
-                }
-                if (metaData == null) {
-                    ElasticsearchException e = new ElasticsearchException("failed to find local IndexMetaData");
-                    e.setShard(request.shardId);
-                    throw e;
-                }
-
+            ShardStateMetadata shardStateMetadata = ShardStateMetadata.FORMAT.loadLatestState(logger, namedXContentRegistry,
+                nodeEnv.availableShardPath(request.shardId));
+            if (shardStateMetadata != null) {
                 if (indicesService.getShardOrNull(shardId) == null) {
+                    final String customDataPath;
+                    if (request.getCustomDataPath() != null) {
+                        customDataPath = request.getCustomDataPath();
+                    } else {
+                        // TODO: Fallback for BWC with older ES versions. Remove once request.getCustomDataPath() always returns non-null
+                        final IndexMetadata metadata = clusterService.state().metadata().index(shardId.getIndex());
+                        if (metadata != null) {
+                            customDataPath = new IndexSettings(metadata, settings).customDataPath();
+                        } else {
+                            logger.trace("{} node doesn't have meta data for the requests index", shardId);
+                            throw new ElasticsearchException("node doesn't have meta data for index " + shardId.getIndex());
+                        }
+                    }
                     // we don't have an open shard on the store, validate the files on disk are openable
                     ShardPath shardPath = null;
                     try {
-                        IndexSettings indexSettings = new IndexSettings(metaData, settings);
-                        shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+                        shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, customDataPath);
                         if (shardPath == null) {
                             throw new IllegalStateException(shardId + " no shard path found");
                         }
@@ -144,20 +127,20 @@ public class TransportNodesListGatewayStartedShards extends
                         logger.trace(() -> new ParameterizedMessage(
                                 "{} can't open index for shard [{}] in path [{}]",
                                 shardId,
-                                shardStateMetaData,
+                                shardStateMetadata,
                                 (finalShardPath != null) ? finalShardPath.resolveIndex() : ""),
                             exception);
-                        String allocationId = shardStateMetaData.allocationId != null ?
-                            shardStateMetaData.allocationId.getId() : null;
-                        return new NodeGatewayStartedShards(clusterService.localNode(), allocationId, shardStateMetaData.primary,
+                        String allocationId = shardStateMetadata.allocationId != null ?
+                            shardStateMetadata.allocationId.getId() : null;
+                        return new NodeGatewayStartedShards(clusterService.localNode(), allocationId, shardStateMetadata.primary,
                             exception);
                     }
                 }
 
-                logger.debug("{} shard state info found: [{}]", shardId, shardStateMetaData);
-                String allocationId = shardStateMetaData.allocationId != null ?
-                    shardStateMetaData.allocationId.getId() : null;
-                return new NodeGatewayStartedShards(clusterService.localNode(), allocationId, shardStateMetaData.primary);
+                logger.debug("{} shard state info found: [{}]", shardId, shardStateMetadata);
+                String allocationId = shardStateMetadata.allocationId != null ?
+                    shardStateMetadata.allocationId.getId() : null;
+                return new NodeGatewayStartedShards(clusterService.localNode(), allocationId, shardStateMetadata.primary);
             }
             logger.trace("{} no local shard info found", shardId);
             return new NodeGatewayStartedShards(clusterService.localNode(), null, false);
@@ -168,35 +151,55 @@ public class TransportNodesListGatewayStartedShards extends
 
     public static class Request extends BaseNodesRequest<Request> {
 
-        private ShardId shardId;
+        private final ShardId shardId;
+        @Nullable
+        private final String customDataPath;
 
-        public Request() {
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            shardId = new ShardId(in);
+            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+                customDataPath = in.readString();
+            } else {
+                customDataPath = null;
+            }
         }
 
-        public Request(ShardId shardId, DiscoveryNode[] nodes) {
+        public Request(ShardId shardId, String customDataPath, DiscoveryNode[] nodes) {
             super(nodes);
-            this.shardId = shardId;
+            this.shardId = Objects.requireNonNull(shardId);
+            this.customDataPath = Objects.requireNonNull(customDataPath);
         }
-
 
         public ShardId shardId() {
-            return this.shardId;
+            return shardId;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+        /**
+         * Returns the custom data path that is used to look up information for this shard.
+         * Returns an empty string if no custom data path is used for this index.
+         * Returns null if custom data path information is not available (due to BWC).
+         */
+        @Nullable
+        public String getCustomDataPath() {
+            return customDataPath;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+                out.writeString(customDataPath);
+            }
         }
     }
 
     public static class NodesGatewayStartedShards extends BaseNodesResponse<NodeGatewayStartedShards> {
+
+        public NodesGatewayStartedShards(StreamInput in) throws IOException {
+            super(in);
+        }
 
         public NodesGatewayStartedShards(ClusterName clusterName, List<NodeGatewayStartedShards> nodes,
                                          List<FailedNodeException> failures) {
@@ -205,52 +208,77 @@ public class TransportNodesListGatewayStartedShards extends
 
         @Override
         protected List<NodeGatewayStartedShards> readNodesFrom(StreamInput in) throws IOException {
-            return in.readStreamableList(NodeGatewayStartedShards::new);
+            return in.readList(NodeGatewayStartedShards::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeGatewayStartedShards> nodes) throws IOException {
-            out.writeStreamableList(nodes);
+            out.writeList(nodes);
         }
     }
 
 
-    public static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends TransportRequest {
 
-        private ShardId shardId;
+        private final ShardId shardId;
+        @Nullable
+        private final String customDataPath;
 
-        public NodeRequest() {
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            shardId = new ShardId(in);
+            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+                customDataPath = in.readString();
+            } else {
+                customDataPath = null;
+            }
         }
 
-        public NodeRequest(String nodeId, Request request) {
-            super(nodeId);
-            this.shardId = request.shardId();
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+        public NodeRequest(Request request) {
+            this.shardId = Objects.requireNonNull(request.shardId());
+            this.customDataPath = Objects.requireNonNull(request.getCustomDataPath());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+                assert customDataPath != null;
+                out.writeString(customDataPath);
+            }
         }
 
         public ShardId getShardId() {
             return shardId;
         }
+
+        /**
+         * Returns the custom data path that is used to look up information for this shard.
+         * Returns an empty string if no custom data path is used for this index.
+         * Returns null if custom data path information is not available (due to BWC).
+         */
+        @Nullable
+        public String getCustomDataPath() {
+            return customDataPath;
+        }
     }
 
     public static class NodeGatewayStartedShards extends BaseNodeResponse {
 
-        private String allocationId = null;
-        private boolean primary = false;
-        private Exception storeException = null;
+        private final String allocationId;
+        private final boolean primary;
+        private final Exception storeException;
 
-        public NodeGatewayStartedShards() {
+        public NodeGatewayStartedShards(StreamInput in) throws IOException {
+            super(in);
+            allocationId = in.readOptionalString();
+            primary = in.readBoolean();
+            if (in.readBoolean()) {
+                storeException = in.readException();
+            } else {
+                storeException = null;
+            }
         }
 
         public NodeGatewayStartedShards(DiscoveryNode node, String allocationId, boolean primary) {
@@ -277,26 +305,8 @@ public class TransportNodesListGatewayStartedShards extends
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
-                // legacy version
-                in.readLong();
-            }
-            allocationId = in.readOptionalString();
-            primary = in.readBoolean();
-            if (in.readBoolean()) {
-                storeException = in.readException();
-            }
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
-                // legacy version
-                out.writeLong(-1L);
-            }
             out.writeOptionalString(allocationId);
             out.writeBoolean(primary);
             if (storeException != null) {
@@ -318,14 +328,8 @@ public class TransportNodesListGatewayStartedShards extends
 
             NodeGatewayStartedShards that = (NodeGatewayStartedShards) o;
 
-            if (primary != that.primary) {
-                return false;
-            }
-            if (allocationId != null ? !allocationId.equals(that.allocationId) : that.allocationId != null) {
-                return false;
-            }
-            return storeException != null ? storeException.equals(that.storeException) : that.storeException == null;
-
+            return primary == that.primary && Objects.equals(allocationId, that.allocationId)
+                && Objects.equals(storeException, that.storeException);
         }
 
         @Override

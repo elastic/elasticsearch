@@ -1,34 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
 
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -37,6 +25,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -45,10 +34,12 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Cat API class to display information about snapshots
  */
 public class RestSnapshotAction extends AbstractCatAction {
-    public RestSnapshotAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_cat/snapshots", this);
-        controller.registerHandler(GET, "/_cat/snapshots/{repository}", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_cat/snapshots"),
+            new Route(GET, "/_cat/snapshots/{repository}"));
     }
 
     @Override
@@ -59,7 +50,7 @@ public class RestSnapshotAction extends AbstractCatAction {
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest()
-                .repository(request.param("repository"))
+                .repositories(request.paramAsStringArray("repository", new String[]{"_all"}))
                 .snapshots(new String[]{GetSnapshotsRequest.ALL_SNAPSHOTS});
 
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
@@ -67,7 +58,7 @@ public class RestSnapshotAction extends AbstractCatAction {
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
 
         return channel ->
-            client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestResponseListener<GetSnapshotsResponse>(channel) {
+            client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestResponseListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(GetSnapshotsResponse getSnapshotsResponse) throws Exception {
                     return RestTable.buildResponse(buildTable(request, getSnapshotsResponse), channel);
@@ -85,6 +76,7 @@ public class RestSnapshotAction extends AbstractCatAction {
         return new Table()
                 .startHeaders()
                 .addCell("id", "alias:id,snapshot;desc:unique snapshot")
+                .addCell("repository", "alias:re,repo;desc:repository name")
                 .addCell("status", "alias:s,status;text-align:right;desc:snapshot name")
                 .addCell("start_epoch", "alias:ste,startEpoch;desc:start time in seconds since 1970-01-01 00:00:00")
                 .addCell("start_time", "alias:sti,startTime;desc:start time in HH:MM:SS")
@@ -99,14 +91,32 @@ public class RestSnapshotAction extends AbstractCatAction {
                 .endHeaders();
     }
 
-    private static final DateFormatter FORMATTER = DateFormatters.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
+    private static final DateFormatter FORMATTER = DateFormatter.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
 
     private Table buildTable(RestRequest req, GetSnapshotsResponse getSnapshotsResponse) {
         Table table = getTableWithHeader(req);
-        for (SnapshotInfo snapshotStatus : getSnapshotsResponse.getSnapshots()) {
+
+        if (getSnapshotsResponse.isFailed()) {
+            ElasticsearchException causes = null;
+
+            for (ElasticsearchException e : getSnapshotsResponse.getFailures().values()) {
+                if (causes == null) {
+                    causes = e;
+                } else {
+                    causes.addSuppressed(e);
+                }
+            }
+            throw new ElasticsearchException(
+                    "Repositories [" +
+                            Strings.collectionToCommaDelimitedString(getSnapshotsResponse.getFailures().keySet()) +
+                    "] failed to retrieve snapshots", causes);
+        }
+
+        for (SnapshotInfo snapshotStatus: getSnapshotsResponse.getSnapshots()) {
             table.startRow();
 
             table.addCell(snapshotStatus.snapshotId().getName());
+            table.addCell(snapshotStatus.repository());
             table.addCell(snapshotStatus.state());
             table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.startTime(), TimeUnit.MILLISECONDS));
             table.addCell(FORMATTER.format(Instant.ofEpochMilli(snapshotStatus.startTime())));

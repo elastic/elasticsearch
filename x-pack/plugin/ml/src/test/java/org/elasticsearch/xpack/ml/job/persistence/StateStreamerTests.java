@@ -1,18 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.mock.orig.Mockito;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelState;
@@ -21,9 +28,14 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -36,24 +48,24 @@ public class StateStreamerTests extends ESTestCase {
         String snapshotId = "123";
         Map<String, Object> categorizerState = new HashMap<>();
         categorizerState.put("catName", "catVal");
-        GetResponse categorizerStateGetResponse1 = createGetResponse(true, categorizerState);
-        GetResponse categorizerStateGetResponse2 = createGetResponse(false, null);
-        Map<String, Object> modelState = new HashMap<>();
-        modelState.put("modName", "modVal1");
-        GetResponse modelStateGetResponse1 = createGetResponse(true, modelState);
-        modelState.put("modName", "modVal2");
-        GetResponse modelStateGetResponse2 = createGetResponse(true, modelState);
+        Map<String, Object> modelState1 = new HashMap<>();
+        modelState1.put("modName1", "modVal1");
+        Map<String, Object> modelState2 = new HashMap<>();
+        modelState2.put("modName2", "modVal2");
 
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE,
-                        CategorizerState.documentId(JOB_ID, 1), categorizerStateGetResponse1)
-                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE,
-                        CategorizerState.documentId(JOB_ID, 2), categorizerStateGetResponse2)
-                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE,
-                        ModelState.documentId(JOB_ID, snapshotId, 1), modelStateGetResponse1)
-                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE,
-                        ModelState.documentId(JOB_ID, snapshotId, 2), modelStateGetResponse2);
 
+        SearchRequestBuilder builder1 = prepareSearchBuilder(createSearchResponse(Collections.singletonList(modelState1)),
+            QueryBuilders.idsQuery().addIds(ModelState.documentId(JOB_ID, snapshotId, 1)));
+        SearchRequestBuilder builder2 = prepareSearchBuilder(createSearchResponse(Collections.singletonList(modelState2)),
+            QueryBuilders.idsQuery().addIds(ModelState.documentId(JOB_ID, snapshotId, 2)));
+        SearchRequestBuilder builder3 = prepareSearchBuilder(createSearchResponse(Collections.singletonList(categorizerState)),
+            QueryBuilders.idsQuery().addIds(CategorizerState.documentId(JOB_ID, 1)));
+        SearchRequestBuilder builder4 = prepareSearchBuilder(createSearchResponse(Collections.emptyList()),
+            QueryBuilders.idsQuery().addIds(CategorizerState.documentId(JOB_ID, 2)));
+
+        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME)
+            .addClusterStatusYellowResponse()
+            .prepareSearches(AnomalyDetectorsIndex.jobStateIndexPattern(), builder1, builder2, builder3, builder4);
 
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID).setSnapshotId(snapshotId).setSnapshotDocCount(2).build();
 
@@ -64,8 +76,8 @@ public class StateStreamerTests extends ESTestCase {
 
         String[] restoreData = stream.toString(StandardCharsets.UTF_8.name()).split("\0");
         assertEquals(3, restoreData.length);
-        assertEquals("{\"modName\":\"modVal1\"}", restoreData[0]);
-        assertEquals("{\"modName\":\"modVal2\"}", restoreData[1]);
+        assertEquals("{\"modName1\":\"modVal1\"}", restoreData[0]);
+        assertEquals("{\"modName2\":\"modVal2\"}", restoreData[1]);
         assertEquals("{\"catName\":\"catVal\"}", restoreData[2]);
     }
 
@@ -80,10 +92,31 @@ public class StateStreamerTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(outputStream);
     }
 
-    private static GetResponse createGetResponse(boolean exists, Map<String, Object> source) throws IOException {
-        GetResponse getResponse = mock(GetResponse.class);
-        when(getResponse.isExists()).thenReturn(exists);
-        when(getResponse.getSourceAsBytesRef()).thenReturn(BytesReference.bytes(XContentFactory.jsonBuilder().map(source)));
-        return getResponse;
+    private static SearchResponse createSearchResponse(List<Map<String, Object>> source) throws IOException {
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        SearchHit[] hits = new SearchHit[source.size()];
+        int i = 0;
+        for (Map<String, Object> s : source) {
+            SearchHit hit = new SearchHit(1).sourceRef(BytesReference.bytes(XContentFactory.jsonBuilder().map(s)));
+            hits[i++] = hit;
+        }
+        SearchHits searchHits = new SearchHits(hits, null, (float)0.0);
+        when(searchResponse.getHits()).thenReturn(searchHits);
+        return searchResponse;
+    }
+
+    private static SearchRequestBuilder prepareSearchBuilder(SearchResponse response, QueryBuilder queryBuilder) {
+        SearchRequestBuilder builder = mock(SearchRequestBuilder.class);
+        when(builder.addSort(any(SortBuilder.class))).thenReturn(builder);
+        when(builder.setQuery(queryBuilder)).thenReturn(builder);
+        when(builder.setPostFilter(any())).thenReturn(builder);
+        when(builder.setFrom(anyInt())).thenReturn(builder);
+        when(builder.setSize(anyInt())).thenReturn(builder);
+        when(builder.setFetchSource(eq(true))).thenReturn(builder);
+        when(builder.addDocValueField(any(String.class))).thenReturn(builder);
+        when(builder.addDocValueField(any(String.class), any(String.class))).thenReturn(builder);
+        when(builder.addSort(any(String.class), any(SortOrder.class))).thenReturn(builder);
+        when(builder.get()).thenReturn(response);
+        return builder;
     }
 }

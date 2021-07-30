@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -23,9 +12,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaData.Builder;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Metadata.Builder;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -39,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryA
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
 
@@ -62,9 +52,10 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
                 new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY,
                         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
                     new ReplicaAfterPrimaryActiveAllocationDecider(), randomAllocationDecider))),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE);
         int indices = scaledRandomIntBetween(1, 20);
-        Builder metaBuilder = MetaData.builder();
+        Builder metaBuilder = Metadata.builder();
         int maxNumReplicas = 1;
         int totalNumShards = 0;
         for (int i = 0; i < indices; i++) {
@@ -72,19 +63,19 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             maxNumReplicas = Math.max(maxNumReplicas, replicas + 1);
             int numShards = scaledRandomIntBetween(1, 20);
             totalNumShards += numShards * (replicas + 1);
-            metaBuilder.put(IndexMetaData.builder("INDEX_" + i).settings(settings(Version.CURRENT))
+            metaBuilder.put(IndexMetadata.builder("INDEX_" + i).settings(settings(Version.CURRENT))
                 .numberOfShards(numShards).numberOfReplicas(replicas));
 
         }
-        MetaData metaData = metaBuilder.build();
+        Metadata metadata = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (int i = 0; i < indices; i++) {
-            routingTableBuilder.addAsNew(metaData.index("INDEX_" + i));
+            routingTableBuilder.addAsNew(metadata.index("INDEX_" + i));
         }
 
         RoutingTable initialRoutingTable = routingTableBuilder.build();
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
         int numIters = scaledRandomIntBetween(5, 15);
         int nodeIdCounter = 0;
         int atMostNodes = scaledRandomIntBetween(Math.max(1, maxNumReplicas), 15);
@@ -130,12 +121,12 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             stateBuilder.nodes(newNodesBuilder.build());
             clusterState = stateBuilder.build();
             if (nodesRemoved) {
-                clusterState = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+                clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
             } else {
                 clusterState = strategy.reroute(clusterState, "reroute");
             }
             if (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size() > 0) {
-                clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+                clusterState = startInitializingShardsAndReroute(strategy, clusterState);
             }
         }
         logger.info("Fill up nodes such that every shard can be allocated");
@@ -158,7 +149,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             iterations++;
             clusterState = strategy.reroute(clusterState, "reroute");
             if (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size() > 0) {
-                clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+                clusterState = startInitializingShardsAndReroute(strategy, clusterState);
             }
 
         } while (clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size() != 0 ||

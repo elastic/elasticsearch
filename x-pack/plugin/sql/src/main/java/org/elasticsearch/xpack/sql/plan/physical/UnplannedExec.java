@@ -1,24 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.planner.PlanningException;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
+import org.elasticsearch.xpack.sql.session.SqlSession;
+
 import java.util.List;
 import java.util.Objects;
-
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class UnplannedExec extends LeafExec implements Unexecutable {
 
     private final LogicalPlan plan;
 
-    public UnplannedExec(Location location, LogicalPlan plan) {
-        super(location);
+    public UnplannedExec(Source source, LogicalPlan plan) {
+        super(source);
         this.plan = plan;
     }
 
@@ -34,6 +39,11 @@ public class UnplannedExec extends LeafExec implements Unexecutable {
     @Override
     public List<Attribute> output() {
         return plan.output();
+    }
+
+    @Override
+    void execute(SqlSession session, ActionListener<Page> listener) {
+        throw new PlanningException("Current plan {} is not executable", this);
     }
 
     @Override

@@ -1,0 +1,28 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+esplugin {
+  description 'Ingest processor that extracts information from a user agent'
+  classname 'org.elasticsearch.ingest.useragent.IngestUserAgentPlugin'
+}
+
+restResources {
+  restApi {
+    include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
+  }
+}
+
+testClusters.all {
+  extraConfigFile 'ingest-user-agent/test-regexes.yml', file('src/test/test-regexes.yml')
+}
+
+tasks.named("transformV7RestTests").configure({ task ->
+  task.addAllowedWarningRegex("setting \\[ecs\\] is deprecated as ECS format is the default and only option")
+})

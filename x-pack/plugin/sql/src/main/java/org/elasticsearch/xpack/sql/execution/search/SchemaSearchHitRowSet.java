@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
-import org.elasticsearch.xpack.sql.type.Schema;
 
+import java.util.BitSet;
 import java.util.List;
 
 /**
@@ -20,8 +22,8 @@ import java.util.List;
 class SchemaSearchHitRowSet extends SearchHitRowSet implements SchemaRowSet {
     private final Schema schema;
 
-    SchemaSearchHitRowSet(Schema schema, List<HitExtractor> exts, SearchHit[] hits, int limitHits, String scrollId) {
-        super(exts, hits, limitHits, scrollId);
+    SchemaSearchHitRowSet(Schema schema, List<HitExtractor> exts, BitSet mask, int limitHits, SearchResponse response) {
+        super(exts, mask, limitHits, response);
         this.schema = schema;
     }
 

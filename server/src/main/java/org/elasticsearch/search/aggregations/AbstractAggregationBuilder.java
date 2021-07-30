@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -34,7 +23,7 @@ import java.util.Objects;
 public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationBuilder<AB>>
     extends AggregationBuilder {
 
-    protected Map<String, Object> metaData;
+    protected Map<String, Object> metadata;
 
     /**
      * Constructs a new aggregation builder.
@@ -47,9 +36,9 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
 
     protected AbstractAggregationBuilder(AbstractAggregationBuilder<AB> clone,
                                          AggregatorFactories.Builder factoriesBuilder,
-                                         Map<String, Object> metaData) {
+                                         Map<String, Object> metadata) {
         super(clone, factoriesBuilder);
-        this.metaData = metaData;
+        this.metadata = metadata;
     }
 
     /**
@@ -58,14 +47,14 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     protected AbstractAggregationBuilder(StreamInput in) throws IOException {
         super(in.readString());
         factoriesBuilder = new AggregatorFactories.Builder(in);
-        metaData = in.readMap();
+        metadata = in.readMap();
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         factoriesBuilder.writeTo(out);
-        out.writeMap(metaData);
+        out.writeMap(metadata);
         doWriteTo(out);
     }
 
@@ -115,17 +104,17 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
 
     @SuppressWarnings("unchecked")
     @Override
-    public AB setMetaData(Map<String, Object> metaData) {
-        if (metaData == null) {
-            throw new IllegalArgumentException("[metaData] must not be null: [" + name + "]");
+    public AB setMetadata(Map<String, Object> metadata) {
+        if (metadata == null) {
+            throw new IllegalArgumentException("[metadata] must not be null: [" + name + "]");
         }
-        this.metaData = metaData;
+        this.metadata = metadata;
         return (AB) this;
     }
 
     @Override
-    public Map<String, Object> getMetaData() {
-        return metaData == null ? Collections.emptyMap() : Collections.unmodifiableMap(metaData);
+    public Map<String, Object> getMetadata() {
+        return metadata == null ? Collections.emptyMap() : Collections.unmodifiableMap(metadata);
     }
 
     @Override
@@ -135,20 +124,21 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     }
 
     @Override
-    public final AggregatorFactory<?> build(SearchContext context, AggregatorFactory<?> parent) throws IOException {
-        AggregatorFactory<?> factory = doBuild(context, parent, factoriesBuilder);
+    public final AggregatorFactory build(AggregationContext context, AggregatorFactory parent) throws IOException {
+        AggregatorFactory factory = doBuild(context, parent, factoriesBuilder);
+        context.getUsageService().incAggregationUsage(getType(), factory.getStatsSubtype());
         return factory;
     }
 
-    protected abstract AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subfactoriesBuilder) throws IOException;
+    protected abstract AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
+                                                 AggregatorFactories.Builder subfactoriesBuilder) throws IOException;
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
 
-        if (this.metaData != null) {
-            builder.field("meta", this.metaData);
+        if (this.metadata != null) {
+            builder.field("meta", this.metadata);
         }
         builder.field(getType());
         internalXContent(builder, params);
@@ -164,28 +154,18 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
 
     @Override
     public int hashCode() {
-        return Objects.hash(factoriesBuilder, metaData, name, doHashCode());
+        return Objects.hash(factoriesBuilder, metadata, name);
     }
-
-    protected abstract int doHashCode();
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
         @SuppressWarnings("unchecked")
         AbstractAggregationBuilder<AB> other = (AbstractAggregationBuilder<AB>) obj;
-        if (!Objects.equals(name, other.name))
-            return false;
-        if (!Objects.equals(metaData, other.metaData))
-            return false;
-        if (!Objects.equals(factoriesBuilder, other.factoriesBuilder))
-            return false;
-        return doEquals(obj);
+
+        return Objects.equals(name, other.name)
+            && Objects.equals(metadata, other.metadata)
+            && Objects.equals(factoriesBuilder, other.factoriesBuilder);
     }
-
-    protected abstract boolean doEquals(Object obj);
-
 }

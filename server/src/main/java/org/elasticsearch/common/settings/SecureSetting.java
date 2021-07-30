@@ -1,31 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
+
+import org.elasticsearch.common.util.ArrayUtils;
 
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.util.EnumSet;
 import java.util.Set;
-
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.util.ArrayUtils;
 
 /**
  * A secure setting.
@@ -34,10 +22,7 @@ import org.elasticsearch.common.util.ArrayUtils;
  */
 public abstract class SecureSetting<T> extends Setting<T> {
 
-    /** Determines whether legacy settings with sensitive values should be allowed. */
-    private static final boolean ALLOW_INSECURE_SETTINGS = Booleans.parseBoolean(System.getProperty("es.allow_insecure_settings", "false"));
-
-    private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(Property.Deprecated);
+    private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(Property.Deprecated, Property.Consistent);
 
     private static final Property[] FIXED_PROPERTIES = {
         Property.NodeScope
@@ -97,6 +82,23 @@ public abstract class SecureSetting<T> extends Setting<T> {
         }
     }
 
+    /**
+     * Returns the digest of this secure setting's value or {@code null} if the setting is missing (inside the keystore). This method can be
+     * called even after the {@code SecureSettings} have been closed, unlike {@code #get(Settings)}. The digest is used to check for changes
+     * of the value (by re-reading the {@code SecureSettings}), without actually transmitting the value to compare with.
+     */
+    public byte[] getSecretDigest(Settings settings) {
+        final SecureSettings secureSettings = settings.getSecureSettings();
+        if (secureSettings == null || false == secureSettings.getSettingNames().contains(getKey())) {
+            return null;
+        }
+        try {
+            return secureSettings.getSHA256Digest(getKey());
+        } catch (GeneralSecurityException e) {
+            throw new RuntimeException("failed to read secure setting " + getKey(), e);
+        }
+    }
+
     /** Returns the secret setting from the keyStoreReader store. */
     abstract T getSecret(SecureSettings secureSettings) throws GeneralSecurityException;
 
@@ -120,14 +122,6 @@ public abstract class SecureSetting<T> extends Setting<T> {
     public static Setting<SecureString> secureString(String name, Setting<SecureString> fallback,
                                                      Property... properties) {
         return new SecureStringSetting(name, fallback, properties);
-    }
-
-    /**
-     * A setting which contains a sensitive string, but which for legacy reasons must be found outside secure settings.
-     * @see #secureString(String, Setting, Property...)
-     */
-    public static Setting<SecureString> insecureString(String name) {
-        return new InsecureStringSetting(name);
     }
 
     /**
@@ -159,24 +153,6 @@ public abstract class SecureSetting<T> extends Setting<T> {
                 return fallback.get(settings);
             }
             return new SecureString(new char[0]); // this means "setting does not exist"
-        }
-    }
-
-    private static class InsecureStringSetting extends Setting<SecureString> {
-        private final String name;
-
-        private InsecureStringSetting(String name) {
-            super(name, "", SecureString::new, Property.Deprecated, Property.Filtered, Property.NodeScope);
-            this.name = name;
-        }
-
-        @Override
-        public SecureString get(Settings settings) {
-            if (ALLOW_INSECURE_SETTINGS == false && exists(settings)) {
-                throw new IllegalArgumentException("Setting [" + name + "] is insecure, " +
-                    "but property [allow_insecure_settings] is not set");
-            }
-            return super.get(settings);
         }
     }
 

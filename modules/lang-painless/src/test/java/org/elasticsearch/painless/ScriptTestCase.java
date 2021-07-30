@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -22,21 +11,20 @@ package org.elasticsearch.painless;
 import junit.framework.AssertionFailedError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.antlr.Walker;
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.painless.PainlessExecuteAction.PainlessTestScript;
-import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
+import static org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -45,8 +33,6 @@ import static org.hamcrest.Matchers.hasSize;
  * Typically just asserts the output of {@code exec()}
  */
 public abstract class ScriptTestCase extends ESTestCase {
-    private static final PainlessLookup PAINLESS_LOOKUP = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
-
     protected PainlessScriptEngine scriptEngine;
 
     @Before
@@ -66,7 +52,9 @@ public abstract class ScriptTestCase extends ESTestCase {
      */
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(PainlessTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        whitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.painless.test"));
+        contexts.put(PainlessTestScript.CONTEXT, whitelists);
         return contexts;
     }
 
@@ -91,12 +79,10 @@ public abstract class ScriptTestCase extends ESTestCase {
     public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, boolean picky) {
         // test for ambiguity errors before running the actual script if picky is true
         if (picky) {
-            ScriptClassInfo scriptClassInfo = new ScriptClassInfo(PAINLESS_LOOKUP, PainlessTestScript.class);
             CompilerSettings pickySettings = new CompilerSettings();
             pickySettings.setPicky(true);
             pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));
-            Walker.buildPainlessTree(
-                scriptClassInfo, new MainMethodReserved(), getTestName(), script, pickySettings, PAINLESS_LOOKUP, null);
+            Walker.buildPainlessTree(getTestName(), script, pickySettings);
         }
         // test actual script execution
         PainlessTestScript.Factory factory = scriptEngine.compile(null, script, PainlessTestScript.CONTEXT, compileParams);

@@ -1,45 +1,40 @@
 [[cluster-reroute]]
-== Cluster Reroute
+=== Cluster reroute API
+++++
+<titleabbrev>Cluster reroute</titleabbrev>
+++++
+
+Changes the allocation of shards in a cluster.
+
+
+[[cluster-reroute-api-request]]
+==== {api-request-title}
+
+`POST /_cluster/reroute`
+
+[[cluster-reroute-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cluster-reroute-api-desc]]
+==== {api-description-title}
 
 The reroute command allows for manual changes to the allocation of individual
 shards in the cluster. For example, a shard can be moved from one node to
 another explicitly, an allocation can be cancelled, and an unassigned shard can
 be explicitly allocated to a specific node.
 
-Here is a short example of a simple reroute API call:
-
-[source,js]
---------------------------------------------------
-POST /_cluster/reroute
-{
-    "commands" : [
-        {
-            "move" : {
-                "index" : "test", "shard" : 0,
-                "from_node" : "node1", "to_node" : "node2"
-            }
-        },
-        {
-          "allocate_replica" : {
-                "index" : "test", "shard" : 1,
-                "node" : "node3"
-          }
-        }
-    ]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[skip:doc tests run with only a single node]
-
-It is important to note that after processing any reroute commands
-Elasticsearch will perform rebalancing as normal (respecting the values of
-settings such as `cluster.routing.rebalance.enable`) in order to remain in a
-balanced state. For example, if the requested allocation includes moving a
-shard from `node1` to `node2` then this may cause a shard to be moved from
-`node2` back to `node1` to even things out.
+It is important to note that after processing any reroute commands {es} will
+perform rebalancing as normal (respecting the values of settings such as
+`cluster.routing.rebalance.enable`) in order to remain in a balanced state. For
+example, if the requested allocation includes moving a shard from `node1` to
+`node2` then this may cause a shard to be moved from `node2` back to `node1` to
+even things out.
 
 The cluster can be set to disable allocations using the
-`cluster.routing.allocation.enable` setting.  If allocations are disabled then
+`cluster.routing.allocation.enable` setting. If allocations are disabled then
 the only allocations that will be performed are explicit ones given using the
 `reroute` command, and consequent allocations due to rebalancing.
 
@@ -53,13 +48,84 @@ changes.
 If the `?explain` URI query parameter is included then a detailed explanation
 of why the commands could or could not be executed is included in the response.
 
-The commands supported are:
+The cluster will attempt to allocate a shard a maximum of
+`index.allocation.max_retries` times in a row (defaults to `5`), before giving
+up and leaving the shard unallocated. This scenario can be caused by
+structural problems such as having an analyzer which refers to a stopwords
+file which doesn't exist on all nodes.
+
+Once the problem has been corrected, allocation can be manually retried by
+calling the `reroute` API with the `?retry_failed` URI
+query parameter, which will attempt a single retry round for these shards.
+
+
+[[cluster-reroute-api-query-params]]
+[role="child_attributes"]
+==== {api-query-parms-title}
+
+`dry_run`::
+    (Optional, Boolean) If `true`, then the request simulates the operation only
+    and returns the resulting state.
+
+`explain`::
+    (Optional, Boolean) If `true`, then the response contains an explanation of
+    why the commands can or cannot be executed.
+
+`metric`::
+    (Optional, string) Limits the information returned to the specified metrics.
+    Defaults to all but metadata The following options are available:
+
++
+.Options for `metric`
+[%collapsible%open]
+======
+`_all`::
+    Shows all metrics.
+
+`blocks`::
+    Shows the `blocks` part of the response.
+
+`master_node`::
+    Shows the elected `master_node` part of the response.
+
+`metadata`::
+    Shows the `metadata` part of the response. If you supply a comma separated
+    list of indices, the returned output will only contain metadata for these
+    indices.
+
+`nodes`::
+    Shows the `nodes` part of the response.
+
+`routing_table`::
+    Shows the `routing_table` part of the response.
+
+`version`::
+    Shows the cluster state version.
+======
+
+
+`retry_failed`::
+    (Optional, Boolean) If `true`, then retries allocation of shards that are
+    blocked due to too many subsequent allocation failures.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[role="child_attributes"]
+[[cluster-reroute-api-request-body]]
+==== {api-request-body-title}
+
+`commands`::
+    (Required, array of objects) Defines the commands to perform. Supported commands are:
+
++
+.Properties of `commands`
+[%collapsible%open]
+======
 
 `move`::
-    Move a started shard from one node to another node. Accepts
-    `index` and `shard` for index name and shard number, `from_node` for the
-    node to move the shard from, and `to_node` for the node to move the
-    shard to.
+    Move a started shard from one node to another node. Accepts `index` and
+    `shard` for index name and shard number, `from_node` for the node to move
+    the shard from, and `to_node` for the node to move the shard to.
 
 `cancel`::
     Cancel allocation of a shard (or recovery). Accepts `index` and `shard` for
@@ -76,26 +142,10 @@ The commands supported are:
     for index name and shard number, and `node` to allocate the shard to. Takes
     <<modules-cluster,allocation deciders>> into account.
 
-[float]
-=== Retrying failed allocations
-
-The cluster will attempt to allocate a shard a maximum of
-`index.allocation.max_retries` times in a row (defaults to `5`), before giving
-up and leaving the shard unallocated. This scenario can be caused by
-structural problems such as having an analyzer which refers to a stopwords
-file which doesn't exist on all nodes.
-
-Once the problem has been corrected, allocation can be manually retried by
-calling the <<cluster-reroute,`reroute`>> API with the `?retry_failed` URI
-query parameter, which will attempt a single retry round for these shards.
-
-[float]
-=== Forced allocation on unrecoverable errors
-
 Two more commands are available that allow the allocation of a primary shard to
 a node. These commands should however be used with extreme care, as primary
-shard allocation is usually fully automatically handled by Elasticsearch.
-Reasons why a primary shard cannot be automatically allocated include the
+shard allocation is usually fully automatically handled by {es}. Reasons why a
+primary shard cannot be automatically allocated include the
 following:
 
 - A new index was created but there is no node which satisfies the allocation
@@ -130,4 +180,31 @@ will be deleted or overwritten.
     data rejoins the cluster later on, that data will be deleted. To ensure
     that these implications are well-understood, this command requires the flag
     `accept_data_loss` to be explicitly set to `true`.
+======
 
+[[cluster-reroute-api-example]]
+==== {api-examples-title}
+
+This is a short example of a simple reroute API call:
+
+[source,console]
+--------------------------------------------------
+POST /_cluster/reroute
+{
+  "commands": [
+    {
+      "move": {
+        "index": "test", "shard": 0,
+        "from_node": "node1", "to_node": "node2"
+      }
+    },
+    {
+      "allocate_replica": {
+        "index": "test", "shard": 1,
+        "node": "node3"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TEST[skip:doc tests run with only a single node]

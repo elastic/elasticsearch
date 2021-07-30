@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.execution;
 
-import org.joda.time.DateTime;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
 
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
@@ -26,14 +26,14 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArg
  */
 public class Wid {
 
-    private static final DateTimeFormatter formatter = ISODateTimeFormat.dateTime();
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ISO_DATE_TIME;
 
     private final String watchId;
     private final String value;
 
-    public Wid(String watchId, DateTime executionTime) {
+    public Wid(String watchId, ZonedDateTime executionTime) {
         this.watchId = watchId;
-        this.value = watchId + "_" + UUID.randomUUID().toString() + "-" +  formatter.print(executionTime);
+        this.value = watchId + "_" + UUID.randomUUID().toString() + "-" +  formatter.format(executionTime);
     }
 
     public Wid(String value) {

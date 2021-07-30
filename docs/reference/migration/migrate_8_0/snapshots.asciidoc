@@ -1,0 +1,86 @@
+[discrete]
+[[breaking_80_snapshots_changes]]
+==== Snapshot and restore changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+.The `repositories.fs.compress` node-level setting has been removed.
+[%collapsible]
+====
+*Details* +
+For shared file system repositories (`"type": "fs"`), the node level setting `repositories.fs.compress` could
+previously be used to enable compression for all shared file system repositories where `compress` was not specified.
+The `repositories.fs.compress` setting has been removed.
+
+*Impact* +
+Use the repository specific `compress` setting to enable compression. See
+{ref}/snapshots-register-repository.html[Register a snapshot repository] for
+information on the `compress` setting.
+
+Discontinue use of the `repositories.fs.compress` node-level setting.
+====
+
+.Metadata files are now compressed by default.
+[%collapsible]
+====
+*Details* +
+Previously, the default value for `compress` was `false`. The default has been changed to `true`.
+
+This change will affect both newly created repositories and existing repositories where `compress=false` has not been
+explicitly specified.
+
+For more information on the compress option, see
+{ref}/snapshots-register-repository.html[Register a snapshot repository].
+
+*Impact* +
+Update your workflow and applications to assume a default value of `true` for
+the `compress` parameter.
+====
+
+.The S3 repository plugin now uses a DNS-style access pattern by default.
+[%collapsible]
+====
+*Details* +
+Starting in version 7.4 the `repository-s3` plugin does not use the
+now-deprecated path-style access pattern by default. In versions 7.0, 7.1, 7.2
+and 7.3 the `repository-s3` plugin always used the path-style access pattern.
+This is a breaking change for deployments that only support path-style access
+but which are recognized as supporting DNS-style access by the AWS SDK. This
+breaking change was made necessary by
+https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/[AWS's
+announcement] that the path-style access pattern is deprecated and will be
+unsupported on buckets created after September 30th 2020.
+
+*Impact* +
+If your deployment only supports path-style access and is affected by this
+change then you must configure the S3 client setting `path_style_access` to
+`true`.
+====
+
+.Restore requests no longer accept settings.
+[%collapsible]
+====
+*Details* +
+In earlier versions, you could pass both `settings` and `index_settings` in the
+body of a restore snapshot request, but the `settings` value was ignored. The
+restore snapshot API now rejects requests that include a `settings` value.
+
+*Impact* +
+Discontinue use of the `settings` parameter in restore
+snapshot request. Requests that include these parameters will return an error.
+====
+
+.The repository stats API has been removed.
+[%collapsible]
+====
+*Details* +
+The repository stats API has been removed. We deprecated this experimental API
+in 7.10.0. 
+
+*Impact* +
+Use the {ref}/repositories-metering-apis.html[repositories metering APIs]
+instead.
+====
+// end::notable-breaking-changes[]

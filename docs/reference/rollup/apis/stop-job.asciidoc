@@ -1,117 +1,83 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-stop-job]]
-=== Stop Job API
+=== Stop {rollup-jobs} API
+[subs="attributes"]
 ++++
-<titleabbrev>Stop Job</titleabbrev>
+<titleabbrev>Stop {rollup-jobs}</titleabbrev>
 ++++
+
+Stops an existing, started {rollup-job}.
 
 experimental[]
 
-This API stops an existing, started rollup job.  If the job does not exist an exception will be thrown.
-Stopping an already stopped job has no action.
-
-==== Request
+[[rollup-stop-job-request]]
+==== {api-request-title}
 
 `POST _rollup/job/<job_id>/_stop`
 
-//===== Description
+[[rollup-stop-job-prereqs]]
+==== {api-prereq-title}
 
-==== Path Parameters
+* If the {es} {security-features} are enabled, you must have `manage` or
+`manage_rollup` cluster privileges to use this API. For more information, see
+<<security-privileges>>.
 
-`job_id` (required)::
-  (string) Identifier for the job
+[[rollup-stop-job-desc]]
+===== {api-description-title}
 
-==== Query Parameters
+If you try to stop a job that does not exist, an exception occurs. If you try
+to stop a job that is already stopped, nothing happens.
 
-`wait_for_completion` (optional)::
-  (boolean) if set to true, causes the API to block until the indexer state completely stops.  If set to false, the
-  API returns immediately and the indexer will be stopped asynchronously in the background.  Defaults to `false`.
+[[rollup-stop-job-path-parms]]
+==== {api-path-parms-title}
 
-`timeout` (optional)::
-  (TimeValue) if `wait_for_completion=true`, the API will block for (at maximum)
-  the specified duration while waiting for the job to stop. If more than `timeout` time has passed, the API
-  will throw a timeout exception.  Note: even if a timeout exception is thrown, the stop request is still processing and
-  will eventually move the job to `STOPPED`.  The timeout simply means the API call itself timed out while waiting
-  for the status change.  Defaults to `30s`
+`<job_id>`::
+  (Required, string) Identifier for the {rollup-job}.
 
-==== Request Body
+[[rollup-stop-job-query-parms]]
+==== {api-query-parms-title}
 
-There is no request body for the Stop Job API.
+`timeout`::
+  (Optional, TimeValue) If `wait_for_completion` is `true`, the API blocks for
+  (at maximum) the specified duration while waiting for the job to stop. If more
+  than `timeout` time has passed, the API throws a timeout exception. Defaults
+  to `30s`.
++
+--
+NOTE: Even if a timeout exception is thrown, the stop request is still
+processing and eventually moves the job to `STOPPED`. The timeout simply means
+the API call itself timed out while waiting for the status change.
 
-==== Authorization
+--
+  
+`wait_for_completion`::
+  (Optional, Boolean) If set to `true`, causes the API to block until the
+  indexer state completely stops. If set to `false`, the API returns immediately
+  and the indexer is stopped asynchronously in the background. Defaults to
+  `false`.
 
-You must have `manage` or `manage_rollup` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+[[rollup-stop-job-response-codes]]
+==== {api-response-codes-title}
 
+`404` (Missing resources)::
+  This code indicates that there are no resources that match the request. It
+  occurs if you try to stop a job that doesn't exist.
 
-==== Examples
+[[rollup-stop-job-examples]]
+==== {api-examples-title}
 
-If we have an already-started rollup job named `sensor`, it can be stopped with:
-
-[source,js]
---------------------------------------------------
-POST _rollup/job/sensor/_stop
---------------------------------------------------
-// CONSOLE
-// TEST[setup:sensor_started_rollup_job]
-
-Which will return the response:
-
-[source,js]
-----
-{
-  "stopped": true
-}
-----
-// TESTRESPONSE
-
-If however we try to stop a job which doesn't exist:
-
-[source,js]
---------------------------------------------------
-POST _rollup/job/does_not_exist/_stop
---------------------------------------------------
-// CONSOLE
-// TEST[catch:missing]
-
-A 404 `resource_not_found` exception will be thrown:
-
-[source,js]
-----
-{
-    "error" : {
-        "root_cause" : [
-            {
-                "type" : "resource_not_found_exception",
-                "reason" : "Task for Rollup Job [does_not_exist] not found",
-                "stack_trace": ...
-            }
-        ],
-        "type" : "resource_not_found_exception",
-        "reason" : "Task for Rollup Job [does_not_exist] not found",
-        "stack_trace": ...
-    },
-    "status": 404
-}
-----
-// TESTRESPONSE[s/"stack_trace": .../"stack_trace": $body.$_path/]
-
-===== Waiting for the job to stop
-
-Since only a stopped job can be deleted, it can be useful to block the StopJob API until the indexer has fully
-stopped.  This is accomplished with the `wait_for_completion` query parameter, and optionally a `timeout`:
+Since only a stopped job can be deleted, it can be useful to block the API until
+the indexer has fully stopped. This is accomplished with the
+`wait_for_completion` query parameter, and optionally a `timeout`:
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _rollup/job/sensor/_stop?wait_for_completion=true&timeout=10s
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_started_rollup_job]
 
-The parameter will block the API call from returning until either the job has moved to `STOPPED`, or the specified
-time has elapsed.  If the specified time elapses without the job moving to `STOPPED`, a timeout exception will be thrown.
-
-If `wait_for_completion=true` is specified without a `timeout`, a default timeout of 30 seconds is used.
+The parameter blocks the API call from returning until either the job has moved
+to `STOPPED` or the specified time has elapsed. If the specified time elapses
+without the job moving to `STOPPED`, a timeout exception is thrown.

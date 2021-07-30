@@ -7,26 +7,25 @@ Elasticsearch on Windows. On Windows that JVM uses an
 https://msdn.microsoft.com/en-us/library/windows/desktop/aa363858(v=vs.85).aspx[API]
 limited only by available resources.
 
-Elasticsearch uses a lot of file descriptors or file handles.  Running out of
+Elasticsearch uses a lot of file descriptors or file handles. Running out of
 file descriptors can be disastrous and will most probably lead to data loss.
 Make sure to increase the limit on the number of open files descriptors for
 the user running Elasticsearch to 65,536 or higher.
 
-For the `.zip` and `.tar.gz` packages, set <<ulimit,`ulimit -n 65536`>> as
-root before starting Elasticsearch,   or set `nofile` to `65536` in
+For the `.zip` and `.tar.gz` packages, set <<ulimit,`ulimit -n 65535`>> as
+root before starting Elasticsearch,   or set `nofile` to `65535` in
 <<limits.conf,`/etc/security/limits.conf`>>.
 
 On macOS, you must also pass the JVM option `-XX:-MaxFDLimit`
 to Elasticsearch in order for it to make use of the higher file descriptor limit.
 
 RPM and Debian packages already default the maximum number of file
-descriptors to 65536 and do not require further configuration.
+descriptors to 65535 and do not require further configuration.
 
 You can check the `max_file_descriptors` configured for each node
 using the <<cluster-nodes-stats>> API, with:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _nodes/stats/process?filter_path=**.max_file_descriptors
 --------------------------------------------------
-// CONSOLE

@@ -54,6 +54,10 @@ It can be set to:
     가곡역 => 가곡역, 가곡, 역
 --
 
+`discard_punctuation`::
+
+    Whether punctuation should be discarded from the output. Defaults to `true`.
+
 `user_dictionary`::
 +
 --
@@ -88,7 +92,7 @@ C샤프
 
 Then create an analyzer as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT nori_sample
 {
@@ -99,6 +103,7 @@ PUT nori_sample
           "nori_user_dict": {
             "type": "nori_tokenizer",
             "decompound_mode": "mixed",
+            "discard_punctuation": "false",
             "user_dictionary": "userdict_ko.txt"
           }
         },
@@ -119,13 +124,12 @@ GET nori_sample/_analyze
   "text": "세종시"  <1>
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Sejong city
 
 The above `analyze` request returns the following:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens" : [ {
@@ -150,7 +154,6 @@ The above `analyze` request returns the following:
    }]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 <1> This is a compound token that spans two positions (`mixed` mode).
 --
@@ -162,7 +165,7 @@ The above `analyze` request returns the following:
 You can also inline the rules directly in the tokenizer definition using
 the `user_dictionary_rules` option:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT nori_sample
 {
@@ -187,14 +190,13 @@ PUT nori_sample
   }
 }
 --------------------------------------------------
-// CONSOLE
 --
 
 The `nori_tokenizer` sets a number of additional attributes per token that are used by token filters
 to modify the stream.
 You can view all these additional attributes with the following request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _analyze
 {
@@ -204,100 +206,99 @@ GET _analyze
   "explain": true
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> A tree with deep roots
 
 Which responds with:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-    "detail": {
-        "custom_analyzer": true,
-        "charfilters": [],
-        "tokenizer": {
-            "name": "nori_tokenizer",
-            "tokens": [
-                {
-                    "token": "뿌리",
-                    "start_offset": 0,
-                    "end_offset": 2,
-                    "type": "word",
-                    "position": 0,
-                    "leftPOS": "NNG(General Noun)",
-                    "morphemes": null,
-                    "posType": "MORPHEME",
-                    "reading": null,
-                    "rightPOS": "NNG(General Noun)"
-                },
-                {
-                    "token": "가",
-                    "start_offset": 2,
-                    "end_offset": 3,
-                    "type": "word",
-                    "position": 1,
-                    "leftPOS": "J(Ending Particle)",
-                    "morphemes": null,
-                    "posType": "MORPHEME",
-                    "reading": null,
-                    "rightPOS": "J(Ending Particle)"
-                },
-                {
-                    "token": "깊",
-                    "start_offset": 4,
-                    "end_offset": 5,
-                    "type": "word",
-                    "position": 2,
-                    "leftPOS": "VA(Adjective)",
-                    "morphemes": null,
-                    "posType": "MORPHEME",
-                    "reading": null,
-                    "rightPOS": "VA(Adjective)"
-                },
-                {
-                    "token": "은",
-                    "start_offset": 5,
-                    "end_offset": 6,
-                    "type": "word",
-                    "position": 3,
-                    "leftPOS": "E(Verbal endings)",
-                    "morphemes": null,
-                    "posType": "MORPHEME",
-                    "reading": null,
-                    "rightPOS": "E(Verbal endings)"
-                },
-                {
-                    "token": "나무",
-                    "start_offset": 7,
-                    "end_offset": 9,
-                    "type": "word",
-                    "position": 4,
-                    "leftPOS": "NNG(General Noun)",
-                    "morphemes": null,
-                    "posType": "MORPHEME",
-                    "reading": null,
-                    "rightPOS": "NNG(General Noun)"
-                },
-                {
-                    "token": "는",
-                    "start_offset": 9,
-                    "end_offset": 10,
-                    "type": "word",
-                    "position": 5,
-                    "leftPOS": "J(Ending Particle)",
-                    "morphemes": null,
-                    "posType": "MORPHEME",
-                    "reading": null,
-                    "rightPOS": "J(Ending Particle)"
-                }
-            ]
+  "detail": {
+    "custom_analyzer": true,
+    "charfilters": [],
+    "tokenizer": {
+      "name": "nori_tokenizer",
+      "tokens": [
+        {
+          "token": "뿌리",
+          "start_offset": 0,
+          "end_offset": 2,
+          "type": "word",
+          "position": 0,
+          "leftPOS": "NNG(General Noun)",
+          "morphemes": null,
+          "posType": "MORPHEME",
+          "reading": null,
+          "rightPOS": "NNG(General Noun)"
         },
-        "tokenfilters": []
-    }
+        {
+          "token": "가",
+          "start_offset": 2,
+          "end_offset": 3,
+          "type": "word",
+          "position": 1,
+          "leftPOS": "J(Ending Particle)",
+          "morphemes": null,
+          "posType": "MORPHEME",
+          "reading": null,
+          "rightPOS": "J(Ending Particle)"
+        },
+        {
+          "token": "깊",
+          "start_offset": 4,
+          "end_offset": 5,
+          "type": "word",
+          "position": 2,
+          "leftPOS": "VA(Adjective)",
+          "morphemes": null,
+          "posType": "MORPHEME",
+          "reading": null,
+          "rightPOS": "VA(Adjective)"
+        },
+        {
+          "token": "은",
+          "start_offset": 5,
+          "end_offset": 6,
+          "type": "word",
+          "position": 3,
+          "leftPOS": "E(Verbal endings)",
+          "morphemes": null,
+          "posType": "MORPHEME",
+          "reading": null,
+          "rightPOS": "E(Verbal endings)"
+        },
+        {
+          "token": "나무",
+          "start_offset": 7,
+          "end_offset": 9,
+          "type": "word",
+          "position": 4,
+          "leftPOS": "NNG(General Noun)",
+          "morphemes": null,
+          "posType": "MORPHEME",
+          "reading": null,
+          "rightPOS": "NNG(General Noun)"
+        },
+        {
+          "token": "는",
+          "start_offset": 9,
+          "end_offset": 10,
+          "type": "word",
+          "position": 5,
+          "leftPOS": "J(Ending Particle)",
+          "morphemes": null,
+          "posType": "MORPHEME",
+          "reading": null,
+          "rightPOS": "J(Ending Particle)"
+        }
+      ]
+    },
+    "tokenfilters": []
+  }
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 
 [[analysis-nori-speech]]
 ==== `nori_part_of_speech` token filter
@@ -330,7 +331,7 @@ and defaults to:
 
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT nori_sample
 {
@@ -364,14 +365,13 @@ GET nori_sample/_analyze
   "text": "여섯 용이"  <2>
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Korean numerals should be removed (`NR`)
 <2> Six dragons
 
 Which responds with:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens" : [ {
@@ -389,29 +389,29 @@ Which responds with:
   } ]
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 
 [[analysis-nori-readingform]]
 ==== `nori_readingform` token filter
 
 The `nori_readingform` token filter rewrites tokens written in Hanja to their Hangul form.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT nori_sample
 {
-    "settings": {
-        "index":{
-            "analysis":{
-                "analyzer" : {
-                    "my_analyzer" : {
-                        "tokenizer" : "nori_tokenizer",
-                        "filter" : ["nori_readingform"]
-                    }
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "my_analyzer": {
+            "tokenizer": "nori_tokenizer",
+            "filter": [ "nori_readingform" ]
+          }
         }
+      }
     }
+  }
 }
 
 GET nori_sample/_analyze
@@ -420,13 +420,12 @@ GET nori_sample/_analyze
   "text": "鄕歌"      <1>
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> A token written in Hanja: Hyangga
 
 Which responds with:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens" : [ {
@@ -438,6 +437,109 @@ Which responds with:
   }]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 <1> The Hanja form is replaced by the Hangul translation.
+
+
+[[analysis-nori-number]]
+==== `nori_number` token filter
+
+The `nori_number` token filter normalizes Korean numbers
+to regular Arabic decimal numbers in half-width characters.
+
+Korean numbers are often written using a combination of Hangul and Arabic numbers with various kinds punctuation.
+For example, ３．２천 means 3200.
+This filter does this kind of normalization and allows a search for 3200 to match ３．２천 in text,
+but can also be used to make range facets based on the normalized numbers and so on.
+
+[NOTE]
+====
+Notice that this analyzer uses a token composition scheme and relies on punctuation tokens
+being found in the token stream.
+Please make sure your `nori_tokenizer` has `discard_punctuation` set to false.
+In case punctuation characters, such as U+FF0E(．), is removed from the token stream,
+this filter would find input tokens ３ and ２천 and give outputs 3 and 2000 instead of 3200,
+which is likely not the intended result.
+
+If you want to remove punctuation characters from your index that are not part of normalized numbers,
+add a `stop` token filter with the punctuation you wish to remove after `nori_number` in your analyzer chain.
+====
+Below are some examples of normalizations this filter supports.
+The input is untokenized text and the result is the single term attribute emitted for the input.
+
+- 영영칠 -> 7
+- 일영영영 -> 1000
+- 삼천2백2십삼 -> 3223
+- 조육백만오천일 -> 1000006005001
+- ３.２천 ->  3200
+- １.２만３４５.６７ -> 12345.67
+- 4,647.100 -> 4647.1
+- 15,7 -> 157 (be aware of this weakness)
+
+For example:
+
+[source,console]
+--------------------------------------------------
+PUT nori_sample
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "my_analyzer": {
+            "tokenizer": "tokenizer_discard_puncuation_false",
+            "filter": [
+              "part_of_speech_stop_sp", "nori_number"
+            ]
+          }
+        },
+        "tokenizer": {
+          "tokenizer_discard_puncuation_false": {
+            "type": "nori_tokenizer",
+            "discard_punctuation": "false"
+          }
+        },
+        "filter": {
+            "part_of_speech_stop_sp": {
+                "type": "nori_part_of_speech",
+                "stoptags": ["SP"]
+            }
+        }
+      }
+    }
+  }
+}
+
+GET nori_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "십만이천오백과 ３.２천"
+}
+--------------------------------------------------
+
+Which results in:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "tokens" : [{
+    "token" : "102500",
+    "start_offset" : 0,
+    "end_offset" : 6,
+    "type" : "word",
+    "position" : 0
+  }, {
+    "token" : "과",
+    "start_offset" : 6,
+    "end_offset" : 7,
+    "type" : "word",
+    "position" : 1
+  }, {
+    "token" : "3200",
+    "start_offset" : 8,
+    "end_offset" : 12,
+    "type" : "word",
+    "position" : 2
+  }]
+}
+--------------------------------------------------

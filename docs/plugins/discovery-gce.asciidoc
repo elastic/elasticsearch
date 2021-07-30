@@ -1,7 +1,8 @@
 [[discovery-gce]]
 === GCE Discovery Plugin
 
-The Google Compute Engine Discovery plugin uses the GCE API for unicast discovery.
+The Google Compute Engine Discovery plugin uses the GCE API to identify the
+addresses of seed hosts.
 
 :plugin_name: discovery-gce
 include::install_remove.asciidoc[]
@@ -9,17 +10,17 @@ include::install_remove.asciidoc[]
 [[discovery-gce-usage]]
 ==== GCE Virtual Machine Discovery
 
-Google Compute Engine VM discovery allows to use the google APIs to perform automatic discovery (similar to multicast
-in non hostile multicast environments). Here is a simple sample configuration:
+Google Compute Engine VM discovery allows to use the google APIs to perform
+automatic discovery of seed hosts. Here is a simple sample configuration:
 
 [source,yaml]
 --------------------------------------------------
 cloud:
   gce:
-      project_id: <your-google-project-id>
-      zone: <your-zone>
+    project_id: <your-google-project-id>
+    zone: <your-zone>
 discovery:
-      zen.hosts_provider: gce
+  seed_providers: gce
 --------------------------------------------------
 
 The following gce settings (prefixed with `cloud.gce`) are supported:
@@ -181,29 +182,7 @@ Failing to set this will result in unauthorized messages when starting Elasticse
 See <<discovery-gce-usage-tips-permissions>>.
 ==============================================
 
-
-Once connected, install Elasticsearch:
-
-[source,sh]
---------------------------------------------------
-sudo apt-get update
-
-# Download Elasticsearch
-wget https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-2.0.0.deb
-
-# Prepare Java installation (Oracle)
-sudo echo "deb http://ppa.launchpad.net/webupd8team/java/ubuntu trusty main" | sudo tee /etc/apt/sources.list.d/webupd8team-java.list
-sudo echo "deb-src http://ppa.launchpad.net/webupd8team/java/ubuntu trusty main" | sudo tee -a /etc/apt/sources.list.d/webupd8team-java.list
-sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys EEA14886
-sudo apt-get update
-sudo apt-get install oracle-java8-installer
-
-# Prepare Java installation (or OpenJDK)
-# sudo apt-get install java8-runtime-headless
-
-# Prepare Elasticsearch installation
-sudo dpkg -i elasticsearch-2.0.0.deb
---------------------------------------------------
+Once connected, {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[install {es}]:
 
 [[discovery-gce-usage-long-install-plugin]]
 ===== Install Elasticsearch discovery gce plugin
@@ -232,7 +211,7 @@ cloud:
       project_id: es-cloud
       zone: europe-west1-a
 discovery:
-      zen.hosts_provider: gce
+      seed_providers: gce
 --------------------------------------------------
 
 
@@ -240,7 +219,7 @@ Start Elasticsearch:
 
 [source,sh]
 --------------------------------------------------
-sudo /etc/init.d/elasticsearch start
+sudo systemctl start elasticsearch
 --------------------------------------------------
 
 If anything goes wrong, you should check logs:
@@ -326,7 +305,7 @@ gcloud compute instances delete myesnode1 myesnode2 \
        --zone=europe-west1-a
 
 # Consider removing disk as well if you don't need them anymore
-gcloud compute disks deleted boot-myesnode1 boot-myesnode2  \
+gcloud compute disks delete boot-myesnode1 boot-myesnode2  \
        --zone=europe-west1-a
 --------------------------------------------------
 
@@ -343,10 +322,10 @@ To enable discovery across more than one zone, just enter add your zone list to 
 --------------------------------------------------
 cloud:
   gce:
-      project_id: <your-google-project-id>
-      zone: ["<your-zone1>", "<your-zone2>"]
+    project_id: <your-google-project-id>
+    zone: ["<your-zone1>", "<your-zone2>"]
 discovery:
-      zen.hosts_provider: gce
+  seed_providers: gce
 --------------------------------------------------
 
 
@@ -358,11 +337,10 @@ The GCE discovery can also filter machines to include in the cluster based on ta
 For example, setting `discovery.gce.tags` to `dev` will only filter instances having a tag set to `dev`. Several tags
 set will require all of those tags to be set for the instance to be included.
 
-One practical use for tag filtering is when an GCE cluster contains many nodes that are not running
-Elasticsearch. In this case (particularly with high `discovery.zen.ping_timeout` values) there is a risk that a new
-node's discovery phase will end before it has found the cluster (which will result in it declaring itself master of a
-new cluster with the same name - highly undesirable). Adding tag on Elasticsearch GCE nodes and then filtering by that
-tag will resolve this issue.
+One practical use for tag filtering is when a GCE cluster contains many nodes
+that are not master-eligible {es} nodes. In this case, tagging the GCE
+instances that _are_ running the master-eligible {es} nodes, and then filtering
+by that tag, will help discovery to run more efficiently.
 
 Add your tag when building the new instance:
 
@@ -379,12 +357,12 @@ Then, define it in `elasticsearch.yml`:
 --------------------------------------------------
 cloud:
   gce:
-      project_id: es-cloud
-      zone: europe-west1-a
+    project_id: es-cloud
+    zone: europe-west1-a
 discovery:
-      zen.hosts_provider: gce
-      gce:
-            tags: elasticsearch, dev
+  seed_providers: gce
+    gce:
+      tags: elasticsearch, dev
 --------------------------------------------------
 
 [[discovery-gce-usage-port]]
@@ -438,7 +416,7 @@ gcloud config set project es-cloud
 [[discovery-gce-usage-tips-permissions]]
 ===== Machine Permissions
 
-If you have created a machine without the correct permissions, you will see `403 unauthorized` error messages. To change machine permission on an existing instance, first stop the instance then Edit. Scroll down to `Access Scopes` to change permission.  The other way to alter these permissions is to delete the instance (NOT THE DISK). Then create another with the correct permissions.
+If you have created a machine without the correct permissions, you will see `403 unauthorized` error messages. To change machine permission on an existing instance, first stop the instance then Edit. Scroll down to `Access Scopes` to change permission. The other way to alter these permissions is to delete the instance (NOT THE DISK). Then create another with the correct permissions.
 
 Creating machines with gcloud::
 +
@@ -454,9 +432,9 @@ Ensure the following flags are set:
 Creating with console (web)::
 +
 --
-When creating an instance using the web portal, click _Show advanced options_.
+When creating an instance using the web console, scroll down to **Identity and API access**.
 
-At the bottom of the page, under `PROJECT ACCESS`, choose `>> Compute >> Read Write`.
+Select a service account with the correct permissions or choose **Compute Engine default service account** and select **Allow default access** for **Access scopes**.
 --
 
 Creating with knife google::
@@ -472,7 +450,7 @@ knife google server create www1 \
     -Z us-central1-a \
     -i ~/.ssh/id_rsa \
     -x jdoe \
-    --gce-service-account-scopes https://www.googleapis.com/auth/compute.full_control
+    --gce-service-account-scopes https://www.googleapis.com/auth/compute
 --------------------------------------------------
 
 Or, you may use the alias:
@@ -497,7 +475,7 @@ cloud:
       project_id: es-cloud
       zone: europe-west1-a
 discovery:
-      zen.hosts_provider: gce
+      seed_providers: gce
 --------------------------------------------------
 
 Replaces `project_id` and `zone` with your settings.

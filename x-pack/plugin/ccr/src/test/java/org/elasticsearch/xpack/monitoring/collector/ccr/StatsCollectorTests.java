@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.ccr;
 
@@ -9,15 +10,14 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
-import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
-import org.elasticsearch.xpack.core.ccr.client.CcrClient;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
@@ -33,36 +33,18 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class StatsCollectorTests extends BaseCollectorTestCase {
 
-    public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
-        final Settings settings = randomFrom(ccrEnabledSettings(), ccrDisabledSettings());
-        final boolean ccrAllowed = randomBoolean();
-        final boolean isElectedMaster = randomBoolean();
-        whenLocalNodeElectedMaster(isElectedMaster);
-
-        // this controls the blockage
-        when(licenseState.isMonitoringAllowed()).thenReturn(false);
-        when(licenseState.isCcrAllowed()).thenReturn(ccrAllowed);
-
-        final StatsCollector collector = createCollector(settings, clusterService, licenseState, client);
-
-        assertThat(collector.shouldCollect(isElectedMaster), is(false));
-        if (isElectedMaster) {
-            verify(licenseState).isMonitoringAllowed();
-        }
-    }
-
     public void testShouldCollectReturnsFalseIfNotMaster() {
         // regardless of CCR being enabled
         final Settings settings = randomFrom(ccrEnabledSettings(), ccrDisabledSettings());
 
-        when(licenseState.isMonitoringAllowed()).thenReturn(randomBoolean());
-        when(licenseState.isCcrAllowed()).thenReturn(randomBoolean());
+        when(licenseState.checkFeature(XPackLicenseState.Feature.CCR)).thenReturn(randomBoolean());
         // this controls the blockage
         final boolean isElectedMaster = false;
 
@@ -75,8 +57,7 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         // this is controls the blockage
         final Settings settings = ccrDisabledSettings();
 
-        when(licenseState.isMonitoringAllowed()).thenReturn(randomBoolean());
-        when(licenseState.isCcrAllowed()).thenReturn(randomBoolean());
+        when(licenseState.checkFeature(XPackLicenseState.Feature.CCR)).thenReturn(randomBoolean());
 
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
@@ -84,42 +65,30 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         final StatsCollector collector = createCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
-
-        if (isElectedMaster) {
-            verify(licenseState).isMonitoringAllowed();
-        }
     }
 
     public void testShouldCollectReturnsFalseIfCCRIsNotAllowed() {
         final Settings settings = randomFrom(ccrEnabledSettings(), ccrDisabledSettings());
 
-        when(licenseState.isMonitoringAllowed()).thenReturn(randomBoolean());
         // this is controls the blockage
-        when(licenseState.isCcrAllowed()).thenReturn(false);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.CCR)).thenReturn(false);
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
         final StatsCollector collector = createCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
-
-        if (isElectedMaster) {
-            verify(licenseState).isMonitoringAllowed();
-        }
     }
 
     public void testShouldCollectReturnsTrue() {
         final Settings settings = ccrEnabledSettings();
 
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
-        when(licenseState.isCcrAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.CCR)).thenReturn(true);
         final boolean isElectedMaster = true;
 
         final StatsCollector collector = createCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(true));
-
-        verify(licenseState).isMonitoringAllowed();
     }
 
     public void testDoCollect() throws Exception {
@@ -127,7 +96,7 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         whenClusterStateWithUUID(clusterUuid);
 
         final MonitoringDoc.Node node = randomMonitoringNode(random());
-        final CcrClient client = mock(CcrClient.class);
+        final Client client = mock(Client.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final List<FollowStatsAction.StatsResponse> statuses = mockStatuses();
 
@@ -142,7 +111,7 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         final ActionFuture<CcrStatsAction.Response> future = (ActionFuture<CcrStatsAction.Response>) mock(ActionFuture.class);
         final CcrStatsAction.Response response = new CcrStatsAction.Response(autoFollowStats, statsResponse);
 
-        when(client.stats(any())).thenReturn(future);
+        when(client.execute(eq(CcrStatsAction.INSTANCE), any(CcrStatsAction.Request.class))).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(response);
 
         final StatsCollector collector = new StatsCollector(settings, clusterService, licenseState, client, threadContext);
@@ -150,8 +119,8 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
 
         final long interval = randomNonNegativeLong();
         final List<MonitoringDoc> documents = new ArrayList<>(collector.doCollect(node, interval, clusterState));
-        verify(clusterState).metaData();
-        verify(metaData).clusterUUID();
+        verify(clusterState).metadata();
+        verify(metadata).clusterUUID();
 
         assertThat(documents, hasSize(statuses.size() + 1));
 

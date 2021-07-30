@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.client;
 
@@ -70,9 +71,9 @@ public class RemoteFailureTests extends ESTestCase {
     public void testBogusError() {
         IOException e = expectThrows(IOException.class, () -> parse("bogus_error.json"));
         assertEquals(
-            "Can't parse error from Elasticsearch [Expected [error] to be an object but was [VALUE_STRING][bogus]] "
+            "Can't parse error from Elasticsearch [Expected [error] to be an object or string but was [START_ARRAY][[]] "
                 + "at [line 1 col 12]. Response:\n"
-                + "{ \"error\": \"bogus\" }",
+                + "{ \"error\": [\"bogus\"] }",
             e.getMessage());
     }
 
@@ -92,7 +93,8 @@ public class RemoteFailureTests extends ESTestCase {
     public void testInvalidJson() {
         IOException e = expectThrows(IOException.class, () -> parse("invalid_json.txt"));
         assertEquals(
-            "Can't parse error from Elasticsearch [Unrecognized token 'I': was expecting 'null', 'true', 'false' or NaN] "
+            "Can't parse error from Elasticsearch [Unrecognized token 'I': "
+                + "was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')] "
                 + "at [line 1 col 1]. Response:\n"
                 + "I'm not json at all",
             e.getMessage());
@@ -118,7 +120,7 @@ public class RemoteFailureTests extends ESTestCase {
             }).streamInput()));
         assertThat(e.getMessage(),
             startsWith("Can't parse error from Elasticsearch [Unrecognized token 'ÿ': "
-                + "was expecting ('true', 'false' or 'null')] at [line 1 col 1]. Response:\n"));
+                + "was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')] at [line 1 col 4]. Response:\n"));
     }
 
     public void testTooBig() {

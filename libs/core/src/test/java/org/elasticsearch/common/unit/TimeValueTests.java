@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.unit;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.TimeUnit;
@@ -47,6 +37,26 @@ public class TimeValueTests extends ESTestCase {
         assertThat("1.5m", equalTo(new TimeValue(90, TimeUnit.SECONDS).toString()));
         assertThat("1.5h", equalTo(new TimeValue(90, TimeUnit.MINUTES).toString()));
         assertThat("1.5d", equalTo(new TimeValue(36, TimeUnit.HOURS).toString()));
+        assertThat("1d", equalTo(new TimeValue(36, TimeUnit.HOURS).toHumanReadableString(0)));
+        assertThat("1d", equalTo(new TimeValue(36, TimeUnit.HOURS).toHumanReadableString(-4)));
+        assertThat("1.5d", equalTo(new TimeValue(36, TimeUnit.HOURS).toHumanReadableString(2)));
+        assertThat("1.45d", equalTo(new TimeValue(35, TimeUnit.HOURS).toHumanReadableString(2)));
+        assertThat("1.4583333333d", equalTo(new TimeValue(35, TimeUnit.HOURS).toHumanReadableString(10)));
+        assertThat("1d", equalTo(new TimeValue(103723200, TimeUnit.MILLISECONDS).toHumanReadableString(0)));
+        assertThat("1.2d", equalTo(new TimeValue(103723200, TimeUnit.MILLISECONDS).toHumanReadableString(1)));
+        assertThat("1.2d", equalTo(new TimeValue(103723200, TimeUnit.MILLISECONDS).toHumanReadableString(2)));
+        assertThat("1.2d", equalTo(new TimeValue(103723200, TimeUnit.MILLISECONDS).toHumanReadableString(3)));
+        assertThat("1.2005d", equalTo(new TimeValue(103723200, TimeUnit.MILLISECONDS).toHumanReadableString(4)));
+        assertThat("1d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toHumanReadableString(0)));
+        assertThat("1d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toHumanReadableString(1)));
+        assertThat("1d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toHumanReadableString(2)));
+        assertThat("1d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toHumanReadableString(3)));
+        assertThat("1d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toHumanReadableString(4)));
+        assertThat("1d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toHumanReadableString(5)));
+        assertThat("1d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toHumanReadableString(6)));
+        assertThat("1.0000008d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toHumanReadableString(7)));
+        assertThat("1.00000089d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toHumanReadableString(8)));
+        assertThat("1.4583333333d", equalTo(new TimeValue(35, TimeUnit.HOURS).toHumanReadableString(Integer.MAX_VALUE)));
         assertThat("1000d", equalTo(new TimeValue(1000, TimeUnit.DAYS).toString()));
     }
 
@@ -217,5 +227,27 @@ public class TimeValueTests extends ESTestCase {
         TimeValue firstValue = new TimeValue(randomIntBetween(0, Integer.MAX_VALUE), TimeUnit.MINUTES);
         TimeValue secondValue = new TimeValue(firstValue.getSeconds(), TimeUnit.SECONDS);
         assertEquals(firstValue.hashCode(), secondValue.hashCode());
+    }
+
+    public void testRejectsNegativeValuesDuringParsing() {
+        final String settingName = "test-value";
+        final long negativeValue = randomLongBetween(Long.MIN_VALUE, -2);
+        final String negativeTimeValueString = Long.toString(negativeValue) + randomTimeUnit();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> TimeValue.parseTimeValue(negativeTimeValueString, settingName));
+        assertThat(ex.getMessage(),
+            equalTo("failed to parse setting [" + settingName + "] with value [" + negativeTimeValueString +
+                "] as a time value: negative durations are not supported"));
+    }
+
+    public void testRejectsNegativeValuesAtCreation() {
+        final long duration = randomLongBetween(Long.MIN_VALUE, -2);
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new TimeValue(duration, randomTimeUnitObject()));
+        assertThat(ex.getMessage(), containsString("duration cannot be negative"));
+    }
+
+    private TimeUnit randomTimeUnitObject() {
+        return randomFrom(TimeUnit.NANOSECONDS, TimeUnit.MICROSECONDS, TimeUnit.MILLISECONDS, TimeUnit.SECONDS,
+            TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
     }
 }

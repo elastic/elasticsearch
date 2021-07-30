@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.hamcrest;
@@ -24,6 +13,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.MultiLine;
 import org.hamcrest.Matcher;
 import org.junit.Assert;
 import org.locationtech.jts.geom.Coordinate;
@@ -221,7 +212,9 @@ public class ElasticsearchGeoAssertions {
             || (s1 instanceof GeoPoint && s2 instanceof GeoPoint)) {
             Assert.assertEquals(s1, s2);
         } else if (s1 instanceof Object[] && s2 instanceof Object[]) {
-            Assert.assertArrayEquals((Object[])s1, (Object[])s2);
+            Assert.assertArrayEquals((Object[]) s1, (Object[]) s2);
+        } else if (s1 instanceof org.elasticsearch.geometry.Geometry && s2 instanceof org.elasticsearch.geometry.Geometry) {
+            Assert.assertEquals(s1, s2);
         } else {
             //We want to know the type of the shape because we test shape equality in a special way...
             //... in particular we test that one ring is equivalent to another ring even if the points are rotated or reversed.
@@ -242,7 +235,7 @@ public class ElasticsearchGeoAssertions {
                 unwrapJTS(shape) instanceof MultiPolygon);
         } else {
             assertTrue("expected Polygon[] but found " + shape.getClass().getName(),
-                shape instanceof org.apache.lucene.geo.Polygon[]);
+                shape instanceof org.elasticsearch.geometry.MultiPolygon);
         }
     }
 
@@ -252,7 +245,7 @@ public class ElasticsearchGeoAssertions {
                 + unwrapJTS(shape).getClass().getName(), unwrapJTS(shape) instanceof Polygon);
         } else {
             assertTrue("expected Polygon but found " + shape.getClass().getName(),
-                shape instanceof org.apache.lucene.geo.Polygon);
+                shape instanceof org.elasticsearch.geometry.Polygon);
         }
     }
 
@@ -262,7 +255,7 @@ public class ElasticsearchGeoAssertions {
                 + unwrapJTS(shape).getClass().getName(), unwrapJTS(shape) instanceof LineString);
         } else {
             assertTrue("expected Line but found " + shape.getClass().getName(),
-            shape instanceof org.apache.lucene.geo.Line);
+            shape instanceof Line);
         }
     }
 
@@ -272,7 +265,7 @@ public class ElasticsearchGeoAssertions {
                 + unwrapJTS(shape).getClass().getName(), unwrapJTS(shape) instanceof MultiLineString);
         } else {
             assertTrue("expected Line[] but found " + shape.getClass().getName(),
-                shape instanceof org.apache.lucene.geo.Line[]);
+                shape instanceof MultiLine);
         }
     }
 

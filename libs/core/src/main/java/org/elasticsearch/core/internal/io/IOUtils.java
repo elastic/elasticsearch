@@ -1,4 +1,4 @@
-/*
+/* @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -13,9 +13,13 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * Modifications copyright (C) 2020 Elasticsearch B.V.
  */
 
 package org.elasticsearch.core.internal.io;
+
+import org.elasticsearch.core.Nullable;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -24,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -59,6 +64,15 @@ public final class IOUtils {
      */
     public static void close(final Closeable... objects) throws IOException {
         close(null, Arrays.asList(objects));
+    }
+
+    /**
+     * @see #close(Closeable...)
+     */
+    public static void close(@Nullable Closeable closeable) throws IOException {
+        if (closeable != null) {
+            closeable.close();
+        }
     }
 
     /**
@@ -99,9 +113,7 @@ public final class IOUtils {
         Exception firstException = ex;
         for (final Closeable object : objects) {
             try {
-                if (object != null) {
-                    object.close();
-                }
+                close(object);
             } catch (final IOException | RuntimeException e) {
                 if (firstException == null) {
                     firstException = e;
@@ -139,14 +151,18 @@ public final class IOUtils {
      */
     public static void closeWhileHandlingException(final Iterable<? extends Closeable> objects) {
         for (final Closeable object : objects) {
-            // noinspection EmptyCatchBlock
-            try {
-                if (object != null) {
-                    object.close();
-                }
-            } catch (final IOException | RuntimeException e) {
+           closeWhileHandlingException(object);
+        }
+    }
 
-            }
+    /**
+     * @see #closeWhileHandlingException(Closeable...)
+     */
+    public static void closeWhileHandlingException(final Closeable closeable) {
+        // noinspection EmptyCatchBlock
+        try {
+            close(closeable);
+        } catch (final IOException | RuntimeException e) {
         }
     }
 
@@ -184,7 +200,7 @@ public final class IOUtils {
      */
     public static void rm(final Path... locations) throws IOException {
         final LinkedHashMap<Path,Throwable> unremoved = rm(new LinkedHashMap<>(), locations);
-        if (!unremoved.isEmpty()) {
+        if (unremoved.isEmpty() == false) {
             final StringBuilder b = new StringBuilder("could not remove the following files (in the order of attempts):\n");
             for (final Map.Entry<Path,Throwable> kv : unremoved.entrySet()) {
                 b.append("   ")
@@ -249,8 +265,9 @@ public final class IOUtils {
     }
 
     // TODO: replace with constants class if needed (cf. org.apache.lucene.util.Constants)
-    private static final boolean LINUX = System.getProperty("os.name").startsWith("Linux");
-    private static final boolean MAC_OS_X = System.getProperty("os.name").startsWith("Mac OS X");
+    public static final boolean WINDOWS = System.getProperty("os.name").startsWith("Windows");
+    public static final boolean LINUX = System.getProperty("os.name").startsWith("Linux");
+    public static final boolean MAC_OS_X = System.getProperty("os.name").startsWith("Mac OS X");
 
     /**
      * Ensure that any writes to the given file is written to the storage device that contains it. The {@code isDir} parameter specifies
@@ -263,18 +280,43 @@ public final class IOUtils {
      *                   systems and operating systems allow to fsync on a directory)
      */
     public static void fsync(final Path fileToSync, final boolean isDir) throws IOException {
-        try (FileChannel file = FileChannel.open(fileToSync, isDir ? StandardOpenOption.READ : StandardOpenOption.WRITE)) {
-            file.force(true);
-        } catch (final IOException ioe) {
-            if (isDir) {
-                assert (LINUX || MAC_OS_X) == false :
-                        "on Linux and MacOSX fsyncing a directory should not throw IOException, "+
-                                "we just don't want to rely on that in production (undocumented); got: " + ioe;
-                // ignore exception if it is a directory
-                return;
+        fsync(fileToSync, isDir, true);
+    }
+
+    /**
+     * Ensure that any writes to the given file is written to the storage device that contains it. The {@code isDir} parameter specifies
+     * whether or not the path to sync is a directory. This is needed because we open for read and ignore an {@link IOException} since not
+     * all filesystems and operating systems support fsyncing on a directory. For regular files we must open for write for the fsync to have
+     * an effect.
+     *
+     * @param fileToSync the file to fsync
+     * @param isDir      if true, the given file is a directory (we open for read and ignore {@link IOException}s, because not all file
+     *                   systems and operating systems allow to fsync on a directory)
+     * @param metaData   if {@code true} both the file's content and metadata will be sync, otherwise only the file's content will be sync
+     */
+    public static void fsync(final Path fileToSync, final boolean isDir, final boolean metaData) throws IOException {
+        if (isDir && WINDOWS) {
+            // opening a directory on Windows fails, directories can not be fsynced there
+            if (Files.exists(fileToSync) == false) {
+                // yet do not suppress trying to fsync directories that do not exist
+                throw new NoSuchFileException(fileToSync.toString());
             }
-            // throw original exception
-            throw ioe;
+            return;
+        }
+        try (FileChannel file = FileChannel.open(fileToSync, isDir ? StandardOpenOption.READ : StandardOpenOption.WRITE)) {
+            try {
+                file.force(metaData);
+            } catch (final IOException e) {
+                if (isDir) {
+                    assert (LINUX || MAC_OS_X) == false :
+                            "on Linux and MacOSX fsyncing a directory should not throw IOException, "+
+                                    "we just don't want to rely on that in production (undocumented); got: " + e;
+                    // ignore exception if it is a directory
+                    return;
+                }
+                // throw original exception
+                throw e;
+            }
         }
     }
 }

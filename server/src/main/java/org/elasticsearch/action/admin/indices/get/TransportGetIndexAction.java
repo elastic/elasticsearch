@@ -1,36 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.get;
-
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
@@ -38,11 +25,13 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Get index action.
@@ -59,36 +48,22 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                                    IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService,
                                    IndexScopedSettings indexScopedSettings) {
         super(GetIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, GetIndexRequest::new,
-                indexNameExpressionResolver);
+                indexNameExpressionResolver, GetIndexResponse::new);
         this.indicesService = indicesService;
         this.settingsFilter = settingsFilter;
         this.indexScopedSettings = indexScopedSettings;
     }
 
     @Override
-    protected String executor() {
-        // very lightweight operation, no need to fork
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(GetIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-                indexNameExpressionResolver.concreteIndexNames(state, request));
-    }
-
-    @Override
-    protected GetIndexResponse newResponse() {
-        return new GetIndexResponse();
-    }
-
-    @Override
-    protected void doMasterOperation(final GetIndexRequest request, String[] concreteIndices, final ClusterState state,
+    protected void doMasterOperation(Task task, final GetIndexRequest request, String[] concreteIndices, final ClusterState state,
                                      final ActionListener<GetIndexResponse> listener) {
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsResult = ImmutableOpenMap.of();
-        ImmutableOpenMap<String, List<AliasMetaData>> aliasesResult = ImmutableOpenMap.of();
+        ImmutableOpenMap<String, MappingMetadata> mappingsResult = ImmutableOpenMap.of();
+        ImmutableOpenMap<String, List<AliasMetadata>> aliasesResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
+        ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.<String, String>builder()
+            .putAll(StreamSupport.stream(state.metadata().findDataStreams(concreteIndices).spliterator(), false)
+                .collect(Collectors.toMap(k -> k.key, v -> v.value.getName()))).build();
         Feature[] features = request.features();
         boolean doneAliases = false;
         boolean doneMappings = false;
@@ -96,31 +71,26 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         for (Feature feature : features) {
             switch (feature) {
             case MAPPINGS:
-                    if (!doneMappings) {
-                        try {
-                            mappingsResult = state.metaData().findMappings(concreteIndices, request.types(),
-                                    indicesService.getFieldFilter());
-                            doneMappings = true;
-                        } catch (IOException e) {
-                            listener.onFailure(e);
-                            return;
-                        }
+                    if (doneMappings == false) {
+                        mappingsResult = state.metadata()
+                            .findMappings(concreteIndices, indicesService.getFieldFilter(), Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
+                        doneMappings = true;
                     }
                     break;
             case ALIASES:
-                    if (!doneAliases) {
-                        aliasesResult = state.metaData().findAllAliases(concreteIndices);
+                    if (doneAliases == false) {
+                        aliasesResult = state.metadata().findAllAliases(concreteIndices);
                         doneAliases = true;
                     }
                     break;
             case SETTINGS:
-                    if (!doneSettings) {
+                    if (doneSettings == false) {
                         ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
                         ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
                         for (String index : concreteIndices) {
-                            Settings indexSettings = state.metaData().index(index).getSettings();
+                            Settings indexSettings = state.metadata().index(index).getSettings();
                             if (request.humanReadable()) {
-                                indexSettings = IndexMetaData.addHumanReadableSettings(indexSettings);
+                                indexSettings = IndexMetadata.addHumanReadableSettings(indexSettings);
                             }
                             settingsMapBuilder.put(index, indexSettings);
                             if (request.includeDefaults()) {
@@ -139,8 +109,6 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     throw new IllegalStateException("feature [" + feature + "] is not valid");
             }
         }
-        listener.onResponse(
-            new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings, defaultSettings)
-        );
+        listener.onResponse(new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings, defaultSettings, dataStreams));
     }
 }

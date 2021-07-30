@@ -1,103 +1,87 @@
-import org.elasticsearch.gradle.test.NodeInfo
-
-import java.nio.charset.StandardCharsets
-
 apply plugin: 'elasticsearch.docs-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 /* List of files that have snippets that probably should be converted to
  * `// CONSOLE` and `// TESTRESPONSE` but have yet to be converted. Try and
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
-buildRestTests.expectedUnconvertedCandidates = [
-        'en/rest-api/watcher/put-watch.asciidoc',
-        'en/security/authentication/user-cache.asciidoc',
-        'en/security/authorization/run-as-privilege.asciidoc',
-        'en/security/ccs-clients-integrations/http.asciidoc',
-        'en/security/authorization/custom-roles-provider.asciidoc',
-        'en/rest-api/watcher/stats.asciidoc',
-        'en/watcher/example-watches/watching-time-series-data.asciidoc',
-]
+tasks.named("buildRestTests").configure {
+  expectedUnconvertedCandidates = [
+          'en/rest-api/watcher/put-watch.asciidoc',
+          'en/security/authentication/user-cache.asciidoc',
+          'en/security/authorization/run-as-privilege.asciidoc',
+          'en/security/ccs-clients-integrations/http.asciidoc',
+          'en/rest-api/watcher/stats.asciidoc',
+          'en/watcher/example-watches/watching-time-series-data.asciidoc',
+  ]
+}
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    testCompile project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackProject('plugin').path)))
 }
 
-Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    // wait up to twenty seconds
-    final long stopTime = System.currentTimeMillis() + 20000L;
-    Exception lastException = null;
-    while (System.currentTimeMillis() < stopTime) {
-        lastException = null;
-        // we use custom wait logic here as the elastic user is not available immediately and ant.get will fail when a 401 is returned
-        HttpURLConnection httpURLConnection = null;
-        try {
-            httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health").openConnection();
-            httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                    Base64.getEncoder().encodeToString("test_admin:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
-            httpURLConnection.setRequestMethod("GET");
-            httpURLConnection.setConnectTimeout(1000);
-            httpURLConnection.setReadTimeout(30000);
-            httpURLConnection.connect();
-            if (httpURLConnection.getResponseCode() == 200) {
-                tmpFile.withWriter StandardCharsets.UTF_8.name(), {
-                    it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
-                }
-                break;
-            }
-        } catch (Exception e) {
-            logger.debug("failed to call cluster health", e)
-            lastException = e
-        } finally {
-            if (httpURLConnection != null) {
-                httpURLConnection.disconnect();
-            }
-        }
-
-        // did not start, so wait a bit before trying again
-        Thread.sleep(500L);
-    }
-    if (tmpFile.exists() == false && lastException != null) {
-        logger.error("final attempt of calling cluster health failed", lastException)
-    }
-    return tmpFile.exists()
+restResources {
+  restApi {
+    include '*'
+  }
 }
 
-// copy xpack rest api
-File xpackResources = new File(xpackProject('plugin').projectDir, 'src/test/resources')
-project.copyRestSpec.from(xpackResources) {
-  include 'rest-api-spec/api/**'
+testClusters.matching { it.name == "integTest" }.configureEach {
+  extraConfigFile 'op-jwks.json', xpackProject('test:idp-fixture').file("oidc/op-jwks.json")
+  extraConfigFile 'idp-docs-metadata.xml', xpackProject('test:idp-fixture').file("idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
+  extraConfigFile 'testClient.crt', xpackProject('plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  // Disable monitoring exporters for the docs tests
+  setting 'xpack.monitoring.exporters._local.type', 'local'
+  setting 'xpack.monitoring.exporters._local.enabled', 'false'
+  // disable the ILM history for doc tests to avoid potential lingering tasks that'd cause test flakiness
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.authc.realms.file.file.order', '0'
+  setting 'xpack.security.authc.realms.native.native.order', '1'
+  setting 'xpack.security.authc.realms.oidc.oidc1.order', '2'
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.issuer', 'http://127.0.0.1:8080'
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.authorization_endpoint', "http://127.0.0.1:8080/c2id-login"
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.token_endpoint', "http://127.0.0.1:8080/c2id/token"
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.jwkset_path', 'op-jwks.json'
+  setting 'xpack.security.authc.realms.oidc.oidc1.rp.redirect_uri', 'https://my.fantastic.rp/cb'
+  setting 'xpack.security.authc.realms.oidc.oidc1.rp.client_id', 'elasticsearch-rp'
+  keystore 'xpack.security.authc.realms.oidc.oidc1.rp.client_secret', 'b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2'
+  setting 'xpack.security.authc.realms.oidc.oidc1.rp.response_type', 'id_token'
+  setting 'xpack.security.authc.realms.oidc.oidc1.claims.principal', 'sub'
+  setting 'xpack.security.authc.realms.pki.pki1.order', '3'
+  setting 'xpack.security.authc.realms.pki.pki1.certificate_authorities', '[ "testClient.crt" ]'
+  setting 'xpack.security.authc.realms.pki.pki1.delegation.enabled', 'true'
+  setting 'xpack.security.authc.realms.saml.saml1.order', '4'
+  setting 'xpack.security.authc.realms.saml.saml1.sp.logout', 'https://kibana.org/logout'
+  setting 'xpack.security.authc.realms.saml.saml1.idp.entity_id', 'https://my-idp.org'
+  setting 'xpack.security.authc.realms.saml.saml1.idp.metadata.path', 'idp-docs-metadata.xml'
+  setting 'xpack.security.authc.realms.saml.saml1.sp.entity_id', 'https://kibana.org'
+  setting 'xpack.security.authc.realms.saml.saml1.sp.acs', 'https://kibana.org/api/security/saml/callback'
+  setting 'xpack.security.authc.realms.saml.saml1.attributes.principal', 'uid'
+  setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
+  user username: 'test_admin'
 }
-integTestCluster {
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.security.authc.token.enabled', 'true'
-    // Disable monitoring exporters for the docs tests
-    setting 'xpack.monitoring.exporters._local.type', 'local'
-    setting 'xpack.monitoring.exporters._local.enabled', 'false'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setupCommand 'setupTestAdmin',
-            'bin/elasticsearch-users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
-    waitCondition = waitWithAuth
-}
 
+tasks.named("buildRestTests").configure { buildRestTests ->
 
-
-buildRestTests.docs = fileTree(projectDir) {
+  buildRestTests.docs = fileTree(projectDir) {
     // No snippets in here!
     exclude 'build.gradle'
     // That is where the snippets go, not where they come from!
-    exclude 'build'
+    exclude 'build/**'
     // These file simply doesn't pass yet. We should figure out how to fix them.
     exclude 'en/watcher/reference/actions.asciidoc'
-}
+    exclude 'en/rest-api/security/ssl.asciidoc'
+  }
 
-Map<String, String> setups = buildRestTests.setups
-setups['my_inactive_watch'] = '''
+  Map<String, String> setups = buildRestTests.setups
+  setups['my_inactive_watch'] = '''
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         active: false
         body:  >
@@ -122,19 +106,18 @@ setups['my_inactive_watch'] = '''
             "actions": {
               "test_index": {
                 "index": {
-                  "index": "test",
-                  "doc_type": "test2"
+                  "index": "test"
                 }
               }
             }
           }
   - match: { _id: "my_watch" }
 '''
-setups['my_active_watch'] = setups['my_inactive_watch'].replace(
-        'active: false', 'active: true')
+  setups['my_active_watch'] = setups['my_inactive_watch'].replace(
+          'active: false', 'active: true')
 
 // Used by SQL because it looks SQL-ish
-setups['library'] = '''
+  setups['library'] = '''
   - do:
         indices.create:
           index: library
@@ -215,9 +198,9 @@ setups['library'] = '''
             {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
 
 '''
-setups['sample_job'] = '''
+  setups['sample_job'] = '''
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: "sample_job"
         body:  >
           {
@@ -235,7 +218,7 @@ setups['sample_job'] = '''
             }
           }
 '''
-setups['farequote_index'] = '''
+  setups['farequote_index'] = '''
   - do:
         indices.create:
           index: farequote
@@ -255,7 +238,7 @@ setups['farequote_index'] = '''
                   doc_count:
                      type: integer
 '''
-setups['farequote_data'] = setups['farequote_index'] + '''
+  setups['farequote_data'] = setups['farequote_index'] + '''
   - do:
         bulk:
           index: farequote
@@ -269,9 +252,9 @@ setups['farequote_data'] = setups['farequote_index'] + '''
             {"index": {"_id":"3"}}
             {"airline":"KLM","responsetime":1355.4812,"time":"2016-02-07T00:00:00+0000", "doc_count": 42}
 '''
-setups['farequote_job'] = setups['farequote_data'] + '''
+  setups['farequote_job'] = setups['farequote_data'] + '''
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: "farequote"
         body:  >
           {
@@ -289,9 +272,9 @@ setups['farequote_job'] = setups['farequote_data'] + '''
             }
           }
 '''
-setups['farequote_datafeed'] = setups['farequote_job'] + '''
+  setups['farequote_datafeed'] = setups['farequote_job'] + '''
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: "datafeed-farequote"
         body:  >
           {
@@ -299,9 +282,9 @@ setups['farequote_datafeed'] = setups['farequote_job'] + '''
           "indexes":"farequote"
           }
 '''
-setups['ml_filter_safe_domains'] = '''
+  setups['ml_filter_safe_domains'] = '''
   - do:
-      xpack.ml.put_filter:
+      ml.put_filter:
         filter_id: "safe_domains"
         body:  >
           {
@@ -309,7 +292,7 @@ setups['ml_filter_safe_domains'] = '''
             "items": ["*.google.com", "wikipedia.org"]
           }
 '''
-setups['server_metrics_index'] = '''
+  setups['server_metrics_index'] = '''
   - do:
         indices.create:
           index: server-metrics
@@ -325,7 +308,7 @@ setups['server_metrics_index'] = '''
                   total:
                     type: long
 '''
-setups['server_metrics_data'] = setups['server_metrics_index'] + '''
+  setups['server_metrics_data'] = setups['server_metrics_index'] + '''
   - do:
         bulk:
           index: server-metrics
@@ -363,9 +346,9 @@ setups['server_metrics_data'] = setups['server_metrics_index'] + '''
             {"index": {"_id":"1191"}}
             {"timestamp":"2017-03-23T13:00:00","total":31659}
 '''
-setups['server_metrics_job'] = setups['server_metrics_data'] + '''
+  setups['server_metrics_job'] = setups['server_metrics_data'] + '''
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: "total-requests"
         body:  >
           {
@@ -385,9 +368,9 @@ setups['server_metrics_job'] = setups['server_metrics_data'] + '''
             }
           }
 '''
-setups['server_metrics_datafeed'] = setups['server_metrics_job'] + '''
+  setups['server_metrics_datafeed'] = setups['server_metrics_job'] + '''
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: "datafeed-total-requests"
         body:  >
           {
@@ -395,47 +378,47 @@ setups['server_metrics_datafeed'] = setups['server_metrics_job'] + '''
           "indexes":"server-metrics"
           }
 '''
-setups['server_metrics_openjob'] = setups['server_metrics_datafeed'] + '''
+  setups['server_metrics_openjob'] = setups['server_metrics_datafeed'] + '''
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: "total-requests"
 '''
-setups['server_metrics_startdf'] = setups['server_metrics_openjob'] + '''
+  setups['server_metrics_startdf'] = setups['server_metrics_openjob'] + '''
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "datafeed-total-requests"
 '''
-setups['calendar_outages'] = '''
+  setups['calendar_outages'] = '''
   - do:
-        xpack.ml.put_calendar:
+        ml.put_calendar:
           calendar_id: "planned-outages"
 '''
-setups['calendar_outages_addevent'] = setups['calendar_outages'] + '''
+  setups['calendar_outages_addevent'] = setups['calendar_outages'] + '''
   - do:
-        xpack.ml.post_calendar_events:
+        ml.post_calendar_events:
           calendar_id: "planned-outages"
           body: >
             { "description": "event 1", "start_time": "2017-12-01T00:00:00Z", "end_time": "2017-12-02T00:00:00Z", "calendar_id": "planned-outages" }
 
 
 '''
-setups['calendar_outages_openjob'] = setups['server_metrics_openjob'] + '''
+  setups['calendar_outages_openjob'] = setups['server_metrics_openjob'] + '''
   - do:
-       xpack.ml.put_calendar:
+       ml.put_calendar:
          calendar_id: "planned-outages"
 '''
-setups['calendar_outages_addjob'] = setups['server_metrics_openjob'] + '''
+  setups['calendar_outages_addjob'] = setups['server_metrics_openjob'] + '''
   - do:
-       xpack.ml.put_calendar:
+       ml.put_calendar:
          calendar_id: "planned-outages"
          body:  >
            {
            "job_ids": ["total-requests"]
            }
 '''
-setups['calendar_outages_addevent'] = setups['calendar_outages_addjob'] + '''
+  setups['calendar_outages_addevent'] = setups['calendar_outages_addjob'] + '''
   - do:
-       xpack.ml.post_calendar_events:
+       ml.post_calendar_events:
          calendar_id: "planned-outages"
          body:  >
            { "events" : [
@@ -444,7 +427,7 @@ setups['calendar_outages_addevent'] = setups['calendar_outages_addjob'] + '''
            { "description": "event 3", "start_time": "1514160000000", "end_time": "1514246400000"}
            ]}
 '''
-setups['role_mapping'] = '''
+  setups['role_mapping'] = '''
   - do:
         security.put_role_mapping:
          name: "mapping1"
@@ -455,7 +438,7 @@ setups['role_mapping'] = '''
                "rules": { "field": { "username": "*" } }
             }
 '''
-setups['sensor_rollup_job'] = '''
+  setups['sensor_rollup_job'] = '''
   - do:
       indices.create:
         index: sensor-1
@@ -464,18 +447,17 @@ setups['sensor_rollup_job'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                temperature:
-                  type: long
-                voltage:
-                  type: float
-                node:
-                  type: keyword
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
   - do:
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: "sensor"
         body:  >
             {
@@ -505,7 +487,7 @@ setups['sensor_rollup_job'] = '''
                 ]
             }
 '''
-setups['sensor_started_rollup_job'] = '''
+  setups['sensor_started_rollup_job'] = '''
   - do:
       indices.create:
         index: sensor-1
@@ -514,21 +496,19 @@ setups['sensor_started_rollup_job'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                temperature:
-                  type: long
-                voltage:
-                  type: float
-                node:
-                  type: keyword
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
 
   - do:
       bulk:
         index: sensor-1
-        type: _doc
         refresh: true
         body: |
           {"index":{}}
@@ -545,7 +525,7 @@ setups['sensor_started_rollup_job'] = '''
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
 
   - do:
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: "sensor"
         body:  >
             {
@@ -575,11 +555,11 @@ setups['sensor_started_rollup_job'] = '''
                 ]
             }
   - do:
-      xpack.rollup.start_job:
+      rollup.start_job:
         id: "sensor"
 '''
 
-setups['sensor_index'] = '''
+  setups['sensor_index'] = '''
   - do:
       indices.create:
         index: sensor-1
@@ -588,29 +568,28 @@ setups['sensor_index'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                temperature:
-                  type: long
-                voltage:
-                  type: float
-                node:
-                  type: keyword
-                load:
-                  type: double
-                net_in:
-                  type: long
-                net_out:
-                  type: long
-                hostname:
-                  type: keyword
-                datacenter:
-                  type: keyword
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
+              load:
+                type: double
+              net_in:
+                type: long
+              net_out:
+                type: long
+              hostname:
+                type: keyword
+              datacenter:
+                type: keyword
 '''
 
-setups['sensor_prefab_data'] = '''
+  setups['sensor_prefab_data'] = '''
   - do:
       indices.create:
         index: sensor-1
@@ -619,16 +598,15 @@ setups['sensor_prefab_data'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                temperature:
-                  type: long
-                voltage:
-                  type: float
-                node:
-                  type: keyword
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
   - do:
       indices.create:
         index: sensor_rollup
@@ -637,63 +615,61 @@ setups['sensor_prefab_data'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                node.terms.value:
-                  type: keyword
-                temperature.sum.value:
-                  type: double
-                temperature.max.value:
-                  type: double
-                temperature.min.value:
-                  type: double
-                timestamp.date_histogram.time_zone:
-                  type: keyword
-                timestamp.date_histogram.interval:
-                  type: keyword
-                timestamp.date_histogram.timestamp:
-                  type: date
-                timestamp.date_histogram._count:
-                  type: long
-                voltage.avg.value:
-                  type: double
-                voltage.avg._count:
-                  type: long
-                _rollup.id:
-                  type: keyword
-                _rollup.version:
-                  type: long
-              _meta:
-                _rollup:
-                  sensor:
-                    cron: "* * * * * ?"
-                    rollup_index: "sensor_rollup"
-                    index_pattern: "sensor-*"
-                    timeout: "20s"
-                    page_size: 1000
-                    groups:
-                      date_histogram:
-                        field: "timestamp"
-                        interval: "7d"
-                        time_zone: "UTC"
-                      terms:
-                        fields:
-                          - "node"
-                    id: sensor
-                    metrics:
-                      - field: "temperature"
-                        metrics:
-                          - min
-                          - max
-                          - sum
-                      - field: "voltage"
-                        metrics:
-                          - avg
+            properties:
+              node.terms.value:
+                type: keyword
+              temperature.sum.value:
+                type: double
+              temperature.max.value:
+                type: double
+              temperature.min.value:
+                type: double
+              timestamp.date_histogram.time_zone:
+                type: keyword
+              timestamp.date_histogram.interval:
+                type: keyword
+              timestamp.date_histogram.timestamp:
+                type: date
+              timestamp.date_histogram._count:
+                type: long
+              voltage.avg.value:
+                type: double
+              voltage.avg._count:
+                type: long
+              _rollup.id:
+                type: keyword
+              _rollup.version:
+                type: long
+            _meta:
+              _rollup:
+                sensor:
+                  cron: "* * * * * ?"
+                  rollup_index: "sensor_rollup"
+                  index_pattern: "sensor-*"
+                  timeout: "20s"
+                  page_size: 1000
+                  groups:
+                    date_histogram:
+                      field: "timestamp"
+                      interval: "7d"
+                      time_zone: "UTC"
+                    terms:
+                      fields:
+                        - "node"
+                  id: sensor
+                  metrics:
+                    - field: "temperature"
+                      metrics:
+                        - min
+                        - max
+                        - sum
+                    - field: "voltage"
+                      metrics:
+                        - avg
 
   - do:
       bulk:
         index: sensor_rollup
-        type: _doc
         refresh: true
         body: |
           {"index":{}}
@@ -710,7 +686,7 @@ setups['sensor_prefab_data'] = '''
           {"node.terms.value":"c","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.0,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516294800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
 
 '''
-setups['admin_role'] = '''
+  setups['admin_role'] = '''
   - do:
       security.put_role:
         name: "my_admin_role"
@@ -724,20 +700,20 @@ setups['admin_role'] = '''
             "metadata" : {"version": 1}
           }
 '''
-setups['jacknich_user'] = '''
+  setups['jacknich_user'] = '''
   - do:
       security.put_user:
         username: "jacknich"
         body:  >
           {
-            "password" : "test-password",
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
             "roles" : [ "admin", "other_role1" ],
             "full_name" : "Jack Nicholson",
             "email" : "jacknich@example.com",
             "metadata" : { "intelligence" : 7 }
           }
 '''
-setups['app0102_privileges'] = '''
+  setups['app0102_privileges'] = '''
   - do:
         security.put_privileges:
           body: >
@@ -748,11 +724,19 @@ setups['app0102_privileges'] = '''
                   "name": "read",
                   "actions": [
                     "data:read/*",
-                    "action:login" ], 
+                    "action:login" ],
                   "metadata": {
                     "description": "Read access to myapp"
                   }
                 }
-              } 
+              }
             }
 '''
+  setups['service_token42'] = '''
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: token42
+'''
+}

@@ -1,40 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestPutLicenseAction extends XPackRestHandler {
+public class RestPutLicenseAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutLicenseAction.class));
+    RestPutLicenseAction() {}
 
-    RestPutLicenseAction(Settings settings, RestController controller) {
-        super(settings);
+    @Override
+    public List<Route> routes() {
         // TODO: remove POST endpoint?
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                POST, "/_license", this,
-                POST, URI_BASE + "/license", deprecationLogger);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                PUT, "/_license", this,
-                PUT, URI_BASE + "/license", deprecationLogger);
+        return List.of(
+            Route.builder(POST, "/_license")
+                .replaces(POST, "/_xpack/license", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_license")
+                .replaces(PUT, "/_xpack/license", RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -43,7 +40,7 @@ public class RestPutLicenseAction extends XPackRestHandler {
     }
 
     @Override
-    public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.hasContent() == false) {
             throw new IllegalArgumentException("The license must be provided in the request body");
         }
@@ -53,13 +50,12 @@ public class RestPutLicenseAction extends XPackRestHandler {
         putLicenseRequest.timeout(request.paramAsTime("timeout", putLicenseRequest.timeout()));
         putLicenseRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putLicenseRequest.masterNodeTimeout()));
 
-        if ("basic".equals(putLicenseRequest.license().type())) {
+        if (License.LicenseType.isBasic(putLicenseRequest.license().type())) {
             throw new IllegalArgumentException("Installing basic licenses is no longer allowed. Use the POST " +
-                    "/_license/start_basic API to install a basic license that does not expire.");
+                "/_license/start_basic API to install a basic license that does not expire.");
         }
 
-        return channel -> client.es().admin().cluster().execute(PutLicenseAction.INSTANCE, putLicenseRequest,
-                new RestToXContentListener<>(channel));
+        return channel -> client.execute(PutLicenseAction.INSTANCE, putLicenseRequest, new RestToXContentListener<>(channel));
     }
 
 }

@@ -1,31 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -77,10 +69,12 @@ public final class SnapshotClient {
      * @param getRepositoriesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getRepositoryAsync(GetRepositoriesRequest getRepositoriesRequest, RequestOptions options,
-                                   ActionListener<GetRepositoriesResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(getRepositoriesRequest, SnapshotRequestConverters::getRepositories, options,
+    public Cancellable getRepositoryAsync(GetRepositoriesRequest getRepositoriesRequest, RequestOptions options,
+                                          ActionListener<GetRepositoriesResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(getRepositoriesRequest,
+            SnapshotRequestConverters::getRepositories, options,
             GetRepositoriesResponse::fromXContent, listener, emptySet());
     }
 
@@ -105,10 +99,12 @@ public final class SnapshotClient {
      * @param putRepositoryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void createRepositoryAsync(PutRepositoryRequest putRepositoryRequest, RequestOptions options,
-                                      ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(putRepositoryRequest, SnapshotRequestConverters::createRepository, options,
+    public Cancellable createRepositoryAsync(PutRepositoryRequest putRepositoryRequest, RequestOptions options,
+                                             ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(putRepositoryRequest,
+            SnapshotRequestConverters::createRepository, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -134,10 +130,12 @@ public final class SnapshotClient {
      * @param deleteRepositoryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void deleteRepositoryAsync(DeleteRepositoryRequest deleteRepositoryRequest, RequestOptions options,
-                                      ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(deleteRepositoryRequest, SnapshotRequestConverters::deleteRepository, options,
+    public Cancellable deleteRepositoryAsync(DeleteRepositoryRequest deleteRepositoryRequest, RequestOptions options,
+                                             ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(deleteRepositoryRequest,
+            SnapshotRequestConverters::deleteRepository, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -163,11 +161,43 @@ public final class SnapshotClient {
      * @param verifyRepositoryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void verifyRepositoryAsync(VerifyRepositoryRequest verifyRepositoryRequest, RequestOptions options,
-                                      ActionListener<VerifyRepositoryResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(verifyRepositoryRequest, SnapshotRequestConverters::verifyRepository, options,
+    public Cancellable verifyRepositoryAsync(VerifyRepositoryRequest verifyRepositoryRequest, RequestOptions options,
+                                             ActionListener<VerifyRepositoryResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(verifyRepositoryRequest,
+            SnapshotRequestConverters::verifyRepository, options,
             VerifyRepositoryResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Cleans up a snapshot repository.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     * @param cleanupRepositoryRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public CleanupRepositoryResponse cleanupRepository(CleanupRepositoryRequest cleanupRepositoryRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(cleanupRepositoryRequest, SnapshotRequestConverters::cleanupRepository,
+            options, CleanupRepositoryResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously cleans up a snapshot repository.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     * @param cleanupRepositoryRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable cleanupRepositoryAsync(CleanupRepositoryRequest cleanupRepositoryRequest, RequestOptions options,
+                                       ActionListener<CleanupRepositoryResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(cleanupRepositoryRequest, SnapshotRequestConverters::cleanupRepository,
+            options, CleanupRepositoryResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -187,11 +217,39 @@ public final class SnapshotClient {
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
+     * @return cancellable that may be used to cancel the request
      */
-    public void createAsync(CreateSnapshotRequest createSnapshotRequest, RequestOptions options,
-                                    ActionListener<CreateSnapshotResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(createSnapshotRequest, SnapshotRequestConverters::createSnapshot, options,
+    public Cancellable createAsync(CreateSnapshotRequest createSnapshotRequest, RequestOptions options,
+                                   ActionListener<CreateSnapshotResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(createSnapshotRequest,
+            SnapshotRequestConverters::createSnapshot, options,
             CreateSnapshotResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Clones a snapshot.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+    public AcknowledgedResponse clone(CloneSnapshotRequest cloneSnapshotRequest, RequestOptions options)
+            throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(cloneSnapshotRequest, SnapshotRequestConverters::cloneSnapshot, options,
+                AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously clones a snapshot.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable cloneAsync(CloneSnapshotRequest cloneSnapshotRequest, RequestOptions options,
+                                   ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(cloneSnapshotRequest,
+                SnapshotRequestConverters::cloneSnapshot, options,
+                AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -213,13 +271,15 @@ public final class SnapshotClient {
      * Asynchronously get snapshots.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
-     *
-     * @param getSnapshotsRequest the request
+     *  @param getSnapshotsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getAsync(GetSnapshotsRequest getSnapshotsRequest, RequestOptions options, ActionListener<GetSnapshotsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(getSnapshotsRequest, SnapshotRequestConverters::getSnapshots, options,
+    public Cancellable getAsync(GetSnapshotsRequest getSnapshotsRequest, RequestOptions options,
+                                ActionListener<GetSnapshotsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(getSnapshotsRequest,
+            SnapshotRequestConverters::getSnapshots, options,
             GetSnapshotsResponse::fromXContent, listener, emptySet());
     }
 
@@ -245,10 +305,12 @@ public final class SnapshotClient {
      * @param snapshotsStatusRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void statusAsync(SnapshotsStatusRequest snapshotsStatusRequest, RequestOptions options,
-                            ActionListener<SnapshotsStatusResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(snapshotsStatusRequest, SnapshotRequestConverters::snapshotsStatus, options,
+    public Cancellable statusAsync(SnapshotsStatusRequest snapshotsStatusRequest, RequestOptions options,
+                                   ActionListener<SnapshotsStatusResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(snapshotsStatusRequest,
+            SnapshotRequestConverters::snapshotsStatus, options,
             SnapshotsStatusResponse::fromXContent, listener, emptySet());
     }
 
@@ -275,10 +337,12 @@ public final class SnapshotClient {
      * @param restoreSnapshotRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void restoreAsync(RestoreSnapshotRequest restoreSnapshotRequest, RequestOptions options,
-                            ActionListener<RestoreSnapshotResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(restoreSnapshotRequest, SnapshotRequestConverters::restoreSnapshot, options,
+    public Cancellable restoreAsync(RestoreSnapshotRequest restoreSnapshotRequest, RequestOptions options,
+                                    ActionListener<RestoreSnapshotResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(restoreSnapshotRequest,
+            SnapshotRequestConverters::restoreSnapshot, options,
             RestoreSnapshotResponse::fromXContent, listener, emptySet());
     }
 
@@ -293,7 +357,8 @@ public final class SnapshotClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse delete(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(deleteSnapshotRequest, SnapshotRequestConverters::deleteSnapshot, options,
+        return restHighLevelClient.performRequestAndParseEntity(deleteSnapshotRequest,
+            SnapshotRequestConverters::deleteSnapshot, options,
             AcknowledgedResponse::fromXContent, emptySet());
     }
 
@@ -305,10 +370,12 @@ public final class SnapshotClient {
      * @param deleteSnapshotRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void deleteAsync(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options,
-                            ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(deleteSnapshotRequest, SnapshotRequestConverters::deleteSnapshot, options,
+    public Cancellable deleteAsync(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options,
+                                   ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(deleteSnapshotRequest,
+            SnapshotRequestConverters::deleteSnapshot, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 }

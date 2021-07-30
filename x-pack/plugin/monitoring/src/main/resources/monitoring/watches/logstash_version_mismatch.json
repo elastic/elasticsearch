@@ -2,12 +2,12 @@
   "metadata": {
     "name": "X-Pack Monitoring: Logstash Version Mismatch (${monitoring.watch.cluster_uuid})",
     "xpack": {
-      "alert_index": ".monitoring-alerts-6",
+      "alert_index": ".monitoring-alerts-7",
       "cluster_uuid": "${monitoring.watch.cluster_uuid}",
       "link": "logstash/instances",
       "severity": 1000,
       "type": "monitoring",
-      "version_created": 7000099,
+      "version_created": "${monitoring.version_created}",
       "watch": "${monitoring.watch.id}"
     }
   },
@@ -44,19 +44,8 @@
                           }
                         },
                         {
-                          "bool": {
-                            "should": [
-                              {
-                                "term": {
-                                  "_type": "logstash_stats"
-                                }
-                              },
-                              {
-                                "term": {
-                                  "type": "logstash_stats"
-                                }
-                              }
-                            ]
+                          "term": {
+                            "type": "logstash_stats"
                           }
                         }
                       ]
@@ -98,7 +87,7 @@
             "search": {
               "request": {
                 "indices": [
-                  ".monitoring-alerts-6"
+                  ".monitoring-alerts-7"
                 ],
                 "body": {
                   "size": 1,
@@ -126,7 +115,7 @@
               "request": {
                 "search_type": "query_then_fetch",
                 "indices": [
-                  ".monitoring-kibana-6-*"
+                  ".monitoring-kibana-7-*"
                 ],
                 "body": {
                   "size": 1,
@@ -167,8 +156,7 @@
   "actions": {
     "add_to_alerts_index": {
       "index": {
-        "index": ".monitoring-alerts-6",
-        "doc_type": "doc",
+        "index": ".monitoring-alerts-7",
         "doc_id": "${monitoring.watch.unique_id}"
       }
     },

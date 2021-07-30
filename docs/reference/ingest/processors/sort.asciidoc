@@ -1,0 +1,31 @@
+[[sort-processor]]
+=== Sort processor
+++++
+<titleabbrev>Sort</titleabbrev>
+++++
+
+Sorts the elements of an array ascending or descending. Homogeneous arrays of numbers will be sorted
+numerically, while arrays of strings or heterogeneous arrays of strings + numbers will be sorted lexicographically.
+Throws an error when the field is not an array.
+
+[[sort-options]]
+.Sort Options
+[options="header"]
+|======
+| Name              | Required  | Default  | Description
+| `field`           | yes       | -        | The field to be sorted
+| `order`           | no        | `"asc"`  | The sort order to use. Accepts `"asc"` or `"desc"`.
+| `target_field`    | no        | `field`  | The field to assign the sorted value to, by default `field` is updated in-place
+include::common-options.asciidoc[]
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "sort": {
+    "field": "array_field_to_sort",
+    "order": "desc"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

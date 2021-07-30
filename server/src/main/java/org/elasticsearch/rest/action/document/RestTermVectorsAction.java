@@ -1,41 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.document;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -46,23 +32,29 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * TermVectorsRequest.
  */
 public class RestTermVectorsAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestTermVectorsAction.class));
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
         "Specifying types in term vector requests is deprecated.";
 
-    public RestTermVectorsAction(Settings settings, RestController controller) {
-        super(settings);
-
-        controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_termvectors", this);
-
-        controller.registerHandler(GET, "/{index}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/_termvectors", this);
-        controller.registerHandler(GET, "/{index}/_termvectors/{id}", this);
-        controller.registerHandler(POST, "/{index}/_termvectors/{id}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/{index}/_termvectors"),
+            new Route(POST, "/{index}/_termvectors"),
+            new Route(GET, "/{index}/_termvectors/{id}"),
+            new Route(POST, "/{index}/_termvectors/{id}"),
+            Route.builder(GET, "/{index}/{type}/_termvectors")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/_termvectors")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, "/{index}/{type}/{id}/_termvectors")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/{id}/_termvectors")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override
@@ -72,21 +64,15 @@ public class RestTermVectorsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        TermVectorsRequest termVectorsRequest;
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("termvectors_with_types", TYPES_DEPRECATION_MESSAGE);
-            termVectorsRequest = new TermVectorsRequest(request.param("index"),
-                request.param("type"),
-                request.param("id"));
-        } else {
-            termVectorsRequest = new TermVectorsRequest(request.param("index"),
-                MapperService.SINGLE_MAPPING_NAME,
-                request.param("id"));
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
+            request.param("type");
         }
+        TermVectorsRequest termVectorsRequest;
+        termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("id"));
 
         if (request.hasContentOrSourceParam()) {
             try (XContentParser parser = request.contentOrSourceParamParser()) {
-                TermVectorsRequest.parseRequest(termVectorsRequest, parser);
+                TermVectorsRequest.parseRequest(termVectorsRequest, parser, request.getRestApiVersion());
             }
         }
         readURIParameters(termVectorsRequest, request);
@@ -119,7 +105,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
                 if (selectedFields == null) {
                     selectedFields = new HashSet<>();
                 }
-                if (!selectedFields.contains(field)) {
+                if (selectedFields.contains(field) == false) {
                     field = field.replaceAll("\\s", "");
                     selectedFields.add(field);
                 }

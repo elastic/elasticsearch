@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,8 +16,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * An authenticated user
@@ -33,11 +34,11 @@ public class User implements ToXContentObject {
     @Nullable private final String email;
 
     public User(String username, String... roles) {
-        this(username, roles, null, null, null, true);
+        this(username, roles, null, null, Map.of(), true);
     }
 
     public User(String username, String[] roles, User authenticatedUser) {
-        this(username, roles, null, null, null, true, authenticatedUser);
+        this(username, roles, null, null, Map.of(), true, authenticatedUser);
     }
 
     public User(User user, User authenticatedUser) {
@@ -50,9 +51,9 @@ public class User implements ToXContentObject {
 
     private User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, boolean enabled,
                 User authenticatedUser) {
-        this.username = username;
+        this.username = Objects.requireNonNull(username);
         this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
-        this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
+        this.metadata = metadata == null ? Map.of() : metadata;
         this.fullName = fullName;
         this.email = email;
         this.enabled = enabled;
@@ -127,6 +128,9 @@ public class User implements ToXContentObject {
         sb.append(",email=").append(email);
         sb.append(",metadata=");
         sb.append(metadata);
+        if (enabled == false) {
+            sb.append(",(disabled)");
+        }
         if (authenticatedUser != null) {
             sb.append(",authenticatedUser=[").append(authenticatedUser.toString()).append("]");
         }
@@ -141,14 +145,13 @@ public class User implements ToXContentObject {
 
         User user = (User) o;
 
-        if (!username.equals(user.username)) return false;
+        if (username.equals(user.username) == false) return false;
         // Probably incorrect - comparing Object[] arrays with Arrays.equals
-        if (!Arrays.equals(roles, user.roles)) return false;
-        if (authenticatedUser != null ? !authenticatedUser.equals(user.authenticatedUser) : user.authenticatedUser != null) return false;
-        if (!metadata.equals(user.metadata)) return false;
-        if (fullName != null ? !fullName.equals(user.fullName) : user.fullName != null) return false;
-        return !(email != null ? !email.equals(user.email) : user.email != null);
-
+        if (Arrays.equals(roles, user.roles) == false) return false;
+        if (metadata.equals(user.metadata) == false) return false;
+        return Objects.equals(authenticatedUser, user.authenticatedUser)
+            && Objects.equals(fullName, user.fullName)
+            && Objects.equals(email, user.email);
     }
 
     @Override
@@ -209,6 +212,15 @@ public class User implements ToXContentObject {
         output.writeBoolean(false); // last user written, regardless of bwc, does not have an inner user
     }
 
+    public static boolean isInternal(User user) {
+        return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user) || AsyncSearchUser.is(user);
+    }
+
+    public static boolean isInternalUsername(String username) {
+        return SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username) || XPackSecurityUser.NAME.equals(username)
+            || AsyncSearchUser.NAME.equals(username);
+    }
+
     /** Write just the given {@link User}, but not the inner {@link #authenticatedUser}. */
     private static void writeUser(User user, StreamOutput output) throws IOException {
         output.writeBoolean(false); // not a system user
@@ -234,6 +246,8 @@ public class User implements ToXContentObject {
         ParseField LOOKUP_REALM = new ParseField("lookup_realm");
         ParseField REALM_TYPE = new ParseField("type");
         ParseField REALM_NAME = new ParseField("name");
+        ParseField AUTHENTICATION_TYPE = new ParseField("authentication_type");
+        ParseField TOKEN = new ParseField("token");
     }
 }
 

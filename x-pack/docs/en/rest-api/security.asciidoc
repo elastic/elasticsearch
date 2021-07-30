@@ -1,61 +1,80 @@
 [role="xpack"]
 [[security-api]]
 == Security APIs
+To use the security APIs, you must set `xpack.security.enabled` to `true` in
+the `elasticsearch.yml` file.
 
-You can use the following APIs to perform {security} activities.
+Use the following APIs to perform security activities.
 
 * <<security-api-authenticate>>
 * <<security-api-clear-cache>>
+* <<security-api-delegate-pki-authentication>>
 * <<security-api-has-privileges>>
 * <<security-api-ssl>>
+* <<security-api-get-builtin-privileges>>
+* <<security-api-get-user-privileges>>
 
-[float]
+[discrete]
 [[security-api-app-privileges]]
 === Application privileges
 
-You can use the following APIs to add, update, retrieve, and remove application 
+Use the following APIs to add, update, retrieve, and remove application
 privileges:
 
-* <<security-api-put-privileges,Create or update privileges>> 
+* <<security-api-put-privileges,Create or update privileges>>
+* <<security-api-clear-privilege-cache,Clear privileges cache>>
 * <<security-api-delete-privilege,Delete privileges>>
 * <<security-api-get-privileges,Get privileges>>
 
-[float]
+[discrete]
 [[security-role-mapping-apis]]
 === Role mappings
 
-You can use the following APIs to add, remove, update, and retrieve role mappings:
+Use the following APIs to add, remove, update, and retrieve role mappings:
 
-* <<security-api-put-role-mapping,Create or update role mappings>> 
+* <<security-api-put-role-mapping,Create or update role mappings>>
 * <<security-api-delete-role-mapping,Delete role mappings>>
 * <<security-api-get-role-mapping,Get role mappings>>
 
-[float]
+[discrete]
 [[security-role-apis]]
 === Roles
 
-You can use the following APIs to add, remove, update, and retrieve roles in the native realm:
+Use the following APIs to add, remove, update, and retrieve roles in the native realm:
 
 * <<security-api-put-role,Create or update roles>>
 * <<security-api-clear-role-cache,Clear roles cache>>
 * <<security-api-delete-role,Delete roles>>
 * <<security-api-get-role,Get roles>>
 
-[float]
+[discrete]
 [[security-token-apis]]
 === Tokens
 
-You can use the following APIs to create and invalidate bearer tokens for access
+Use the following APIs to create and invalidate bearer tokens for access
 without requiring basic authentication:
 
 * <<security-api-get-token,Get token>>
 * <<security-api-invalidate-token,Invalidate token>>
 
-[float]
+[discrete]
+[[security-api-keys]]
+=== API Keys
+
+Use the following APIs to create, retrieve and invalidate API keys for access
+without requiring basic authentication:
+
+* <<security-api-create-api-key,Create API key>>
+* <<security-api-get-api-key,Get API key>>
+* <<security-api-invalidate-api-key,Invalidate API key>>
+* <<security-api-clear-api-key-cache,Clear API key cache>>
+* <<security-api-grant-api-key,Grant API key>>
+
+[discrete]
 [[security-user-apis]]
 === Users
 
-You can use the following APIs to add, remove, update, or retrieve users in the
+Use the following APIs to add, remove, update, or retrieve users in the
 native realm:
 
 * <<security-api-put-user,Create or update users>>
@@ -65,26 +84,98 @@ native realm:
 * <<security-api-enable-user,Enable users>>
 * <<security-api-get-user,Get users>>
 
+[discrete]
+[[security-service-account-apis]]
+=== Service Accounts
 
-include::security/put-app-privileges.asciidoc[]
+Use the following APIs to list service accounts and manage the service tokens:
+
+* <<security-api-get-service-accounts>>
+* <<security-api-create-service-token>>
+* <<security-api-delete-service-token>>
+* <<security-api-get-service-credentials>>
+
+[discrete]
+[[security-openid-apis]]
+=== OpenID Connect
+
+Use the following APIs to authenticate users against an OpenID Connect
+authentication realm when using a custom web application other than Kibana
+
+* <<security-api-oidc-prepare-authentication, Prepare an authentication request>>
+* <<security-api-oidc-authenticate, Submit an authentication response>>
+* <<security-api-oidc-logout, Logout an authenticated user>>
+
+[discrete]
+[[security-saml-apis]]
+=== SAML
+
+Use the following APIs to authenticate users against a SAML authentication
+realm when using a custom web application other than Kibana
+
+* <<security-api-saml-prepare-authentication, Prepare an authentication request>>
+* <<security-api-saml-authenticate, Submit an authentication response>>
+* <<security-api-saml-logout, Logout an authenticated user>>
+* <<security-api-saml-invalidate, Submit a logout request from the IdP>>
+* <<security-api-saml-complete-logout, Verify a logout response from the IdP>>
+* <<security-api-saml-sp-metadata,Generate SAML metadata>>
+
+[discrete]
+[[security-enrollment-apis]]
+=== Enrollment
+
+Use the following APIs to enable new nodes to join an existing cluster with
+security enabled, or to enable a {kib} instance to configure itself to
+communicate with a secured {es} cluster.
+
+* <<security-api-node-enrollment, Enroll a new node>>
+* <<security-api-kibana-enrollment, Enroll a new {kib} instance>>
+
+
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
-include::security/create-role-mappings.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
+include::security/clear-privileges-cache.asciidoc[]
+include::security/clear-api-key-cache.asciidoc[]
+include::security/clear-service-token-caches.asciidoc[]
+include::security/create-api-keys.asciidoc[]
+include::security/enroll-kibana.asciidoc[]
+include::security/put-app-privileges.asciidoc[]
+include::security/create-role-mappings.asciidoc[]
 include::security/create-roles.asciidoc[]
 include::security/create-users.asciidoc[]
+include::security/create-service-token.asciidoc[]
+include::security/delegate-pki-authentication.asciidoc[]
 include::security/delete-app-privileges.asciidoc[]
 include::security/delete-role-mappings.asciidoc[]
 include::security/delete-roles.asciidoc[]
+include::security/delete-service-token.asciidoc[]
 include::security/delete-users.asciidoc[]
 include::security/disable-users.asciidoc[]
 include::security/enable-users.asciidoc[]
+include::security/enroll-node.asciidoc[]
+include::security/get-api-keys.asciidoc[]
 include::security/get-app-privileges.asciidoc[]
+include::security/get-builtin-privileges.asciidoc[]
 include::security/get-role-mappings.asciidoc[]
 include::security/get-roles.asciidoc[]
+include::security/get-service-accounts.asciidoc[]
+include::security/get-service-credentials.asciidoc[]
 include::security/get-tokens.asciidoc[]
+include::security/get-user-privileges.asciidoc[]
 include::security/get-users.asciidoc[]
+include::security/grant-api-keys.asciidoc[]
 include::security/has-privileges.asciidoc[]
+include::security/invalidate-api-keys.asciidoc[]
 include::security/invalidate-tokens.asciidoc[]
+include::security/oidc-prepare-authentication-api.asciidoc[]
+include::security/oidc-authenticate-api.asciidoc[]
+include::security/oidc-logout-api.asciidoc[]
+include::security/saml-prepare-authentication-api.asciidoc[]
+include::security/saml-authenticate-api.asciidoc[]
+include::security/saml-logout-api.asciidoc[]
+include::security/saml-invalidate-api.asciidoc[]
+include::security/saml-complete-logout-api.asciidoc[]
+include::security/saml-sp-metadata.asciidoc[]
 include::security/ssl.asciidoc[]

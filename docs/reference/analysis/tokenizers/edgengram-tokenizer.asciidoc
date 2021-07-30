@@ -1,27 +1,30 @@
 [[analysis-edgengram-tokenizer]]
-=== Edge NGram Tokenizer
+=== Edge n-gram tokenizer
+++++
+<titleabbrev>Edge n-gram</titleabbrev>
+++++
 
 The `edge_ngram` tokenizer first breaks text down into words whenever it
 encounters one of a list of specified characters, then it emits
-https://en.wikipedia.org/wiki/N-gram[N-grams] of each word where the start of
+{wikipedia}/N-gram[N-grams] of each word where the start of
 the N-gram is anchored to the beginning of the word.
 
 Edge N-Grams are useful for _search-as-you-type_ queries.
 
 TIP: When you need _search-as-you-type_ for text which has a widely known
 order, such as movie or song titles, the
-<<search-suggesters-completion,completion suggester>> is a much more efficient
-choice than edge N-grams.  Edge N-grams have the advantage when trying to
+<<completion-suggester,completion suggester>> is a much more efficient
+choice than edge N-grams. Edge N-grams have the advantage when trying to
 autocomplete words that can appear in any order.
 
-[float]
+[discrete]
 === Example output
 
 With the default settings, the `edge_ngram` tokenizer treats the initial text as a
 single token and produces N-grams with minimum length `1` and maximum length
 `2`:
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -29,11 +32,10 @@ POST _analyze
   "text": "Quick Fox"
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -54,7 +56,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -66,24 +67,28 @@ The above sentence would produce the following terms:
 [ Q, Qu ]
 ---------------------------
 
-NOTE: These default gram lengths are almost entirely useless.  You need to
+NOTE: These default gram lengths are almost entirely useless. You need to
 configure the `edge_ngram` before using it.
 
-[float]
+[discrete]
 === Configuration
 
 The `edge_ngram` tokenizer accepts the following parameters:
 
-[horizontal]
 `min_gram`::
-    Minimum length of characters in a gram.  Defaults to `1`.
+    Minimum length of characters in a gram. Defaults to `1`.
 
 `max_gram`::
-    Maximum length of characters in a gram.  Defaults to `2`.
++
+--
+Maximum length of characters in a gram. Defaults to `2`.
+
+See <<max-gram-limits>>.
+--
 
 `token_chars`::
 
-    Character classes that should be included in a token.  Elasticsearch
+    Character classes that should be included in a token. Elasticsearch
     will split on characters that don't belong to the classes specified.
     Defaults to `[]` (keep all characters).
 +
@@ -94,17 +99,50 @@ Character classes may be any of the following:
 * `whitespace` --  for example `" "` or `"\n"`
 * `punctuation` -- for example `!` or `"`
 * `symbol` --      for example `$` or `√`
+* `custom` --      custom characters which need to be set using the
+`custom_token_chars` setting.
 
-[float]
+`custom_token_chars`::
+
+    Custom characters that should be treated as part of a token. For example,
+    setting this to `+-_` will make the tokenizer treat the plus, minus and
+    underscore sign as part of a token.
+
+[discrete]
+[[max-gram-limits]]
+=== Limitations of the `max_gram` parameter
+
+The `edge_ngram` tokenizer's `max_gram` value limits the character length of
+tokens. When the `edge_ngram` tokenizer is used with an index analyzer, this
+means search terms longer than the `max_gram` length may not match any indexed
+terms.
+
+For example, if the `max_gram` is `3`, searches for `apple` won't match the
+indexed term `app`.
+
+To account for this, you can use the
+<<analysis-truncate-tokenfilter,`truncate`>> token filter with a search analyzer
+to shorten search terms to the `max_gram` character length. However, this could
+return irrelevant results.
+
+For example, if the `max_gram` is `3` and search terms are truncated to three
+characters, the search term `apple` is shortened to `app`. This means searches
+for `apple` return any indexed terms matching `app`, such as `apply`, `snapped`,
+and `apple`.
+
+We recommend testing both approaches to see which best fits your
+use case and desired search experience.
+
+[discrete]
 === Example configuration
 
 In this example, we configure the `edge_ngram` tokenizer to treat letters and
 digits as tokens, and to produce grams with minimum length `2` and maximum
 length `10`:
 
-[source,js]
+[source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -128,17 +166,16 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "2 Quick Foxes."
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -201,7 +238,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -213,16 +249,20 @@ The above example produces the following terms:
 ---------------------------
 
 Usually we recommend using the same `analyzer` at index time and at search
-time. In the case of the `edge_ngram` tokenizer, the advice is different.  It
+time. In the case of the `edge_ngram` tokenizer, the advice is different. It
 only makes sense to use the `edge_ngram` tokenizer at index time, to ensure
-that partial words are available for matching in the index.  At search time,
+that partial words are available for matching in the index. At search time,
 just search for the terms the user has typed in, for instance: `Quick Fo`.
 
-Below is an example of how to set up a field for _search-as-you-type_:
+Below is an example of how to set up a field for _search-as-you-type_.
 
-[source,js]
+Note that the `max_gram` value for the index analyzer is `10`, which limits
+indexed terms to 10 characters. Search terms are not truncated, meaning that
+search terms longer than 10 characters may not match any indexed terms.
+
+[source,console]
 -----------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -250,26 +290,24 @@ PUT my_index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "title": {
-          "type": "text",
-          "analyzer": "autocomplete",
-          "search_analyzer": "autocomplete_search"
-        }
+    "properties": {
+      "title": {
+        "type": "text",
+        "analyzer": "autocomplete",
+        "search_analyzer": "autocomplete_search"
       }
     }
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "title": "Quick Foxes" <1>
 }
 
-POST my_index/_refresh
+POST my-index-000001/_refresh
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
@@ -281,14 +319,13 @@ GET my_index/_search
   }
 }
 -----------------------------------
-// CONSOLE
 
 <1> The `autocomplete` analyzer indexes the terms `[qu, qui, quic, quick, fo, fox, foxe, foxes]`.
 <2> The `autocomplete_search` analyzer searches for the terms `[quick, fo]`, both of which appear in the index.
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "took": $body.took,
@@ -307,8 +344,7 @@ GET my_index/_search
     "max_score": 0.5753642,
     "hits": [
       {
-        "_index": "my_index",
-        "_type": "_doc",
+        "_index": "my-index-000001",
         "_id": "1",
         "_score": 0.5753642,
         "_source": {

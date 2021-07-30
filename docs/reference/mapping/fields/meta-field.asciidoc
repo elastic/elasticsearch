@@ -5,33 +5,31 @@ A mapping type can have custom meta data associated with it. These are not
 used at all by Elasticsearch, but can be used to store application-specific
 metadata, such as the class that a document belongs to:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
-    "_doc": {
-      "_meta": { <1>
-        "class": "MyApp::User",
-        "version": {
-          "min": "1.0",
-          "max": "1.3"
-        }
+    "_meta": { <1>
+      "class": "MyApp::User",
+      "version": {
+        "min": "1.0",
+        "max": "1.3"
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> This `_meta` info can be retrieved with the
     <<indices-get-mapping,GET mapping>> API.
 
 The `_meta` field can be updated on an existing type using the
-<<indices-put-mapping,PUT mapping>> API:
+<<indices-put-mapping,update mapping>> API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index/_mapping/_doc
+PUT my-index-000001/_mapping
 {
   "_meta": {
     "class": "MyApp2::User3",
@@ -42,5 +40,4 @@ PUT my_index/_mapping/_doc
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]

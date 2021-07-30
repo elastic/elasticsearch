@@ -1,70 +1,124 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.core.ml.MlTasks.RESET_IN_PROGRESS;
 
 public class DatafeedNodeSelector {
 
     private static final Logger LOGGER = LogManager.getLogger(DatafeedNodeSelector.class);
 
-    private final DatafeedConfig datafeed;
-    private final PersistentTasksCustomMetaData.PersistentTask<?> jobTask;
+    public static final PersistentTasksCustomMetadata.Assignment AWAITING_JOB_ASSIGNMENT =
+        new PersistentTasksCustomMetadata.Assignment(null, "datafeed awaiting job assignment.");
+    public static final PersistentTasksCustomMetadata.Assignment AWAITING_JOB_RELOCATION =
+        new PersistentTasksCustomMetadata.Assignment(null, "datafeed awaiting job relocation.");
+
+    private final String datafeedId;
+    private final String jobId;
+    private final List<String> datafeedIndices;
+    private final PersistentTasksCustomMetadata.PersistentTask<?> jobTask;
     private final ClusterState clusterState;
     private final IndexNameExpressionResolver resolver;
+    private final IndicesOptions indicesOptions;
 
-    public DatafeedNodeSelector(ClusterState clusterState, IndexNameExpressionResolver resolver, String datafeedId) {
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-        PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        this.datafeed = mlMetadata.getDatafeed(datafeedId);
-        this.jobTask = MlTasks.getJobTask(datafeed.getJobId(), tasks);
+    public DatafeedNodeSelector(ClusterState clusterState, IndexNameExpressionResolver resolver, String datafeedId,
+                                String jobId, List<String> datafeedIndices, IndicesOptions indicesOptions) {
+        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        this.datafeedId = datafeedId;
+        this.jobId = jobId;
+        this.datafeedIndices = datafeedIndices;
+        this.jobTask = MlTasks.getJobTask(jobId, tasks);
         this.clusterState = Objects.requireNonNull(clusterState);
         this.resolver = Objects.requireNonNull(resolver);
+        this.indicesOptions = Objects.requireNonNull(indicesOptions);
     }
 
     public void checkDatafeedTaskCanBeCreated() {
+        if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
+            String msg = "Unable to start datafeed [" + datafeedId +"] explanation [" + AWAITING_UPGRADE.getExplanation() + "]";
+            LOGGER.debug(msg);
+            Exception detail = new IllegalStateException(msg);
+            throw new ElasticsearchStatusException("Could not start datafeed [" + datafeedId +"] as indices are being upgraded",
+                RestStatus.TOO_MANY_REQUESTS, detail);
+        }
         AssignmentFailure assignmentFailure = checkAssignment();
         if (assignmentFailure != null && assignmentFailure.isCriticalForTaskCreation) {
-            String msg = "No node found to start datafeed [" + datafeed.getId() + "], allocation explanation [" + assignmentFailure.reason
-                    + "]";
+            String msg = "No node found to start datafeed [" + datafeedId + "], " +
+                    "allocation explanation [" + assignmentFailure.reason + "]";
             LOGGER.debug(msg);
             throw ExceptionsHelper.conflictStatusException(msg);
         }
     }
 
-    public PersistentTasksCustomMetaData.Assignment selectNode() {
+    /**
+     * Select which node to run the datafeed on.  The logic is to always choose the same node that the job
+     * is already running on <em>unless</em> this node is not permitted for some reason or there is some
+     * problem in the cluster that would stop the datafeed working.
+     * @param candidateNodes Only nodes in this collection may be chosen as the executor node.
+     * @return The assignment for the datafeed, containing either an executor node or a reason why an
+     *         executor node was not returned.
+     */
+    public PersistentTasksCustomMetadata.Assignment selectNode(Collection<DiscoveryNode> candidateNodes) {
+        if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
+            return AWAITING_UPGRADE;
+        }
+        if (MlMetadata.getMlMetadata(clusterState).isResetMode()) {
+            return RESET_IN_PROGRESS;
+        }
+
         AssignmentFailure assignmentFailure = checkAssignment();
         if (assignmentFailure == null) {
-            return new PersistentTasksCustomMetaData.Assignment(jobTask.getExecutorNode(), "");
+            String jobNode = jobTask.getExecutorNode();
+            if (jobNode == null) {
+                return AWAITING_JOB_ASSIGNMENT;
+            }
+            // During node shutdown the datafeed will have been unassigned but the job will still be gracefully persisting state.
+            // During this time the datafeed will be trying to select the job's node, but we must disallow this.  Instead the
+            // datafeed must remain in limbo until the job has finished persisting state and can move to a different node.
+            // Nodes that are shutting down will have been excluded from the candidate nodes.
+            if (candidateNodes.stream().anyMatch(candidateNode -> candidateNode.getId().equals(jobNode)) == false) {
+                return AWAITING_JOB_RELOCATION;
+            }
+            return new PersistentTasksCustomMetadata.Assignment(jobNode, "");
         }
         LOGGER.debug(assignmentFailure.reason);
-        return new PersistentTasksCustomMetaData.Assignment(null, assignmentFailure.reason);
+        assert assignmentFailure.reason.isEmpty() == false;
+        return new PersistentTasksCustomMetadata.Assignment(null, assignmentFailure.reason);
     }
 
     @Nullable
     private AssignmentFailure checkAssignment() {
         PriorityFailureCollector priorityFailureCollector = new PriorityFailureCollector();
-        priorityFailureCollector.add(verifyIndicesActive(datafeed));
+        priorityFailureCollector.add(verifyIndicesActive());
 
         JobTaskState jobTaskState = null;
         JobState jobState = JobState.CLOSED;
@@ -75,13 +129,14 @@ public class DatafeedNodeSelector {
 
         if (jobState.isAnyOf(JobState.OPENING, JobState.OPENED) == false) {
             // lets try again later when the job has been opened:
-            String reason = "cannot start datafeed [" + datafeed.getId() + "], because job's [" + datafeed.getJobId() +
-                    "] state is [" + jobState +  "] while state [" + JobState.OPENED + "] is required";
+            String reason = "cannot start datafeed [" + datafeedId + "], because the job's [" + jobId
+                    + "] state is [" + jobState +  "] while state [" + JobState.OPENED + "] is required";
             priorityFailureCollector.add(new AssignmentFailure(reason, true));
         }
 
         if (jobTaskState != null && jobTaskState.isStatusStale(jobTask)) {
-            String reason = "cannot start datafeed [" + datafeed.getId() + "], job [" + datafeed.getJobId() + "] state is stale";
+            String reason = "cannot start datafeed [" + datafeedId + "], because the job's [" + jobId
+                    + "] state is stale";
             priorityFailureCollector.add(new AssignmentFailure(reason, true));
         }
 
@@ -89,36 +144,35 @@ public class DatafeedNodeSelector {
     }
 
     @Nullable
-    private AssignmentFailure verifyIndicesActive(DatafeedConfig datafeed) {
-        List<String> indices = datafeed.getIndices();
-        for (String index : indices) {
+    private AssignmentFailure verifyIndicesActive() {
+        String[] index = datafeedIndices.stream()
+            // We cannot verify remote indices
+            .filter(i -> RemoteClusterLicenseChecker.isRemoteIndex(i) == false)
+            .toArray(String[]::new);
 
-            if (RemoteClusterLicenseChecker.isRemoteIndex(index)) {
-                // We cannot verify remote indices
-                continue;
+        final String[] concreteIndices;
+
+        try {
+            concreteIndices = resolver.concreteIndexNames(clusterState, indicesOptions, true, index);
+            if (concreteIndices.length == 0) {
+                return new AssignmentFailure("cannot start datafeed [" + datafeedId + "] because index ["
+                    + Strings.arrayToCommaDelimitedString(index) + "] does not exist, is closed, or is still initializing.", true);
             }
+        } catch (Exception e) {
+            String msg = new ParameterizedMessage("failed resolving indices given [{}] and indices_options [{}]",
+                Strings.arrayToCommaDelimitedString(index),
+                indicesOptions).getFormattedMessage();
+            LOGGER.debug("[" + datafeedId + "] " + msg, e);
+            return new AssignmentFailure(
+                "cannot start datafeed [" + datafeedId + "] because it " + msg + " with exception [" + e.getMessage() + "]",
+                true);
+        }
 
-            String[] concreteIndices;
-            String reason = "cannot start datafeed [" + datafeed.getId() + "] because index ["
-                    + index + "] does not exist, is closed, or is still initializing.";
-
-            try {
-                concreteIndices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), index);
-                if (concreteIndices.length == 0) {
-                    return new AssignmentFailure(reason, true);
-                }
-            } catch (Exception e) {
-                LOGGER.debug(reason, e);
-                return new AssignmentFailure(reason, true);
-            }
-
-            for (String concreteIndex : concreteIndices) {
-                IndexRoutingTable routingTable = clusterState.getRoutingTable().index(concreteIndex);
-                if (routingTable == null || !routingTable.allPrimaryShardsActive()) {
-                    reason = "cannot start datafeed [" + datafeed.getId() + "] because index ["
-                            + concreteIndex + "] does not have all primary shards active yet.";
-                    return new AssignmentFailure(reason, false);
-                }
+        for (String concreteIndex : concreteIndices) {
+            IndexRoutingTable routingTable = clusterState.getRoutingTable().index(concreteIndex);
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+                return new AssignmentFailure("cannot start datafeed [" + datafeedId + "] because index ["
+                    + concreteIndex + "] does not have all primary shards active yet.", false);
             }
         }
         return null;

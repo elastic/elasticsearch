@@ -1,22 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.monitoring.exporter;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.Objects;
 
 /**
@@ -24,6 +24,7 @@ import java.util.Objects;
  */
 public abstract class MonitoringDoc implements ToXContentObject {
 
+    private static final DateFormatter dateTimeFormatter = DateFormatter.forPattern("strict_date_time").withZone(ZoneOffset.UTC);
     private final String cluster;
     private final long timestamp;
     private final long intervalMillis;
@@ -123,7 +124,7 @@ public abstract class MonitoringDoc implements ToXContentObject {
      * @return a string representing the timestamp
      */
     public static String toUTC(final long timestamp) {
-        return new DateTime(timestamp, DateTimeZone.UTC).toString();
+        return dateTimeFormatter.formatMillis(timestamp);
     }
 
     /**
@@ -162,17 +163,7 @@ public abstract class MonitoringDoc implements ToXContentObject {
             transportAddress = in.readOptionalString();
             ip = in.readOptionalString();
             name = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
-                timestamp = in.readVLong();
-            } else {
-                // Read the node attributes (removed in 6.0 rc1)
-                int size = in.readVInt();
-                for (int i = 0; i < size; i++) {
-                    in.readString();
-                    in.readString();
-                }
-                timestamp = 0L;
-            }
+            timestamp = in.readVLong();
         }
 
         @Override
@@ -182,12 +173,7 @@ public abstract class MonitoringDoc implements ToXContentObject {
             out.writeOptionalString(transportAddress);
             out.writeOptionalString(ip);
             out.writeOptionalString(name);
-            if (out.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
-                out.writeVLong(timestamp);
-            } else {
-                // Write an empty map of node attributes (removed in 6.0 rc1)
-                out.writeVInt(0);
-            }
+            out.writeVLong(timestamp);
         }
 
         public String getUUID() {

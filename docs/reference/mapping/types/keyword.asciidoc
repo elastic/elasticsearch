@@ -1,46 +1,76 @@
+[testenv="basic"]
 [[keyword]]
-=== Keyword datatype
+=== Keyword type family
+++++
+<titleabbrev>Keyword</titleabbrev>
+++++
 
-A field to index structured content such as email addresses, hostnames, status
-codes, zip codes or tags.
+The keyword family includes the following field types:
 
-They are typically used for filtering (_Find me all blog posts where
-++status++ is ++published++_), for sorting, and for aggregations. Keyword
-fields are only searchable by their exact value.
+* <<keyword-field-type,`keyword`>>, which is used for structured content such as IDs, email
+addresses, hostnames, status codes, zip codes, or tags.
+* <<constant-keyword-field-type,`constant_keyword`>> for keyword fields that always contain
+the same value.
+* <<wildcard-field-type,`wildcard`>> for unstructured machine-generated content.
+The `wildcard` type is optimized for fields with large values or high
+cardinality.
 
-If you need to index full text content such as email bodies or product
-descriptions, it is likely that you should rather use a <<text,`text`>> field.
+Keyword fields are often used in <<sort-search-results,sorting>>,
+<<search-aggregations,aggregations>>, and <<term-level-queries,term-level
+queries>>, such as <<query-dsl-term-query,`term`>>.
 
-Below is an example of a mapping for a keyword field:
+TIP: Avoid using keyword fields for full-text search. Use the <<text,`text`>>
+field type instead.
 
-[source,js]
+[discrete]
+[[keyword-field-type]]
+=== Keyword field type
+
+Below is an example of a mapping for a basic `keyword` field:
+
+[source,console]
 --------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "tags": {
-          "type":  "keyword"
-        }
+    "properties": {
+      "tags": {
+        "type":  "keyword"
       }
     }
   }
 }
 --------------------------------
-// CONSOLE
 
+[TIP]
+.Mapping numeric identifiers
+====
+include::numeric.asciidoc[tag=map-ids-as-keyword]
+====
+
+[discrete]
 [[keyword-params]]
-==== Parameters for keyword fields
+==== Parameters for basic keyword fields
 
 The following parameters are accepted by `keyword` fields:
 
 [horizontal]
 
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
+// tag::dimension[]
+`dimension`::
+For internal use by {kib} only. Marks the field as a time series dimension.
+Accepts `true` or `false` (default).
++
+The <<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
+index setting limits the number of dimensions in an index.
++
+Dimension fields have the following constraints:
++
+* The `doc_values` and `index` mapping parameters must be `true`.
+* Field values cannot be an <<array,array or multi-value>>.
+// end::dimension[]
+* Field values cannot be larger than 1024 bytes.
+* The field cannot use a <<normalizer,`normalizer`>>.
 
 <<doc-values,`doc_values`>>::
 
@@ -62,7 +92,7 @@ The following parameters are accepted by `keyword` fields:
 
 <<ignore-above,`ignore_above`>>::
 
-    Do not index any string longer than this value.  Defaults to `2147483647`
+    Do not index any string longer than this value. Defaults to `2147483647`
     so that all values would be accepted. Please however note that default
     dynamic mapping rules create a sub `keyword` field that overrides this
     default by setting `ignore_above: 256`.
@@ -85,7 +115,29 @@ The following parameters are accepted by `keyword` fields:
 <<null-value,`null_value`>>::
 
     Accepts a string value which is substituted for any explicit `null`
-    values.  Defaults to `null`, which means the field is treated as missing.
+    values. Defaults to `null`, which means the field is treated as missing.
+    Note that this cannot be set if the `script` value is used.
+
+`on_script_error`::
+
+    Defines what to do if the script defined by the `script` parameter
+    throws an error at indexing time. Accepts `fail` (default), which
+    will cause the entire document to be rejected, and `continue`, which
+    will register the field in the document's
+    <<mapping-ignored-field,`_ignored`>> metadata field and continue
+    indexing. This parameter can only be set if the `script` field is
+    also set.
+
+`script`::
+
+    If this parameter is set, then the field will index values generated
+    by this script, rather than reading the values directly from the
+    source. If a value is set for this field on the input document, then
+    the document will be rejected with an error.
+    Scripts are in the same format as their
+    <<runtime-mapping-fields,runtime equivalent>>. Values emitted by the
+    script are normalized as usual, and will be ignored if they are longer
+    that the value set on `ignore_above`.
 
 <<mapping-store,`store`>>::
 
@@ -109,8 +161,10 @@ The following parameters are accepted by `keyword` fields:
     when building a query for this field.
     Accepts `true` or `false` (default).
 
-NOTE: Indexes imported from 2.x do not support `keyword`. Instead they will
-attempt to downgrade `keyword` into `string`. This allows you to merge modern
-mappings with legacy mappings. Long lived indexes will have to be recreated
-before upgrading to 6.x but mapping downgrade gives you the opportunity to do
-the recreation on your own schedule.
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.
+
+include::constant-keyword.asciidoc[]
+
+include::wildcard.asciidoc[]

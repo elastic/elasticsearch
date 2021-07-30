@@ -1,28 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script.expression;
 
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptException;
@@ -47,16 +35,13 @@ public class ExpressionFieldScriptTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        NumberFieldMapper.NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fullName("field")).thenReturn(fieldType);
-        when(mapperService.fullName("alias")).thenReturn(fieldType);
+        NumberFieldMapper.NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
 
         SortedNumericDoubleValues doubleValues = mock(SortedNumericDoubleValues.class);
         when(doubleValues.advanceExact(anyInt())).thenReturn(true);
         when(doubleValues.nextValue()).thenReturn(2.718);
 
-        AtomicNumericFieldData atomicFieldData = mock(AtomicNumericFieldData.class);
+        LeafNumericFieldData atomicFieldData = mock(LeafNumericFieldData.class);
         when(atomicFieldData.getDoubleValues()).thenReturn(doubleValues);
 
         IndexNumericFieldData fieldData = mock(IndexNumericFieldData.class);
@@ -64,7 +49,7 @@ public class ExpressionFieldScriptTests extends ESTestCase {
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(mapperService, ignored -> fieldData, null);
+        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null, (ignored, lookup) -> fieldData);
     }
 
     private FieldScript.LeafFactory compile(String expression) {
@@ -88,14 +73,6 @@ public class ExpressionFieldScriptTests extends ESTestCase {
 
     public void testFieldAccess() throws IOException {
         FieldScript script = compile("doc['field'].value").newInstance(null);
-        script.setDocument(1);
-
-        Object result = script.execute();
-        assertThat(result, equalTo(2.718));
-    }
-
-    public void testFieldAccessWithFieldAlias() throws IOException {
-        FieldScript script = compile("doc['alias'].value").newInstance(null);
         script.setDocument(1);
 
         Object result = script.execute();

@@ -1,0 +1,34 @@
+--
+:api: searchable-snapshots-caches-stats
+:request: CachesStatsRequest
+:response: CachesStatsResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Cache Stats API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+Retrieves statistics about the shared cache for
+{ref}/searchable-snapshots.html#partially-mounted[partially mounted indices].
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Example of a request targeting all data nodes.
+<2> Example of a request targeting two specific nodes.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ provides the following statistics:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The list of cache statistics for all nodes involved in the request.
+
+include::../execution.asciidoc[]

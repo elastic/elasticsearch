@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.condition;
 
@@ -12,7 +13,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,25 +24,20 @@ import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptMetaData;
+import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.core.watcher.execution.Wid;
-import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -54,8 +50,6 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArg
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ScriptConditionTests extends ESTestCase {
 
@@ -75,7 +69,7 @@ public class ScriptConditionTests extends ESTestCase {
 
         scripts.put("null.foo", s -> {
             throw new ScriptException("Error evaluating null.foo", new IllegalArgumentException(), emptyList(),
-                    "null.foo", AbstractWatcherIntegrationTestCase.WATCHER_LANG);
+                    "null.foo", Script.DEFAULT_SCRIPT_LANG);
         });
 
         scripts.put("ctx.payload.hits.total.value > 1", vars -> {
@@ -92,7 +86,7 @@ public class ScriptConditionTests extends ESTestCase {
         scriptService = WatcherMockScriptPlugin.newMockScriptService(scripts);
 
         ClusterState.Builder clusterState = new ClusterState.Builder(new ClusterName("_name"));
-        clusterState.metaData(MetaData.builder().putCustom(ScriptMetaData.TYPE, new ScriptMetaData.Builder(null).build()));
+        clusterState.metadata(Metadata.builder().putCustom(ScriptMetadata.TYPE, new ScriptMetadata.Builder(null).build()));
         ClusterState cs = clusterState.build();
         scriptService.applyClusterState(new ClusterChangedEvent("_source", cs, cs));
     }
@@ -200,29 +194,10 @@ public class ScriptConditionTests extends ESTestCase {
             mockScript("ctx.trigger.scheduled_time.toInstant().toEpochMill() < new Date().time"), scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
-        WatchExecutionContext ctx = mockExecutionContext("_name", new DateTime(DateTimeZone.UTC),
+        WatchExecutionContext ctx = mockExecutionContext("_name", ZonedDateTime.now(ZoneOffset.UTC),
             new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         Thread.sleep(10);
         assertThat(condition.execute(ctx).met(), is(true));
-    }
-
-    public void testParamsCtxDeprecated() throws Exception {
-        WatchExecutionContext watcherContext = mock(WatchExecutionContext.class);
-        when(watcherContext.id()).thenReturn(mock(Wid.class));
-        when(watcherContext.watch()).thenReturn(mock(Watch.class));
-        when(watcherContext.triggerEvent()).thenReturn(mock(TriggerEvent.class));
-        DateTime now = DateTime.now(DateTimeZone.UTC);
-        when(watcherContext.executionTime()).thenReturn(now);
-        WatcherConditionScript watcherScript = new WatcherConditionScript(Collections.emptyMap(), watcherContext) {
-            @Override
-            public boolean execute() {
-                assertThat(getParams().get("ctx"), is(getCtx()));
-                return true;
-            }
-        };
-        watcherScript.execute();
-        assertWarnings("Accessing variable [ctx] via [params.ctx] from within a watcher_condition script " +
-            "is deprecated in favor of directly accessing [ctx].");
     }
 
     private static XContentBuilder createConditionContent(String script, String scriptLang, ScriptType scriptType) throws IOException {

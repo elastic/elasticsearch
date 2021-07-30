@@ -1,0 +1,31 @@
+--
+:api: enrich-put-policy
+:request: PutPolicyRequest
+:response: AcknowledgedResponse
+--
+
+[id="{upid}-{api}"]
+=== Create enrich policy API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+Creates an enrich policy.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The +{response}+ indicates if the request was acknowledged.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether the request was acknowledged.
+
+include::../execution.asciidoc[]

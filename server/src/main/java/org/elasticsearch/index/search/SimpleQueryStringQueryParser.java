@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.search;
 
@@ -26,6 +15,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -38,14 +28,15 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.List;
-import java.util.ArrayList;
 
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
@@ -56,25 +47,25 @@ import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQue
 public class SimpleQueryStringQueryParser extends SimpleQueryParser {
 
     private final Settings settings;
-    private QueryShardContext context;
-    private final MultiMatchQuery queryBuilder;
+    private SearchExecutionContext context;
+    private final MultiMatchQueryParser queryBuilder;
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
     public SimpleQueryStringQueryParser(Map<String, Float> weights, int flags,
-                                        Settings settings, QueryShardContext context) {
+                                        Settings settings, SearchExecutionContext context) {
         this(null, weights, flags, settings, context);
     }
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
     public SimpleQueryStringQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags,
-                                        Settings settings, QueryShardContext context) {
+                                        Settings settings, SearchExecutionContext context) {
         super(analyzer, weights, flags);
         this.settings = settings;
         this.context = context;
-        this.queryBuilder = new MultiMatchQuery(context);
+        this.queryBuilder = new MultiMatchQueryParser(context);
         this.queryBuilder.setAutoGenerateSynonymsPhraseQuery(settings.autoGenerateSynonymsPhraseQuery());
         this.queryBuilder.setLenient(settings.lenient());
-        this.queryBuilder.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.NULL);
+        this.queryBuilder.setZeroTermsQuery(ZeroTermsQueryOption.NULL);
         if (analyzer != null) {
             this.queryBuilder.setAnalyzer(analyzer);
         }
@@ -84,7 +75,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         if (getAnalyzer() != null) {
             return analyzer;
         }
-        return ft.searchAnalyzer();
+        return ft.getTextSearchInfo().getSearchAnalyzer();
     }
 
     /**
@@ -104,8 +95,8 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     }
 
     @Override
-    protected Query newTermQuery(Term term) {
-        MappedFieldType ft = context.fieldMapper(term.field());
+    protected Query newTermQuery(Term term, float boost) {
+        MappedFieldType ft = context.getFieldType(term.field());
         if (ft == null) {
             return newUnmappedFieldQuery(term.field());
         }
@@ -126,7 +117,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
-            final MappedFieldType ft = context.fieldMapper(fieldName);
+            final MappedFieldType ft = context.getFieldType(fieldName);
             if (ft == null) {
                 disjuncts.add(newUnmappedFieldQuery(fieldName));
                 continue;
@@ -134,7 +125,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             try {
                 final BytesRef term = getAnalyzer(ft).normalize(fieldName, text);
                 Query query = ft.fuzzyQuery(term, Fuzziness.fromEdits(fuzziness), settings.fuzzyPrefixLength,
-                    settings.fuzzyMaxExpansions, settings.fuzzyTranspositions);
+                    settings.fuzzyMaxExpansions, settings.fuzzyTranspositions, context);
                 disjuncts.add(wrapWithBoost(query, entry.getValue()));
             } catch (RuntimeException e) {
                 disjuncts.add(rethrowUnlessLenient(e));
@@ -169,7 +160,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
-            final MappedFieldType ft = context.fieldMapper(fieldName);
+            final MappedFieldType ft = context.getFieldType(fieldName);
             if (ft == null) {
                 disjuncts.add(newUnmappedFieldQuery(fieldName));
                 continue;
@@ -259,7 +250,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                 if (isLastPos) {
                     posQuery = new PrefixQuery(new Term(field, plist.get(0)));
                 } else {
-                    posQuery = newTermQuery(new Term(field, plist.get(0)));
+                    posQuery = newTermQuery(new Term(field, plist.get(0)), BoostAttribute.DEFAULT_BOOST);
                 }
             } else if (isLastPos == false) {
                 // build a synonym query for terms in the same position.

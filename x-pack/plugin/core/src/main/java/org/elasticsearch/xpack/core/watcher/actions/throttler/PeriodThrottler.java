@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.actions.throttler;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 
@@ -47,7 +48,9 @@ public class PeriodThrottler implements Throttler {
         if (status.lastSuccessfulExecution() == null) {
             return Result.NO;
         }
-        TimeValue timeElapsed = TimeValue.timeValueMillis(clock.millis() - status.lastSuccessfulExecution().timestamp().getMillis());
+        long now = clock.millis();
+        long executionTime = status.lastSuccessfulExecution().timestamp().toInstant().toEpochMilli();
+        TimeValue timeElapsed = TimeValue.timeValueMillis(now - executionTime);
         if (timeElapsed.getMillis() <= period.getMillis()) {
             return Result.throttle(PERIOD, "throttling interval is set to [{}] but time elapsed since last execution is [{}]",
                     period, timeElapsed);

@@ -1,55 +1,80 @@
 {
-  "msearch": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-multi-search.html",
-    "methods": ["GET", "POST"],
-    "url": {
-      "path": "/_msearch",
-      "paths": ["/_msearch", "/{index}/_msearch", "/{index}/{type}/_msearch"],
-      "parts": {
-        "index": {
-         "type" : "list",
-         "description" : "A comma-separated list of index names to use as default"
+  "msearch":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-multi-search.html",
+      "description":"Allows to execute several search operations in one request."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/x-ndjson"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_msearch",
+          "methods":[
+            "GET",
+            "POST"
+          ]
         },
-        "type": {
-          "type" : "list",
-          "description" : "A comma-separated list of document types to use as default"
+        {
+          "path":"/{index}/_msearch",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"list",
+              "description":"A comma-separated list of index names to use as default"
+            }
+          }
         }
+      ]
+    },
+    "params":{
+      "search_type":{
+        "type":"enum",
+        "options":[
+          "query_then_fetch",
+          "dfs_query_then_fetch"
+        ],
+        "description":"Search operation type"
       },
-      "params": {
-        "search_type": {
-          "type" : "enum",
-          "options" : ["query_then_fetch", "query_and_fetch", "dfs_query_then_fetch", "dfs_query_and_fetch"],
-          "description" : "Search operation type"
-        },
-        "max_concurrent_searches" : {
-          "type" : "number",
-          "description" : "Controls the maximum number of concurrent searches the multi search api will execute"
-        },
-        "typed_keys": {
-          "type" : "boolean",
-          "description" : "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
-        },
-        "pre_filter_shard_size" : {
-          "type" : "number",
-          "description" : "A threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard bounds and the query are disjoint.",
-          "default" : 128
-        },
-        "max_concurrent_shard_requests" : {
-          "type" : "number",
-          "description" : "The number of concurrent shard requests each sub search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
-          "default" : "The default grows with the number of nodes in the cluster but is at most 256."
-        },
-        "rest_total_hits_as_int" : {
-          "type" : "boolean",
-          "description" : "Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
-          "default" : false
-        }
+      "max_concurrent_searches":{
+        "type":"number",
+        "description":"Controls the maximum number of concurrent searches the multi search api will execute"
+      },
+      "typed_keys":{
+        "type":"boolean",
+        "description":"Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
+      },
+      "pre_filter_shard_size":{
+        "type":"number",
+        "description":"A threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard bounds and the query are disjoint."
+      },
+      "max_concurrent_shard_requests":{
+        "type":"number",
+        "description":"The number of concurrent shard requests each sub search executes concurrently per node. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
+        "default":5
+      },
+      "rest_total_hits_as_int":{
+        "type":"boolean",
+        "description":"Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
+        "default":false
+      },
+      "ccs_minimize_roundtrips":{
+        "type":"boolean",
+        "description":"Indicates whether network round-trips should be minimized as part of cross-cluster search requests execution",
+        "default":"true"
       }
     },
-    "body": {
-      "description": "The request definitions (metadata-search request definition pairs), separated by newlines",
-      "required" : true,
-      "serialize" : "bulk"
+    "body":{
+      "description":"The request definitions (metadata-search request definition pairs), separated by newlines",
+      "required":true,
+      "serialize":"bulk"
     }
   }
 }

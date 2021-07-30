@@ -1,41 +1,41 @@
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.info.BuildParams
 
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
+  testImplementation project(':x-pack:qa')
 }
 
-ext.pluginsCount = 0
-project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-  // need to get a non-decorated project object, so must re-lookup the project by path
-  integTestCluster.plugin(pluginProject.path)
-  pluginsCount += 1
-}
+def pluginPaths = project(':plugins').getChildProjects().findAll { pluginName, pluginProject ->
+  // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
+  def ignoreIngestAttachment = BuildParams.inFipsJvm && pluginName == "ingest-attachment"
 
-integTestCluster {
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setupCommand 'setupDummyUser',
-               'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: 'test_user',
-            password: 'x-pack-test-password',
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
-  }
-}
+  // This plugin has to be configured to work via system properties
+  def ignoreQuotaWareFs = pluginName == 'quota-aware-fs'
+
+  return ignoreIngestAttachment == false && ignoreQuotaWareFs == false
+}.collect {pluginName, pluginProject -> pluginProject.path }
 
 ext.expansions = [
-  'expected.plugins.count': pluginsCount
+  'expected.plugins.count': pluginPaths.size()
 ]
 
-processTestResources {
-  inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+tasks.named("processTestResources").configure {
+  inputs.properties(project.expansions)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
+}
+
+testClusters.matching { it.name == "integTest" }.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  user username: "test_user", password: "x-pack-test-password"
+
+  pluginPaths.each {pluginPath ->
+    plugin pluginPath
+  }
 }

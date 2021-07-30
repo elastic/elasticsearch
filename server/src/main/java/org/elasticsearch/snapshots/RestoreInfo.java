@@ -1,36 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -40,7 +27,7 @@ import java.util.Objects;
  * <p>
  * Returned as part of {@link org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse}
  */
-public class RestoreInfo implements ToXContentObject, Streamable {
+public class RestoreInfo implements ToXContentObject, Writeable {
 
     private String name;
 
@@ -50,15 +37,20 @@ public class RestoreInfo implements ToXContentObject, Streamable {
 
     private int successfulShards;
 
-    RestoreInfo() {
-
-    }
+    RestoreInfo() {}
 
     public RestoreInfo(String name, List<String> indices, int totalShards, int successfulShards) {
         this.name = name;
         this.indices = indices;
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
+    }
+
+    public RestoreInfo(StreamInput in) throws IOException {
+        name = in.readString();
+        indices = Collections.unmodifiableList(in.readStringList());
+        totalShards = in.readVInt();
+        successfulShards = in.readVInt();
     }
 
     /**
@@ -94,7 +86,7 @@ public class RestoreInfo implements ToXContentObject, Streamable {
      * @return number of failed shards
      */
     public int failedShards() {
-        return totalShards -  successfulShards;
+        return totalShards - successfulShards;
     }
 
     /**
@@ -104,15 +96,6 @@ public class RestoreInfo implements ToXContentObject, Streamable {
      */
     public int successfulShards() {
         return successfulShards;
-    }
-
-    /**
-     * REST status of the operation
-     *
-     * @return REST status
-     */
-    public RestStatus status() {
-        return RestStatus.OK;
     }
 
     static final class Fields {
@@ -160,25 +143,9 @@ public class RestoreInfo implements ToXContentObject, Streamable {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        int size = in.readVInt();
-        List<String> indicesListBuilder = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            indicesListBuilder.add(in.readString());
-        }
-        indices = Collections.unmodifiableList(indicesListBuilder);
-        totalShards = in.readVInt();
-        successfulShards = in.readVInt();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeVInt(indices.size());
-        for (String index : indices) {
-            out.writeString(index);
-        }
+        out.writeStringCollection(indices);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
     }
@@ -190,7 +157,7 @@ public class RestoreInfo implements ToXContentObject, Streamable {
      * @return restore info
      */
     public static RestoreInfo readOptionalRestoreInfo(StreamInput in) throws IOException {
-        return in.readOptionalStreamable(RestoreInfo::new);
+        return in.readOptionalWriteable(RestoreInfo::new);
     }
 
     @Override
@@ -198,10 +165,10 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RestoreInfo that = (RestoreInfo) o;
-        return totalShards == that.totalShards &&
-            successfulShards == that.successfulShards &&
-            Objects.equals(name, that.name) &&
-            Objects.equals(indices, that.indices);
+        return totalShards == that.totalShards
+            && successfulShards == that.successfulShards
+            && Objects.equals(name, that.name)
+            && Objects.equals(indices, that.indices);
     }
 
     @Override

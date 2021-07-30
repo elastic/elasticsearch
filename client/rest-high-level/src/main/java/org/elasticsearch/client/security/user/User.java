@@ -1,33 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.security.user;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * A user to be utilized with security APIs.
@@ -36,7 +23,7 @@ import java.util.Set;
 public final class User {
 
     private final String username;
-    private final Set<String> roles;
+    private final List<String> roles;
     private final Map<String, Object> metadata;
     @Nullable private final String fullName;
     @Nullable private final String email;
@@ -50,13 +37,12 @@ public final class User {
      * @param fullName the full name of the user that may be used for display purposes
      * @param email the email address of the user
      */
-    public User(String username, Collection<String> roles, Map<String, Object> metadata, @Nullable String fullName,
+    public User(String username, List<String> roles, Map<String, Object> metadata, @Nullable String fullName,
             @Nullable String email) {
-        this.username = username = Objects.requireNonNull(username, "`username` is required, cannot be null");
-        this.roles = Collections.unmodifiableSet(new HashSet<>(
-                Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty Collection instead.")));
-        this.metadata = Collections
-                .unmodifiableMap(Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
+        this.username = Objects.requireNonNull(username, "`username` is required, cannot be null");
+        this.roles = List.copyOf(Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty list instead."));
+        this.metadata = Collections.unmodifiableMap(
+                Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
         this.fullName = fullName;
         this.email = email;
     }
@@ -67,7 +53,7 @@ public final class User {
      * @param username the username, also known as the principal, unique for in the scope of a realm
      * @param roles the roles that this user is assigned
      */
-    public User(String username, Collection<String> roles) {
+    public User(String username, List<String> roles) {
         this(username, roles, Collections.emptyMap(), null, null);
     }
 
@@ -84,7 +70,7 @@ public final class User {
      *          identified by their unique names and each represents as
      *          set of permissions. Can never be {@code null}.
      */
-    public Set<String> getRoles() {
+    public List<String> getRoles() {
         return this.roles;
     }
 

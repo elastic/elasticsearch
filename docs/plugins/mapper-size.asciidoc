@@ -1,7 +1,7 @@
 [[mapper-size]]
 === Mapper Size Plugin
 
-The mapper-size plugin provides the `_size` meta field which, when enabled,
+The mapper-size plugin provides the `_size` metadata field which, when enabled,
 indexes the size in bytes of the original
 {ref}/mapping-source-field.html[`_source`] field.
 
@@ -13,42 +13,39 @@ include::install_remove.asciidoc[]
 
 In order to enable the `_size` field, set the mapping as follows:
 
-[source,js]
+[source,console]
 --------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
-    "_doc": {
-      "_size": {
-        "enabled": true
-      }
+    "_size": {
+      "enabled": true
     }
   }
 }
 --------------------------
-// CONSOLE
 
 The value of the `_size` field is accessible in queries, aggregations, scripts,
-and when sorting:
+and when sorting. It can be retrieved using the {ref}/search-fields.html#search-fields-param[fields parameter]:
 
-[source,js]
+[source,console]
 --------------------------
 # Example documents
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "text": "This is a document"
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "text": "This is another document"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "range": {
-      "_size": { <1>
+      "_size": {                      <1>
         "gt": 10
       }
     }
@@ -56,29 +53,33 @@ GET my_index/_search
   "aggs": {
     "sizes": {
       "terms": {
-        "field": "_size", <2>
+        "field": "_size",             <2>
         "size": 10
       }
     }
   },
   "sort": [
     {
-      "_size": { <3>
+      "_size": {                      <3>
         "order": "desc"
       }
     }
   ],
+  "fields": ["_size"],                <4>
   "script_fields": {
     "size": {
-      "script": "doc['_size']"  <4>
+      "script": "doc['_size']"        <5>
     }
   }
 }
 --------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> Querying on the `_size` field
 <2> Aggregating on the `_size` field
 <3> Sorting on the `_size` field
-<4> Accessing the `_size` field in scripts (inline scripts must be modules-security-scripting.html#enable-dynamic-scripting[enabled] for this example to work)
+<4> Use the `fields` parameter to return the `_size` in the search response.
+<5> Uses a
+{ref}/search-fields.html#script-fields[script field]
+to return the `_size` field in the search response.
+

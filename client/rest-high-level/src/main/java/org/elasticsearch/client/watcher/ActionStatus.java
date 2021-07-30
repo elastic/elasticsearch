@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -119,15 +108,16 @@ public class ActionStatus {
             ACKED;
         }
 
-        private final DateTime timestamp;
+        private final ZonedDateTime timestamp;
         private final State state;
 
-        public AckStatus(DateTime timestamp, State state) {
-            this.timestamp = timestamp.toDateTime(DateTimeZone.UTC);
+        public AckStatus(ZonedDateTime timestamp, State state) {
+            assert timestamp.getOffset() == ZoneOffset.UTC;
+            this.timestamp = timestamp;
             this.state = state;
         }
 
-        public DateTime timestamp() {
+        public ZonedDateTime timestamp() {
             return timestamp;
         }
 
@@ -151,7 +141,7 @@ public class ActionStatus {
         }
 
         public static AckStatus parse(String actionId, XContentParser parser) throws IOException {
-            DateTime timestamp = null;
+            ZonedDateTime timestamp = null;
             State state = null;
 
             String currentFieldName = null;
@@ -181,25 +171,25 @@ public class ActionStatus {
 
     public static class Execution {
 
-        public static Execution successful(DateTime timestamp) {
+        public static Execution successful(ZonedDateTime timestamp) {
             return new Execution(timestamp, true, null);
         }
 
-        public static Execution failure(DateTime timestamp, String reason) {
+        public static Execution failure(ZonedDateTime timestamp, String reason) {
             return new Execution(timestamp, false, reason);
         }
 
-        private final DateTime timestamp;
+        private final ZonedDateTime timestamp;
         private final boolean successful;
         private final String reason;
 
-        private Execution(DateTime timestamp, boolean successful, String reason) {
-            this.timestamp = timestamp.toDateTime(DateTimeZone.UTC);
+        private Execution(ZonedDateTime timestamp, boolean successful, String reason) {
+            this.timestamp = timestamp.withZoneSameInstant(ZoneOffset.UTC);
             this.successful = successful;
             this.reason = reason;
         }
 
-        public DateTime timestamp() {
+        public ZonedDateTime timestamp() {
             return timestamp;
         }
 
@@ -229,7 +219,7 @@ public class ActionStatus {
         }
 
         public static Execution parse(String actionId, XContentParser parser) throws IOException {
-            DateTime timestamp = null;
+            ZonedDateTime timestamp = null;
             Boolean successful = null;
             String reason = null;
 
@@ -269,15 +259,15 @@ public class ActionStatus {
 
     public static class Throttle {
 
-        private final DateTime timestamp;
+        private final ZonedDateTime timestamp;
         private final String reason;
 
-        public Throttle(DateTime timestamp, String reason) {
-            this.timestamp = timestamp.toDateTime(DateTimeZone.UTC);
+        public Throttle(ZonedDateTime timestamp, String reason) {
+            this.timestamp = timestamp.withZoneSameInstant(ZoneOffset.UTC);
             this.reason = reason;
         }
 
-        public DateTime timestamp() {
+        public ZonedDateTime timestamp() {
             return timestamp;
         }
 
@@ -300,7 +290,7 @@ public class ActionStatus {
         }
 
         public static Throttle parse(String actionId, XContentParser parser) throws IOException {
-            DateTime timestamp = null;
+            ZonedDateTime timestamp = null;
             String reason = null;
 
             String currentFieldName = null;

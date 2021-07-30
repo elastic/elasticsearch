@@ -1,16 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,29 +34,18 @@ import java.util.Objects;
  * task ensures the current datafeed task can complete inconsequentially while
  * the datafeed persistent task may be stopped or reassigned on another node.
  */
-public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response> {
+public class IsolateDatafeedAction extends ActionType<IsolateDatafeedAction.Response> {
 
     public static final IsolateDatafeedAction INSTANCE = new IsolateDatafeedAction();
     public static final String NAME = "cluster:internal/xpack/ml/datafeed/isolate";
 
     private IsolateDatafeedAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, IsolateDatafeedAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
-        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
-
+        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
             PARSER.declareString((request, datafeedId) -> request.datafeedId = datafeedId, DatafeedConfig.ID);
         }
@@ -155,12 +143,4 @@ public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response
             out.writeBoolean(isolated);
         }
     }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client, IsolateDatafeedAction action) {
-            super(client, action, new Request());
-        }
-    }
-
 }

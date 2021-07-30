@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -18,7 +19,9 @@ public class GetBasicStatusResponse extends ActionResponse implements ToXContent
 
     private boolean eligibleToStartBasic;
 
-    GetBasicStatusResponse() {
+    GetBasicStatusResponse(StreamInput in) throws IOException {
+        super(in);
+        eligibleToStartBasic = in.readBoolean();
     }
 
     public GetBasicStatusResponse(boolean eligibleToStartBasic) {
@@ -27,11 +30,6 @@ public class GetBasicStatusResponse extends ActionResponse implements ToXContent
 
     boolean isEligibleToStartBasic() {
         return eligibleToStartBasic;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        eligibleToStartBasic = in.readBoolean();
     }
 
     @Override

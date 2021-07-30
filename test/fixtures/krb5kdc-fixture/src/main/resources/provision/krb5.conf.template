@@ -1,19 +1,8 @@
-# Licensed to Elasticsearch under one or more contributor
-# license agreements. See the NOTICE file distributed with
-# this work for additional information regarding copyright
-# ownership. Elasticsearch licenses this file to you under
-# the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
 
 [libdefaults]
     default_realm = ${REALM_NAME}
@@ -24,20 +13,18 @@
     forwardable = true
     ignore_acceptor_hostname = true
     rdns = false
-    default_tgs_enctypes = rc4-hmac
-    default_tkt_enctypes = rc4-hmac
-    permitted_enctypes = rc4-hmac
+    # des3-cbc-sha1-kd is the only enctype available in fips 140-2
+    default_tgs_enctypes = des3-cbc-sha1-kd
+    default_tkt_enctypes = des3-cbc-sha1-kd
+    permitted_enctypes = des3-cbc-sha1-kd
     # udp_preference_limit = 1
     kdc_timeout = 3000
+    allow_weak_enctypes = false
 
 [realms]
     ${REALM_NAME} = {
-        kdc = ${KDC_NAME}:88
-        kdc = ${KDC_NAME}:60088
-        kdc = localhost:60088
-        kdc = localhost:88
-        kdc = 127.0.0.1:60088
         kdc = 127.0.0.1:88
+        kdc = 127.0.0.1:${MAPPED_PORT}
         admin_server = ${KDC_NAME}:749
         default_domain = ${BUILD_ZONE}
     }

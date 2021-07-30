@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -34,8 +23,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -44,13 +32,12 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
+import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
 
 /**
@@ -61,30 +48,47 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     private final SearchRequest firstSearchRequest;
 
     public ClientScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
-            Consumer<Exception> fail, ParentTaskAssigningClient client, SearchRequest firstSearchRequest) {
-        super(logger, backoffPolicy, threadPool, countSearchRetry, fail);
+                                     Consumer<AsyncResponse> onResponse, Consumer<Exception> fail,
+                                     ParentTaskAssigningClient client, SearchRequest firstSearchRequest) {
+        super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.client = client;
         this.firstSearchRequest = firstSearchRequest;
+        firstSearchRequest.allowPartialSearchResults(false);
     }
 
     @Override
-    public void doStart(Consumer<? super Response> onResponse) {
+    public void doStart(RejectAwareActionListener<Response> searchListener) {
         if (logger.isDebugEnabled()) {
-            logger.debug("executing initial scroll against {}{}",
-                    isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices(),
-                    isEmpty(firstSearchRequest.types()) ? "" : firstSearchRequest.types());
+            logger.debug("executing initial scroll against {}",
+                isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices());
         }
-        searchWithRetry(listener -> client.search(firstSearchRequest, listener), r -> consume(r, onResponse));
+        client.search(firstSearchRequest, wrapListener(searchListener));
     }
 
     @Override
-    protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse) {
-        searchWithRetry(listener -> {
-            SearchScrollRequest request = new SearchScrollRequest();
-            // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
-            request.scrollId(scrollId).scroll(timeValueNanos(firstSearchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos()));
-            client.searchScroll(request, listener);
-        }, r -> consume(r, onResponse));
+    protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
+        SearchScrollRequest request = new SearchScrollRequest();
+        // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
+        request.scrollId(scrollId).scroll(timeValueNanos(firstSearchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos()));
+        client.searchScroll(request, wrapListener(searchListener));
+    }
+
+    private ActionListener<SearchResponse> wrapListener(RejectAwareActionListener<Response> searchListener) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse searchResponse) {
+                searchListener.onResponse(wrapSearchResponse(searchResponse));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class) != null) {
+                    searchListener.onRejection(e);
+                } else {
+                    searchListener.onFailure(e);
+                }
+            }
+        };
     }
 
     @Override
@@ -115,69 +119,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         onCompletion.run();
     }
 
-    /**
-     * Run a search action and call onResponse when a the response comes in, retrying if the action fails with an exception caused by
-     * rejected execution.
-     *
-     * @param action consumes a listener and starts the action. The listener it consumes is rigged to retry on failure.
-     * @param onResponse consumes the response from the action
-     */
-    private void searchWithRetry(Consumer<ActionListener<SearchResponse>> action, Consumer<SearchResponse> onResponse) {
-        /*
-         * RetryHelper is both an AbstractRunnable and an ActionListener<SearchResponse> - meaning that it both starts the search and
-         * handles reacts to the results. The complexity is all in onFailure which either adapts the failure to the "fail" listener or
-         * retries the search. Since both AbstractRunnable and ActionListener define the onFailure method it is called for either failure
-         * to run the action (either while running or before starting) and for failure on the response from the action.
-         */
-        class RetryHelper extends AbstractRunnable implements ActionListener<SearchResponse> {
-            private final Iterator<TimeValue> retries = backoffPolicy.iterator();
-            /**
-             * The runnable to run that retries in the same context as the original call.
-             */
-            private Runnable retryWithContext;
-            private volatile int retryCount = 0;
-
-            @Override
-            protected void doRun() throws Exception {
-                action.accept(this);
-            }
-
-            @Override
-            public void onResponse(SearchResponse response) {
-                onResponse.accept(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class) != null) {
-                    if (retries.hasNext()) {
-                        retryCount += 1;
-                        TimeValue delay = retries.next();
-                        logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
-                        countSearchRetry.run();
-                        threadPool.schedule(delay, ThreadPool.Names.SAME, retryWithContext);
-                    } else {
-                        logger.warn(() -> new ParameterizedMessage(
-                                "giving up on search because we retried [{}] times without success", retryCount), e);
-                        fail.accept(e);
-                    }
-                } else {
-                    logger.warn("giving up on search because it failed with a non-retryable exception", e);
-                    fail.accept(e);
-                }
-            }
-        }
-        RetryHelper helper = new RetryHelper();
-        // Wrap the helper in a runnable that preserves the current context so we keep it on retry.
-        helper.retryWithContext = threadPool.getThreadContext().preserveContext(helper);
-        helper.run();
-    }
-
-    private void consume(SearchResponse response, Consumer<? super Response> onResponse) {
-        onResponse.accept(wrap(response));
-    }
-
-    private Response wrap(SearchResponse response) {
+    private Response wrapSearchResponse(SearchResponse response) {
         List<SearchFailure> failures;
         if (response.getShardFailures() == null) {
             failures = emptyList();
@@ -218,11 +160,6 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         }
 
         @Override
-        public String getType() {
-            return delegate.getType();
-        }
-
-        @Override
         public String getId() {
             return delegate.getId();
         }
@@ -239,6 +176,16 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         @Override
         public long getVersion() {
             return delegate.getVersion();
+        }
+
+        @Override
+        public long getSeqNo() {
+            return delegate.getSeqNo();
+        }
+
+        @Override
+        public long getPrimaryTerm() {
+            return delegate.getPrimaryTerm();
         }
 
         @Override

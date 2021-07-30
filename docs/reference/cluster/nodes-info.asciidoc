@@ -1,57 +1,175 @@
 [[cluster-nodes-info]]
-== Nodes Info
+=== Nodes info API
+++++
+<titleabbrev>Nodes info</titleabbrev>
+++++
+
+Returns cluster nodes information.
+
+
+[[cluster-nodes-info-api-request]]
+==== {api-request-title}
+
+`GET /_nodes` +
+
+`GET /_nodes/<node_id>` +
+
+`GET /_nodes/<metric>` +
+
+`GET /_nodes/<node_id>/<metric>`
+
+[[cluster-nodes-info-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+
+[[cluster-nodes-info-api-desc]]
+==== {api-description-title}
 
 The cluster nodes info API allows to retrieve one or more (or all) of
-the cluster nodes information.
-
-[source,js]
---------------------------------------------------
-GET /_nodes
-GET /_nodes/nodeId1,nodeId2
---------------------------------------------------
-// CONSOLE
-
-The first command retrieves information of all the nodes in the cluster.
-The second command selectively retrieves nodes information of only
-`nodeId1` and `nodeId2`. All the nodes selective options are explained
+the cluster nodes information. All the nodes selective options are explained
 <<cluster-nodes,here>>.
 
-By default, it just returns all attributes and core settings for a node:
+By default, it returns all attributes and core settings for a node.
 
-[float]
-[[core-info]]
+[role="child_attributes"]
+[[cluster-nodes-info-api-path-params]]
+==== {api-path-parms-title}
+
+`<metric>`::
+(Optional, string)
+Limits the information returned to the specific metrics. Supports a
+comma-separated list, such as `http,ingest`.
++
+[%collapsible%open]
+.Valid values for `<metric>`
+====
+`http`::
+HTTP connection information.
+
+`ingest`::
+Information about ingest pipelines and processors.
+
+`jvm`::
+JVM stats, memory pool information, garbage collection, buffer pools, number of
+loaded/unloaded classes.
+
+`os`::
+Operating system stats, load average, mem, swap.
+
+`plugins`::
++
+--
+Details about the installed plugins and modules per node. The following
+information is available for each plugin and module:
+
+* `name`: plugin name
+* `version`: version of Elasticsearch the plugin was built for
+* `description`: short description of the plugin's purpose
+* `classname`: fully-qualified class name of the plugin's entry point
+* `has_native_controller`: whether or not the plugin has a native controller
+process
+--
+
+`process`::
+Process statistics, memory consumption, cpu usage, open file descriptors.
+
+`settings`::
+Lists all node settings in use as defined in the `elasticsearch.yml` file.
+
+`thread_pool`::
+Statistics about each thread pool, including current size, queue and rejected
+tasks
+
+`transport`::
+Transport statistics about sent and received bytes in cluster communication.
+====
+
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+
+
+[[cluster-nodes-info-api-response-body]]
+==== {api-response-body-title}
 
 `build_hash`::
-	Short hash of the last git commit in this release.
+		Short hash of the last git commit in this release.
 
 `host`::
-	The node's host name.
+		The node's host name.
 
 `ip`::
-	The node's IP address.
+		The node's IP address.
 
 `name`::
-	The node's name.
+		The node's name.
 
 `total_indexing_buffer`::
-	Total heap allowed to be used to hold recently indexed
-	documents before they must be written to disk.  This size is
-	a shared pool across all shards on this node, and is
-        controlled by <<indexing-buffer,Indexing Buffer settings>>.
+		Total heap allowed to be used to hold recently indexed
+		documents before they must be written to disk. This size is
+		a shared pool across all shards on this node, and is
+    controlled by <<indexing-buffer,Indexing Buffer settings>>.
 
 `total_indexing_buffer_in_bytes`::
-	Same as `total_indexing_buffer`, but expressed in bytes.
+		Same as `total_indexing_buffer`, but expressed in bytes.
 
 `transport_address`::
-	Host and port where transport HTTP connections are accepted.
+		Host and port where transport HTTP connections are accepted.
 
 `version`::
-	Elasticsearch version running on this node.
+		{es} version running on this node.
 
-It also allows to get only information on `settings`, `os`, `process`, `jvm`,
-`thread_pool`, `transport`, `http`, `plugins`, `ingest` and `indices`:
+The `os` flag can be set to retrieve information that concern the operating
+system:
 
-[source,js]
+`os.refresh_interval_in_millis`::
+		Refresh interval for the OS statistics
+
+`os.name`::
+		Name of the operating system (ex: Linux, Windows, Mac OS X)
+
+`os.arch`::
+		Name of the JVM architecture (ex: amd64, x86)
+
+`os.version`::
+		Version of the operating system
+
+`os.available_processors`::
+		Number of processors available to the Java virtual machine
+
+`os.allocated_processors`::
+	  The number of processors actually used to calculate thread pool size. This
+		number can be set with the <<node.processors, `node.processors`>>
+		setting of a node and defaults to the number of processors reported by
+		the OS.
+
+The `process` flag can be set to retrieve information that concern the current
+running process:
+
+`process.refresh_interval_in_millis`::
+		Refresh interval for the process statistics
+
+`process.id`::
+		Process identifier (PID)
+
+`process.mlockall`::
+		Indicates if the process address space has been successfully locked in memory
+
+
+[[cluster-nodes-info-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+
+[[cluster-nodes-info-api-example]]
+==== {api-examples-title}
+
+[source,console]
 --------------------------------------------------
 # return just process
 GET /_nodes/process
@@ -68,69 +186,25 @@ GET /_nodes/nodeId1,nodeId2/info/jvm,process
 # return all the information of only nodeId1 and nodeId2
 GET /_nodes/nodeId1,nodeId2/_all
 --------------------------------------------------
-// CONSOLE
 
-The `_all` flag can be set to return all the information - or you can simply omit it.
+The `_all` flag can be set to return all the information - or you can omit it.
 
-[float]
-[[os-info]]
-==== Operating System information
 
-The `os` flag can be set to retrieve information that concern
-the operating system:
+[[cluster-nodes-info-api-example-plugins]]
+===== Example for plugins metric
 
-`os.refresh_interval_in_millis`::
-	Refresh interval for the OS statistics
+If `plugins` is specified, the result will contain details about the installed
+plugins and modules:
 
-`os.name`::
-	Name of the operating system (ex: Linux, Windows, Mac OS X)
-
-`os.arch`::
-	Name of the JVM architecture (ex: amd64, x86)
-
-`os.version`::
-	Version of the operating system
-
-`os.available_processors`::
-	Number of processors available to the Java virtual machine
-
-`os.allocated_processors`::
-    The number of processors actually used to calculate thread pool size. This number can be set
-    with the `processors` setting of a node and defaults to the number of processors reported by the OS.
-    In both cases this number will never be larger than 32.
-
-[float]
-[[process-info]]
-==== Process information
-
-The `process` flag can be set to retrieve information that concern
-the current running process:
-
-`process.refresh_interval_in_millis`::
-	Refresh interval for the process statistics
-
-`process.id`::
-	Process identifier (PID)
-
-`process.mlockall`::
-	Indicates if the process address space has been successfully locked in memory
-
-[float]
-[[plugins-info]]
-==== Plugins information
-
-`plugins` - if set, the result will contain details about the installed plugins and modules per node:
-
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_nodes/plugins
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:node]
 
-The result will look similar to:
+The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_nodes": ...
@@ -143,7 +217,7 @@ The result will look similar to:
       "ip": "192.168.17",
       "version": "{version}",
       "build_flavor": "{build_flavor}",
-      "build_type": "zip",
+      "build_type": "{build_type}",
       "build_hash": "587409e",
       "roles": [
         "master",
@@ -157,20 +231,6 @@ The result will look similar to:
           "version": "{version}",
           "description": "The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.",
           "classname": "org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin",
-          "has_native_controller": false
-        },
-        {
-          "name": "ingest-geoip",
-          "version": "{version}",
-          "description": "Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database",
-          "classname": "org.elasticsearch.ingest.geoip.IngestGeoIpPlugin",
-          "has_native_controller": false
-        },
-        {
-          "name": "ingest-user-agent",
-          "version": "{version}",
-          "description": "Ingest processor that extracts information from a user agent",
-          "classname": "org.elasticsearch.ingest.useragent.IngestUserAgentPlugin",
           "has_native_controller": false
         }
       ],
@@ -200,32 +260,22 @@ The result will look similar to:
 // TESTRESPONSE[s/"plugins": \[[^\]]*\]/"plugins": $body.$_path/]
 // TESTRESPONSE[s/"modules": \[[^\]]*\]/"modules": $body.$_path/]
 
-The following information are available for each plugin and module:
 
-* `name`: plugin name
-* `version`: version of Elasticsearch the plugin was built for
-* `description`: short description of the plugin's purpose
-* `classname`: fully-qualified class name of the plugin's entry point
-* `has_native_controller`: whether or not the plugin has a native controller process
+[[cluster-nodes-info-api-example-ingest]]
+===== Example for ingest metric
 
-
-[float]
-[[ingest-info]]
-==== Ingest information
-
-`ingest` - if set, the result will contain details about the available
+If `ingest` is specified, the response contains details about the available
 processors per node:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_nodes/ingest
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:node]
 
-The result will look similar to:
+The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_nodes": ...
@@ -238,7 +288,7 @@ The result will look similar to:
       "ip": "192.168.17",
       "version": "{version}",
       "build_flavor": "{build_flavor}",
-      "build_type": "zip",
+      "build_type": "{build_type}",
       "build_hash": "587409e",
       "roles": [],
       "attributes": {},
@@ -303,7 +353,3 @@ The result will look similar to:
 // TESTRESPONSE[s/"roles": \[[^\]]*\]/"roles": $body.$_path/]
 // TESTRESPONSE[s/"attributes": \{[^\}]*\}/"attributes": $body.$_path/]
 // TESTRESPONSE[s/"processors": \[[^\]]*\]/"processors": $body.$_path/]
-
-The following information are available for each ingest processor:
-
-* `type`: the processor type

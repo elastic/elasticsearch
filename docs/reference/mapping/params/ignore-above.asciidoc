@@ -6,33 +6,31 @@ For arrays of strings, `ignore_above` will be applied for each array element sep
 
 NOTE: All strings/array elements will still be present in the `_source` field, if the latter is enabled which is the default in Elasticsearch.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "message": {
-          "type": "keyword",
-          "ignore_above": 20 <1>
-        }
+    "properties": {
+      "message": {
+        "type": "keyword",
+        "ignore_above": 20 <1>
       }
     }
   }
 }
 
-PUT my_index/_doc/1 <2>
+PUT my-index-000001/_doc/1 <2>
 {
   "message": "Syntax error"
 }
 
-PUT my_index/_doc/2 <3>
+PUT my-index-000001/_doc/2 <3>
 {
   "message": "Syntax error with some long stacktrace"
 }
 
-GET _search <4>
+GET my-index-000001/_search <4>
 {
   "aggs": {
     "messages": {
@@ -43,14 +41,14 @@ GET _search <4>
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> This field will ignore any string longer than 20 characters.
 <2> This document is indexed successfully.
 <3> This document will be indexed, but without indexing the `message` field.
 <4> Search returns both documents, but only the first is present in the terms aggregation.
 
 TIP: The `ignore_above` setting can be updated on
-existing fields using the <<indices-put-mapping,PUT mapping API>>.
+existing fields using the <<indices-put-mapping,update mapping API>>.
 
 This option is also useful for protecting against Lucene's term byte-length
 limit of `32766`.

@@ -1,61 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.xpack.ql.common.Failure;
+import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.util.Holder;
+import org.elasticsearch.xpack.sql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.sql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.plan.physical.Unexecutable;
 import org.elasticsearch.xpack.sql.plan.physical.UnplannedExec;
-import org.elasticsearch.xpack.sql.tree.Node;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
+
+import static org.elasticsearch.xpack.ql.common.Failure.fail;
 
 abstract class Verifier {
-
-    static class Failure {
-        private final Node<?> source;
-        private final String message;
-
-        Failure(Node<?> source, String message) {
-            this.source = source;
-            this.message = message;
-        }
-
-        Node<?> source() {
-            return source;
-        }
-
-        String message() {
-            return message;
-        }
-
-        @Override
-        public int hashCode() {
-            return source.hashCode();
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-
-            Verifier.Failure other = (Verifier.Failure) obj;
-            return Objects.equals(source, other.source);
-        }
-    }
-
-    private static Failure fail(Node<?> source, String message) {
-        return new Failure(source, message);
-    }
 
     static List<Failure> verifyMappingPlan(PhysicalPlan plan) {
         List<Failure> failures = new ArrayList<>();
@@ -64,12 +29,14 @@ abstract class Verifier {
             if (p instanceof UnplannedExec) {
                 failures.add(fail(p, "Unplanned item"));
             }
-            p.forEachExpressionsUp(e -> {
-                if (e.childrenResolved() && !e.resolved()) {
+            p.forEachExpressionUp(e -> {
+                if (e.childrenResolved() && e.resolved() == false) {
                     failures.add(fail(e, "Unresolved expression"));
                 }
             });
         });
+
+        checkForNonCollapsableSubselects(plan, failures);
 
         return failures;
     }
@@ -81,13 +48,31 @@ abstract class Verifier {
             if (p instanceof Unexecutable) {
                 failures.add(fail(p, "Unexecutable item"));
             }
-            p.forEachExpressionsUp(e -> {
-                if (e.childrenResolved() && !e.resolved()) {
+            p.forEachExpressionUp(e -> {
+                if (e.childrenResolved() && e.resolved() == false) {
                     failures.add(fail(e, "Unresolved expression"));
                 }
             });
         });
 
         return failures;
+    }
+
+    private static void checkForNonCollapsableSubselects(PhysicalPlan plan, List<Failure> failures) {
+        Holder<Boolean> hasLimit = new Holder<>(Boolean.FALSE);
+        Holder<List<Order>> orderBy = new Holder<>();
+        plan.forEachUp(p -> {
+            if (hasLimit.get() == false && p instanceof LimitExec) {
+                hasLimit.set(Boolean.TRUE);
+                return;
+            }
+            if (p instanceof OrderExec) {
+                if (hasLimit.get() && orderBy.get() != null && ((OrderExec) p).order().equals(orderBy.get()) == false) {
+                    failures.add(fail(p, "Cannot use ORDER BY on top of a subquery with ORDER BY and LIMIT"));
+                } else {
+                    orderBy.set(((OrderExec) p).order());
+                }
+            }
+        });
     }
 }

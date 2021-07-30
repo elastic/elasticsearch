@@ -1,45 +1,36 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
 
 import java.io.IOException;
 
 /**
- * A {@link SortedSetDocValues} implementation that returns ordinals that are global.
+ * A {@link SortedSetDocValues} implementation that returns global ordinals
+ * instead of segment ordinals.
  */
 final class GlobalOrdinalMapping extends SortedSetDocValues {
 
     private final SortedSetDocValues values;
     private final OrdinalMap ordinalMap;
     private final LongValues mapping;
-    private final SortedSetDocValues[] bytesValues;
+    private final TermsEnum[] lookups;
 
-    GlobalOrdinalMapping(OrdinalMap ordinalMap, SortedSetDocValues[] bytesValues, int segmentIndex) {
+    GlobalOrdinalMapping(OrdinalMap ordinalMap, SortedSetDocValues values, TermsEnum[] lookups, int segmentIndex) {
         super();
-        this.values = bytesValues[segmentIndex];
-        this.bytesValues = bytesValues;
+        this.values = values;
+        this.lookups = lookups;
         this.ordinalMap = ordinalMap;
         this.mapping = ordinalMap.getGlobalOrds(segmentIndex);
     }
@@ -72,7 +63,8 @@ final class GlobalOrdinalMapping extends SortedSetDocValues {
     public BytesRef lookupOrd(long globalOrd) throws IOException {
         final long segmentOrd = ordinalMap.getFirstSegmentOrd(globalOrd);
         int readerIndex = ordinalMap.getFirstSegmentNumber(globalOrd);
-        return bytesValues[readerIndex].lookupOrd(segmentOrd);
+        lookups[readerIndex].seekExact(segmentOrd);
+        return lookups[readerIndex].term();
     }
 
     @Override

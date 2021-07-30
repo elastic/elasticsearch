@@ -1,41 +1,33 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -43,13 +35,24 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetFieldMappingAction extends BaseRestHandler {
-    public RestGetFieldMappingAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/_mapping/{type}/field/{fields}", this);
-        controller.registerHandler(GET, "/{index}/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/{index}/{type}/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/{index}/_mapping/{type}/field/{fields}", this);
+
+    private static final Logger logger = LogManager.getLogger(RestGetFieldMappingAction.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
+    public static final String INCLUDE_TYPE_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get " +
+        "field mapping requests is deprecated. The parameter will be removed in the next major version.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get field mapping request is deprecated. " +
+        "Use typeless api instead";
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_mapping/field/{fields}"),
+            new Route(GET, "/{index}/_mapping/field/{fields}"),
+            Route.builder(GET, "/_mapping/{type}/field/{fields}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/{type}/_mapping/field/{fields}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/_mapping/{type}/field/{fields}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build());
     }
 
     @Override
@@ -60,22 +63,36 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
+
+        if (request.getRestApiVersion() == RestApiVersion.V_7) {
+            if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+                deprecationLogger.compatibleApiWarning("get_field_mapping_with_types", INCLUDE_TYPE_DEPRECATION_MESSAGE);
+            }
+            boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+            final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
+            if (includeTypeName == false && types.length > 0) {
+                throw new IllegalArgumentException("Types cannot be specified unless include_type_name" + " is set to true.");
+            }
+
+            if (request.hasParam("local")) {
+                request.param("local");
+                deprecationLogger.compatibleApiWarning(
+                    "get_field_mapping_local",
+                    "Use [local] in get field mapping requests is deprecated. " + "The parameter will be removed in the next major version"
+                );
+            }
+        }
+
+
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
-        getMappingsRequest.indices(indices).types(types).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
+        getMappingsRequest.indices(indices).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
-        getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         return channel ->
-                client.admin().indices().getFieldMappings(getMappingsRequest, new RestBuilderListener<GetFieldMappingsResponse>(channel) {
+                client.admin().indices().getFieldMappings(getMappingsRequest, new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
-                        Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappingsByIndex = response.mappings();
-
-                        boolean isPossibleSingleFieldRequest = indices.length == 1 && types.length == 1 && fields.length == 1;
-                        if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
-                            return new BytesRestResponse(OK, builder.startObject().endObject());
-                        }
+                        Map<String, Map<String, FieldMappingMetadata>> mappingsByIndex = response.mappings();
 
                         RestStatus status = OK;
                         if (mappingsByIndex.isEmpty() && fields.length > 0) {
@@ -87,24 +104,4 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                 });
     }
 
-    /**
-     * Helper method to find out if the only included fieldmapping metadata is typed NULL, which means
-     * that type and index exist, but the field did not
-     */
-    private boolean isFieldMappingMissingField(Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappingsByIndex) {
-        if (mappingsByIndex.size() != 1) {
-            return false;
-        }
-
-        for (Map<String, Map<String, FieldMappingMetaData>> value : mappingsByIndex.values()) {
-            for (Map<String, FieldMappingMetaData> fieldValue : value.values()) {
-                for (Map.Entry<String, FieldMappingMetaData> fieldMappingMetaDataEntry : fieldValue.entrySet()) {
-                    if (fieldMappingMetaDataEntry.getValue().isNull()) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
 }

@@ -1,26 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.service;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -32,12 +19,12 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -45,17 +32,11 @@ import java.util.Collections;
 import java.util.Map;
 
 public class ClusterService extends AbstractLifecycleComponent {
-    private static final Logger logger = LogManager.getLogger(ClusterService.class);
-
     private final MasterService masterService;
 
     private final ClusterApplierService clusterApplierService;
 
-    public static final Setting<TimeValue> CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING =
-            Setting.positiveTimeSetting("cluster.service.slow_task_logging_threshold", TimeValue.timeValueSeconds(30),
-                    Property.Dynamic, Property.NodeScope);
-
-    public static final org.elasticsearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_META_DATA =
+    public static final org.elasticsearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_METADATA =
         Setting.prefixKeySetting("cluster.metadata.", (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
 
     /**
@@ -71,28 +52,37 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private final String nodeName;
 
+    private RerouteService rerouteService;
+
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-        super(settings);
+        this(settings, clusterSettings, new MasterService(settings, clusterSettings, threadPool),
+            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool));
+    }
+
+    public ClusterService(Settings settings, ClusterSettings clusterSettings, MasterService masterService,
+                          ClusterApplierService clusterApplierService) {
         this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
-        this.masterService = new MasterService(nodeName, settings, threadPool);
+        this.masterService = masterService;
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.clusterSettings = clusterSettings;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-            this::setSlowTaskLoggingThreshold);
         // Add a no-op update consumer so changes are logged
-        this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_META_DATA, (first, second) -> {}, (first, second) -> {});
-        this.clusterApplierService = new ClusterApplierService(nodeName, settings, clusterSettings, threadPool);
-    }
-
-    private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
-        masterService.setSlowTaskLoggingThreshold(slowTaskLoggingThreshold);
-        clusterApplierService.setSlowTaskLoggingThreshold(slowTaskLoggingThreshold);
+        this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_METADATA, (first, second) -> {}, (first, second) -> {});
+        this.clusterApplierService = clusterApplierService;
     }
 
     public synchronized void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
         clusterApplierService.setNodeConnectionsService(nodeConnectionsService);
+    }
+
+    public void setRerouteService(RerouteService rerouteService) {
+        assert this.rerouteService == null : "RerouteService is already set";
+        this.rerouteService = rerouteService;
+    }
+    public RerouteService getRerouteService() {
+        assert this.rerouteService != null : "RerouteService not set";
+        return rerouteService;
     }
 
     @Override

@@ -1,70 +1,134 @@
 [[mapping-types]]
-== Field datatypes
+== Field data types
 
-Elasticsearch supports a number of different datatypes for the fields in a
-document:
+Each field has a _field data type_, or _field type_. This type indicates the
+kind of data the field contains, such as strings or boolean values, and its
+intended use. For example, you can index strings to both `text` and `keyword`
+fields. However, `text` field values are <<analysis,analyzed>> for full-text
+search while `keyword` strings are left as-is for filtering and sorting.
 
-[float]
-=== Core datatypes
+Field types are grouped by _family_. Types in the same family support the same
+search functionality but may have different space usage or performance
+characteristics.
 
-string::        <<text,`text`>> and <<keyword,`keyword`>>
-<<number>>::    `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
-<<date>>::      `date`
-<<boolean>>::   `boolean`
-<<binary>>::    `binary`
-<<range>>::     `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`
-
-[float]
-=== Complex datatypes
-
-<<array>>::     Array support does not require a dedicated `type`
-<<object>>::    `object` for single JSON objects
-<<nested>>::    `nested` for arrays of JSON objects
-
-[float]
-=== Geo datatypes
-
-<<geo-point>>::     `geo_point` for lat/lon points
-<<geo-shape>>::     `geo_shape` for complex shapes like polygons
-
-[float]
-=== Specialised datatypes
-
-<<ip>>::            `ip` for IPv4 and IPv6 addresses
-<<search-suggesters-completion,Completion datatype>>::
-                    `completion` to provide auto-complete suggestions
-<<token-count>>::   `token_count` to count the number of tokens in a string
-{plugins}/mapper-murmur3.html[`mapper-murmur3`]:: `murmur3` to compute hashes of values at index-time and store them in the index
-{plugins}/mapper-annotated-text.html[`mapper-annotated-text`]:: `annotated-text` to index text containing special markup (typically used for identifying named entities)
-
-<<percolator>>::    Accepts queries from the query-dsl
-
-<<parent-join>>::   Defines parent/child relation for documents within the same index
-
-<<alias>>::         Defines an alias to an existing field.
-
-<<feature>>::       Record numeric features to boost hits at query time.
-
-<<feature-vector>>:: Record numeric feature vectors to boost hits at query time.
-
-<<dense-vector>>::   Record dense vectors of float values.
-
-<<sparse-vector>>::   Record sparse vectors of float values.
+Currently, the only type family is `keyword`, which consists of the `keyword`,
+`constant_keyword`, and `wildcard` field types. Other type families have only a
+single field type. For example, the `boolean` type family consists of one field
+type: `boolean`.
 
 
-[float]
+[discrete]
+[[_core_datatypes]]
+==== Common types
+
+<<binary,`binary`>>::   Binary value encoded as a Base64 string.
+<<boolean,`boolean`>>:: `true` and `false` values.
+<<keyword, Keywords>>:: The keyword family, including `keyword`, `constant_keyword`,
+                        and `wildcard`.
+<<number,Numbers>>::    Numeric types, such as `long` and `double`, used to
+                        express amounts.
+Dates::                 Date types, including <<date,`date`>> and
+                        <<date_nanos,`date_nanos`>>.
+<<field-alias,`alias`>>::     Defines an alias for an existing field.
+
+
+[discrete]
+[[object-types]]
+==== Objects and relational types
+
+<<object,`object`>>::         A JSON object.
+<<flattened,`flattened`>>::   An entire JSON object as a single field value.
+<<nested,`nested`>>::         A JSON object that preserves the relationship
+                              between its subfields.
+<<parent-join,`join`>>::      Defines a parent/child relationship for documents
+                              in the same index.
+
+
+[discrete]
+[[structured-data-types]]
+==== Structured data types
+
+<<range,Range>>::   Range types, such as `long_range`, `double_range`,
+                    `date_range`, and `ip_range`.
+<<ip,`ip`>>::       IPv4 and IPv6 addresses.
+<<version,`version`>>::  Software versions. Supports https://semver.org/[Semantic Versioning]
+precedence rules.
+{plugins}/mapper-murmur3.html[`murmur3`]:: Compute and stores hashes of
+values.
+
+
+[discrete]
+[[aggregated-data-types]]
+==== Aggregate data types
+
+<<aggregate-metric-double,`aggregate_metric_double`>>:: Pre-aggregated metric values.
+<<histogram,`histogram`>>:: Pre-aggregated numerical values in the form of a histogram.
+
+
+[discrete]
+[[text-search-types]]
+==== Text search types
+
+<<text,`text` fields>>:: The text family, including `text` and `match_only_text`.
+                         Analyzed, unstructured text.
+{plugins}/mapper-annotated-text.html[`annotated-text`]:: Text containing special
+markup. Used for identifying named entities.
+<<completion-suggester,`completion`>>:: Used for auto-complete suggestions.
+<<search-as-you-type,`search_as_you_type`>>:: `text`-like type for
+as-you-type completion.
+<<token-count,`token_count`>>:: A count of tokens in a text.
+
+
+[discrete]
+[[document-ranking-types]]
+==== Document ranking types
+
+<<dense-vector,`dense_vector`>>::   Records dense vectors of float values.
+<<rank-feature,`rank_feature`>>::   Records a numeric feature to boost hits at
+                                    query time.
+<<rank-features,`rank_features`>>:: Records numeric features to boost hits at
+                                    query time.
+
+
+[discrete]
+[[spatial_datatypes]]
+==== Spatial data types
+
+<<geo-point,`geo_point`>>::     Latitude and longitude points.
+<<geo-shape,`geo_shape`>>::     Complex shapes, such as polygons.
+<<point,`point`>>::             Arbitrary cartesian points.
+<<shape,`shape`>>::             Arbitrary cartesian geometries.
+
+
+[discrete]
+[[other-types]]
+==== Other types
+
+<<percolator,`percolator`>>::   Indexes queries written in <<query-dsl,Query DSL>>.
+
+
+[discrete]
+[[types-array-handling]]
+=== Arrays
+In {es}, arrays do not require a dedicated field data type. Any field can contain
+zero or more values by default, however, all values in the array must be of the
+same field type. See <<array>>.
+
+[discrete]
+[[types-multi-fields]]
 === Multi-fields
-
 It is often useful to index the same field in different ways for different
 purposes. For instance, a `string` field could be mapped as
 a `text` field for full-text search, and as a `keyword` field for
-sorting or aggregations.  Alternatively, you could index a text field with
+sorting or aggregations. Alternatively, you could index a text field with
 the <<analysis-standard-analyzer,`standard` analyzer>>, the
 <<english-analyzer,`english`>> analyzer, and the
 <<french-analyzer,`french` analyzer>>.
 
-This is the purpose of _multi-fields_.  Most datatypes support multi-fields
+This is the purpose of _multi-fields_. Most field types support multi-fields
 via the <<multi-fields>> parameter.
+
+include::types/aggregate-metric-double.asciidoc[]
 
 include::types/alias.asciidoc[]
 
@@ -72,17 +136,25 @@ include::types/array.asciidoc[]
 
 include::types/binary.asciidoc[]
 
-include::types/range.asciidoc[]
-
 include::types/boolean.asciidoc[]
 
 include::types/date.asciidoc[]
+
+include::types/date_nanos.asciidoc[]
+
+include::types/dense-vector.asciidoc[]
+
+include::types/flattened.asciidoc[]
 
 include::types/geo-point.asciidoc[]
 
 include::types/geo-shape.asciidoc[]
 
+include::types/histogram.asciidoc[]
+
 include::types/ip.asciidoc[]
+
+include::types/parent-join.asciidoc[]
 
 include::types/keyword.asciidoc[]
 
@@ -92,18 +164,24 @@ include::types/numeric.asciidoc[]
 
 include::types/object.asciidoc[]
 
+include::types/percolator.asciidoc[]
+
+include::types/point.asciidoc[]
+
+include::types/range.asciidoc[]
+
+include::types/rank-feature.asciidoc[]
+
+include::types/rank-features.asciidoc[]
+
+include::types/search-as-you-type.asciidoc[]
+
+include::types/shape.asciidoc[]
+
 include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]
 
-include::types/percolator.asciidoc[]
+include::types/unsigned_long.asciidoc[]
 
-include::types/parent-join.asciidoc[]
-
-include::types/feature.asciidoc[]
-
-include::types/feature-vector.asciidoc[]
-
-include::types/dense-vector.asciidoc[]
-
-include::types/sparse-vector.asciidoc[]
+include::types/version.asciidoc[]

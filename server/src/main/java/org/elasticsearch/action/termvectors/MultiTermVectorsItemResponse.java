@@ -1,46 +1,41 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
 /**
  * A single multi get response.
  */
-public class MultiTermVectorsItemResponse implements Streamable {
+public class MultiTermVectorsItemResponse implements Writeable {
 
-    private TermVectorsResponse response;
-    private MultiTermVectorsResponse.Failure failure;
-
-    MultiTermVectorsItemResponse() {
-
-    }
+    private final TermVectorsResponse response;
+    private final MultiTermVectorsResponse.Failure failure;
 
     public MultiTermVectorsItemResponse(TermVectorsResponse response, MultiTermVectorsResponse.Failure failure) {
         assert (((response == null) && (failure != null)) || ((response != null) && (failure == null)));
         this.response = response;
         this.failure = failure;
+    }
+
+    MultiTermVectorsItemResponse(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            failure = new MultiTermVectorsResponse.Failure(in);
+            response = null;
+        } else {
+            response = new TermVectorsResponse(in);
+            failure = null;
+        }
     }
 
     /**
@@ -51,16 +46,6 @@ public class MultiTermVectorsItemResponse implements Streamable {
             return failure.getIndex();
         }
         return response.getIndex();
-    }
-
-    /**
-     * The type of the document.
-     */
-    public String getType() {
-        if (failure != null) {
-            return failure.getType();
-        }
-        return response.getType();
     }
 
     /**
@@ -92,22 +77,6 @@ public class MultiTermVectorsItemResponse implements Streamable {
      */
     public MultiTermVectorsResponse.Failure getFailure() {
         return this.failure;
-    }
-
-    public static MultiTermVectorsItemResponse readItemResponse(StreamInput in) throws IOException {
-        MultiTermVectorsItemResponse response = new MultiTermVectorsItemResponse();
-        response.readFrom(in);
-        return response;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            failure = MultiTermVectorsResponse.Failure.readFailure(in);
-        } else {
-            response = new TermVectorsResponse();
-            response.readFrom(in);
-        }
     }
 
     @Override

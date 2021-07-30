@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util;
@@ -36,7 +25,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -46,96 +34,6 @@ import java.util.Set;
 
 /** Collections-related utility methods. */
 public class CollectionUtils {
-
-    public static void sort(final long[] array, int len) {
-        new IntroSorter() {
-
-            long pivot;
-
-            @Override
-            protected void swap(int i, int j) {
-                final long tmp = array[i];
-                array[i] = array[j];
-                array[j] = tmp;
-            }
-
-            @Override
-            protected int compare(int i, int j) {
-                return Long.compare(array[i], array[j]);
-            }
-
-            @Override
-            protected void setPivot(int i) {
-                pivot = array[i];
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return Long.compare(pivot, array[j]);
-            }
-
-        }.sort(0, len);
-    }
-
-    public static void sort(final float[] array, int len) {
-        new IntroSorter() {
-
-            float pivot;
-
-            @Override
-            protected void swap(int i, int j) {
-                final float tmp = array[i];
-                array[i] = array[j];
-                array[j] = tmp;
-            }
-
-            @Override
-            protected int compare(int i, int j) {
-                return Float.compare(array[i], array[j]);
-            }
-
-            @Override
-            protected void setPivot(int i) {
-                pivot = array[i];
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return Float.compare(pivot, array[j]);
-            }
-
-        }.sort(0, len);
-    }
-
-    public static void sort(final double[] array, int len) {
-        new IntroSorter() {
-
-            double pivot;
-
-            @Override
-            protected void swap(int i, int j) {
-                final double tmp = array[i];
-                array[i] = array[j];
-                array[j] = tmp;
-            }
-
-            @Override
-            protected int compare(int i, int j) {
-                return Double.compare(array[i], array[j]);
-            }
-
-            @Override
-            protected void setPivot(int i) {
-                pivot = array[i];
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return Double.compare(pivot, array[j]);
-            }
-
-        }.sort(0, len);
-    }
 
     /**
      * Checks if the given array contains any elements.
@@ -174,7 +72,7 @@ public class CollectionUtils {
             sort(array);
             int uniqueCount = 1;
             for (int i = 1; i < len; ++i) {
-                if (!Arrays.equals(array.get(i), array.get(i - 1))) {
+                if (Arrays.equals(array.get(i), array.get(i - 1)) == false) {
                     array.set(uniqueCount++, array.get(i));
                 }
             }
@@ -242,6 +140,7 @@ public class CollectionUtils {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private static Iterable<?> convert(Object value) {
         if (value == null) {
             return null;
@@ -281,7 +180,7 @@ public class CollectionUtils {
             if (distance < 0 || distance >= list.size()) {
                 throw new IllegalArgumentException();
             }
-            if (!(list instanceof RandomAccess)) {
+            if ((list instanceof RandomAccess) == false) {
                 throw new IllegalArgumentException();
             }
             this.in = list;
@@ -301,8 +200,8 @@ public class CollectionUtils {
         public int size() {
             return in.size();
         }
+    }
 
-    };
     public static void sort(final BytesRefArray bytes, final int[] indices) {
         sort(new BytesRefBuilder(), new BytesRefBuilder(), bytes, indices);
     }
@@ -346,7 +245,7 @@ public class CollectionUtils {
         bytes.get(previous, indices[0]);
         for (int i = 1; i < numValues; ++i) {
             bytes.get(current, indices[i]);
-            if (!previous.get().equals(current.get())) {
+            if (previous.get().equals(current.get()) == false) {
                 indices[uniqueCount++] = indices[i];
             }
             BytesRefBuilder tmp = previous;
@@ -357,12 +256,13 @@ public class CollectionUtils {
 
     }
 
+    @SuppressWarnings("unchecked")
     public static <E> ArrayList<E> iterableAsArrayList(Iterable<? extends E> elements) {
         if (elements == null) {
             throw new NullPointerException("elements");
         }
         if (elements instanceof Collection) {
-            return new ArrayList<>((Collection)elements);
+            return new ArrayList<>((Collection) elements);
         } else {
             ArrayList<E> list = new ArrayList<>();
             for (E element : elements) {
@@ -372,6 +272,8 @@ public class CollectionUtils {
         }
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <E> ArrayList<E> arrayAsArrayList(E... elements) {
         if (elements == null) {
             throw new NullPointerException("elements");
@@ -379,6 +281,8 @@ public class CollectionUtils {
         return new ArrayList<>(Arrays.asList(elements));
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <E> ArrayList<E> asArrayList(E first, E... other) {
         if (other == null) {
             throw new NullPointerException("other");
@@ -389,6 +293,8 @@ public class CollectionUtils {
         return list;
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static<E> ArrayList<E> asArrayList(E first, E second, E... other) {
         if (other == null) {
             throw new NullPointerException("other");
@@ -400,19 +306,22 @@ public class CollectionUtils {
         return list;
     }
 
-    public static <E> ArrayList<E> newSingletonArrayList(E element) {
-        return new ArrayList<>(Collections.singletonList(element));
+    /**
+     * Creates a copy of the given collection with the given element appended.
+     *
+     * @param collection collection to copy
+     * @param element    element to append
+     */
+    @SuppressWarnings("unchecked")
+    public static <E> List<E> appendToCopy(Collection<E> collection, E element) {
+        final int size = collection.size() + 1;
+        final E[] array = collection.toArray((E[]) new Object[size]);
+        array[size - 1] = element;
+        return Collections.unmodifiableList(Arrays.asList(array));
     }
 
-    public static <E> LinkedList<E> newLinkedList(Iterable<E> elements) {
-        if (elements == null) {
-            throw new NullPointerException("elements");
-        }
-        LinkedList<E> linkedList = new LinkedList<>();
-        for (E element : elements) {
-            linkedList.add(element);
-        }
-        return linkedList;
+    public static <E> ArrayList<E> newSingletonArrayList(E element) {
+        return new ArrayList<>(Collections.singletonList(element));
     }
 
     public static <E> List<List<E>> eagerPartition(List<E> list, int size) {

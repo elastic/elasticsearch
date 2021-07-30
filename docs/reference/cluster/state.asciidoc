@@ -1,84 +1,157 @@
 [[cluster-state]]
-== Cluster State
+=== Cluster state API
+++++
+<titleabbrev>Cluster state</titleabbrev>
+++++
 
-The cluster state API allows to get a comprehensive state information of
-the whole cluster.
+Returns metadata about the state of the cluster.
 
-[source,js]
---------------------------------------------------
-GET /_cluster/state
---------------------------------------------------
-// CONSOLE
+[[cluster-state-api-request]]
+==== {api-request-title}
 
-The response provides the cluster name, the total compressed size
-of the cluster state (its size when serialized for transmission over
-the network), and the cluster state itself, which can be filtered to
-only retrieve the parts of interest, as described below.
+`GET /_cluster/state/<metrics>/<target>`
 
-The cluster's `cluster_uuid` is also returned as part of the top-level
-response, in addition to the `metadata` section. added[6.4.0]
+[[cluster-state-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cluster-state-api-desc]]
+==== {api-description-title}
+
+The cluster state API allows access to metadata representing the state of the
+whole cluster. This includes information such as
+
+* the set of nodes in the cluster
+
+* all cluster-level settings
+
+* information about the indices in the cluster, including their mappings and
+  settings
+
+* the locations of all the shards in the cluster.
+
+NOTE: The response is an internal representation of the cluster state and its
+format may change from version to version. If possible, you should obtain any
+information from the cluster state using the other, more stable,
+<<cluster,cluster APIs>>.
+
+The response provides the cluster state itself, which can be filtered to only
+retrieve the parts of interest as described below.
+
+The cluster's `cluster_uuid` is also returned as part of the top-level response,
+in addition to the `metadata` section.
 
 NOTE: While the cluster is still forming, it is possible for the `cluster_uuid`
       to be `_na_` as well as the cluster state's version to be `-1`.
 
-By default, the cluster state request is routed to the master node, to
-ensure that the latest cluster state is returned.   
-For debugging purposes, you can retrieve the cluster state local to a
-particular node by adding `local=true` to the  query string.
+By default, the cluster state request is routed to the master node, to ensure
+that the latest cluster state is returned. For debugging purposes, you can
+retrieve the cluster state local to a particular node by adding `local=true` to
+the query string.
 
-[float]
-=== Response Filters
+[[cluster-state-api-path-params]]
+==== {api-path-parms-title}
 
-As the cluster state can grow (depending on the number of shards and indices, your mapping, templates),
-it is possible to filter the cluster state response specifying the parts in the URL.
+The cluster state contains information about all the indices in the cluster,
+including their mappings, as well as templates and other metadata. This means it
+can sometimes be quite large. To avoid the need to process all this information
+you can request only the part of the cluster state that you need:
 
-[source,js]
---------------------------------------------------
-GET /_cluster/state/{metrics}/{indices}
---------------------------------------------------
-// CONSOLE
+`<metrics>`::
+    (Optional, string) A comma-separated list of the following options:
++
+--
+  `_all`::
+      Shows all metrics.
+    
+  `blocks`::
+      Shows the `blocks` part of the response.
 
-`metrics` can be a comma-separated list of
+  `master_node`::
+      Shows the elected `master_node` part of the response.
+    
+  `metadata`::
+      Shows the `metadata` part of the response. If you supply a comma separated
+      list of indices, the returned output will only contain metadata for these
+      indices.
 
-`version`::
-    Shows the cluster state version.
+  `nodes`::
+      Shows the `nodes` part of the response.
 
-`master_node`::
-    Shows the elected `master_node` part of the response
+  `routing_nodes`::
+      Shows the `routing_nodes` part of the response.
 
-`nodes`::
-    Shows the `nodes` part of the response
+  `routing_table`::
+      Shows the `routing_table` part of the response. If you supply a comma
+      separated list of indices, the returned output will only contain the 
+      routing table for these indices.
+    
+  `version`::
+      Shows the cluster state version.
+--
 
-`routing_table`::
-    Shows the `routing_table` part of the response. If you supply a comma separated list of indices, the returned output will only contain the indices listed.
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
-`metadata`::
-    Shows the `metadata` part of the response. If you supply a comma separated list of indices, the returned output will only contain the indices listed.
+[[cluster-state-api-query-params]]
+==== {api-query-parms-title}
 
-`blocks`::
-    Shows the `blocks` part of the response
+`allow_no_indices`::
+    (Optional, Boolean) If `true`, the wildcard indices expression that resolves 
+    into no concrete indices will be ignored. (This includes `_all` string or 
+    when no indices have been specified).
++
+Defaults to `true`.
 
-The following example returns only `metadata` and `routing_table` data for the `foo` and `bar` indices:
+`expand_wildcards`::
+    (Optional, string) Whether to expand wildcard expression to concrete indices 
+    that are open, closed or both. Available options: `open`, `closed`, `none`, 
+    `all`.
 
-[source,js]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+    
+`ignore_unavailable`::
+    (Optional, Boolean) If `true`, unavailable indices (missing or closed) will 
+    be ignored.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+`wait_for_metadata_version`::
+    (Optional, integer) Waits for the metadata version to be equal or greater 
+    than the specified metadata version.
+    
+`wait_for_timeout`::
+    (Optional, <<time-units, time units>>) Specifies the maximum time to wait 
+    for wait_for_metadata_version before timing out.
+
+
+[[cluster-state-api-example]]
+==== {api-examples-title}
+
+The following example returns only `metadata` and `routing_table` data for the
+`foo` and `bar` data streams or indices:
+
+[source,console]
 --------------------------------------------------
 GET /_cluster/state/metadata,routing_table/foo,bar
 --------------------------------------------------
-// CONSOLE
 
-The next example returns everything for the `foo` and `bar` indices:
+The next example returns all available metadata for `foo` and `bar`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/state/_all/foo,bar
 --------------------------------------------------
-// CONSOLE
 
-And this example return only `blocks` data:
-[source,js]
+This example returns only the `blocks` metadata:
+
+[source,console]
 --------------------------------------------------
 GET /_cluster/state/blocks
 --------------------------------------------------
-// CONSOLE
-
-

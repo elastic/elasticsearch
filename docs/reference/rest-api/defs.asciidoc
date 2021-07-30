@@ -2,26 +2,10 @@
 [[api-definitions]]
 == Definitions
 
-These resource definitions are used in {ml} and {security} APIs and in {kib} 
-advanced {ml} job configuration options.
+The role mappings resource definition you can find below is used in APIs related 
+to {security-features}.
 
-* <<ml-calendar-resource,Calendars>>
-* <<ml-datafeed-resource,{dfeeds-cap}>>
-* <<ml-datafeed-counts,{dfeed-cap} counts>>
-* <<ml-filter-resource,Filters>>
-* <<ml-job-resource,Jobs>>
-* <<ml-jobstats,Job statistics>>
-* <<ml-snapshot-resource,Model snapshots>>
-* <<ml-results-resource,Results>>
-* <<role-mapping-resources,Role mappings>>
-* <<ml-event-resource,Scheduled Events>>
+  * <<role-mapping-resources,Role mappings>>
 
-include::{es-repo-dir}/ml/apis/calendarresource.asciidoc[]
-include::{es-repo-dir}/ml/apis/datafeedresource.asciidoc[]
-include::{es-repo-dir}/ml/apis/filterresource.asciidoc[]
-include::{es-repo-dir}/ml/apis/jobresource.asciidoc[]
-include::{es-repo-dir}/ml/apis/jobcounts.asciidoc[]
-include::{es-repo-dir}/ml/apis/snapshotresource.asciidoc[]
+
 include::{xes-repo-dir}/rest-api/security/role-mapping-resources.asciidoc[]
-include::{es-repo-dir}/ml/apis/resultsresource.asciidoc[]
-include::{es-repo-dir}/ml/apis/eventresource.asciidoc[]

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.search.geo;
@@ -23,12 +12,12 @@ import org.apache.lucene.spatial.prefix.tree.Cell;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.test.ESTestCase;
 import org.locationtech.spatial4j.context.SpatialContext;
 import org.locationtech.spatial4j.distance.DistanceUtils;
@@ -386,6 +375,10 @@ public class GeoUtilsTests extends ESTestCase {
         assertNormalizedPoint(new GeoPoint(180.0, 360.0), new GeoPoint(0.0, 180.0));
         assertNormalizedPoint(new GeoPoint(-90.0, -180.0), new GeoPoint(-90.0, -180.0));
         assertNormalizedPoint(new GeoPoint(90.0, 180.0), new GeoPoint(90.0, 180.0));
+        assertNormalizedPoint(new GeoPoint(100.0, 180.0), new GeoPoint(80.0, 0.0));
+        assertNormalizedPoint(new GeoPoint(100.0, -180.0), new GeoPoint(80.0, 0.0));
+        assertNormalizedPoint(new GeoPoint(-100.0, 180.0), new GeoPoint(-80.0, 0.0));
+        assertNormalizedPoint(new GeoPoint(-100.0, -180.0), new GeoPoint(-80.0, 0.0));
     }
 
     public void testParseGeoPoint() throws IOException {
@@ -397,6 +390,8 @@ public class GeoUtilsTests extends ESTestCase {
                 parser.nextToken();
                 GeoPoint point = GeoUtils.parseGeoPoint(parser);
                 assertThat(point, equalTo(new GeoPoint(lat, lon)));
+                assertThat(parser.currentToken(), is(Token.END_OBJECT));
+                assertNull(parser.nextToken());
             }
             json = jsonBuilder().startObject().field("lat", String.valueOf(lat)).field("lon", String.valueOf(lon)).endObject();
             try (XContentParser parser = createParser(json)) {
@@ -438,9 +433,24 @@ public class GeoUtilsTests extends ESTestCase {
         }
     }
 
+    public void testParseGeoPointArrayZValueError() throws IOException {
+        double lat = randomDouble() * 180 - 90 + randomIntBetween(-1000, 1000) * 180;
+        double lon = randomDouble() * 360 - 180 + randomIntBetween(-1000, 1000) * 360;
+        double alt = randomDouble() * 1000;
+        XContentBuilder json = jsonBuilder().startArray().value(lat).value(lon).value(alt).endArray();
+        try (XContentParser parser = createParser(json)) {
+            parser.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class,
+                () -> GeoUtils.parseGeoPoint(parser, new GeoPoint(), false));
+            assertThat(e.getMessage(), containsString("but [ignore_z_value] parameter is [false]"));
+            assertThat(parser.currentToken(), is(Token.END_ARRAY));
+            assertNull(parser.nextToken());
+        }
+    }
+
     public void testParseGeoPointGeohash() throws IOException {
         for (int i = 0; i < 100; i++) {
-            int geoHashLength = randomIntBetween(1, GeoHashUtils.PRECISION);
+            int geoHashLength = randomIntBetween(1, Geohash.PRECISION);
             StringBuilder geohashBuilder = new StringBuilder(geoHashLength);
             for (int j = 0; j < geoHashLength; j++) {
                 geohashBuilder.append(BASE_32[randomInt(BASE_32.length - 1)]);
@@ -451,6 +461,8 @@ public class GeoUtilsTests extends ESTestCase {
                 GeoPoint point = GeoUtils.parseGeoPoint(parser);
                 assertThat(point.lat(), allOf(lessThanOrEqualTo(90.0), greaterThanOrEqualTo(-90.0)));
                 assertThat(point.lon(), allOf(lessThanOrEqualTo(180.0), greaterThanOrEqualTo(-180.0)));
+                assertThat(parser.currentToken(), is(Token.END_OBJECT));
+                assertNull(parser.nextToken());
             }
             json = jsonBuilder().startObject().field("geohash", geohashBuilder.toString()).endObject();
             try (XContentParser parser = createParser(json)) {
@@ -470,6 +482,8 @@ public class GeoUtilsTests extends ESTestCase {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), containsString("geohash must be a string"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
         }
     }
 
@@ -480,6 +494,8 @@ public class GeoUtilsTests extends ESTestCase {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("field [lon] missing"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
         }
     }
 
@@ -490,6 +506,8 @@ public class GeoUtilsTests extends ESTestCase {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("field [lat] missing"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
         }
     }
 
@@ -500,6 +518,8 @@ public class GeoUtilsTests extends ESTestCase {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("longitude must be a number"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
         }
     }
 
@@ -510,6 +530,8 @@ public class GeoUtilsTests extends ESTestCase {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("latitude must be a number"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
         }
     }
 
@@ -578,6 +600,9 @@ public class GeoUtilsTests extends ESTestCase {
             }
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("numeric value expected"));
+            assertThat(parser.currentToken(), is(Token.END_ARRAY));
+            assertThat(parser.nextToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
         }
     }
 

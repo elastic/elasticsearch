@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -16,8 +17,6 @@ import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
-import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
-import org.opensaml.saml.saml2.metadata.SingleSignOnService;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -38,17 +37,27 @@ public class SamlAuthnRequestBuilderTests extends SamlTestCase {
     @Before
     public void init() throws Exception {
         SamlUtils.initialize(logger);
+        idpDescriptor = buildIdPDescriptor(IDP_URL, IDP_ENTITY_ID);
+    }
 
-        final SingleSignOnService sso = SamlUtils.buildObject(SingleSignOnService.class, SingleSignOnService.DEFAULT_ELEMENT_NAME);
-        sso.setLocation(IDP_URL);
-        sso.setBinding(SAMLConstants.SAML2_REDIRECT_BINDING_URI);
+    public void testBuildRequestWithDefaultSettingsHasNoNameIdPolicy() {
+        SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, ACS_URL, null, null, null, Collections.emptyList());
+        final SamlAuthnRequestBuilder builder = new SamlAuthnRequestBuilder(
+            sp, SAMLConstants.SAML2_POST_BINDING_URI,
+            idpDescriptor, SAMLConstants.SAML2_REDIRECT_BINDING_URI,
+            Clock.systemUTC());
 
-        final IDPSSODescriptor idpRole = SamlUtils.buildObject(IDPSSODescriptor.class, IDPSSODescriptor.DEFAULT_ELEMENT_NAME);
-        idpRole.getSingleSignOnServices().add(sso);
+        final AuthnRequest request = buildAndValidateAuthnRequest(builder);
 
-        idpDescriptor = SamlUtils.buildObject(EntityDescriptor.class, EntityDescriptor.DEFAULT_ELEMENT_NAME);
-        idpDescriptor.setEntityID(IDP_ENTITY_ID);
-        idpDescriptor.getRoleDescriptors().add(idpRole);
+        assertThat(request.getIssuer().getValue(), equalTo(SP_ENTITY_ID));
+        assertThat(request.getProtocolBinding(), equalTo(SAMLConstants.SAML2_POST_BINDING_URI));
+
+        assertThat(request.getAssertionConsumerServiceURL(), equalTo(ACS_URL));
+
+        assertThat(request.getNameIDPolicy(), notNullValue());
+        assertThat(request.getNameIDPolicy().getFormat(), nullValue());
+        assertThat(request.getNameIDPolicy().getSPNameQualifier(), nullValue());
+        assertThat(request.getNameIDPolicy().getAllowCreate(), equalTo(Boolean.FALSE));
     }
 
     public void testBuildRequestWithPersistentNameAndNoForceAuth() throws Exception {

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
@@ -24,65 +13,185 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportGetAliasesAction.class);
+
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportGetAliasesAction(TransportService transportService, ClusterService clusterService,
                                      ThreadPool threadPool, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver) {
+                                     IndexNameExpressionResolver indexNameExpressionResolver, SystemIndices systemIndices) {
         super(GetAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, GetAliasesRequest::new,
-            indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        // very lightweight operation all in memory no need to fork to a thread pool
-        return ThreadPool.Names.SAME;
+            indexNameExpressionResolver, GetAliasesResponse::new, ThreadPool.Names.MANAGEMENT);
+        this.systemIndices = systemIndices;
     }
 
     @Override
     protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
+        // Resolve with system index access since we're just checking blocks
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-            indexNameExpressionResolver.concreteIndexNames(state, request));
+            indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request));
     }
 
     @Override
-    protected GetAliasesResponse newResponse() {
-        return new GetAliasesResponse();
-    }
-
-    @Override
-    protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        ImmutableOpenMap<String, List<AliasMetaData>> aliases = state.metaData().findAliases(request, concreteIndices);
-        listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases)));
+    protected void masterOperation(Task task, GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
+        assert Transports.assertNotTransportThread("no need to avoid the context switch and may be expensive if there are many aliases");
+        // resolve all concrete indices upfront and warn/error later
+        final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
+        final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
+        ImmutableOpenMap<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request, concreteIndices);
+        listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases, state,
+            systemIndexAccessLevel, threadPool.getThreadContext(), systemIndices),
+            postProcess(indexNameExpressionResolver, request, state)));
     }
 
     /**
      * Fills alias result with empty entries for requested indices when no specific aliases were requested.
      */
-    static ImmutableOpenMap<String, List<AliasMetaData>> postProcess(GetAliasesRequest request, String[] concreteIndices,
-                                                                     ImmutableOpenMap<String, List<AliasMetaData>> aliases) {
+    static ImmutableOpenMap<String, List<AliasMetadata>> postProcess(GetAliasesRequest request, String[] concreteIndices,
+                                                                     ImmutableOpenMap<String, List<AliasMetadata>> aliases,
+                                                                     ClusterState state, SystemIndexAccessLevel systemIndexAccessLevel,
+                                                                     ThreadContext threadContext, SystemIndices systemIndices) {
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder(aliases);
+        ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder(aliases);
         for (String index : concreteIndices) {
+            IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
+            assert ia.getType() == IndexAbstraction.Type.CONCRETE_INDEX;
+            if (ia.getParentDataStream() != null) {
+                // Don't include backing indices of data streams,
+                // because it is just noise. Aliases can't refer
+                // to backing indices directly.
+                continue;
+            }
+
             if (aliases.get(index) == null && noAliasesSpecified) {
-                List<AliasMetaData> previous = mapBuilder.put(index, Collections.emptyList());
+                List<AliasMetadata> previous = mapBuilder.put(index, Collections.emptyList());
                 assert previous == null;
             }
         }
-        return mapBuilder.build();
+        final ImmutableOpenMap<String, List<AliasMetadata>> finalResponse = mapBuilder.build();
+        if (systemIndexAccessLevel != SystemIndexAccessLevel.ALL) {
+            checkSystemIndexAccess(request, systemIndices, state, finalResponse, systemIndexAccessLevel, threadContext);
+        }
+        return finalResponse;
     }
 
+    static Map<String, List<DataStreamAlias>> postProcess(IndexNameExpressionResolver resolver, GetAliasesRequest request,
+                                                          ClusterState state) {
+        Map<String, List<DataStreamAlias>> result = new HashMap<>();
+        boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
+        List<String> requestedDataStreams = resolver.dataStreamNames(state, request.indicesOptions(), request.indices());
+        for (String requestedDataStream : requestedDataStreams) {
+            List<DataStreamAlias> aliases = state.metadata().dataStreamAliases().values().stream()
+                .filter(alias -> alias.getDataStreams().contains(requestedDataStream))
+                .filter(alias -> noAliasesSpecified || Regex.simpleMatch(request.aliases(), alias.getName()))
+                .collect(Collectors.toList());
+            if (aliases.isEmpty() == false) {
+                result.put(requestedDataStream, aliases);
+            }
+        }
+        return result;
+    }
+
+    private static void checkSystemIndexAccess(GetAliasesRequest request, SystemIndices systemIndices, ClusterState state,
+                                               ImmutableOpenMap<String, List<AliasMetadata>> aliasesMap,
+                                               SystemIndexAccessLevel systemIndexAccessLevel, ThreadContext threadContext) {
+        final Predicate<IndexMetadata> systemIndexAccessAllowPredicate;
+        if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
+            systemIndexAccessAllowPredicate = indexMetadata -> false;
+        } else if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
+            systemIndexAccessAllowPredicate = systemIndices.getProductSystemIndexMetadataPredicate(threadContext);
+        } else {
+            throw new IllegalArgumentException("Unexpected system index access level: " + systemIndexAccessLevel);
+        }
+
+        List<String> netNewSystemIndices = new ArrayList<>();
+        List<String> systemIndicesNames = new ArrayList<>();
+        for (Iterator<String> it = aliasesMap.keysIt(); it.hasNext(); ) {
+            String indexName = it.next();
+            IndexMetadata index = state.metadata().index(indexName);
+            if (index != null && index.isSystem()) {
+                if (systemIndexAccessAllowPredicate.test(index) == false) {
+                    if (systemIndices.isNetNewSystemIndex(indexName)) {
+                        netNewSystemIndices.add(indexName);
+                    } else {
+                        systemIndicesNames.add(indexName);
+                    }
+                }
+            }
+        }
+        if (systemIndicesNames.isEmpty() == false) {
+            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access",
+                "this request accesses system indices: {}, but in a future major version, direct access to system " +
+                    "indices will be prevented by default", systemIndicesNames);
+        }
+        if (netNewSystemIndices.isEmpty() == false) {
+            throw systemIndices.netNewSystemIndexAccessException(threadContext, netNewSystemIndices);
+        }
+        checkSystemAliasAccess(request, systemIndices, systemIndexAccessLevel, threadContext);
+    }
+
+    private static void checkSystemAliasAccess(GetAliasesRequest request, SystemIndices systemIndices,
+                                               SystemIndexAccessLevel systemIndexAccessLevel, ThreadContext threadContext) {
+        final Predicate<String> systemIndexAccessAllowPredicate;
+        if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
+            systemIndexAccessAllowPredicate = name -> true;
+        } else if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
+            systemIndexAccessAllowPredicate = systemIndices.getProductSystemIndexNamePredicate(threadContext).negate();
+        } else {
+            throw new IllegalArgumentException("Unexpected system index access level: " + systemIndexAccessLevel);
+        }
+
+        final List<String> systemAliases = new ArrayList<>();
+        final List<String> netNewSystemAliases = new ArrayList<>();
+        for (String alias : request.aliases()) {
+            if (systemIndices.isSystemName(alias)) {
+                if (systemIndexAccessAllowPredicate.test(alias)) {
+                    if (systemIndices.isNetNewSystemIndex(alias)) {
+                        netNewSystemAliases.add(alias);
+                    } else {
+                        systemAliases.add(alias);
+                    }
+                }
+            }
+        }
+
+        if (systemAliases.isEmpty() == false) {
+            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_alias_access",
+                "this request accesses aliases with names reserved for system indices: {}, but in a future major version, direct " +
+                    "access to system indices and their aliases will not be allowed", systemAliases);
+        }
+        if (netNewSystemAliases.isEmpty() == false) {
+            throw systemIndices.netNewSystemIndexAccessException(threadContext, netNewSystemAliases);
+        }
+    }
 }

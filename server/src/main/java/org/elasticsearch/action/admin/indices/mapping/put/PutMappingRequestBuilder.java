@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.mapping.put;
@@ -60,14 +49,6 @@ public class PutMappingRequestBuilder
     }
 
     /**
-     * The type of the mappings.
-     */
-    public PutMappingRequestBuilder setType(String type) {
-        request.type(type);
-        return this;
-    }
-
-    /**
      * The mapping source definition.
      */
     public PutMappingRequestBuilder setSource(XContentBuilder mappingBuilder) {
@@ -78,7 +59,7 @@ public class PutMappingRequestBuilder
     /**
      * The mapping source definition.
      */
-    public PutMappingRequestBuilder setSource(Map mappingSource) {
+    public PutMappingRequestBuilder setSource(Map<String, ?> mappingSource) {
         request.source(mappingSource);
         return this;
     }
@@ -95,7 +76,7 @@ public class PutMappingRequestBuilder
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
      */
-    public PutMappingRequestBuilder setSource(Object... source) {
+    public PutMappingRequestBuilder setSource(String... source) {
         request.source(source);
         return this;
     }

@@ -1,0 +1,168 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: get-model-snapshots
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-get-model-snapshots
+        id:     "get-model-snapshots-1"
+        body:  >
+          {
+            "job_id": "get-model-snapshots",
+            "snapshot_id": "1",
+            "timestamp": "2016-06-02T00:00:00Z",
+            "snapshot_doc_count": 1
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-state-000001
+        id:     "get-model-snapshots_model_state_1#1"
+        body:  >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-get-model-snapshots
+        id:     "get-model-snapshots-2"
+        body:  >
+          {
+            "job_id": "get-model-snapshots",
+            "snapshot_id": "2",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "snapshot_doc_count": 2
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index:  .ml-state-000001
+        id:     "get-model-snapshots_model_state_2#1"
+        body:  >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index:  .ml-state-000001
+        id:     "get-model-snapshots_model_state_2#2"
+        body:  >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh:
+        index: [.ml-anomalies-get-model-snapshots,.ml-state*]
+
+---
+"Test get model snapshots API with no params":
+  - do:
+      ml.get_model_snapshots:
+        job_id: "get-model-snapshots"
+
+  - match: { count: 2 }
+  - match: { model_snapshots.0.timestamp: 1464825600000 }
+  - match: { model_snapshots.1.timestamp: 1464739200000 }
+
+---
+"Test get model snapshots API with _all":
+  - do:
+      ml.get_model_snapshots:
+        job_id: "get-model-snapshots"
+        snapshot_id: "_all"
+
+  - match: { count: 2 }
+  - match: { model_snapshots.0.timestamp: 1464825600000 }
+  - match: { model_snapshots.1.timestamp: 1464739200000 }
+
+---
+"Test get specific model snapshot":
+  - do:
+      ml.get_model_snapshots:
+        job_id: "get-model-snapshots"
+        snapshot_id: "2"
+
+  - match: { count: 1 }
+  - match: { model_snapshots.0.timestamp: 1464739200000 }
+
+---
+"Test get model snapshots API with start/end":
+  - do:
+      ml.get_model_snapshots:
+        job_id: "get-model-snapshots"
+        start: "2016-05-01T00:00:00Z"
+        end: "2016-07-01T00:00:00Z"
+
+  - match: { count: 2 }
+  - match: { model_snapshots.0.timestamp: 1464825600000 }
+  - match: { model_snapshots.1.timestamp: 1464739200000 }
+
+---
+"Test get model snapshots API with ascending":
+  - do:
+      ml.get_model_snapshots:
+        job_id: "get-model-snapshots"
+        desc: false
+
+  - match: { count: 2 }
+  - match: { model_snapshots.0.timestamp: 1464739200000 }
+  - match: { model_snapshots.1.timestamp: 1464825600000 }
+
+---
+"Test get model snapshots API with size":
+  - do:
+      ml.get_model_snapshots:
+        job_id: "get-model-snapshots"
+        size: 1
+
+  - match: { count: 2 }
+  - match: { model_snapshots.0.timestamp: 1464825600000 }
+  - length: { model_snapshots: 1 }
+
+---
+"Test get model snapshots API with from":
+  - do:
+      ml.get_model_snapshots:
+        job_id: "get-model-snapshots"
+        from: 1
+
+  - match: { count: 2 }
+  - match: { model_snapshots.0.timestamp: 1464739200000 }
+  - length: { model_snapshots: 1 }
+
+---
+"Test with unknown job id":
+  - do:
+      catch: missing
+      ml.get_model_snapshots:
+        job_id: "non-existent-job"

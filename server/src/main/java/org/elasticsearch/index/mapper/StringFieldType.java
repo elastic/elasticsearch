@@ -1,42 +1,37 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
-import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /** Base class for {@link MappedFieldType} implementations that use the same
  * representation for internal index terms as the external representation so
@@ -44,33 +39,41 @@ import java.util.List;
  * can be implemented. */
 public abstract class StringFieldType extends TermBasedFieldType {
 
-    public StringFieldType() {}
+    private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
 
-    protected StringFieldType(MappedFieldType ref) {
-        super(ref);
-    }
-
-    @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
-        failIfNotIndexed();
-        BytesRef[] bytesRefs = new BytesRef[values.size()];
-        for (int i = 0; i < bytesRefs.length; i++) {
-            bytesRefs[i] = indexedValueForSearch(values.get(i));
-        }
-        return new TermInSetQuery(name(), bytesRefs);
+    public StringFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
+                           TextSearchInfo textSearchInfo, Map<String, String> meta) {
+        super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     @Override
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-            boolean transpositions) {
+            boolean transpositions, SearchExecutionContext context) {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[fuzzy] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
         failIfNotIndexed();
         return new FuzzyQuery(new Term(name(), indexedValueForSearch(value)),
                 fuzziness.asDistance(BytesRefs.toString(value)), prefixLength, maxExpansions, transpositions);
     }
 
     @Override
-    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[prefix] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false. For optimised prefix queries on text " +
+                    "fields please enable [index_prefixes].");
+        }
         failIfNotIndexed();
+        if (caseInsensitive) {
+            AutomatonQuery query = AutomatonQueries.caseInsensitivePrefixQuery((new Term(name(), indexedValueForSearch(value))));
+            if (method != null) {
+                query.setRewriteMethod(method);
+            }
+            return query;
+
+        }
         PrefixQuery query = new PrefixQuery(new Term(name(), indexedValueForSearch(value)));
         if (method != null) {
             query.setRewriteMethod(method);
@@ -78,24 +81,87 @@ public abstract class StringFieldType extends TermBasedFieldType {
         return query;
     }
 
-    @Override
-    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        Query termQuery = termQuery(value, context);
-        if (termQuery instanceof MatchNoDocsQuery || termQuery instanceof MatchAllDocsQuery) {
-            return termQuery;
+    public static final String normalizeWildcardPattern(String fieldname, String value, Analyzer normalizer)  {
+        if (normalizer == null) {
+            return value;
         }
-        Term term = MappedFieldType.extractTerm(termQuery);
+        // we want to normalize everything except wildcard characters, e.g. F?o Ba* to f?o ba*, even if e.g there
+        // is a char_filter that would otherwise remove them
+        Matcher wildcardMatcher = WILDCARD_PATTERN.matcher(value);
+        BytesRefBuilder sb = new BytesRefBuilder();
+        int last = 0;
 
+        while (wildcardMatcher.find()) {
+            if (wildcardMatcher.start() > 0) {
+                String chunk = value.substring(last, wildcardMatcher.start());
+
+                BytesRef normalized = normalizer.normalize(fieldname, chunk);
+                sb.append(normalized);
+            }
+            // append the matched group - without normalizing
+            sb.append(new BytesRef(wildcardMatcher.group()));
+
+            last = wildcardMatcher.end();
+        }
+        if (last < value.length()) {
+            String chunk = value.substring(last);
+            BytesRef normalized = normalizer.normalize(fieldname, chunk);
+            sb.append(normalized);
+        }
+        return sb.toBytesRef().utf8ToString();
+    }
+
+    @Override
+    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
+        return wildcardQuery(value, method, caseInsensitive, false, context);
+    }
+
+
+    @Override
+    public Query normalizedWildcardQuery(String value, MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
+        return wildcardQuery(value, method, false, true, context);
+    }
+
+    protected Query wildcardQuery(
+        String value,
+        MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitive,
+        boolean shouldNormalize,
+        SearchExecutionContext context
+    ) {
+        failIfNotIndexed();
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[wildcard] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
+
+        Term term;
+        if (getTextSearchInfo().getSearchAnalyzer() != null && shouldNormalize) {
+            value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
+            term = new Term(name(), value);
+        } else {
+            term = new Term(name(), indexedValueForSearch(value));
+        }
+        if (caseInsensitive) {
+            AutomatonQuery query = AutomatonQueries.caseInsensitiveWildcardQuery(term);
+            QueryParsers.setRewriteMethod(query, method);
+            return query;
+        }
         WildcardQuery query = new WildcardQuery(term);
         QueryParsers.setRewriteMethod(query, method);
         return query;
     }
 
     @Override
-    public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
-            MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
+            MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[regexp] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
         failIfNotIndexed();
-        RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), flags, maxDeterminizedStates);
+        RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags,
+            matchFlags, maxDeterminizedStates);
         if (method != null) {
             query.setRewriteMethod(method);
         }
@@ -103,7 +169,12 @@ public abstract class StringFieldType extends TermBasedFieldType {
     }
 
     @Override
-    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
+                            SearchExecutionContext context) {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[range] queries on [text] or [keyword] fields cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
         failIfNotIndexed();
         return new TermRangeQuery(name(),
             lowerTerm == null ? null : indexedValueForSearch(lowerTerm),

@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.execution;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
@@ -15,9 +16,9 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,7 +30,7 @@ public class ManualExecutionContext extends WatchExecutionContext {
     private final boolean recordExecution;
     private final boolean knownWatch;
 
-    ManualExecutionContext(Watch watch, boolean knownWatch, DateTime executionTime, ManualTriggerEvent triggerEvent,
+    ManualExecutionContext(Watch watch, boolean knownWatch, ZonedDateTime executionTime, ManualTriggerEvent triggerEvent,
                            TimeValue defaultThrottlePeriod, Input.Result inputResult, Condition.Result conditionResult,
                            Map<String, ActionExecutionMode> actionModes, boolean recordExecution) throws Exception {
 
@@ -113,7 +114,7 @@ public class ManualExecutionContext extends WatchExecutionContext {
         private final boolean knownWatch;
         private final ManualTriggerEvent triggerEvent;
         private final TimeValue defaultThrottlePeriod;
-        protected DateTime executionTime;
+        protected ZonedDateTime executionTime;
         private boolean recordExecution = false;
         private Map<String, ActionExecutionMode> actionModes = new HashMap<>();
         private Input.Result inputResult;
@@ -127,7 +128,7 @@ public class ManualExecutionContext extends WatchExecutionContext {
             this.defaultThrottlePeriod = defaultThrottlePeriod;
         }
 
-        public Builder executionTime(DateTime executionTime) {
+        public Builder executionTime(ZonedDateTime executionTime) {
             this.executionTime = executionTime;
             return this;
         }
@@ -164,7 +165,7 @@ public class ManualExecutionContext extends WatchExecutionContext {
 
         public ManualExecutionContext build() throws Exception {
             if (executionTime == null) {
-                executionTime = DateTime.now(DateTimeZone.UTC);
+                executionTime = ZonedDateTime.now(ZoneOffset.UTC);
             }
             ManualExecutionContext context = new ManualExecutionContext(watch, knownWatch, executionTime, triggerEvent,
                     defaultThrottlePeriod, inputResult, conditionResult, unmodifiableMap(actionModes), recordExecution);

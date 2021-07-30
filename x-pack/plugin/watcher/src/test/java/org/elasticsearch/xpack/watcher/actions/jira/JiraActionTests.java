@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.jira;
 
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,14 +33,16 @@ import org.elasticsearch.xpack.watcher.notification.jira.JiraAccountTests;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraIssue;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
 import org.elasticsearch.xpack.watcher.support.Variables;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static java.util.Map.entry;
 import static org.elasticsearch.common.xcontent.XContentFactory.cborBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
@@ -152,7 +156,7 @@ public class JiraActionTests extends ESTestCase {
         HttpProxy proxy = action1.proxy;
 
         boolean equals = randomBoolean();
-        if (!equals) {
+        if (equals == false) {
             equals = true;
             if (rarely()) {
                 equals = false;
@@ -184,42 +188,45 @@ public class JiraActionTests extends ESTestCase {
 
     public void testExecute() throws Exception {
         final Map<String, Object> model = new HashMap<>();
-        final MapBuilder<String, Object> actionFields = MapBuilder.newMapBuilder();
+        final var entries = new ArrayList<Map.Entry<String, Object>>();
 
         String summary = randomAlphaOfLength(15);
-        actionFields.put("summary", "{{ctx.summary}}");
+        entries.add(entry("summary", "{{ctx.summary}}"));
         model.put("{{ctx.summary}}", summary);
 
         String projectId = randomAlphaOfLength(10);
-        actionFields.put("project", singletonMap("id", "{{ctx.project_id}}"));
+        entries.add(entry("project", singletonMap("id", "{{ctx.project_id}}")));
         model.put("{{ctx.project_id}}", projectId);
 
         String description = null;
         if (randomBoolean()) {
             description = randomAlphaOfLength(50);
-            actionFields.put("description", description);
+            entries.add(entry("description", description));
         }
 
         String issueType = null;
         if (randomBoolean()) {
             issueType = randomFrom("Bug", "Test", "Task", "Epic");
-            actionFields.put("issuetype", singletonMap("name", issueType));
+            entries.add(entry("issuetype", Map.of("name", issueType)));
         }
 
         String watchId = null;
         if (randomBoolean()) {
             watchId = "jira_watch_" + randomInt();
             model.put("{{" + Variables.WATCH_ID + "}}", watchId);
-            actionFields.put("customfield_0", "{{watch_id}}");
+            entries.add(entry("customfield_0", "{{watch_id}}"));
         }
 
         HttpClient httpClient = mock(HttpClient.class);
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(new HttpResponse(HttpStatus.SC_CREATED));
 
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("secure_url", "https://internal-jira.elastic.co:443");
+        secureSettings.setString("secure_user", "elastic");
+        secureSettings.setString("secure_password", "secret");
+
         Settings.Builder settings = Settings.builder()
-                .put("url", "https://internal-jira.elastic.co:443")
-                .put("user", "elastic")
-                .put("password", "secret")
+                .setSecureSettings(secureSettings)
                 .put("issue_defaults.customfield_000", "foo")
                 .put("issue_defaults.customfield_001", "bar");
 
@@ -228,13 +235,13 @@ public class JiraActionTests extends ESTestCase {
         JiraService service = mock(JiraService.class);
         when(service.getAccount(eq("account"))).thenReturn(account);
 
-        JiraAction action = new JiraAction("account", actionFields.immutableMap(), null);
+        JiraAction action = new JiraAction("account", Maps.ofEntries(entries), null);
         ExecutableJiraAction executable = new ExecutableJiraAction(action, logger, service, new ModelTextTemplateEngine(model));
 
         Map<String, Object> data = new HashMap<>();
         Payload payload = new Payload.Simple(data);
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 
         Wid wid = new Wid(randomAlphaOfLength(5),  now);
         WatchExecutionContext context = mockExecutionContextBuilder(wid.watchId())

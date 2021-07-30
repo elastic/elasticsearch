@@ -1,130 +1,128 @@
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.gradle.api.internal.provider.Providers
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
 
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
 apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-high-level-client'
 
-publishing {
-  publications {
-    nebula {
-      artifactId = archivesBaseName
-    }
-  }
-}
+// HLRC is published under the Elastic License
+ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl.get()])
 
-configurations {
-  restSpec
-}
-
-idea {
-  module {
-   if (scopes.TEST != null) {
-     scopes.TEST.plus.add(project.configurations.restSpec)
-   }
+restResources {
+  //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
+  restApi {
+    include '*'
   }
 }
 
 dependencies {
-  /*
-   * Everything in the "shadow" configuration is *not* copied into the
-   * shadowJar.
-   */
-  compile "org.elasticsearch:elasticsearch:${version}"
-  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
-  compile "org.elasticsearch.plugin:parent-join-client:${version}"
-  compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
-  compile "org.elasticsearch.plugin:rank-eval-client:${version}"
-  compile "org.elasticsearch.plugin:lang-mustache-client:${version}"
+  api project(':modules:mapper-extras')
+  api project(':modules:parent-join')
+  api project(':modules:aggs-matrix-stats')
+  api project(':modules:rank-eval')
+  api project(':modules:lang-mustache')
 
-  testCompile "org.elasticsearch.client:test:${version}"
-  testCompile "org.elasticsearch.test:framework:${version}"
-  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  // Don't bundle the server or low-level rest client JARs in the shadow JAR since these get published to Maven Central
+  shadow project(':server')
+  shadow project(':client:rest')
+
+  testImplementation project(':client:test')
+  testImplementation project(':test:framework')
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
   //this is needed to make RestHighLevelClientTests#testApiNamingConventions work from IDEs
-  testCompile "org.elasticsearch:rest-api-spec:${version}"
-
-  restSpec "org.elasticsearch:rest-api-spec:${version}"
-}
-
-//we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
-processTestResources {
-  dependsOn jar // so that configurations resolve
-  from({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
+  testImplementation project(":rest-api-spec")
+  // Needed for serialization tests:
+  // (In order to serialize a server side class to a client side class or the other way around)
+  testImplementation(project(':x-pack:plugin:core')) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
   }
-}
-
-dependencyLicenses {
-  // Don't check licenses for dependency that are part of the elasticsearch project
-  // But any other dependency should have its license/notice/sha1
-  dependencies = project.configurations.runtime.fileCollection {
-    it.group.startsWith('org.elasticsearch') == false
+  testImplementation(project(':modules:ingest-geoip')) {
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
   }
+  testImplementation(project(':x-pack:plugin:eql'))
+  testImplementation(project(':x-pack:plugin:ql:test-fixtures'))
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   // core does not depend on the httpclient for compile so we add the signatures here. We don't add them for test as they are already
   // specified
   addSignatureFiles 'http-signatures'
   signaturesFiles += files('src/main/resources/forbidden/rest-high-level-signatures.txt')
 }
+
 File nodeCert = file("./testnode.crt")
 File nodeTrustStore = file("./testnode.jks")
+File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security/delegate_pki/testRootCA.crt")
 
-integTestRunner {
+tasks.named("integTest").configure {
+  systemProperty 'tests.rest.async', 'false'
   systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
-  systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-password')
+  systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-user-password')
 }
 
-integTestCluster {
+// Requires https://github.com/elastic/elasticsearch/pull/64403 to have this moved to task avoidance api.
+TaskProvider<RestIntegTestTask> asyncIntegTest = tasks.register("asyncIntegTest", RestIntegTestTask) {
+    systemProperty 'tests.rest.async', 'true'
+    systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
+    systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-user-password')
+}
+
+tasks.named("check").configure {
+  dependsOn(asyncIntegTest)
+}
+
+testClusters.all {
+  testDistribution = 'DEFAULT'
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
+  setting 'reindex.remote.whitelist', '[ "[::1]:*", "127.0.0.1:*" ]'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
+  setting 'xpack.security.http.ssl.enabled', 'false'
+  setting 'xpack.security.transport.ssl.enabled', 'false'
   // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API
-  setting 'xpack.ssl.certificate_authorities', 'testnode.crt'
+  setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
   setting 'xpack.security.transport.ssl.truststore.path', 'testnode.jks'
-  keystoreSetting 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
-  setupCommand 'setupDummyUser',
-          'bin/elasticsearch-users',
-          'useradd', System.getProperty('tests.rest.cluster.username', 'test_user'),
-          '-p', System.getProperty('tests.rest.cluster.password', 'test-password'),
-          '-r', 'superuser'
+  setting 'xpack.security.authc.realms.file.default_file.order', '0'
+  setting 'xpack.security.authc.realms.native.default_native.order', '1'
+  setting 'xpack.security.authc.realms.pki.pki1.order', '2'
+  setting 'xpack.security.authc.realms.pki.pki1.certificate_authorities', '[ "testRootCA.crt" ]'
+  setting 'xpack.security.authc.realms.pki.pki1.delegation.enabled', 'true'
+
+  setting 'indices.lifecycle.poll_interval', '1000ms'
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  keystore 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: System.getProperty('tests.rest.cluster.username', 'test_user'),
+    password: System.getProperty('tests.rest.cluster.password', 'test-user-password'),
+    role: System.getProperty('tests.rest.cluster.role', 'admin')
+  user username: 'admin_user', password: 'admin-password'
+
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile nodeTrustStore.name, nodeTrustStore
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: System.getProperty('tests.rest.cluster.username', 'test_user'),
-            password: System.getProperty('tests.rest.cluster.password', 'test-password'),
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
-  }
+  extraConfigFile pkiTrustCert.name, pkiTrustCert
+
+  setting 'xpack.searchable.snapshot.shared_cache.size', '1mb'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '16kb'
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // the client package should be owned by the client, but server has some classes there too
+  ignoreClasses 'org.elasticsearch.client.*'
 }

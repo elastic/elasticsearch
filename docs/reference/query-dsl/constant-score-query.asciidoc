@@ -1,25 +1,41 @@
 [[query-dsl-constant-score-query]]
-=== Constant Score Query
+=== Constant score query
+++++
+<titleabbrev>Constant score</titleabbrev>
+++++
 
-A query that wraps another query and simply returns a
-constant score equal to the query boost for every document in the
-filter. Maps to Lucene `ConstantScoreQuery`.
+Wraps a <<query-dsl-bool-query, filter query>> and returns every matching
+document with a <<relevance-scores,relevance score>> equal to the `boost`
+parameter value.
 
-[source,js]
---------------------------------------------------
+[source,console]
+----
 GET /_search
 {
-    "query": {
-        "constant_score" : {
-            "filter" : {
-                "term" : { "user" : "kimchy"}
-            },
-            "boost" : 1.2
-        }
+  "query": {
+    "constant_score": {
+      "filter": {
+        "term": { "user.id": "kimchy" }
+      },
+      "boost": 1.2
     }
+  }
 }
---------------------------------------------------
-// CONSOLE
+----
 
-Filter clauses are executed in <<query-filter-context,filter context>>,
-meaning that scoring is ignored and clauses are considered for caching.
+[[constant-score-top-level-params]]
+==== Top-level parameters for `constant_score`
+`filter`::
++
+--
+(Required, query object) <<query-dsl-bool-query, Filter query>> you wish to run.
+Any returned documents must match this query.
+
+Filter queries do not calculate <<relevance-scores,relevance scores>>. To
+speed up performance, {es} automatically caches frequently used filter queries.
+--
+
+`boost`::
+(Optional, float) Floating point number used as the constant
+<<relevance-scores,relevance score>> for every document matching the
+`filter` query. Defaults to `1.0`.

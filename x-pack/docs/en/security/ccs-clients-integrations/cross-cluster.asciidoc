@@ -1,9 +1,10 @@
 [[cross-cluster-configuring]]
-=== Cross Cluster Search and Security
+=== {ccs-cap} and security
 
-{ref}/modules-cross-cluster-search.html[Cross Cluster Search] enables
+<<modules-cross-cluster-search,{ccs-cap}>> enables
 federated search across multiple clusters. When using cross cluster search
-with secured clusters, all clusters must have {security} enabled.
+with secured clusters, all clusters must have the {es} {security-features}
+enabled.
 
 The local cluster (the cluster used to initiate cross cluster search) must be
 allowed to connect to the remote clusters, which means that the CA used to
@@ -22,39 +23,44 @@ This feature was added as Beta in {es} `v5.3` with further improvements made in
 
 To use cross cluster search with secured clusters:
 
-* Enable {security} on every node in each connected cluster. For more
-information about the `xpack.security.enabled` setting, see
-{ref}/security-settings.html[Security Settings in {es}].
+* Enable the {es} {security-features} on every node in each connected cluster.
+For more information about the `xpack.security.enabled` setting, see
+<<security-settings>>.
 
 * Enable encryption globally. To encrypt communications, you must enable
-  <<ssl-tls,enable SSL/TLS>> on every node.
+  <<encrypt-internode-communication,enable SSL/TLS>> on every node.
 
 * Enable a trust relationship between the cluster used for performing cross
-  cluster search (the local cluster) and all remote clusters.  This can be done
+  cluster search (the local cluster) and all remote clusters. This can be done
   either by:
 +
   ** Using the same certificate authority to generate certificates for all
     connected clusters, or
   ** Adding the CA certificate from the local cluster as a trusted CA in
-    each remote cluster (see {ref}/security-settings.html#transport-tls-ssl-settings[Transport TLS settings]).
+    each remote cluster (see <<transport-tls-ssl-settings>>).
+
+
+* On the local cluster, ensure that users are assigned to (at least) one role
+  that exists on the remote clusters. On the remote clusters, use that role
+  to define which indices the user may access.  (See <<authorization>>).
 
 * Configure the local cluster to connect to remote clusters as described
-  in {ref}/modules-remote-clusters.html#configuring-remote-clusters[Configuring Remote Clusters].
+  in <<configuring-remote-clusters>>.
   For example, the following configuration adds two remote clusters
   to the local cluster:
 +
 --
-[source,js]
+[source,console]
 -----------------------------------------------------------
 PUT _cluster/settings
 {
   "persistent": {
     "cluster": {
       "remote": {
-        "cluster_one": {
+        "one": {
           "seeds": [ "10.0.1.1:9300" ]
         },
-        "cluster_two": {
+        "two": {
           "seeds": [ "10.0.2.1:9300" ]
         }
       }
@@ -62,49 +68,46 @@ PUT _cluster/settings
   }
 }
 -----------------------------------------------------------
-// CONSOLE
 --
 
-* On the local cluster, ensure that users are assigned to (at least) one role
-  that exists on the remote clusters.  On the remote clusters, use that role
-  to define which indices the user may access.  (See <<authorization>>).
 
-==== Example Configuration of Cross Cluster Search
+
+[[cross-cluster-configuring-example]]
+==== Example configuration of cross cluster search
 
 In the following example, we will configure the user `alice` to have permissions
-to search any index starting with `logs-` in cluster `two` from cluster `one`.
+to search any data stream or index starting with `logs-` in cluster `two` from
+cluster `one`.
 
 First, enable cluster `one` to perform cross cluster search on remote cluster
 `two` by running the following request as the superuser on cluster `one`:
 
-[source,js]
+[source,console]
 -----------------------------------------------------------
 PUT _cluster/settings
 {
   "persistent": {
-    "cluster.remote.cluster_two.seeds": [ "10.0.2.1:9300" ]
+    "cluster.remote.two.seeds": [ "10.0.2.1:9300" ]
   }
 }
 -----------------------------------------------------------
-// CONSOLE
 
 Next, set up a role called `cluster_two_logs` on both cluster `one` and
 cluster `two`.
 
 On cluster `one`, this role does not need any special privileges:
 
-[source,js]
+[source,console]
 -----------------------------------------------------------
 POST /_security/role/cluster_two_logs
 {
 }
 -----------------------------------------------------------
-// CONSOLE
 
 On cluster `two`, this role allows the user to query local indices called
 `logs-` from a remote cluster:
 
-[source,js]
+[source,console]
 -----------------------------------------------------------
 POST /_security/role/cluster_two_logs
 {
@@ -122,38 +125,33 @@ POST /_security/role/cluster_two_logs
   ]
 }
 -----------------------------------------------------------
-// CONSOLE
 
 Finally, create a user on cluster `one` and apply the `cluster_two_logs` role:
 
-[source,js]
+[source,console]
 -----------------------------------------------------------
 POST /_security/user/alice
 {
-  "password" : "somepassword",
+  "password" : "somepasswordhere",
   "roles" : [ "cluster_two_logs" ],
   "full_name" : "Alice",
   "email" : "alice@example.com",
   "enabled": true
 }
 -----------------------------------------------------------
-// CONSOLE
 
 With all of the above setup, the user `alice` is able to search indices in
 cluster `two` as follows:
 
-[source,js]
+[source,console]
 -----------------------------------------------------------
-GET two:logs-2017.04/_search <1>
+GET two:logs-2017.04/_search
 {
   "query": {
     "match_all": {}
   }
 }
 -----------------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
-//TBD: Is there a missing description of the <1> callout above?
 
-:edit_url: https://github.com/elastic/kibana/edit/{branch}/docs/security/cross-cluster-kibana.asciidoc
-include::{kib-repo-dir}/security/cross-cluster-kibana.asciidoc[]
+include::cross-cluster-kibana.asciidoc[]

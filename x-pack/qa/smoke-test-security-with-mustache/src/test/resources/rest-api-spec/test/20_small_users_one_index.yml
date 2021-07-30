@@ -1,7 +1,7 @@
 ---
 setup:
   - skip:
-      features: headers
+      features: ["headers", "allowed_warnings"]
 
   - do:
       indices.create:
@@ -84,11 +84,12 @@ teardown:
             }
 
   - do:
+      allowed_warnings:
+        - "the index privilege [create] allowed the update mapping action [indices:admin/mapping/auto_put] on index [shared_logs], this privilege will not permit mapping updates in the next major release - users who require access to update mappings must be granted explicit privileges"
       headers:
         Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       index:
         index: shared_logs
-        type: type
         pipeline: "my_pipeline"
         body:  >
           {
@@ -99,7 +100,6 @@ teardown:
         Authorization: "Basic am9objp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       index:
         index: shared_logs
-        type: type
         pipeline: "my_pipeline"
         body:  >
           {
@@ -107,7 +107,8 @@ teardown:
           }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: shared_logs
 
   # Joe searches:
   - do:
@@ -154,11 +155,12 @@ teardown:
             }
 
   - do:
+      allowed_warnings:
+        - "the index privilege [create] allowed the update mapping action [indices:admin/mapping/auto_put] on index [shared_logs], this privilege will not permit mapping updates in the next major release - users who require access to update mappings must be granted explicit privileges"
       headers:
         Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       index:
         index: shared_logs
-        type: type
         pipeline: "my_pipeline"
         body:  >
           {
@@ -169,7 +171,6 @@ teardown:
         Authorization: "Basic am9objp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       index:
         index: shared_logs
-        type: type
         pipeline: "my_pipeline"
         body:  >
           {
@@ -177,7 +178,8 @@ teardown:
           }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: shared_logs
 
   # Joe searches:
   - do:

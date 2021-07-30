@@ -1,76 +1,54 @@
 apply plugin: 'elasticsearch.build'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
 apply plugin: 'com.github.johnrengelman.shadow'
 
 description = 'JDBC driver for Elasticsearch'
 archivesBaseName = "x-pack-sql-jdbc"
 
-forbiddenApisMain {
-    // does not depend on core, so only jdk and http signatures should be checked
-    replaceSignatureFiles 'jdk-signatures'
+tasks.named('forbiddenApisMain').configure {
+  // does not depend on core, so only jdk and http signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 dependencies {
-    compile (xpackProject('plugin:sql:sql-client')) {
-        transitive = false
-    }
-    compile (xpackProject('plugin:sql:sql-proto')) {
-        transitive = false
-    }
-    compile (project(':libs:x-content')) {
-        transitive = false
-    }
-    compile project(':libs:core')
-    runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-    testCompile "org.elasticsearch.test:framework:${version}"
+  api(xpackProject('plugin:sql:sql-client')) {
+    transitive = false
+  }
+  api(xpackProject('plugin:sql:sql-proto')) {
+    transitive = false
+  }
+  api(project(':libs:elasticsearch-x-content')) {
+    transitive = false
+  }
+  api(project(':libs:elasticsearch-geo')) {
+    transitive = false
+  }
+  api project(':libs:elasticsearch-core')
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testImplementation project(":test:framework")
+testImplementation(testArtifact(project(xpackModule('core'))))}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
 }
 
-dependencyLicenses {
-    mapping from: /sql-proto.*/, to: 'elasticsearch'
-    mapping from: /sql-client.*/, to: 'elasticsearch'
-    mapping from: /jackson-.*/, to: 'jackson'
-    mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
-    ignoreSha 'sql-proto'
-    ignoreSha 'sql-client'
-    ignoreSha 'elasticsearch'
+tasks.named("shadowJar").configure {
+  relocate 'com.fasterxml', 'shadow.fasterxml'
+  relocate('org.elasticsearch', 'shadow.org.elasticsearch') {
+    // Don't relocate the JDBC driver classes themselves as that's (mostly) public API
+    exclude 'org.elasticsearch.xpack.sql.jdbc.*'
+  }
 }
 
-test {
-    // don't use the shaded jar for tests
-    classpath += project.tasks.compileJava.outputs.files
-    classpath -= project.tasks.shadowJar.outputs.files
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          'com.fasterxml.jackson.databind.ObjectMapper',
+          'com.fasterxml.jackson.databind.cfg.MapperBuilder'
+  )
 }
 
-shadowJar {
-    relocate 'com.fasterxml', 'org.elasticsearch.fasterxml'
-    // set the shaded configuration back to runtime instead of bundle because
-    // we need tests to use the non-shaded deps to allow editing/testing in intellij
-    configurations = [project.configurations.runtime]
-}
-
-// We need a no-depenencies jar though for qa testing so it doesn't conflict with cli
-configurations {
-    nodeps
-}
-
-task nodepsJar(type: Jar) {
-    appendix 'nodeps'
-    from sourceSets.main.output
-}
-
-artifacts  {
-    nodeps nodepsJar
-}
-
-publishing {
-    publications {
-        nebula {
-            artifactId = archivesBaseName
-            pom.withXml {
-                // Nebula is mistakenly including all dependencies that are already shadowed into the shadow jar
-                asNode().remove(asNode().dependencies)
-            }
-        }
-    }
+tasks.named("test").configure {
+  // reset the unit test classpath as using the shadow jar won't work due to relocated packages
+  classpath = sourceSets.test.runtimeClasspath
 }

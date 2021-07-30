@@ -1,125 +1,247 @@
 [[query-dsl-terms-query]]
-=== Terms Query
+=== Terms query
+++++
+<titleabbrev>Terms</titleabbrev>
+++++
 
-Filters documents that have fields that match any of the provided terms
-(*not analyzed*). For example:
+Returns documents that contain one or more *exact* terms in a provided field.
 
-[source,js]
---------------------------------------------------
+The `terms` query is the same as the <<query-dsl-term-query, `term` query>>,
+except you can search for multiple values.
+
+[[terms-query-ex-request]]
+==== Example request
+
+The following search returns documents where the `user.id` field contains `kimchy`
+or `elkbee`.
+
+[source,console]
+----
 GET /_search
 {
-    "query": {
-        "terms" : { "user" : ["kimchy", "elasticsearch"]}
+  "query": {
+    "terms": {
+      "user.id": [ "kimchy", "elkbee" ],
+      "boost": 1.0
     }
+  }
 }
---------------------------------------------------
-// CONSOLE
+----
 
-NOTE: Highlighting `terms` queries is best-effort only, so terms of a `terms`
-query might not be highlighted depending on the highlighter implementation that
-is selected and on the number of terms in the `terms` query.
+[[terms-top-level-params]]
+==== Top-level parameters for `terms`
+`<field>`::
++
+--
+(Optional, object) Field you wish to search.
 
-[float]
+The value of this parameter is an array of terms you wish to find in the
+provided field. To return a document, one or more terms must exactly match a
+field value, including whitespace and capitalization.
+
+By default, {es} limits the `terms` query to a maximum of 65,536
+terms. You can change this limit using the <<index-max-terms-count,
+`index.max_terms_count`>> setting.
+
+[NOTE]
+To use the field values of an existing document as search terms, use the
+<<query-dsl-terms-lookup, terms lookup>> parameters.
+--
+
+`boost`::
++
+--
+(Optional, float) Floating point number used to decrease or increase the
+<<relevance-scores,relevance scores>> of a query. Defaults to `1.0`.
+
+You can use the `boost` parameter to adjust relevance scores for searches
+containing two or more queries.
+
+Boost values are relative to the default value of `1.0`. A boost value between
+`0` and `1.0` decreases the relevance score. A value greater than `1.0`
+increases the relevance score.
+--
+
+[[terms-query-notes]]
+==== Notes
+
+[[query-dsl-terms-query-highlighting]]
+===== Highlighting `terms` queries
+<<highlighting,Highlighting>> is best-effort only. {es} may not
+return highlight results for `terms` queries depending on:
+
+* Highlighter type
+* Number of terms in the query
+
 [[query-dsl-terms-lookup]]
-===== Terms lookup mechanism
+===== Terms lookup
+Terms lookup fetches the field values of an existing document. {es} then uses
+those values as search terms. This can be helpful when searching for a large set
+of terms.
 
-When it's needed to specify a `terms` filter with a lot of terms it can
-be beneficial to fetch those term values from a document in an index. A
-concrete example would be to filter tweets tweeted by your followers.
-Potentially the amount of user ids specified in the terms filter can be
-a lot. In this scenario it makes sense to use the terms filter's terms
-lookup mechanism.
+Because terms lookup fetches values from a document, the <<mapping-source-field,
+`_source`>> mapping field must be enabled to use terms lookup. The `_source`
+field is enabled by default.
 
-The terms lookup mechanism supports the following options:
+[NOTE]
+By default, {es} limits the `terms` query to a maximum of 65,536
+terms. This includes terms fetched using terms lookup. You can change
+this limit using the <<index-max-terms-count, `index.max_terms_count`>> setting.
 
-[horizontal]
+To perform a terms lookup, use the following parameters.
+
+[[query-dsl-terms-lookup-params]]
+====== Terms lookup parameters
 `index`::
-    The index to fetch the term values from.
-
-`type`::
-    The type to fetch the term values from.
+(Required, string) Name of the index from which to fetch field values.
 
 `id`::
-    The id of the document to fetch the term values from.
+(Required, string) <<mapping-id-field,ID>> of the document from which to fetch
+field values.
 
 `path`::
-    The field specified as path to fetch the actual values for the
-    `terms` filter.
++
+--
+(Required, string) Name of the field from which to fetch field values. {es} uses
+these values as search terms for the query.
+
+If the field values include an array of nested inner objects, you can access
+those objects using dot notation syntax.
+--
 
 `routing`::
-    A custom routing value to be used when retrieving the
-    external terms doc.
+(Optional, string) Custom <<mapping-routing-field, routing value>> of the
+document from which to fetch term values. If a custom routing value was provided
+when the document was indexed, this parameter is required.
 
-The values for the `terms` filter will be fetched from a field in a
-document with the specified id in the specified type and index.
-Internally a get request is executed to fetch the values from the
-specified path. At the moment for this feature to work the `_source`
-needs to be stored.
+[[query-dsl-terms-lookup-example]]
+====== Terms lookup example
 
-Also, consider using an index with a single shard and fully replicated
-across all nodes if the "reference" terms data is not large. The lookup
-terms filter will prefer to execute the get request on a local node if
-possible, reducing the need for networking.
+To see how terms lookup works, try the following example.
 
-[WARNING]
-Executing a Terms Query request with a lot of terms can be quite slow,
-as each additional term demands extra processing and memory.
-To safeguard against this, the maximum number of terms that can be used
-in a Terms Query both directly or through lookup has been limited to `65536`.
-This default maximum can be changed for a particular index with the index setting
- `index.max_terms_count`.
+. Create an index with a `keyword` field named `color`.
++
+--
 
-[float]
-===== Terms lookup twitter example
-At first we index the information for user with id 2, specifically, its
-followers, then index a tweet from user with id 1. Finally we search on
-all the tweets that match the followers of user 2.
-
-[source,js]
---------------------------------------------------
-PUT /users/_doc/2
+[source,console]
+----
+PUT my-index-000001
 {
-    "followers" : ["1", "3"]
+  "mappings": {
+    "properties": {
+      "color": { "type": "keyword" }
+    }
+  }
 }
+----
+--
 
-PUT /tweets/_doc/1
+. Index a document with an ID of 1 and values of `["blue", "green"]` in the
+`color` field.
++
+--
+
+[source,console]
+----
+PUT my-index-000001/_doc/1
 {
-    "user" : "1"
+  "color":   ["blue", "green"]
 }
+----
+// TEST[continued]
+--
 
-GET /tweets/_search
+. Index another document with an ID of 2 and value of `blue` in the `color`
+field.
++
+--
+
+[source,console]
+----
+PUT my-index-000001/_doc/2
 {
-    "query" : {
-        "terms" : {
-            "user" : {
-                "index" : "users",
-                "type" : "_doc",
-                "id" : "2",
-                "path" : "followers"
-            }
+  "color":   "blue"
+}
+----
+// TEST[continued]
+--
+
+. Use the `terms` query with terms lookup parameters to find documents
+containing one or more of the same terms as document 2. Include the `pretty`
+parameter so the response is more readable.
++
+--
+
+////
+
+[source,console]
+----
+POST my-index-000001/_refresh
+----
+// TEST[continued]
+
+////
+
+[source,console]
+----
+GET my-index-000001/_search?pretty
+{
+  "query": {
+    "terms": {
+        "color" : {
+            "index" : "my-index-000001",
+            "id" : "2",
+            "path" : "color"
         }
     }
+  }
 }
---------------------------------------------------
-// CONSOLE
+----
+// TEST[continued]
 
-The structure of the external terms document can also include an array of
-inner objects, for example:
+Because document 2 and document 1 both contain `blue` as a value in the `color`
+field, {es} returns both documents.
 
-[source,js]
---------------------------------------------------
-PUT /users/_doc/2
+[source,console-result]
+----
 {
- "followers" : [
-   {
-     "id" : "1"
-   },
-   {
-     "id" : "2"
-   }
- ]
+  "took" : 17,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 2,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "my-index-000001",
+        "_id" : "1",
+        "_score" : 1.0,
+        "_source" : {
+          "color" : [
+            "blue",
+            "green"
+          ]
+        }
+      },
+      {
+        "_index" : "my-index-000001",
+        "_id" : "2",
+        "_score" : 1.0,
+        "_source" : {
+          "color" : "blue"
+        }
+      }
+    ]
+  }
 }
---------------------------------------------------
-// CONSOLE
-
-In which case, the lookup path will be `followers.id`.
+----
+// TESTRESPONSE[s/"took" : 17/"took" : $body.took/]
+--

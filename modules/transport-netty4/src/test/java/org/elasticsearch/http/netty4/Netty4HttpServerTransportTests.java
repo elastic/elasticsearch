@@ -1,30 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.netty4;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.PoolArenaMetric;
+import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.buffer.PooledByteBufAllocatorMetric;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
@@ -38,54 +32,48 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.BindHttpException;
+import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
-import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.SharedGroupFactory;
+import org.elasticsearch.transport.NettyAllocator;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.PatternSyntaxException;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.Strings.collectionToDelimitedString;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.containsString;
@@ -101,12 +89,14 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
+    private ClusterSettings clusterSettings;
 
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
         bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     }
 
     @After
@@ -117,48 +107,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         threadPool = null;
         networkService = null;
         bigArrays = null;
-    }
-
-    public void testCorsConfig() {
-        final Set<String> methods = new HashSet<>(Arrays.asList("get", "options", "post"));
-        final Set<String> headers = new HashSet<>(Arrays.asList("Content-Type", "Content-Length"));
-        final String prefix = randomBoolean() ? " " : ""; // sometimes have a leading whitespace between comma delimited elements
-        final Settings settings = Settings.builder()
-                                      .put(SETTING_CORS_ENABLED.getKey(), true)
-                                      .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
-                                      .put(SETTING_CORS_ALLOW_METHODS.getKey(), collectionToDelimitedString(methods, ",", prefix, ""))
-                                      .put(SETTING_CORS_ALLOW_HEADERS.getKey(), collectionToDelimitedString(headers, ",", prefix, ""))
-                                      .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
-                                      .build();
-        final Netty4CorsConfig corsConfig = Netty4HttpServerTransport.buildCorsConfig(settings);
-        assertTrue(corsConfig.isAnyOriginSupported());
-        assertEquals(headers, corsConfig.allowedRequestHeaders());
-        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()));
-    }
-
-    public void testCorsConfigWithDefaults() {
-        final Set<String> methods = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_METHODS.getDefault(Settings.EMPTY));
-        final Set<String> headers = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_HEADERS.getDefault(Settings.EMPTY));
-        final long maxAge = SETTING_CORS_MAX_AGE.getDefault(Settings.EMPTY);
-        final Settings settings = Settings.builder().put(SETTING_CORS_ENABLED.getKey(), true).build();
-        final Netty4CorsConfig corsConfig = Netty4HttpServerTransport.buildCorsConfig(settings);
-        assertFalse(corsConfig.isAnyOriginSupported());
-        assertEquals(Collections.emptySet(), corsConfig.origins().get());
-        assertEquals(headers, corsConfig.allowedRequestHeaders());
-        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()));
-        assertEquals(maxAge, corsConfig.maxAge());
-        assertFalse(corsConfig.isCredentialsAllowed());
-    }
-
-    public void testCorsConfigWithBadRegex() {
-        final Settings settings = Settings.builder()
-            .put(SETTING_CORS_ENABLED.getKey(), true)
-            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "/[*/")
-            .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
-            .build();
-        SettingsException e = expectThrows(SettingsException.class, () -> Netty4HttpServerTransport.buildCorsConfig(settings));
-        assertThat(e.getMessage(), containsString("Bad regex in [http.cors.allow-origin]: [/[*/]"));
-        assertThat(e.getCause(), instanceOf(PatternSyntaxException.class));
+        clusterSettings = null;
     }
 
     /**
@@ -166,7 +115,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectContinueHeader() throws InterruptedException {
-        final Settings settings = Settings.EMPTY;
+        final Settings settings = createSettings();
         final int contentLength = randomIntBetween(1, HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).bytesAsInt());
         runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.CONTINUE);
     }
@@ -180,7 +129,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     public void testExpectContinueHeaderContentLengthTooLong() throws InterruptedException {
         final String key = HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey();
         final int maxContentLength = randomIntBetween(1, 104857600);
-        final Settings settings = Settings.builder().put(key, maxContentLength + "b").build();
+        final Settings settings = createBuilderWithPort().put(key, maxContentLength + "b").build();
         final int contentLength = randomIntBetween(maxContentLength + 1, Integer.MAX_VALUE);
         runExpectHeaderTest(
                 settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
@@ -191,7 +140,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectUnsupportedExpectation() throws InterruptedException {
-        runExpectHeaderTest(Settings.EMPTY, "chocolate=yummy", 0, HttpResponseStatus.EXPECTATION_FAILED);
+        Settings settings = createSettings();
+        runExpectHeaderTest(settings, "chocolate=yummy", 0, HttpResponseStatus.EXPECTATION_FAILED);
     }
 
     private void runExpectHeaderTest(
@@ -206,12 +156,14 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             }
 
             @Override
-            public void dispatchBadRequest(RestRequest request, RestChannel channel, ThreadContext threadContext, Throwable cause) {
+            public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
+                    FakeRestRequest.requestToString(channel.request())), cause);
                 throw new AssertionError();
             }
         };
         try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
-                xContentRegistry(), dispatcher)) {
+                xContentRegistry(), dispatcher, clusterSettings, new SharedGroupFactory(settings))) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             try (Netty4HttpClient client = new Netty4HttpClient()) {
@@ -219,13 +171,13 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                 request.headers().set(HttpHeaderNames.EXPECT, expectation);
                 HttpUtil.setContentLength(request, contentLength);
 
-                final FullHttpResponse response = client.post(remoteAddress.address(), request);
+                final FullHttpResponse response = client.send(remoteAddress.address(), request);
                 try {
                     assertThat(response.status(), equalTo(expectedStatus));
                     if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
                         final FullHttpRequest continuationRequest =
                             new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
-                        final FullHttpResponse continuationResponse = client.post(remoteAddress.address(), continuationRequest);
+                        final FullHttpResponse continuationResponse = client.send(remoteAddress.address(), continuationRequest);
                         try {
                             assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
                             assertThat(
@@ -243,15 +195,22 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     }
 
     public void testBindUnavailableAddress() {
-        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool,
-                xContentRegistry(), new NullDispatcher())) {
+        Settings initialSettings = createSettings();
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(initialSettings, networkService, bigArrays, threadPool,
+                xContentRegistry(), new NullDispatcher(), clusterSettings, new SharedGroupFactory(Settings.EMPTY))) {
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            Settings settings = Settings.builder().put("http.port", remoteAddress.getPort()).build();
+            Settings settings = Settings.builder()
+                .put("http.port", remoteAddress.getPort())
+                .put("network.host", remoteAddress.getAddress())
+                .build();
             try (Netty4HttpServerTransport otherTransport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
-                    xContentRegistry(), new NullDispatcher())) {
-                BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
-                assertEquals("Failed to bind to [" + remoteAddress.getPort() + "]", bindHttpException.getMessage());
+                    xContentRegistry(), new NullDispatcher(), clusterSettings, new SharedGroupFactory(settings))) {
+                BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
+                assertEquals(
+                    "Failed to bind to " + NetworkAddress.format(remoteAddress.address()),
+                    bindHttpException.getMessage()
+                );
             }
         }
     }
@@ -262,14 +221,12 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
                 throw new AssertionError();
             }
 
             @Override
-            public void dispatchBadRequest(final RestRequest request,
-                                           final RestChannel channel,
-                                           final ThreadContext threadContext,
-                                           final Throwable cause) {
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
                 causeReference.set(cause);
                 try {
                     final ElasticsearchException e = new ElasticsearchException("you sent a bad request and you should feel bad");
@@ -286,14 +243,15 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         final Setting<ByteSizeValue> httpMaxInitialLineLengthSetting = HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
         if (randomBoolean()) {
             maxInitialLineLength = httpMaxInitialLineLengthSetting.getDefault(Settings.EMPTY).bytesAsInt();
-            settings = Settings.EMPTY;
+            settings = createSettings();
         } else {
             maxInitialLineLength = randomIntBetween(1, 8192);
-            settings = Settings.builder().put(httpMaxInitialLineLengthSetting.getKey(), maxInitialLineLength + "b").build();
+            settings = createBuilderWithPort().put(httpMaxInitialLineLengthSetting.getKey(), maxInitialLineLength + "b").build();
         }
 
-        try (Netty4HttpServerTransport transport =
-                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+            settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher, clusterSettings,
+            new SharedGroupFactory(settings))) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
@@ -301,7 +259,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                 final String url = "/" + new String(new byte[maxInitialLineLength], Charset.forName("UTF-8"));
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
-                final FullHttpResponse response = client.post(remoteAddress.address(), request);
+                final FullHttpResponse response = client.send(remoteAddress.address(), request);
                 try {
                     assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
                     assertThat(
@@ -317,38 +275,165 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         assertThat(causeReference.get(), instanceOf(TooLongFrameException.class));
     }
 
+    public void testLargeCompressedResponse() throws InterruptedException {
+        final String responseString = randomAlphaOfLength(4 * 1024 * 1024);
+        final String url = "/thing";
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                if (url.equals(request.uri())) {
+                    channel.sendResponse(new BytesRestResponse(OK, responseString));
+                } else {
+                    logger.error("--> Unexpected successful uri [{}]", request.uri());
+                    throw new AssertionError();
+                }
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
+                    FakeRestRequest.requestToString(channel.request())), cause);
+                throw new AssertionError();
+            }
+
+        };
+
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+            Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher, clusterSettings,
+            new SharedGroupFactory(Settings.EMPTY))) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+
+            try (Netty4HttpClient client = new Netty4HttpClient()) {
+                DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
+                request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
+                long numOfHugeAllocations = getHugeAllocationCount();
+                final FullHttpResponse response = client.send(remoteAddress.address(), request);
+                try {
+                    assertThat(getHugeAllocationCount(), equalTo(numOfHugeAllocations));
+                    assertThat(response.status(), equalTo(HttpResponseStatus.OK));
+                    byte[] bytes = new byte[response.content().readableBytes()];
+                    response.content().readBytes(bytes);
+                    assertThat(new String(bytes, StandardCharsets.UTF_8), equalTo(responseString));
+                } finally {
+                    response.release();
+                }
+            }
+        }
+    }
+
+    private long getHugeAllocationCount() {
+        long numOfHugAllocations = 0;
+        ByteBufAllocator allocator = NettyAllocator.getAllocator();
+        assert allocator instanceof NettyAllocator.NoDirectBuffers;
+        ByteBufAllocator delegate = ((NettyAllocator.NoDirectBuffers) allocator).getDelegate();
+        if (delegate instanceof PooledByteBufAllocator) {
+            PooledByteBufAllocatorMetric metric = ((PooledByteBufAllocator) delegate).metric();
+            numOfHugAllocations = metric.heapArenas().stream().mapToLong(PoolArenaMetric::numHugeAllocations).sum();
+        }
+        return numOfHugAllocations;
+    }
+
+    public void testCorsRequest() throws InterruptedException {
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
+                throw new AssertionError();
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel,
+                                           final ThreadContext threadContext,
+                                           final Throwable cause) {
+                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
+                    FakeRestRequest.requestToString(channel.request())), cause);
+                throw new AssertionError();
+            }
+
+        };
+
+        final Settings settings = createBuilderWithPort()
+            .put(SETTING_CORS_ENABLED.getKey(), true)
+            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "elastic.co").build();
+
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
+            xContentRegistry(), dispatcher, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            new SharedGroupFactory(settings))) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+
+            // Test pre-flight request
+            try (Netty4HttpClient client = new Netty4HttpClient()) {
+                final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/");
+                request.headers().add(CorsHandler.ORIGIN, "elastic.co");
+                request.headers().add(CorsHandler.ACCESS_CONTROL_REQUEST_METHOD, "POST");
+
+                final FullHttpResponse response = client.send(remoteAddress.address(), request);
+                try {
+                    assertThat(response.status(), equalTo(HttpResponseStatus.OK));
+                    assertThat(response.headers().get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), equalTo("elastic.co"));
+                    assertThat(response.headers().get(CorsHandler.VARY), equalTo(CorsHandler.ORIGIN));
+                    assertTrue(response.headers().contains(CorsHandler.DATE));
+                } finally {
+                    response.release();
+                }
+            }
+
+            // Test short-circuited request
+            try (Netty4HttpClient client = new Netty4HttpClient()) {
+                final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
+                request.headers().add(CorsHandler.ORIGIN, "elastic2.co");
+
+                final FullHttpResponse response = client.send(remoteAddress.address(), request);
+                try {
+                    assertThat(response.status(), equalTo(HttpResponseStatus.FORBIDDEN));
+                } finally {
+                    response.release();
+                }
+            }
+        }
+    }
+
     public void testReadTimeout() throws Exception {
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
 
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
                 throw new AssertionError("Should not have received a dispatched request");
             }
 
             @Override
-            public void dispatchBadRequest(final RestRequest request,
-                                           final RestChannel channel,
+            public void dispatchBadRequest(final RestChannel channel,
                                            final ThreadContext threadContext,
                                            final Throwable cause) {
+                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
+                    FakeRestRequest.requestToString(channel.request())), cause);
                 throw new AssertionError("Should not have received a dispatched request");
             }
 
         };
 
-        Settings settings = Settings.builder()
+        Settings settings = createBuilderWithPort()
             .put(HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(), new TimeValue(randomIntBetween(100, 300)))
             .build();
 
-
         NioEventLoopGroup group = new NioEventLoopGroup();
-        try (Netty4HttpServerTransport transport =
-                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
+            xContentRegistry(), dispatcher, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            new SharedGroupFactory(settings))) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            AtomicBoolean channelClosed = new AtomicBoolean(false);
+            CountDownLatch channelClosedLatch = new CountDownLatch(1);
 
-            Bootstrap clientBootstrap = new Bootstrap().channel(NioSocketChannel.class).handler(new ChannelInitializer<SocketChannel>() {
+            Bootstrap clientBootstrap = new Bootstrap()
+                .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
+                .channel(NioSocketChannel.class)
+                .handler(new ChannelInitializer<SocketChannel>() {
 
                 @Override
                 protected void initChannel(SocketChannel ch) {
@@ -357,12 +442,20 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                 }
             }).group(group);
             ChannelFuture connect = clientBootstrap.connect(remoteAddress.address());
-            connect.channel().closeFuture().addListener(future -> channelClosed.set(true));
+            connect.channel().closeFuture().addListener(future -> channelClosedLatch.countDown());
 
-            assertBusy(() -> assertTrue("Channel should be closed due to read timeout", channelClosed.get()), 5, TimeUnit.SECONDS);
+            assertTrue("Channel should be closed due to read timeout", channelClosedLatch.await(1, TimeUnit.MINUTES));
 
         } finally {
             group.shutdownGracefully().await();
         }
+    }
+
+    private Settings createSettings() {
+        return createBuilderWithPort().build();
+    }
+
+    private Settings.Builder createBuilderWithPort() {
+        return Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange());
     }
 }

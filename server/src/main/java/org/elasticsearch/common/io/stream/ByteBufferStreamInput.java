@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.io.stream;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 
 public class ByteBufferStreamInput extends StreamInput {
@@ -27,12 +17,12 @@ public class ByteBufferStreamInput extends StreamInput {
     private final ByteBuffer buffer;
 
     public ByteBufferStreamInput(ByteBuffer buffer) {
-        this.buffer = buffer;
+        this.buffer = buffer.mark();
     }
 
     @Override
     public int read() throws IOException {
-        if (!buffer.hasRemaining()) {
+        if (buffer.hasRemaining() == false) {
             return -1;
         }
         return buffer.get() & 0xFF;
@@ -40,15 +30,16 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     public byte readByte() throws IOException {
-        if (!buffer.hasRemaining()) {
-            throw new EOFException();
+        try {
+            return buffer.get();
+        } catch (BufferUnderflowException ex) {
+            throw newEOFException(ex);
         }
-        return buffer.get();
     }
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
-        if (!buffer.hasRemaining()) {
+        if (buffer.hasRemaining() == false) {
             return -1;
         }
 
@@ -59,10 +50,10 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     public long skip(long n) throws IOException {
-        if (n > buffer.remaining()) {
-            int ret = buffer.position();
+        int remaining = buffer.remaining();
+        if (n > remaining) {
             buffer.position(buffer.limit());
-            return ret;
+            return remaining;
         }
         buffer.position((int) (buffer.position() + n));
         return n;
@@ -70,10 +61,44 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
-        if (buffer.remaining() < len) {
-            throw new EOFException();
+        try {
+            buffer.get(b, offset, len);
+        } catch (BufferUnderflowException ex) {
+            throw newEOFException(ex);
         }
-        buffer.get(b, offset, len);
+    }
+
+    @Override
+    public short readShort() throws IOException {
+        try {
+            return buffer.getShort();
+        } catch (BufferUnderflowException ex) {
+            throw newEOFException(ex);
+        }
+    }
+
+    @Override
+    public int readInt() throws IOException {
+        try {
+            return buffer.getInt();
+        } catch (BufferUnderflowException ex) {
+            throw newEOFException(ex);
+        }
+    }
+
+    @Override
+    public long readLong() throws IOException {
+        try {
+            return buffer.getLong();
+        } catch (BufferUnderflowException ex) {
+            throw newEOFException(ex);
+        }
+    }
+
+    private EOFException newEOFException(RuntimeException ex) {
+        EOFException eofException = new EOFException();
+        eofException.initCause(ex);
+        return eofException;
     }
 
     @Override

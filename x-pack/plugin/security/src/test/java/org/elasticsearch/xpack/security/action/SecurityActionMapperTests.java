@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -73,11 +73,11 @@ public class SecurityActionMapperTests extends ESTestCase {
 
     public void testIndicesAnalyze() {
         SecurityActionMapper securityActionMapper = new SecurityActionMapper();
-        AnalyzeRequest analyzeRequest;
+        AnalyzeAction.Request analyzeRequest;
         if (randomBoolean()) {
-            analyzeRequest = new AnalyzeRequest(randomAlphaOfLength(randomIntBetween(1, 30))).text("text");
+            analyzeRequest = new AnalyzeAction.Request(randomAlphaOfLength(randomIntBetween(1, 30))).text("text");
         } else {
-            analyzeRequest = new AnalyzeRequest(null).text("text");
+            analyzeRequest = new AnalyzeAction.Request(null).text("text");
             analyzeRequest.index(randomAlphaOfLength(randomIntBetween(1, 30)));
         }
         assertThat(securityActionMapper.action(AnalyzeAction.NAME, analyzeRequest), equalTo(AnalyzeAction.NAME));
@@ -85,7 +85,7 @@ public class SecurityActionMapperTests extends ESTestCase {
 
     public void testClusterAnalyze() {
         SecurityActionMapper securityActionMapper = new SecurityActionMapper();
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest(null).text("text");
+        AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(null).text("text");
         assertThat(securityActionMapper.action(AnalyzeAction.NAME, analyzeRequest),
                 equalTo(SecurityActionMapper.CLUSTER_PERMISSION_ANALYZE));
     }

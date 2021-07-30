@@ -1,18 +1,31 @@
 [role="xpack"]
 [testenv="basic"]
 [[http-exporter]]
-=== HTTP Exporters
+=== HTTP exporters
 
-The `http` exporter is the preferred exporter in {monitoring} because it enables 
-the use of a separate monitoring cluster. As a secondary benefit, it avoids 
-using a production cluster node as a coordinating node for indexing monitoring 
-data because all requests are HTTP requests to the monitoring cluster.
+[IMPORTANT]
+=========================
+{metricbeat} is the recommended method for collecting and shipping monitoring
+data to a monitoring cluster.
 
-The `http` exporter uses the low-level {es} REST Client, which enables it to 
-send its data to any {es} cluster it can access through the network. Its requests 
-make use of the <<common-options-response-filtering,`filter_path`>> parameter to 
-reduce bandwidth whenever possible, which helps to ensure that communications 
-between the production and monitoring clusters are as lightweight as possible. 
+If you have previously configured legacy collection methods, you should migrate
+to using {metricbeat} collection methods. Use either {metricbeat} collection or
+legacy collection methods; do not use both.
+
+Learn more about <<configuring-metricbeat>>.
+=========================
+
+The `http` exporter is the preferred exporter in the {es} {monitor-features}
+because it enables the use of a separate monitoring cluster. As a secondary
+benefit, it avoids using a production cluster node as a coordinating node for
+indexing monitoring data because all requests are HTTP requests to the
+monitoring cluster.
+
+The `http` exporter uses the low-level {es} REST Client, which enables it to
+send its data to any {es} cluster it can access through the network. Its requests
+make use of the <<common-options-response-filtering,`filter_path`>> parameter to
+reduce bandwidth whenever possible, which helps to ensure that communications
+between the production and monitoring clusters are as lightweight as possible.
 
 The `http` exporter supports a number of settings that control how it
 communicates over HTTP to remote clusters. In most cases, it is not
@@ -29,7 +42,7 @@ xpack.monitoring.exporters:
     host: [ "10.1.2.3:9200", ... ] <3>
     auth: <4>
       username: my_username
-      password: changeme
+      # "xpack.monitoring.exporters.my_remote.auth.secure_password" must be set in the keystore
     connection:
       timeout: 6s
       read_timeout: 60s
@@ -43,13 +56,13 @@ xpack.monitoring.exporters:
 
 ----------------------------------
 <1> A `local` exporter defined explicitly whose arbitrary name is `my_local`.
-<2> An `http` exporter defined whose arbitrary name is `my_remote`. This name 
-uniquely defines the exporter but is otherwise unused. 
-<3> `host` is a required setting for `http` exporters. It must specify the HTTP 
-port rather than the transport port. The default port value is `9200`. 
-<4> User authentication for those using {security} or some other
+<2> An `http` exporter defined whose arbitrary name is `my_remote`. This name
+uniquely defines the exporter but is otherwise unused.
+<3> `host` is a required setting for `http` exporters. It must specify the HTTP
+port rather than the transport port. The default port value is `9200`.
+<4> User authentication for those using {stack} {security-features} or some other
     form of user authentication protecting the cluster.
-<5> See <<http-exporter-settings>> for all TLS/SSL settings. If not supplied, 
+<5> See <<http-exporter-settings>> for all TLS/SSL settings. If not supplied,
 the default node-level TLS/SSL settings are used.
 <6> Optional base path to prefix any outgoing request with in order to
     work with proxies.
@@ -57,13 +70,13 @@ the default node-level TLS/SSL settings are used.
     The array-based key/value format sends one header per value.
 <8> A mechanism for changing the date suffix used by default.
 
-NOTE: The `http` exporter accepts an array of `hosts` and it will round robin 
-through the list. It is a good idea to take advantage of that feature when the 
+NOTE: The `http` exporter accepts an array of `hosts` and it will round robin
+through the list. It is a good idea to take advantage of that feature when the
 monitoring cluster contains more than one node.
 
 Unlike the `local` exporter, _every_ node that uses the `http` exporter attempts
-to check and create the resources that it needs. The `http` exporter avoids 
-re-checking the resources unless something triggers it to perform the checks 
+to check and create the resources that it needs. The `http` exporter avoids
+re-checking the resources unless something triggers it to perform the checks
 again. These triggers include:
 
 * The production cluster's node restarts.
@@ -73,45 +86,21 @@ again. These triggers include:
 
 The easiest way to trigger a check is to disable, then re-enable the exporter.
 
-WARNING: This resource management behavior can create a hole for users that 
-delete monitoring resources. Since the `http` exporter does not re-check its 
-resources unless one of the triggers occurs, this can result in malformed index 
+WARNING: This resource management behavior can create a hole for users that
+delete monitoring resources. Since the `http` exporter does not re-check its
+resources unless one of the triggers occurs, this can result in malformed index
 mappings.
 
 Unlike the `local` exporter, the `http` exporter is inherently routing requests
-outside of the cluster. This situation means that the exporter must provide a 
-username and password when the monitoring cluster requires one (or other 
+outside of the cluster. This situation means that the exporter must provide a
+username and password when the monitoring cluster requires one (or other
 appropriate security configurations, such as TLS/SSL settings).
 
 IMPORTANT: When discussing security relative to the `http` exporter, it is
-critical to remember that all users are managed on the monitoring cluster. This 
-is particularly important to remember when you move from development 
-environments to production environments, where you often have dedicated 
+critical to remember that all users are managed on the monitoring cluster. This
+is particularly important to remember when you move from development
+environments to production environments, where you often have dedicated
 monitoring clusters.
 
-For more information about the configuration options for the `http` exporter, 
+For more information about the configuration options for the `http` exporter,
 see <<http-exporter-settings>>.
-
-[float]
-[[http-exporter-dns]]
-==== Using DNS Hosts in HTTP Exporters
-
-{monitoring} runs inside of the JVM security manager. When the JVM has the
-security manager enabled, the JVM changes the duration so that it caches DNS
-lookups indefinitely (for example, the mapping of a DNS hostname to an IP 
-address). For this reason, if you are in an environment where the DNS response 
-might change from time-to-time (for example, talking to any load balanced cloud 
-provider), you are strongly discouraged from using DNS hostnames. 
-
-Alternatively, you can set the JVM security property `networkaddress.cache.ttl`, 
-which accepts values in seconds. This property must be set for the node's JVM that 
-uses {monitoring} for {es} when using DNS that can change IP addresses. If you 
-do not apply this setting, the connection consistently fails after the IP 
-address changes.
-
-IMPORTANT: JVM security properties are different than system properties. They
-cannot be set at startup via `-D` system property settings and instead they must 
-be set in code before the security manager has been setup _or_, more 
-appropriately, in the `$JAVA_HOME/lib/security/java.security` file.
-
-Restarting the node (and therefore the JVM) results in its cache being flushed.

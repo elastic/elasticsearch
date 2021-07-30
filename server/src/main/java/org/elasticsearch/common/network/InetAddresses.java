@@ -1,4 +1,4 @@
-/*
+/* @notice
  * Copyright (C) 2008 The Guava Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -38,6 +38,7 @@ public class InetAddresses {
         // Make a first pass to categorize the characters in this string.
         boolean hasColon = false;
         boolean hasDot = false;
+        int percentIndex = -1;
         for (int i = 0; i < ipString.length(); i++) {
             char c = ipString.charAt(i);
             if (c == '.') {
@@ -47,6 +48,9 @@ public class InetAddresses {
                     return null;  // Colons must not appear after dots.
                 }
                 hasColon = true;
+            } else if (c == '%') {
+                percentIndex = i;
+                break; // Everything after a '%' is ignored (it's a Scope ID)
             } else if (Character.digit(c, 16) == -1) {
                 return null;  // Everything else must be a decimal or hex digit.
             }
@@ -59,6 +63,12 @@ public class InetAddresses {
                 if (ipString == null) {
                     return null;
                 }
+            }
+            if (percentIndex == ipString.length() - 1) {
+                return null;  // Filter out strings that end in % and have an empty scope ID.
+            }
+            if (percentIndex != -1) {
+               ipString = ipString.substring(0, percentIndex);
             }
             return textToNumericFormatV6(ipString);
         } else if (hasDot) {
@@ -150,7 +160,7 @@ public class InetAddresses {
         // If we found a ::, then we must have skipped at least one part.
         // Otherwise, we must have exactly the right number of parts.
         int partsSkipped = IPV6_PART_COUNT - (partsHi + partsLo);
-        if (!(skipIndex >= 0 ? partsSkipped >= 1 : partsSkipped == 0)) {
+        if ((skipIndex >= 0 ? partsSkipped >= 1 : partsSkipped == 0) == false) {
             return null;
         }
 
@@ -239,7 +249,7 @@ public class InetAddresses {
             byte[] bytes = ip.getAddress();
             return (bytes[0] & 0xff) + "." + (bytes[1] & 0xff) + "." + (bytes[2] & 0xff) + "." + (bytes[3] & 0xff);
         }
-        if (!(ip instanceof Inet6Address)) {
+        if ((ip instanceof Inet6Address) == false) {
             throw new IllegalArgumentException("ip");
         }
         byte[] bytes = ip.getAddress();
@@ -383,5 +393,18 @@ public class InetAddresses {
         } else {
             throw new IllegalArgumentException("Expected [ip/prefix] but was [" + maskedAddress + "]");
         }
+    }
+
+    /**
+     * Given an address and prefix length, returns the string representation of the range in CIDR notation.
+     *
+     * See {@link #toAddrString} for details on how the address is represented.
+     */
+    public static String toCidrString(InetAddress address, int prefixLength) {
+        return new StringBuilder()
+            .append(toAddrString(address))
+            .append("/")
+            .append(prefixLength)
+            .toString();
     }
 }

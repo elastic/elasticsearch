@@ -1,141 +1,131 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.test.ClusterConfiguration
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
- 
+
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.rest-test'
+
 esplugin {
   description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
   classname 'org.elasticsearch.repositories.hdfs.HdfsPlugin'
 }
 
-apply plugin: 'elasticsearch.vagrantsupport'
-
 versions << [
-  'hadoop2': '2.8.1'
+  'hadoop2': '2.8.5'
 ]
+
+testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
 
 configurations {
   hdfsFixture
 }
 
 dependencies {
-  compile "org.apache.hadoop:hadoop-client:${versions.hadoop2}"
-  compile "org.apache.hadoop:hadoop-common:${versions.hadoop2}"
-  compile "org.apache.hadoop:hadoop-annotations:${versions.hadoop2}"
-  compile "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"
-  compile "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
-  compile "org.apache.hadoop:hadoop-hdfs-client:${versions.hadoop2}"
-  compile 'org.apache.htrace:htrace-core4:4.0.1-incubating'
-  compile 'com.google.guava:guava:11.0.2'
-  compile 'com.google.protobuf:protobuf-java:2.5.0'
-  compile 'commons-logging:commons-logging:1.1.3'
-  compile 'commons-cli:commons-cli:1.2'
-  compile 'commons-codec:commons-codec:1.10'
-  compile 'commons-collections:commons-collections:3.2.2'
-  compile 'commons-configuration:commons-configuration:1.6'
-  compile 'commons-io:commons-io:2.4'
-  compile 'commons-lang:commons-lang:2.6'
-  compile 'javax.servlet:servlet-api:2.5'
-  compile "org.slf4j:slf4j-api:${versions.slf4j}"
-  compile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  api "org.apache.hadoop:hadoop-client:${versions.hadoop2}"
+  api project(path: 'hadoop-common', configuration: 'shadow')
+  if (isEclipse) {
+    /*
+     * Eclipse can't pick up the shadow dependency so we point it at *something*
+     * so it can compile things.
+     */
+    api project(path: 'hadoop-common')
+  }
+  api "org.apache.hadoop:hadoop-annotations:${versions.hadoop2}"
+  api "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"
+  api "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
+  api "org.apache.hadoop:hadoop-hdfs-client:${versions.hadoop2}"
+  api 'org.apache.htrace:htrace-core4:4.0.1-incubating'
+  runtimeOnly 'com.google.guava:guava:11.0.2'
+  api 'com.google.protobuf:protobuf-java:2.5.0'
+  api 'commons-logging:commons-logging:1.1.3'
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api 'commons-cli:commons-cli:1.2'
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api 'commons-collections:commons-collections:3.2.2'
+  api 'commons-configuration:commons-configuration:1.6'
+  api 'commons-io:commons-io:2.4'
+  api 'commons-lang:commons-lang:2.6'
+  api 'javax.servlet:servlet-api:2.5'
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
 
   hdfsFixture project(':test:fixtures:hdfs-fixture')
+  // Set the keytab files in the classpath so that we can access them from test code without the security manager
+  // freaking out.
+  if (isEclipse == false) {
+    testRuntimeOnly files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab").parent) {
+      builtBy ":test:fixtures:krb5kdc-fixture:preProcessFixture"
+    }
+  }
 }
 
-dependencyLicenses {
+restResources {
+  restApi {
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'snapshot'
+  }
+}
+
+normalization {
+  runtimeClasspath {
+    // ignore generated keytab files for the purposes of build avoidance
+    ignore '*.keytab'
+    // ignore fixture ports file which is on the classpath primarily to pacify the security manager
+    ignore 'ports'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
   mapping from: /hadoop-.*/, to: 'hadoop'
 }
 
-// MIT Kerberos Vagrant Testing Fixture
-String box = "krb5kdc"
-Map<String,String> vagrantEnvVars = [
-        'VAGRANT_CWD'           : "${project(':test:fixtures:krb5kdc-fixture').projectDir}",
-        'VAGRANT_VAGRANTFILE'   : 'Vagrantfile',
-        'VAGRANT_PROJECT_DIR'   : "${project(':test:fixtures:krb5kdc-fixture').projectDir}"
-]
-
-task krb5kdcUpdate(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-  command 'box'
-  subcommand 'update'
-  boxName box
-  environmentVars vagrantEnvVars
-  dependsOn "vagrantCheckVersion", "virtualboxCheckVersion"
+tasks.named("integTest").configure {
+  dependsOn(project.tasks.named("bundlePlugin"))
 }
 
-task krb5kdcFixture(type: org.elasticsearch.gradle.test.VagrantFixture) {
-  command 'up'
-  args '--provision', '--provider', 'virtualbox'
-  boxName box
-  environmentVars vagrantEnvVars
-  dependsOn krb5kdcUpdate
+testClusters.matching { it.name == "integTest" }.configureEach {
+  plugin(project.tasks.bundlePlugin.archiveFile)
 }
 
-task krb5AddPrincipals {
-  dependsOn krb5kdcFixture
-}
-
-List<String> principals = [ "elasticsearch", "hdfs/hdfs.build.elastic.co" ]
 String realm = "BUILD.ELASTIC.CO"
-
-for (String principal : principals) {
-  Task create = project.tasks.create("addPrincipal#${principal}".replace('/', '_'), org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'ssh'
-    args '--command', "sudo bash /vagrant/src/main/resources/provision/addprinc.sh $principal"
-    boxName box
-    environmentVars vagrantEnvVars
-    dependsOn krb5kdcFixture
-  }
-  krb5AddPrincipals.dependsOn(create)
-}
+String krb5conf = project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")
 
 // Create HDFS File System Testing Fixtures for HA/Secure combinations
 for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 'secureHaHdfsFixture']) {
-  project.tasks.create(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
-    dependsOn project.configurations.hdfsFixture
-    executable = new File(project.runtimeJavaHome, 'bin/java')
-    env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
+  project.tasks.register(fixtureName, org.elasticsearch.gradle.internal.test.AntFixture) {
+    dependsOn project.configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
+    executable = "${BuildParams.runtimeJavaHome}/bin/java"
+    env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
+    maxWaitInSeconds 60
+    onlyIf { BuildParams.inFipsJvm == false }
     waitCondition = { fixture, ant ->
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist
       return fixture.portsFile.exists()
     }
-
     final List<String> miniHDFSArgs = []
 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
-    if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
-      dependsOn krb5kdcFixture, krb5AddPrincipals
-      Path krb5Config = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf")
-      miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5Config}");
-      if (project.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
-        miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
-      }
+    if (name.equals('secureHdfsFixture') || name.equals('secureHaHdfsFixture')) {
+      miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5conf}")
+      onlyIf { BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16 }
     }
-
     // If it's an HA fixture, set a nameservice to use in the JVM options
-    if (fixtureName.equals('haHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
+    if (name.equals('haHdfsFixture') || name.equals('secureHaHdfsFixture')) {
       miniHDFSArgs.add("-Dha-nameservice=ha-hdfs")
     }
 
@@ -144,74 +134,88 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     miniHDFSArgs.add(baseDir)
 
     // If it's a secure fixture, then set the principal name and keytab locations to use for auth.
-    if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
-      Path keytabPath = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("hdfs_hdfs.build.elastic.co.keytab")
+    if (name.equals('secureHdfsFixture') || name.equals('secureHaHdfsFixture')) {
       miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
-      miniHDFSArgs.add("${keytabPath}")
+      miniHDFSArgs.add(
+        project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
+      )
     }
 
     args miniHDFSArgs.toArray()
   }
 }
 
-// The following closure must execute before the afterEvaluate block in the constructor of the following integrationTest tasks:
-project.afterEvaluate {
-  for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
-    ClusterConfiguration cluster = project.extensions.getByName("${integTestTaskName}Cluster") as ClusterConfiguration
-    cluster.dependsOn(project.bundlePlugin)
+Set disabledIntegTestTaskNames = []
 
-    Task restIntegTestTask = project.tasks.getByName(integTestTaskName)
-    restIntegTestTask.clusterConfig.plugin(project.path)
+for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
+  def testTask = tasks.register(integTestTaskName, RestIntegTestTask) {
+    description = "Runs rest tests against an elasticsearch cluster with HDFS."
+    dependsOn("bundlePlugin")
 
-    // Default jvm arguments for all test clusters
-    String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
-            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
-            " " + System.getProperty('tests.jvm.argline', '')
+    if (disabledIntegTestTaskNames.contains(name)) {
+      enabled = false;
+    }
 
-    // If it's a secure cluster, add the keytab as an extra config, and set the krb5 conf in the JVM options.
-    if (integTestTaskName.equals('integTestSecure') || integTestTaskName.equals('integTestSecureHa')) {
-      Path elasticsearchKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("elasticsearch.keytab").toAbsolutePath()
-      Path krb5conf = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf").toAbsolutePath()
-
-      restIntegTestTask.clusterConfig.extraConfigFile("repository-hdfs/krb5.keytab", "${elasticsearchKT}")
-      jvmArgs = jvmArgs + " " + "-Djava.security.krb5.conf=${krb5conf}"
-      if (project.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
-        jvmArgs = jvmArgs + " " + '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
-      }
-
-      // If it's the HA + Secure tests then also set the Kerberos settings for the integration test JVM since we'll
-      // need to auth to HDFS to trigger namenode failovers.
-      if (integTestTaskName.equals('integTestSecureHa')) {
-        Task restIntegTestTaskRunner = project.tasks.getByName("${integTestTaskName}Runner")
-        restIntegTestTaskRunner.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
-        restIntegTestTaskRunner.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
-        restIntegTestTaskRunner.jvmArg "-Djava.security.krb5.conf=${krb5conf}"
-        if (project.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
-          restIntegTestTaskRunner.jvmArg '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
-        }
-
-        Path hdfsKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("hdfs_hdfs.build.elastic.co.keytab").toAbsolutePath()
-        restIntegTestTaskRunner.systemProperty "test.krb5.keytab.hdfs", "${hdfsKT}"
+    if (name.contains("Secure")) {
+      onlyIf { BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16 }
+      if (name.contains("Ha")) {
+        dependsOn "secureHaHdfsFixture"
+      } else {
+        dependsOn "secureHdfsFixture"
       }
     }
 
-    restIntegTestTask.clusterConfig.jvmArgs = jvmArgs
+      onlyIf { BuildParams.inFipsJvm == false }
+      if (name.contains("Ha")) {
+        Path portsFile
+        File portsFileDir = file("${workingDir}/hdfsFixture")
+        if (name.contains("Secure")) {
+          portsFile = buildDir.toPath()
+            .resolve("fixtures")
+            .resolve("secureHaHdfsFixture")
+            .resolve("ports")
+        } else {
+          portsFile = buildDir.toPath()
+            .resolve("fixtures")
+            .resolve("haHdfsFixture")
+            .resolve("ports")
+        }
+        nonInputProperties.systemProperty "test.hdfs-fixture.ports", file("$portsFileDir/ports")
+        classpath += files(portsFileDir)
+        // Copy ports file to separate location which is placed on the test classpath
+        doFirst {
+          mkdir(portsFileDir)
+          copy {
+            from portsFile
+            into portsFileDir
+          }
+        }
+      }
+
+      if (name.contains("Secure")) {
+        if (disabledIntegTestTaskNames.contains(name) == false) {
+          nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
+          nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
+          jvmArgs "-Djava.security.krb5.conf=${krb5conf}",
+                  "--add-exports=java.security.jgss/sun.security.krb5=ALL-UNNAMED"
+          nonInputProperties.systemProperty(
+            "test.krb5.keytab.hdfs",
+            project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
+          )
+        }
+      }
   }
-}
 
-// Create a Integration Test suite just for HA based tests
-RestIntegTestTask integTestHa = project.tasks.create('integTestHa', RestIntegTestTask.class) {
-  description = "Runs rest tests against an elasticsearch cluster with HDFS configured with HA Namenode."
-}
-
-// Create a Integration Test suite just for security based tests
-RestIntegTestTask integTestSecure = project.tasks.create('integTestSecure', RestIntegTestTask.class) {
-  description = "Runs rest tests against an elasticsearch cluster with HDFS secured by MIT Kerberos."
-}
-
-// Create a Integration Test suite just for HA related security based tests
-RestIntegTestTask integTestSecureHa = project.tasks.create('integTestSecureHa', RestIntegTestTask.class) {
-  description = "Runs rest tests against an elasticsearch cluster with HDFS configured with HA Namenode and secured by MIT Kerberos."
+  testClusters.matching { it.name == testTask.name}.configureEach {
+    plugin(bundlePlugin.archiveFile)
+    if (integTestTaskName.contains("Secure")) {
+      systemProperty "java.security.krb5.conf", krb5conf
+      extraConfigFile(
+        "repository-hdfs/krb5.keytab",
+        file("${project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "elasticsearch.keytab")}"), IGNORE_VALUE
+      )
+    }
+  }
 }
 
 // Determine HDFS Fixture compatibility for the current build environment.
@@ -222,9 +226,9 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   if (nativePath != null) {
     Path path = Paths.get(nativePath);
     if (Files.isDirectory(path) &&
-            Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
-            Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
-            Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
+      Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
+      Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
+      Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
       fixtureSupported = true
     } else {
       throw new IllegalStateException("HADOOP_HOME: ${path} is invalid, does not contain hadoop native libraries in \$HADOOP_HOME/bin");
@@ -241,21 +245,31 @@ if (legalPath == false) {
 
 // Always ignore HA integration tests in the normal integration test runner, they are included below as
 // part of their own HA-specific integration test tasks.
-integTestRunner.exclude('**/Ha*TestSuiteIT.class')
+tasks.named("integTest").configure {
+  onlyIf { BuildParams.inFipsJvm == false }
+  exclude('**/Ha*TestSuiteIT.class')
+}
 
 if (fixtureSupported) {
   // Check depends on the HA test. Already depends on the standard test.
-  project.check.dependsOn(integTestHa)
+  tasks.named("check").configure {
+    dependsOn("integTestHa")
+  }
 
   // Both standard and HA tests depend on their respective HDFS fixtures
-  integTestCluster.dependsOn hdfsFixture
-  integTestHaCluster.dependsOn haHdfsFixture
+  tasks.named("integTest").configure {
+    dependsOn "hdfsFixture"
 
-  // The normal test runner only runs the standard hdfs rest tests
-  integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository'
+    // The normal test runner only runs the standard hdfs rest tests
+    systemProperty 'tests.rest.suite', 'hdfs_repository'
+  }
+  tasks.named("integTestHa").configure {
+    dependsOn "haHdfsFixture"
+    // Only include the HA integration tests for the HA test task
+    setIncludes(['**/Ha*TestSuiteIT.class'])
 
-  // Only include the HA integration tests for the HA test task
-  integTestHaRunner.patternSet.setIncludes(['**/Ha*TestSuiteIT.class'])
+  }
+
 } else {
   if (legalPath) {
     logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
@@ -264,344 +278,37 @@ if (fixtureSupported) {
   }
 
   // The normal integration test runner will just test that the plugin loads
-  integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
-  // HA fixture is unsupported. Don't run them.
-  integTestHa.setEnabled(false)
-}
-
-// Secure HDFS testing relies on the Vagrant based Kerberos fixture.
-boolean secureFixtureSupported = false
-if (fixtureSupported) {
-  secureFixtureSupported = project.rootProject.vagrantSupported
-}
-
-if (secureFixtureSupported) {
-  project.check.dependsOn(integTestSecure)
-  project.check.dependsOn(integTestSecureHa)
-
-  // Fixture dependencies
-  integTestSecureCluster.dependsOn secureHdfsFixture, krb5kdcFixture
-  integTestSecureHaCluster.dependsOn secureHaHdfsFixture, krb5kdcFixture
-
-  // Set the keytab files in the classpath so that we can access them from test code without the security manager
-  // freaking out.
-  Path hdfsKeytabPath = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs")
-  project.dependencies {
-    testRuntime fileTree(dir: hdfsKeytabPath.toString(), include: ['*.keytab'])
+  tasks.named("integTest").configure {
+    systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
   }
+  // HA fixture is unsupported. Don't run them.
+  tasks.named("integTestHa").configure {
+    setEnabled(false)
+  }
+}
 
-  // Run just the secure hdfs rest test suite.
-  integTestSecureRunner.systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
+tasks.named("check").configure {
+  dependsOn("integTestSecure", "integTestSecureHa")
+}
+
+// Run just the secure hdfs rest test suite.
+tasks.named("integTestSecure").configure {
+  systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
   // Ignore HA integration Tests. They are included below as part of integTestSecureHa test runner.
-  integTestSecureRunner.exclude('**/Ha*TestSuiteIT.class')
-
-  // Only include the HA integration tests for the HA test task
-  integTestSecureHaRunner.patternSet.setIncludes(['**/Ha*TestSuiteIT.class'])
-} else {
-  // Security tests unsupported. Don't run these tests.
-  integTestSecure.enabled = false
-  integTestSecureHa.enabled = false
-  testingConventions.enabled = false
+  exclude('**/Ha*TestSuiteIT.class')
+}
+// Only include the HA integration tests for the HA test task
+tasks.named("integTestSecureHa").configure {
+  setIncludes(['**/Ha*TestSuiteIT.class'])
 }
 
-thirdPartyAudit.excludes = [
-  // classes are missing, because we added hadoop jars one by one until tests pass.
-  'com.google.gson.stream.JsonReader', 
-  'com.google.gson.stream.JsonWriter',
-  'com.jcraft.jsch.ChannelExec',
-  'com.jcraft.jsch.ChannelSftp',
-  'com.jcraft.jsch.ChannelSftp$LsEntry',
-  'com.jcraft.jsch.JSch',
-  'com.jcraft.jsch.Logger',
-  'com.jcraft.jsch.Session',
-  'com.jcraft.jsch.SftpATTRS',
-  'com.sun.jersey.api.ParamException',
-  'com.sun.jersey.api.core.HttpContext', 
-  'com.sun.jersey.core.spi.component.ComponentContext', 
-  'com.sun.jersey.core.spi.component.ComponentScope', 
-  'com.sun.jersey.server.impl.inject.AbstractHttpContextInjectable', 
-  'com.sun.jersey.spi.container.ContainerRequest', 
-  'com.sun.jersey.spi.container.ContainerRequestFilter', 
-  'com.sun.jersey.spi.container.ContainerResponseFilter', 
-  'com.sun.jersey.spi.container.ResourceFilter', 
-  'com.sun.jersey.spi.container.servlet.ServletContainer', 
-  'com.sun.jersey.spi.inject.Injectable', 
-  'com.sun.jersey.spi.inject.InjectableProvider',
-  'io.netty.bootstrap.Bootstrap',
-  'io.netty.bootstrap.ChannelFactory',
-  'io.netty.bootstrap.ServerBootstrap',
-  'io.netty.buffer.ByteBuf',
-  'io.netty.buffer.Unpooled',
-  'io.netty.channel.Channel',
-  'io.netty.channel.ChannelFuture',
-  'io.netty.channel.ChannelFutureListener',
-  'io.netty.channel.ChannelHandler',
-  'io.netty.channel.ChannelHandlerContext',
-  'io.netty.channel.ChannelInboundHandlerAdapter',
-  'io.netty.channel.ChannelInitializer',
-  'io.netty.channel.ChannelOption',
-  'io.netty.channel.ChannelPipeline',
-  'io.netty.channel.EventLoopGroup',
-  'io.netty.channel.SimpleChannelInboundHandler',
-  'io.netty.channel.group.ChannelGroup',
-  'io.netty.channel.group.ChannelGroupFuture',
-  'io.netty.channel.group.DefaultChannelGroup',
-  'io.netty.channel.nio.NioEventLoopGroup',
-  'io.netty.channel.socket.SocketChannel',
-  'io.netty.channel.socket.nio.NioServerSocketChannel',
-  'io.netty.channel.socket.nio.NioSocketChannel',
-  'io.netty.handler.codec.http.DefaultFullHttpRequest',
-  'io.netty.handler.codec.http.DefaultFullHttpResponse',
-  'io.netty.handler.codec.http.DefaultHttpResponse',
-  'io.netty.handler.codec.http.HttpContent',
-  'io.netty.handler.codec.http.HttpHeaders',
-  'io.netty.handler.codec.http.HttpMethod',
-  'io.netty.handler.codec.http.HttpRequest',
-  'io.netty.handler.codec.http.HttpRequestDecoder',
-  'io.netty.handler.codec.http.HttpRequestEncoder',
-  'io.netty.handler.codec.http.HttpResponseEncoder',
-  'io.netty.handler.codec.http.HttpResponseStatus',
-  'io.netty.handler.codec.http.HttpVersion',
-  'io.netty.handler.codec.http.QueryStringDecoder',
-  'io.netty.handler.codec.string.StringEncoder',
-  'io.netty.handler.ssl.SslHandler',
-  'io.netty.handler.stream.ChunkedStream',
-  'io.netty.handler.stream.ChunkedWriteHandler',
-  'io.netty.util.concurrent.GlobalEventExecutor',
-  'io.netty.util.ReferenceCountUtil',
-  'javax.ws.rs.core.Context',
-  'javax.ws.rs.core.MediaType', 
-  'javax.ws.rs.core.MultivaluedMap', 
-  'javax.ws.rs.core.Response$ResponseBuilder', 
-  'javax.ws.rs.core.Response$Status', 
-  'javax.ws.rs.core.Response', 
-  'javax.ws.rs.core.StreamingOutput', 
-  'javax.ws.rs.core.UriBuilder', 
-  'javax.ws.rs.ext.ExceptionMapper', 
-  'jdiff.JDiff', 
-  'org.apache.avalon.framework.logger.Logger', 
-  'org.apache.avro.Schema', 
-  'org.apache.avro.file.DataFileReader', 
-  'org.apache.avro.file.FileReader', 
-  'org.apache.avro.file.SeekableInput', 
-  'org.apache.avro.generic.GenericDatumReader', 
-  'org.apache.avro.generic.GenericDatumWriter', 
-  'org.apache.avro.io.BinaryDecoder', 
-  'org.apache.avro.io.BinaryEncoder', 
-  'org.apache.avro.io.DatumReader', 
-  'org.apache.avro.io.DatumWriter', 
-  'org.apache.avro.io.DecoderFactory', 
-  'org.apache.avro.io.EncoderFactory', 
-  'org.apache.avro.io.JsonEncoder', 
-  'org.apache.avro.reflect.ReflectData', 
-  'org.apache.avro.reflect.ReflectDatumReader', 
-  'org.apache.avro.reflect.ReflectDatumWriter', 
-  'org.apache.avro.specific.SpecificDatumReader', 
-  'org.apache.avro.specific.SpecificDatumWriter', 
-  'org.apache.avro.specific.SpecificRecord', 
-  'org.apache.commons.beanutils.BeanUtils', 
-  'org.apache.commons.beanutils.DynaBean', 
-  'org.apache.commons.beanutils.DynaClass', 
-  'org.apache.commons.beanutils.DynaProperty', 
-  'org.apache.commons.beanutils.PropertyUtils', 
-  'org.apache.commons.compress.archivers.tar.TarArchiveEntry', 
-  'org.apache.commons.compress.archivers.tar.TarArchiveInputStream', 
-  'org.apache.commons.daemon.Daemon', 
-  'org.apache.commons.daemon.DaemonContext', 
-  'org.apache.commons.digester.AbstractObjectCreationFactory', 
-  'org.apache.commons.digester.CallMethodRule', 
-  'org.apache.commons.digester.Digester', 
-  'org.apache.commons.digester.ObjectCreationFactory', 
-  'org.apache.commons.digester.substitution.MultiVariableExpander', 
-  'org.apache.commons.digester.substitution.VariableSubstitutor', 
-  'org.apache.commons.digester.xmlrules.DigesterLoader', 
-  'org.apache.commons.jxpath.JXPathContext',
-  'org.apache.commons.jxpath.ri.JXPathContextReferenceImpl', 
-  'org.apache.commons.jxpath.ri.QName', 
-  'org.apache.commons.jxpath.ri.compiler.NodeNameTest', 
-  'org.apache.commons.jxpath.ri.compiler.NodeTest', 
-  'org.apache.commons.jxpath.ri.compiler.NodeTypeTest', 
-  'org.apache.commons.jxpath.ri.model.NodeIterator', 
-  'org.apache.commons.jxpath.ri.model.NodePointer', 
-  'org.apache.commons.jxpath.ri.model.NodePointerFactory', 
-  'org.apache.commons.math3.util.ArithmeticUtils', 
-  'org.apache.commons.net.ftp.FTPClient', 
-  'org.apache.commons.net.ftp.FTPFile', 
-  'org.apache.commons.net.ftp.FTPReply', 
-  'org.apache.commons.net.util.SubnetUtils$SubnetInfo', 
-  'org.apache.commons.net.util.SubnetUtils', 
-  'org.apache.curator.ensemble.fixed.FixedEnsembleProvider', 
-  'org.apache.curator.framework.CuratorFramework', 
-  'org.apache.curator.framework.CuratorFrameworkFactory$Builder', 
-  'org.apache.curator.framework.CuratorFrameworkFactory', 
-  'org.apache.curator.framework.api.ACLBackgroundPathAndBytesable', 
-  'org.apache.curator.framework.api.ACLProvider', 
-  'org.apache.curator.framework.api.BackgroundPathAndBytesable', 
-  'org.apache.curator.framework.api.ChildrenDeletable', 
-  'org.apache.curator.framework.api.CreateBuilder', 
-  'org.apache.curator.framework.api.DeleteBuilder', 
-  'org.apache.curator.framework.api.ExistsBuilder', 
-  'org.apache.curator.framework.api.GetChildrenBuilder', 
-  'org.apache.curator.framework.api.GetDataBuilder', 
-  'org.apache.curator.framework.api.ProtectACLCreateModePathAndBytesable', 
-  'org.apache.curator.framework.api.SetDataBuilder', 
-  'org.apache.curator.framework.api.WatchPathable', 
-  'org.apache.curator.framework.imps.DefaultACLProvider', 
-  'org.apache.curator.framework.listen.ListenerContainer', 
-  'org.apache.curator.framework.recipes.cache.ChildData', 
-  'org.apache.curator.framework.recipes.cache.PathChildrenCache$StartMode', 
-  'org.apache.curator.framework.recipes.cache.PathChildrenCache', 
-  'org.apache.curator.framework.recipes.cache.PathChildrenCacheEvent$Type', 
-  'org.apache.curator.framework.recipes.cache.PathChildrenCacheEvent', 
-  'org.apache.curator.framework.recipes.cache.PathChildrenCacheListener', 
-  'org.apache.curator.framework.recipes.locks.Reaper$Mode', 
-  'org.apache.curator.framework.recipes.locks.Reaper', 
-  'org.apache.curator.framework.recipes.shared.SharedCount', 
-  'org.apache.curator.framework.recipes.shared.VersionedValue', 
-  'org.apache.curator.retry.ExponentialBackoffRetry', 
-  'org.apache.curator.retry.RetryNTimes', 
-  'org.apache.curator.utils.CloseableScheduledExecutorService', 
-  'org.apache.curator.utils.CloseableUtils', 
-  'org.apache.curator.utils.EnsurePath', 
-  'org.apache.curator.utils.PathUtils', 
-  'org.apache.curator.utils.ThreadUtils', 
-  'org.apache.curator.utils.ZKPaths',
-  'org.apache.directory.shared.kerberos.components.EncryptionKey',
-  'org.apache.directory.server.kerberos.shared.keytab.Keytab', 
-  'org.apache.directory.server.kerberos.shared.keytab.KeytabEntry', 
-  'org.apache.http.NameValuePair', 
-  'org.apache.http.client.utils.URIBuilder', 
-  'org.apache.http.client.utils.URLEncodedUtils',
-  'org.apache.log.Hierarchy', 
-  'org.apache.log.Logger', 
-  'org.apache.tools.ant.BuildException', 
-  'org.apache.tools.ant.DirectoryScanner', 
-  'org.apache.tools.ant.Task', 
-  'org.apache.tools.ant.taskdefs.Execute', 
-  'org.apache.tools.ant.types.FileSet', 
-  'org.apache.xml.serialize.OutputFormat', 
-  'org.apache.xml.serialize.XMLSerializer', 
-  'org.apache.zookeeper.AsyncCallback$StatCallback', 
-  'org.apache.zookeeper.AsyncCallback$StringCallback', 
-  'org.apache.zookeeper.CreateMode', 
-  'org.apache.zookeeper.KeeperException$Code', 
-  'org.apache.zookeeper.KeeperException', 
-  'org.apache.zookeeper.WatchedEvent', 
-  'org.apache.zookeeper.Watcher$Event$EventType', 
-  'org.apache.zookeeper.Watcher$Event$KeeperState', 
-  'org.apache.zookeeper.Watcher', 
-  'org.apache.zookeeper.ZKUtil', 
-  'org.apache.zookeeper.ZooDefs$Ids', 
-  'org.apache.zookeeper.ZooKeeper', 
-  'org.apache.zookeeper.data.ACL', 
-  'org.apache.zookeeper.data.Id', 
-  'org.apache.zookeeper.data.Stat', 
-  'org.codehaus.jackson.JsonEncoding', 
-  'org.codehaus.jackson.JsonFactory', 
-  'org.codehaus.jackson.JsonGenerator', 
-  'org.codehaus.jackson.JsonGenerator$Feature', 
-  'org.codehaus.jackson.map.MappingJsonFactory',
-  'org.codehaus.jackson.map.ObjectMapper', 
-  'org.codehaus.jackson.map.ObjectReader', 
-  'org.codehaus.jackson.map.ObjectWriter', 
-  'org.codehaus.jackson.node.ContainerNode', 
-  'org.codehaus.jackson.util.MinimalPrettyPrinter',
-  'org.fusesource.leveldbjni.JniDBFactory', 
-  'org.iq80.leveldb.DB', 
-  'org.iq80.leveldb.Options', 
-  'org.iq80.leveldb.WriteBatch',
-  'org.mortbay.jetty.Connector',
-  'org.mortbay.jetty.Handler',
-  'org.mortbay.jetty.InclusiveByteRange',
-  'org.mortbay.jetty.MimeTypes',
-  'org.mortbay.jetty.NCSARequestLog',
-  'org.mortbay.jetty.RequestLog',
-  'org.mortbay.jetty.Server',
-  'org.mortbay.jetty.handler.ContextHandler$SContext',
-  'org.mortbay.jetty.handler.ContextHandler',
-  'org.mortbay.jetty.handler.ContextHandlerCollection',
-  'org.mortbay.jetty.handler.HandlerCollection',
-  'org.mortbay.jetty.handler.RequestLogHandler',
-  'org.mortbay.jetty.nio.SelectChannelConnector',
-  'org.mortbay.jetty.security.SslSelectChannelConnector',
-  'org.mortbay.jetty.security.SslSocketConnector',
-  'org.mortbay.jetty.servlet.AbstractSessionManager',
-  'org.mortbay.jetty.servlet.Context', 
-  'org.mortbay.jetty.servlet.DefaultServlet', 
-  'org.mortbay.jetty.servlet.FilterHolder', 
-  'org.mortbay.jetty.servlet.FilterMapping', 
-  'org.mortbay.jetty.servlet.ServletHandler', 
-  'org.mortbay.jetty.servlet.ServletHolder', 
-  'org.mortbay.jetty.servlet.SessionHandler', 
-  'org.mortbay.jetty.webapp.WebAppContext', 
-  'org.mortbay.thread.QueuedThreadPool',
-  'org.mortbay.util.MultiException', 
-  'org.mortbay.util.ajax.JSON$Convertible', 
-  'org.mortbay.util.ajax.JSON$Output', 
-  'org.mortbay.util.ajax.JSON', 
-  'org.znerd.xmlenc.XMLOutputter',
-
-  // internal java api: sun.net.dns.ResolverConfiguration
-  // internal java api: sun.net.util.IPAddressUtil
-  'org.apache.hadoop.security.SecurityUtil$QualifiedHostResolver',
-
-  // internal java api: sun.misc.Unsafe
-  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator', 
-  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-  'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
-  'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer$1',
-  'org.apache.hadoop.io.nativeio.NativeIO',
-  'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
-  'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
-
-  // internal java api: sun.nio.ch.DirectBuffer
-  // internal java api: sun.misc.Cleaner
-  'org.apache.hadoop.io.nativeio.NativeIO$POSIX',
-  'org.apache.hadoop.crypto.CryptoStreamUtils',
- 
-  // internal java api: sun.misc.SignalHandler
-  'org.apache.hadoop.util.SignalLogger$Handler',
-
-  // we are not pulling in slf4j-ext, this is okay, Log4j will fallback gracefully
-  'org.slf4j.ext.EventData',
-
-  'org.apache.log4j.AsyncAppender',
-  'org.apache.log4j.helpers.ISO8601DateFormat',
-  'org.apache.log4j.spi.ThrowableInformation',
-
-  // New optional dependencies in 2.8
-  'com.nimbusds.jose.JWSObject$State',
-  'com.nimbusds.jose.crypto.RSASSAVerifier',
-  'com.nimbusds.jwt.ReadOnlyJWTClaimsSet',
-  'com.nimbusds.jwt.SignedJWT',
-  'com.squareup.okhttp.Call',
-  'com.squareup.okhttp.MediaType',
-  'com.squareup.okhttp.OkHttpClient',
-  'com.squareup.okhttp.Request$Builder',
-  'com.squareup.okhttp.RequestBody',
-  'com.squareup.okhttp.Response',
-  'com.squareup.okhttp.ResponseBody'
-]
-
-if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += ['javax.xml.bind.annotation.adapters.HexBinaryAdapter']
-}
-
-if (project.runtimeJavaVersion == JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += [
-          // TODO: Why is this needed ?
-          'com.sun.javadoc.AnnotationDesc',
-          'com.sun.javadoc.AnnotationTypeDoc',
-          'com.sun.javadoc.ClassDoc',
-          'com.sun.javadoc.ConstructorDoc',
-          'com.sun.javadoc.Doc',
-          'com.sun.javadoc.DocErrorReporter',
-          'com.sun.javadoc.FieldDoc',
-          'com.sun.javadoc.LanguageVersion',
-          'com.sun.javadoc.MethodDoc',
-          'com.sun.javadoc.PackageDoc',
-          'com.sun.javadoc.ProgramElementDoc',
-          'com.sun.javadoc.RootDoc',
-          'com.sun.tools.doclets.standard.Standard'
-  ]
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses()
+  ignoreViolations(
+    // internal java api: sun.misc.Unsafe
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
+  )
 }

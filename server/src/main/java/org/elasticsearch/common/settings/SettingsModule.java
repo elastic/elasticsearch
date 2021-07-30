@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
@@ -49,6 +38,7 @@ public class SettingsModule implements Module {
     private final Set<String> settingsFilterPattern = new HashSet<>();
     private final Map<String, Setting<?>> nodeSettings = new HashMap<>();
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
+    private final Set<Setting<?>> consistentSettings = new HashSet<>();
     private final IndexScopedSettings indexScopedSettings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
@@ -62,11 +52,27 @@ public class SettingsModule implements Module {
             List<Setting<?>> additionalSettings,
             List<String> settingsFilter,
             Set<SettingUpgrader<?>> settingUpgraders) {
+        this(
+            settings,
+            additionalSettings,
+            settingsFilter,
+            settingUpgraders,
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+    }
+
+    SettingsModule(
+        final Settings settings,
+        final List<Setting<?>> additionalSettings,
+        final List<String> settingsFilter,
+        final Set<SettingUpgrader<?>> settingUpgraders,
+        final Set<Setting<?>> registeredClusterSettings,
+        final Set<Setting<?>> registeredIndexSettings) {
         this.settings = settings;
-        for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {
+        for (Setting<?> setting : registeredClusterSettings) {
             registerSetting(setting);
         }
-        for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
+        for (Setting<?> setting : registeredIndexSettings) {
             registerSetting(setting);
         }
 
@@ -89,12 +95,7 @@ public class SettingsModule implements Module {
         }
         this.indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
         this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()), clusterSettingUpgraders);
-        Settings indexSettings = settings.filter((s) -> (s.startsWith("index.") &&
-            // special case - we want to get Did you mean indices.query.bool.max_clause_count
-            // which means we need to by-pass this check for this setting
-            // TODO remove in 6.0!!
-            "index.query.bool.max_clause_count".equals(s) == false)
-            && clusterSettings.get(s) == null);
+        Settings indexSettings = settings.filter((s) -> s.startsWith("index.") && clusterSettings.get(s) == null);
         if (indexSettings.isEmpty() == false) {
             try {
                 String separator = IntStream.range(0, 85).mapToObj(s -> "*").collect(Collectors.joining("")).trim();
@@ -147,7 +148,7 @@ public class SettingsModule implements Module {
         // by now we are fully configured, lets check node level settings for unregistered index settings
         clusterSettings.validate(settings, true);
         this.settingsFilter = new SettingsFilter(settingsFilterPattern);
-     }
+    }
 
     @Override
     public void configure(Binder binder) {
@@ -157,13 +158,15 @@ public class SettingsModule implements Module {
         binder.bind(IndexScopedSettings.class).toInstance(indexScopedSettings);
     }
 
-
     /**
      * Registers a new setting. This method should be used by plugins in order to expose any custom settings the plugin defines.
      * Unless a setting is registered the setting is unusable. If a setting is never the less specified the node will reject
      * the setting during startup.
      */
     private void registerSetting(Setting<?> setting) {
+        if (setting.getKey().contains(".") == false) {
+            throw new IllegalArgumentException("setting [" + setting.getKey() + "] is not in any namespace, its name must contain a dot");
+        }
         if (setting.isFiltered()) {
             if (settingsFilterPattern.contains(setting.getKey()) == false) {
                 registerSettingsFilter(setting.getKey());
@@ -175,12 +178,28 @@ public class SettingsModule implements Module {
                 if (existingSetting != null) {
                     throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
                 }
+                if (setting.isConsistent()) {
+                    if (setting instanceof Setting.AffixSetting<?>) {
+                        if (((Setting.AffixSetting<?>)setting).getConcreteSettingForNamespace("_na_") instanceof SecureSetting<?>) {
+                            consistentSettings.add(setting);
+                        } else {
+                            throw new IllegalArgumentException("Invalid consistent secure setting [" + setting.getKey() + "]");
+                        }
+                    } else if (setting instanceof SecureSetting<?>) {
+                        consistentSettings.add(setting);
+                    } else {
+                        throw new IllegalArgumentException("Invalid consistent secure setting [" + setting.getKey() + "]");
+                    }
+                }
                 nodeSettings.put(setting.getKey(), setting);
             }
             if (setting.hasIndexScope()) {
                 Setting<?> existingSetting = indexSettings.get(setting.getKey());
                 if (existingSetting != null) {
                     throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
+                }
+                if (setting.isConsistent()) {
+                    throw new IllegalStateException("Consistent setting [" + setting.getKey() + "] cannot be index scoped");
                 }
                 indexSettings.put(setting.getKey(), setting);
             }
@@ -213,6 +232,10 @@ public class SettingsModule implements Module {
 
     public ClusterSettings getClusterSettings() {
         return clusterSettings;
+    }
+
+    public Set<Setting<?>> getConsistentSettings() {
+        return consistentSettings;
     }
 
     public SettingsFilter getSettingsFilter() {

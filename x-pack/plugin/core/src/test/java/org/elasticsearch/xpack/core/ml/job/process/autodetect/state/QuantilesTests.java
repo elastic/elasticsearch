@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -26,6 +27,13 @@ public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
         assertThat(Quantiles.extractJobId("bar_quantiles"), equalTo("bar"));
         assertThat(Quantiles.extractJobId("foo_bar_quantiles"), equalTo("foo_bar"));
         assertThat(Quantiles.extractJobId("_quantiles_quantiles"), equalTo("_quantiles"));
+    }
+
+    public void testExtractJobId_GivenV54DocId() {
+        assertThat(Quantiles.extractJobId("foo-quantiles"), equalTo("foo"));
+        assertThat(Quantiles.extractJobId("bar-quantiles"), equalTo("bar"));
+        assertThat(Quantiles.extractJobId("foo-bar-quantiles"), equalTo("foo-bar"));
+        assertThat(Quantiles.extractJobId("-quantiles-quantiles"), equalTo("-quantiles"));
     }
 
     public void testExtractJobId_GivenInvalidDocId() {

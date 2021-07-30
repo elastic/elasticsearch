@@ -1,27 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -41,9 +29,9 @@ import java.util.Objects;
  * {@code _all} explicitly gets all the jobs' statistics in the cluster
  * An empty request (no {@code jobId}s) implicitly gets all the jobs' statistics in the cluster
  */
-public class GetJobStatsRequest extends ActionRequest implements ToXContentObject {
+public class GetJobStatsRequest implements Validatable, ToXContentObject {
 
-    public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
+    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetJobStatsRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -53,13 +41,13 @@ public class GetJobStatsRequest extends ActionRequest implements ToXContentObjec
         PARSER.declareField(ConstructingObjectParser.constructorArg(),
             p -> Arrays.asList(Strings.commaDelimitedListToStringArray(p.text())),
             Job.ID, ObjectParser.ValueType.STRING_ARRAY);
-        PARSER.declareBoolean(GetJobStatsRequest::setAllowNoJobs, ALLOW_NO_JOBS);
+        PARSER.declareBoolean(GetJobStatsRequest::setAllowNoMatch, ALLOW_NO_MATCH);
     }
 
     private static final String ALL_JOBS = "_all";
 
     private final List<String> jobIds;
-    private Boolean allowNoJobs;
+    private Boolean allowNoMatch;
 
     /**
      * Explicitly gets all jobs statistics
@@ -93,8 +81,8 @@ public class GetJobStatsRequest extends ActionRequest implements ToXContentObjec
         return jobIds;
     }
 
-    public Boolean getAllowNoJobs() {
-        return this.allowNoJobs;
+    public Boolean getAllowNoMatch() {
+        return this.allowNoMatch;
     }
 
     /**
@@ -102,15 +90,15 @@ public class GetJobStatsRequest extends ActionRequest implements ToXContentObjec
      *
      * This includes {@code _all} string or when no jobs have been specified
      *
-     * @param allowNoJobs When {@code true} ignore if wildcard or {@code _all} matches no jobs. Defaults to {@code true}
+     * @param allowNoMatch When {@code true} ignore if wildcard or {@code _all} matches no jobs. Defaults to {@code true}
      */
-    public void setAllowNoJobs(boolean allowNoJobs) {
-        this.allowNoJobs = allowNoJobs;
+    public void setAllowNoMatch(boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobIds, allowNoJobs);
+        return Objects.hash(jobIds, allowNoMatch);
     }
 
     @Override
@@ -125,20 +113,15 @@ public class GetJobStatsRequest extends ActionRequest implements ToXContentObjec
 
         GetJobStatsRequest that = (GetJobStatsRequest) other;
         return Objects.equals(jobIds, that.jobIds) &&
-            Objects.equals(allowNoJobs, that.allowNoJobs);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
+            Objects.equals(allowNoMatch, that.allowNoMatch);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), Strings.collectionToCommaDelimitedString(jobIds));
-        if (allowNoJobs != null) {
-            builder.field(ALLOW_NO_JOBS.getPreferredName(), allowNoJobs);
+        if (allowNoMatch != null) {
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
         }
         builder.endObject();
         return builder;

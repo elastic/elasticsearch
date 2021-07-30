@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -25,10 +14,12 @@ import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -45,14 +36,13 @@ public class DateProcessorTests extends ESTestCase {
     }
 
     private TemplateScript.Factory templatize(ZoneId timezone) {
-        // prevent writing "UTC" as string, as joda time does not parse it
-        String id = timezone.equals(ZoneOffset.UTC) ? "UTC" : timezone.getId();
-        return new TestTemplateService.MockTemplateScript.Factory(id);
+        return new TestTemplateService.MockTemplateScript.Factory(timezone.getId());
     }
-    public void testJodaPattern() {
+
+    public void testJavaPattern() {
         DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
-            templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ENGLISH),
-                "date_as_string", Collections.singletonList("yyyy dd MM hh:mm:ss"), "date_as_date");
+            null, templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ENGLISH),
+                "date_as_string", Collections.singletonList("yyyy dd MM HH:mm:ss"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "2010 12 06 11:05:15");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -60,13 +50,13 @@ public class DateProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T11:05:15.000+02:00"));
     }
 
-    public void testJodaPatternMultipleFormats() {
+    public void testJavaPatternMultipleFormats() {
         List<String> matchFormats = new ArrayList<>();
         matchFormats.add("yyyy dd MM");
         matchFormats.add("dd/MM/yyyy");
         matchFormats.add("dd-MM-yyyy");
         DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
-            templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ENGLISH),
+            null, templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ENGLISH),
                 "date_as_string", matchFormats, "date_as_date");
 
         Map<String, Object> document = new HashMap<>();
@@ -98,10 +88,22 @@ public class DateProcessorTests extends ESTestCase {
         }
     }
 
-    public void testInvalidJodaPattern() {
+    public void testJavaPatternNoTimezone() {
+        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
+            null, null, null,
+            "date_as_string", Arrays.asList("yyyy dd MM HH:mm:ss XXX"), "date_as_date");
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("date_as_string", "2010 12 06 00:00:00 -02:00");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        dateProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T02:00:00.000Z"));
+    }
+
+    public void testInvalidJavaPattern() {
         try {
             DateProcessor processor = new DateProcessor(randomAlphaOfLength(10),
-                templatize(ZoneOffset.UTC), templatize(randomLocale(random())),
+                null, templatize(ZoneOffset.UTC), templatize(randomLocale(random())),
                 "date_as_string", Collections.singletonList("invalid pattern"), "date_as_date");
             Map<String, Object> document = new HashMap<>();
             document.put("date_as_string", "2010");
@@ -109,16 +111,15 @@ public class DateProcessorTests extends ESTestCase {
             fail("date processor execution should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("unable to parse date [2010]"));
-            assertThat(e.getCause().getMessage(), equalTo("Illegal pattern component: i"));
+            assertThat(e.getCause().getMessage(), equalTo("Invalid format: [invalid pattern]: Unknown pattern letter: i"));
         }
     }
 
-    public void testJodaPatternLocale() {
-        //TODO investigate if this is a bug in Joda
+    public void testJavaPatternLocale() {
         assumeFalse("Can't run in a FIPS JVM, Joda parse date error", inFipsJvm());
-            DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
-            templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ITALIAN),
-                "date_as_string", Collections.singletonList("yyyy dd MMM"), "date_as_date");
+        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
+            null, templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ITALIAN),
+                "date_as_string", Collections.singletonList("yyyy dd MMMM"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "2010 12 giugno");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -126,10 +127,23 @@ public class DateProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
     }
 
-    public void testJodaPatternDefaultYear() {
+    public void testJavaPatternEnglishLocale() {
+        // Since testJavaPatternLocale is muted in FIPS mode, test that we can correctly parse dates in english
         DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
-            templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ENGLISH),
-            "date_as_string", Collections.singletonList("dd/MM"), "date_as_date");
+            null, templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ENGLISH),
+            "date_as_string", Collections.singletonList("yyyy dd MMMM"), "date_as_date");
+        Map<String, Object> document = new HashMap<>();
+        document.put("date_as_string", "2010 12 June");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        dateProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
+    }
+
+    public void testJavaPatternDefaultYear() {
+        String format = randomFrom("dd/MM", "8dd/MM");
+        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
+            null, templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ENGLISH),
+            "date_as_string", Collections.singletonList(format), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "12/06");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -139,7 +153,7 @@ public class DateProcessorTests extends ESTestCase {
     }
 
     public void testTAI64N() {
-        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10), templatize(ZoneOffset.ofHours(2)),
+        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10), null, templatize(ZoneOffset.ofHours(2)),
             templatize(randomLocale(random())),
                 "date_as_string", Collections.singletonList("TAI64N"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
@@ -151,7 +165,7 @@ public class DateProcessorTests extends ESTestCase {
     }
 
     public void testUnixMs() {
-        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10), templatize(ZoneOffset.UTC),
+        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10), null, templatize(ZoneOffset.UTC),
             templatize(randomLocale(random())), "date_as_string", Collections.singletonList("UNIX_MS"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "1000500");
@@ -167,7 +181,7 @@ public class DateProcessorTests extends ESTestCase {
     }
 
     public void testUnix() {
-        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10), templatize(ZoneOffset.UTC),
+        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10), null, templatize(ZoneOffset.UTC),
             templatize(randomLocale(random())),
                 "date_as_string", Collections.singletonList("UNIX"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
@@ -179,19 +193,19 @@ public class DateProcessorTests extends ESTestCase {
 
     public void testInvalidTimezone() {
         DateProcessor processor = new DateProcessor(randomAlphaOfLength(10),
-            new TestTemplateService.MockTemplateScript.Factory("invalid_timezone"), templatize(randomLocale(random())),
+            null, new TestTemplateService.MockTemplateScript.Factory("invalid_timezone"), templatize(randomLocale(random())),
             "date_as_string", Collections.singletonList("yyyy"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "2010");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> processor.execute(RandomDocumentPicks.randomIngestDocument(random(), document)));
         assertThat(e.getMessage(), equalTo("unable to parse date [2010]"));
-        assertThat(e.getCause().getMessage(), equalTo("The datetime zone id 'invalid_timezone' is not recognised"));
+        assertThat(e.getCause().getMessage(), equalTo("Unknown time-zone ID: invalid_timezone"));
     }
 
     public void testInvalidLocale() {
         DateProcessor processor = new DateProcessor(randomAlphaOfLength(10),
-            templatize(ZoneOffset.UTC), new TestTemplateService.MockTemplateScript.Factory("invalid_locale"),
+            null, templatize(ZoneOffset.UTC), new TestTemplateService.MockTemplateScript.Factory("invalid_locale"),
             "date_as_string", Collections.singletonList("yyyy"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "2010");
@@ -199,5 +213,18 @@ public class DateProcessorTests extends ESTestCase {
             () -> processor.execute(RandomDocumentPicks.randomIngestDocument(random(), document)));
         assertThat(e.getMessage(), equalTo("unable to parse date [2010]"));
         assertThat(e.getCause().getMessage(), equalTo("Unknown language: invalid"));
+    }
+
+    public void testOutputFormat() {
+        long nanosAfterEpoch = randomLongBetween(1, 999999);
+        DateProcessor processor = new DateProcessor(randomAlphaOfLength(10), null, null, null,
+            "date_as_string", Collections.singletonList("iso8601"), "date_as_date", "HH:mm:ss.SSSSSSSSS");
+        Map<String, Object> document = new HashMap<>();
+        document.put("date_as_string", Instant.EPOCH.plusNanos(nanosAfterEpoch).toString());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+        // output format is time only with nanosecond precision
+        String expectedDate = "00:00:00." + String.format(Locale.ROOT, "%09d", nanosAfterEpoch);
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo(expectedDate));
     }
 }

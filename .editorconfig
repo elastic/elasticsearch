@@ -1,10 +1,228 @@
 # EditorConfig: http://editorconfig.org/
 
+# Options specific to IntelliJ are prefixed with `ij_`
+
 root = true
 
-[*.java]
+[*]
 charset = utf-8
-indent_style = space
-indent_size = 4
 trim_trailing_whitespace = true
 insert_final_newline = true
+indent_style = space
+
+ij_formatter_off_tag = @formatter:off
+ij_formatter_on_tag = @formatter:on
+ij_formatter_tags_enabled = false
+
+[*.gradle]
+ij_continuation_indent_size = 2
+indent_size = 2
+max_line_length = 150
+
+[*.groovy]
+indent_size = 4
+ij_continuation_indent_size = 4
+max_line_length = 140
+ij_groovy_class_count_to_use_import_on_demand = 999
+ij_groovy_names_count_to_use_import_on_demand = 999
+ij_groovy_imports_layout = *,|,com.**,|,org.**,|,java.**,javax.**,|,$*
+
+[{*.gradle,*.groovy}]
+ij_groovy_align_group_field_declarations = false
+ij_groovy_align_multiline_array_initializer_expression = false
+ij_groovy_align_multiline_assignment = false
+ij_groovy_align_multiline_binary_operation = false
+ij_groovy_align_multiline_chained_methods = false
+ij_groovy_align_multiline_extends_list = false
+ij_groovy_align_multiline_for = true
+ij_groovy_align_multiline_list_or_map = true
+ij_groovy_align_multiline_method_parentheses = false
+ij_groovy_align_multiline_parameters = true
+ij_groovy_align_multiline_parameters_in_calls = false
+ij_groovy_align_multiline_resources = true
+ij_groovy_align_multiline_ternary_operation = false
+ij_groovy_align_multiline_throws_list = false
+ij_groovy_align_named_args_in_map = true
+ij_groovy_align_throws_keyword = false
+ij_groovy_array_initializer_new_line_after_left_brace = true
+ij_groovy_array_initializer_right_brace_on_new_line = true
+ij_groovy_array_initializer_wrap = on_every_item
+ij_groovy_assert_statement_wrap = on_every_item
+ij_groovy_assignment_wrap = on_every_item
+ij_groovy_binary_operation_wrap = normal
+ij_groovy_blank_lines_after_class_header = 0
+ij_groovy_blank_lines_after_imports = 1
+ij_groovy_blank_lines_after_package = 1
+ij_groovy_blank_lines_around_class = 1
+ij_groovy_blank_lines_around_field = 0
+ij_groovy_blank_lines_around_field_in_interface = 0
+ij_groovy_blank_lines_around_method = 1
+ij_groovy_blank_lines_around_method_in_interface = 1
+ij_groovy_blank_lines_before_imports = 1
+ij_groovy_blank_lines_before_method_body = 0
+ij_groovy_blank_lines_before_package = 0
+ij_groovy_block_brace_style = end_of_line
+ij_groovy_block_comment_at_first_column = true
+ij_groovy_call_parameters_new_line_after_left_paren = true
+ij_groovy_call_parameters_right_paren_on_new_line = true
+ij_groovy_call_parameters_wrap = on_every_item
+ij_groovy_catch_on_new_line = false
+ij_groovy_class_annotation_wrap = split_into_lines
+ij_groovy_class_brace_style = end_of_line
+ij_groovy_do_while_brace_force = always
+ij_groovy_else_on_new_line = false
+ij_groovy_enum_constants_wrap = on_every_item
+ij_groovy_extends_keyword_wrap = normal
+ij_groovy_extends_list_wrap = on_every_item
+ij_groovy_field_annotation_wrap = split_into_lines
+ij_groovy_finally_on_new_line = false
+ij_groovy_for_brace_force = always
+ij_groovy_for_statement_new_line_after_left_paren = false
+ij_groovy_for_statement_right_paren_on_new_line = false
+ij_groovy_for_statement_wrap = off
+ij_groovy_if_brace_force = never
+ij_groovy_import_annotation_wrap = 2
+ij_groovy_imports_layout = *,com.**,|,org.**,|,java.**,javax.**,|,$*
+ij_groovy_indent_case_from_switch = true
+ij_groovy_indent_label_blocks = true
+ij_groovy_insert_inner_class_imports = false
+ij_groovy_keep_blank_lines_before_right_brace = 2
+ij_groovy_keep_blank_lines_in_code = 2
+ij_groovy_keep_blank_lines_in_declarations = 2
+ij_groovy_keep_control_statement_in_one_line = true
+ij_groovy_keep_first_column_comment = true
+ij_groovy_keep_indents_on_empty_lines = false
+ij_groovy_keep_line_breaks = true
+ij_groovy_keep_multiple_expressions_in_one_line = false
+ij_groovy_keep_simple_blocks_in_one_line = false
+ij_groovy_keep_simple_classes_in_one_line = true
+ij_groovy_keep_simple_lambdas_in_one_line = true
+ij_groovy_keep_simple_methods_in_one_line = true
+ij_groovy_label_indent_absolute = false
+ij_groovy_label_indent_size = 0
+ij_groovy_lambda_brace_style = end_of_line
+ij_groovy_layout_static_imports_separately = true
+ij_groovy_line_comment_add_space = false
+ij_groovy_line_comment_at_first_column = true
+ij_groovy_method_annotation_wrap = split_into_lines
+ij_groovy_method_brace_style = end_of_line
+ij_groovy_method_call_chain_wrap = off
+ij_groovy_method_parameters_new_line_after_left_paren = false
+ij_groovy_method_parameters_right_paren_on_new_line = false
+ij_groovy_method_parameters_wrap = on_every_item
+ij_groovy_modifier_list_wrap = false
+ij_groovy_names_count_to_use_import_on_demand = 3
+ij_groovy_parameter_annotation_wrap = off
+ij_groovy_parentheses_expression_new_line_after_left_paren = false
+ij_groovy_parentheses_expression_right_paren_on_new_line = false
+ij_groovy_prefer_parameters_wrap = false
+ij_groovy_resource_list_new_line_after_left_paren = false
+ij_groovy_resource_list_right_paren_on_new_line = false
+ij_groovy_resource_list_wrap = off
+ij_groovy_space_after_assert_separator = true
+ij_groovy_space_after_colon = true
+ij_groovy_space_after_comma = true
+ij_groovy_space_after_comma_in_type_arguments = true
+ij_groovy_space_after_for_semicolon = true
+ij_groovy_space_after_quest = true
+ij_groovy_space_after_type_cast = true
+ij_groovy_space_before_annotation_parameter_list = false
+ij_groovy_space_before_array_initializer_left_brace = true
+ij_groovy_space_before_assert_separator = false
+ij_groovy_space_before_catch_keyword = true
+ij_groovy_space_before_catch_left_brace = true
+ij_groovy_space_before_catch_parentheses = true
+ij_groovy_space_before_class_left_brace = true
+ij_groovy_space_before_closure_left_brace = true
+ij_groovy_space_before_colon = true
+ij_groovy_space_before_comma = false
+ij_groovy_space_before_do_left_brace = true
+ij_groovy_space_before_else_keyword = true
+ij_groovy_space_before_else_left_brace = true
+ij_groovy_space_before_finally_keyword = true
+ij_groovy_space_before_finally_left_brace = true
+ij_groovy_space_before_for_left_brace = true
+ij_groovy_space_before_for_parentheses = true
+ij_groovy_space_before_for_semicolon = false
+ij_groovy_space_before_if_left_brace = true
+ij_groovy_space_before_if_parentheses = true
+ij_groovy_space_before_method_call_parentheses = false
+ij_groovy_space_before_method_left_brace = true
+ij_groovy_space_before_method_parentheses = false
+ij_groovy_space_before_quest = true
+ij_groovy_space_before_switch_left_brace = true
+ij_groovy_space_before_switch_parentheses = true
+ij_groovy_space_before_synchronized_left_brace = true
+ij_groovy_space_before_synchronized_parentheses = true
+ij_groovy_space_before_try_left_brace = true
+ij_groovy_space_before_try_parentheses = true
+ij_groovy_space_before_while_keyword = true
+ij_groovy_space_before_while_left_brace = true
+ij_groovy_space_before_while_parentheses = true
+ij_groovy_space_in_named_argument = true
+ij_groovy_space_in_named_argument_before_colon = false
+ij_groovy_space_within_empty_array_initializer_braces = false
+ij_groovy_space_within_empty_method_call_parentheses = false
+ij_groovy_spaces_around_additive_operators = true
+ij_groovy_spaces_around_assignment_operators = true
+ij_groovy_spaces_around_bitwise_operators = true
+ij_groovy_spaces_around_equality_operators = true
+ij_groovy_spaces_around_lambda_arrow = true
+ij_groovy_spaces_around_logical_operators = true
+ij_groovy_spaces_around_multiplicative_operators = true
+ij_groovy_spaces_around_regex_operators = true
+ij_groovy_spaces_around_relational_operators = true
+ij_groovy_spaces_around_shift_operators = true
+ij_groovy_spaces_within_annotation_parentheses = false
+ij_groovy_spaces_within_array_initializer_braces = true
+ij_groovy_spaces_within_braces = true
+ij_groovy_spaces_within_brackets = false
+ij_groovy_spaces_within_cast_parentheses = false
+ij_groovy_spaces_within_catch_parentheses = false
+ij_groovy_spaces_within_for_parentheses = false
+ij_groovy_spaces_within_gstring_injection_braces = false
+ij_groovy_spaces_within_if_parentheses = false
+ij_groovy_spaces_within_list_or_map = false
+ij_groovy_spaces_within_method_call_parentheses = false
+ij_groovy_spaces_within_method_parentheses = false
+ij_groovy_spaces_within_parentheses = false
+ij_groovy_spaces_within_switch_parentheses = false
+ij_groovy_spaces_within_synchronized_parentheses = false
+ij_groovy_spaces_within_try_parentheses = false
+ij_groovy_spaces_within_tuple_expression = false
+ij_groovy_spaces_within_while_parentheses = false
+ij_groovy_special_else_if_treatment = true
+ij_groovy_ternary_operation_wrap = on_every_item
+ij_groovy_throws_keyword_wrap = off
+ij_groovy_throws_list_wrap = on_every_item
+ij_groovy_use_flying_geese_braces = false
+ij_groovy_use_fq_class_names = false
+ij_groovy_use_fq_class_names_in_javadoc = true
+ij_groovy_use_relative_indents = false
+ij_groovy_use_single_class_imports = true
+ij_groovy_variable_annotation_wrap = off
+ij_groovy_while_brace_force = always
+ij_groovy_while_on_new_line = false
+ij_groovy_wrap_long_lines = false
+
+[*.java]
+indent_size = 4
+max_line_length = 140
+ij_java_class_count_to_use_import_on_demand = 999
+ij_java_names_count_to_use_import_on_demand = 999
+ij_java_imports_layout = *,|,com.**,|,org.**,|,java.**,javax.**,|,$*
+
+[*.json]
+indent_size = 2
+
+[*.py]
+indent_size = 2
+
+[*.sh]
+indent_size = 2
+
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.{xsd,xml}]
+indent_size = 4

@@ -1,45 +1,54 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_CONFIG_DATAFEED_CONFIG_JOB_ID_MISMATCH;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 /**
  * This class represents a configured and created Job. The creation time is set
@@ -67,16 +76,21 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final ParseField DATA_DESCRIPTION = new ParseField("data_description");
     public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField FINISHED_TIME = new ParseField("finished_time");
-    public static final ParseField ESTABLISHED_MODEL_MEMORY = new ParseField("established_model_memory");
     public static final ParseField MODEL_PLOT_CONFIG = new ParseField("model_plot_config");
     public static final ParseField RENORMALIZATION_WINDOW_DAYS = new ParseField("renormalization_window_days");
     public static final ParseField BACKGROUND_PERSIST_INTERVAL = new ParseField("background_persist_interval");
     public static final ParseField MODEL_SNAPSHOT_RETENTION_DAYS = new ParseField("model_snapshot_retention_days");
+    public static final ParseField DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS =
+        new ParseField("daily_model_snapshot_retention_after_days");
     public static final ParseField RESULTS_RETENTION_DAYS = new ParseField("results_retention_days");
+    public static final ParseField SYSTEM_ANNOTATIONS_RETENTION_DAYS = new ParseField("system_annotations_retention_days");
     public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("model_snapshot_id");
     public static final ParseField MODEL_SNAPSHOT_MIN_VERSION = new ParseField("model_snapshot_min_version");
     public static final ParseField RESULTS_INDEX_NAME = new ParseField("results_index_name");
     public static final ParseField DELETING = new ParseField("deleting");
+    public static final ParseField ALLOW_LAZY_OPEN = new ParseField("allow_lazy_open");
+    public static final ParseField BLOCKED = new ParseField("blocked");
+    public static final ParseField DATAFEED_CONFIG = new ParseField("datafeed_config");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
@@ -86,9 +100,17 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
 
     public static final TimeValue MIN_BACKGROUND_PERSIST_INTERVAL = TimeValue.timeValueHours(1);
-    public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(100, ByteSizeUnit.MB);
 
-    public static final long DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS = 1;
+    /**
+     * This includes the overhead of thread stacks and data structures that the program might use that
+     * are not instrumented.  (For the <code>autodetect</code> process categorization is not instrumented,
+     * and the <code>normalize</code> process is not instrumented at all.)  But this overhead does NOT
+     * include the memory used by loading the executable code.
+     */
+    public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = ByteSizeValue.ofMb(10);
+
+    public static final long DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS = 10;
+    public static final long DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS = 1;
 
     private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
         ObjectParser<Builder, Void> parser = new ObjectParser<>("job_details", ignoreUnknownFields, Builder::new);
@@ -102,7 +124,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 p -> TimeUtils.parseTimeField(p, CREATE_TIME.getPreferredName()), CREATE_TIME, ValueType.VALUE);
         parser.declareField(Builder::setFinishedTime,
                 p -> TimeUtils.parseTimeField(p, FINISHED_TIME.getPreferredName()), FINISHED_TIME, ValueType.VALUE);
-        parser.declareLong(Builder::setEstablishedModelMemory, ESTABLISHED_MODEL_MEMORY);
         parser.declareObject(Builder::setAnalysisConfig, ignoreUnknownFields ? AnalysisConfig.LENIENT_PARSER : AnalysisConfig.STRICT_PARSER,
             ANALYSIS_CONFIG);
         parser.declareObject(Builder::setAnalysisLimits, ignoreUnknownFields ? AnalysisLimits.LENIENT_PARSER : AnalysisLimits.STRICT_PARSER,
@@ -115,13 +136,19 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         parser.declareString((builder, val) -> builder.setBackgroundPersistInterval(
             TimeValue.parseTimeValue(val, BACKGROUND_PERSIST_INTERVAL.getPreferredName())), BACKGROUND_PERSIST_INTERVAL);
         parser.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
+        parser.declareLong(Builder::setSystemAnnotationsRetentionDays, SYSTEM_ANNOTATIONS_RETENTION_DAYS);
         parser.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
+        parser.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
         parser.declareField(Builder::setCustomSettings, (p, c) -> p.mapOrdered(), CUSTOM_SETTINGS, ValueType.OBJECT);
         parser.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
         parser.declareStringOrNull(Builder::setModelSnapshotMinVersion, MODEL_SNAPSHOT_MIN_VERSION);
         parser.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
         parser.declareBoolean(Builder::setDeleting, DELETING);
-
+        parser.declareBoolean(Builder::setAllowLazyOpen, ALLOW_LAZY_OPEN);
+        parser.declareObject(Builder::setBlocked, ignoreUnknownFields ? Blocked.LENIENT_PARSER : Blocked.STRICT_PARSER, BLOCKED);
+        parser.declareObject(Builder::setDatafeed,
+            ignoreUnknownFields ? DatafeedConfig.LENIENT_PARSER : DatafeedConfig.STRICT_PARSER,
+            DATAFEED_CONFIG);
         return parser;
     }
 
@@ -140,7 +167,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     // TODO: Use java.time for the Dates here: x-pack-elasticsearch#829
     private final Date createTime;
     private final Date finishedTime;
-    private final Long establishedModelMemory;
     private final AnalysisConfig analysisConfig;
     private final AnalysisLimits analysisLimits;
     private final DataDescription dataDescription;
@@ -148,20 +174,26 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     private final Long renormalizationWindowDays;
     private final TimeValue backgroundPersistInterval;
     private final Long modelSnapshotRetentionDays;
+    private final Long dailyModelSnapshotRetentionAfterDays;
     private final Long resultsRetentionDays;
+    private final Long systemAnnotationsRetentionDays;
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
     private final Version modelSnapshotMinVersion;
     private final String resultsIndexName;
     private final boolean deleting;
+    private final boolean allowLazyOpen;
+    private final Blocked blocked;
+    private final DatafeedConfig datafeedConfig;
 
     private Job(String jobId, String jobType, Version jobVersion, List<String> groups, String description,
-                Date createTime, Date finishedTime, Long establishedModelMemory,
+                Date createTime, Date finishedTime,
                 AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                 ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
-                Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
-                String modelSnapshotId, Version modelSnapshotMinVersion, String resultsIndexName, boolean deleting) {
-
+                Long modelSnapshotRetentionDays, Long dailyModelSnapshotRetentionAfterDays, Long resultsRetentionDays,
+                Long systemAnnotationsRetentionDays, Map<String, Object> customSettings, String modelSnapshotId,
+                Version modelSnapshotMinVersion, String resultsIndexName, boolean deleting, boolean allowLazyOpen, Blocked blocked,
+                DatafeedConfig datafeedConfig) {
         this.jobId = jobId;
         this.jobType = jobType;
         this.jobVersion = jobVersion;
@@ -169,7 +201,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         this.description = description;
         this.createTime = createTime;
         this.finishedTime = finishedTime;
-        this.establishedModelMemory = establishedModelMemory;
         this.analysisConfig = analysisConfig;
         this.analysisLimits = analysisLimits;
         this.dataDescription = dataDescription;
@@ -177,37 +208,37 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         this.renormalizationWindowDays = renormalizationWindowDays;
         this.backgroundPersistInterval = backgroundPersistInterval;
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
+        this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
         this.resultsRetentionDays = resultsRetentionDays;
+        this.systemAnnotationsRetentionDays = systemAnnotationsRetentionDays;
         this.customSettings = customSettings == null ? null : Collections.unmodifiableMap(customSettings);
         this.modelSnapshotId = modelSnapshotId;
         this.modelSnapshotMinVersion = modelSnapshotMinVersion;
         this.resultsIndexName = resultsIndexName;
-        this.deleting = deleting;
+        this.allowLazyOpen = allowLazyOpen;
+
+        if (deleting == false && blocked.getReason() == Blocked.Reason.DELETE) {
+            this.deleting = true;
+        } else {
+            this.deleting = deleting;
+        }
+
+        if (deleting && blocked.getReason() != Blocked.Reason.DELETE) {
+            this.blocked = new Blocked(Blocked.Reason.DELETE, null);
+        } else {
+            this.blocked = blocked;
+        }
+        this.datafeedConfig = datafeedConfig;
     }
 
     public Job(StreamInput in) throws IOException {
         jobId = in.readString();
         jobType = in.readString();
         jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            groups = Collections.unmodifiableList(in.readList(StreamInput::readString));
-        } else {
-            groups = Collections.emptyList();
-        }
+        groups = Collections.unmodifiableList(in.readStringList());
         description = in.readOptionalString();
         createTime = new Date(in.readVLong());
         finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
-        // for removed last_data_time field
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            if (in.readBoolean()) {
-                in.readVLong();
-            }
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            establishedModelMemory = in.readOptionalLong();
-        } else {
-            establishedModelMemory = null;
-        }
         analysisConfig = new AnalysisConfig(in);
         analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
         dataDescription = in.readOptionalWriteable(DataDescription::new);
@@ -215,17 +246,49 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         renormalizationWindowDays = in.readOptionalLong();
         backgroundPersistInterval = in.readOptionalTimeValue();
         modelSnapshotRetentionDays = in.readOptionalLong();
+        dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
+        systemAnnotationsRetentionDays = in.readOptionalLong();
         Map<String, Object> readCustomSettings = in.readMap();
         customSettings = readCustomSettings == null ? null : Collections.unmodifiableMap(readCustomSettings);
         modelSnapshotId = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             modelSnapshotMinVersion = Version.readVersion(in);
         } else {
             modelSnapshotMinVersion = null;
         }
         resultsIndexName = in.readString();
         deleting = in.readBoolean();
+        allowLazyOpen = in.readBoolean();
+        blocked = new Blocked(in);
+        this.datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
+    }
+
+    /**
+     * Get the persisted job document name from the Job Id.
+     * Throws if {@code jobId} is not a valid job Id.
+     *
+     * @param jobId The job id
+     * @return The id of document the job is persisted in
+     */
+    public static String documentId(String jobId) {
+        if (MlStrings.isValidId(jobId) == false) {
+            throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), jobId));
+        }
+        if (MlStrings.hasValidLengthForId(jobId) == false) {
+            throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT));
+        }
+
+        return ANOMALY_DETECTOR_JOB_TYPE + "-" + jobId;
+    }
+
+    /**
+     * Returns the job id from the doc id. Returns {@code null} if the doc id is invalid.
+     */
+    @Nullable
+    public static String extractJobIdFromDocumentId(String docId) {
+        String jobId = docId.replaceAll("^" + ANOMALY_DETECTOR_JOB_TYPE +"-", "");
+        return jobId.equals(docId) ? null : jobId;
     }
 
     /**
@@ -250,18 +313,24 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     }
 
     /**
-     * The name of the index storing the job's results and state.
-     * This defaults to {@link #getId()} if a specific index name is not set.
-     * @return The job's index name
+     * A good starting name for the index storing the job's results.
+     * This defaults to the shared results index if a specific index name is not set.
+     * This method must <em>only</em> be used during initial job creation.
+     * After that the read/write aliases must always be used to access the job's
+     * results index, as the underlying index may roll or be reindexed.
+     * @return The job's initial results index name
      */
-    public String getResultsIndexName() {
+    public String getInitialResultsIndexName() {
         return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + resultsIndexName;
     }
 
     /**
-     * Private version of getResultsIndexName so that a job can be built from another
-     * job and pass index name validation
-     * @return The job's index name, minus prefix
+     * Get the unmodified <code>results_index_name</code> field from the job.
+     * This is provided to allow a job to be copied via the builder.
+     * After creation this does not necessarily reflect the actual concrete
+     * index used by the job.  A job's results must always be read and written
+     * using the read and write aliases.
+     * @return The job's configured "index name"
      */
     private String getResultsIndexNameNoPrefix() {
         return resultsIndexName;
@@ -293,16 +362,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
      */
     public Date getFinishedTime() {
         return finishedTime;
-    }
-
-    /**
-     * The established model memory of the job, or <code>null</code> if model
-     * memory has not reached equilibrium yet.
-     *
-     * @return The established model memory of the job
-     */
-    public Long getEstablishedModelMemory() {
-        return establishedModelMemory;
     }
 
     /**
@@ -360,8 +419,16 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return modelSnapshotRetentionDays;
     }
 
+    public Long getDailyModelSnapshotRetentionAfterDays() {
+        return dailyModelSnapshotRetentionAfterDays;
+    }
+
     public Long getResultsRetentionDays() {
         return resultsRetentionDays;
+    }
+
+    public Long getSystemAnnotationsRetentionDays() {
+        return systemAnnotationsRetentionDays;
     }
 
     public Map<String, Object> getCustomSettings() {
@@ -378,6 +445,14 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
     public boolean isDeleting() {
         return deleting;
+    }
+
+    public boolean allowLazyOpen() {
+        return allowLazyOpen;
+    }
+
+    public Blocked getBlocked() {
+        return blocked;
     }
 
     /**
@@ -412,21 +487,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     }
 
     /**
-     * Make a best estimate of the job's memory footprint using the information available.
-     * If a job has an established model memory size, then this is the best estimate.
-     * Otherwise, assume the maximum model memory limit will eventually be required.
-     * In either case, a fixed overhead is added to account for the memory required by the
-     * program code and stack.
-     * @return an estimate of the memory requirement of this job, in bytes
-     */
-    public long estimateMemoryFootprint() {
-        if (establishedModelMemory != null && establishedModelMemory > 0) {
-            return establishedModelMemory + PROCESS_MEMORY_OVERHEAD.getBytes();
-        }
-        return ByteSizeUnit.MB.toBytes(analysisLimits.getModelMemoryLimit()) + PROCESS_MEMORY_OVERHEAD.getBytes();
-    }
-
-    /**
      * Returns the timestamp before which data is not accepted by the job.
      * This is the latest record timestamp minus the job latency.
      * @param dataCounts the job data counts
@@ -443,6 +503,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return currentTime;
     }
 
+    public Optional<DatafeedConfig> getDatafeedConfig() {
+        return Optional.ofNullable(datafeedConfig);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
@@ -453,9 +517,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeStringList(groups);
-        }
+        out.writeStringCollection(groups);
         out.writeOptionalString(description);
         out.writeVLong(createTime.getTime());
         if (finishedTime != null) {
@@ -464,13 +526,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         } else {
             out.writeBoolean(false);
         }
-        // for removed last_data_time field
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeBoolean(false);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeOptionalLong(establishedModelMemory);
-        }
         analysisConfig.writeTo(out);
         out.writeOptionalWriteable(analysisLimits);
         out.writeOptionalWriteable(dataDescription);
@@ -478,19 +533,22 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         out.writeOptionalLong(renormalizationWindowDays);
         out.writeOptionalTimeValue(backgroundPersistInterval);
         out.writeOptionalLong(modelSnapshotRetentionDays);
+        out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
         out.writeOptionalLong(resultsRetentionDays);
+        out.writeOptionalLong(systemAnnotationsRetentionDays);
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            if (modelSnapshotMinVersion != null) {
-                out.writeBoolean(true);
-                Version.writeVersion(modelSnapshotMinVersion, out);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (modelSnapshotMinVersion != null) {
+            out.writeBoolean(true);
+            Version.writeVersion(modelSnapshotMinVersion, out);
+        } else {
+            out.writeBoolean(false);
         }
         out.writeString(resultsIndexName);
         out.writeBoolean(deleting);
+        out.writeBoolean(allowLazyOpen);
+        blocked.writeTo(out);
+        out.writeOptionalWriteable(datafeedConfig);
     }
 
     @Override
@@ -503,25 +561,47 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final String humanReadableSuffix = "_string";
-
         builder.field(ID.getPreferredName(), jobId);
-        builder.field(JOB_TYPE.getPreferredName(), jobType);
-        if (jobVersion != null) {
-            builder.field(JOB_VERSION.getPreferredName(), jobVersion);
+        if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
+            builder.field(JOB_TYPE.getPreferredName(), jobType);
+            if (jobVersion != null) {
+                builder.field(JOB_VERSION.getPreferredName(), jobVersion);
+            }
+            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + humanReadableSuffix, createTime.getTime());
+            if (finishedTime != null) {
+                builder.timeField(FINISHED_TIME.getPreferredName(), FINISHED_TIME.getPreferredName() + humanReadableSuffix,
+                    finishedTime.getTime());
+            }
+            if (modelSnapshotId != null) {
+                builder.field(MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshotId);
+            }
+            if (deleting) {
+                builder.field(DELETING.getPreferredName(), deleting);
+            }
+            if (modelSnapshotMinVersion != null) {
+                builder.field(MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(), modelSnapshotMinVersion);
+            }
+            if (customSettings != null) {
+                builder.field(CUSTOM_SETTINGS.getPreferredName(), customSettings);
+            }
+            //TODO in v8.0.0 move this out so that it will be included when `exclude_generated` is `true`
+            if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) {
+                if (datafeedConfig != null) {
+                    builder.field(DATAFEED_CONFIG.getPreferredName(), datafeedConfig, params);
+                }
+            }
+        } else {
+            if (customSettings != null) {
+                HashMap<String, Object> newCustomSettings = new HashMap<>(customSettings);
+                newCustomSettings.remove("created_by");
+                builder.field(CUSTOM_SETTINGS.getPreferredName(), newCustomSettings);
+            }
         }
         if (groups.isEmpty() == false) {
             builder.field(GROUPS.getPreferredName(), groups);
         }
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
-        }
-        builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + humanReadableSuffix, createTime.getTime());
-        if (finishedTime != null) {
-            builder.timeField(FINISHED_TIME.getPreferredName(), FINISHED_TIME.getPreferredName() + humanReadableSuffix,
-                    finishedTime.getTime());
-        }
-        if (establishedModelMemory != null) {
-            builder.field(ESTABLISHED_MODEL_MEMORY.getPreferredName(), establishedModelMemory);
         }
         builder.field(ANALYSIS_CONFIG.getPreferredName(), analysisConfig, params);
         if (analysisLimits != null) {
@@ -542,21 +622,19 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         if (modelSnapshotRetentionDays != null) {
             builder.field(MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
         }
+        if (dailyModelSnapshotRetentionAfterDays != null) {
+            builder.field(DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(), dailyModelSnapshotRetentionAfterDays);
+        }
         if (resultsRetentionDays != null) {
             builder.field(RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
         }
-        if (customSettings != null) {
-            builder.field(CUSTOM_SETTINGS.getPreferredName(), customSettings);
-        }
-        if (modelSnapshotId != null) {
-            builder.field(MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshotId);
-        }
-        if (modelSnapshotMinVersion != null) {
-            builder.field(MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(), modelSnapshotMinVersion);
+        if (systemAnnotationsRetentionDays != null) {
+            builder.field(SYSTEM_ANNOTATIONS_RETENTION_DAYS.getPreferredName(), systemAnnotationsRetentionDays);
         }
         builder.field(RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName);
-        if (deleting) {
-            builder.field(DELETING.getPreferredName(), deleting);
+        builder.field(ALLOW_LAZY_OPEN.getPreferredName(), allowLazyOpen);
+        if (blocked.getReason() != Blocked.Reason.NONE) {
+            builder.field(BLOCKED.getPreferredName(), blocked);
         }
         return builder;
     }
@@ -579,7 +657,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 && Objects.equals(this.description, that.description)
                 && Objects.equals(this.createTime, that.createTime)
                 && Objects.equals(this.finishedTime, that.finishedTime)
-                && Objects.equals(this.establishedModelMemory, that.establishedModelMemory)
                 && Objects.equals(this.analysisConfig, that.analysisConfig)
                 && Objects.equals(this.analysisLimits, that.analysisLimits)
                 && Objects.equals(this.dataDescription, that.dataDescription)
@@ -587,20 +664,26 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
                 && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
                 && Objects.equals(this.modelSnapshotRetentionDays, that.modelSnapshotRetentionDays)
+                && Objects.equals(this.dailyModelSnapshotRetentionAfterDays, that.dailyModelSnapshotRetentionAfterDays)
                 && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
+                && Objects.equals(this.systemAnnotationsRetentionDays, that.systemAnnotationsRetentionDays)
                 && Objects.equals(this.customSettings, that.customSettings)
                 && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
                 && Objects.equals(this.modelSnapshotMinVersion, that.modelSnapshotMinVersion)
                 && Objects.equals(this.resultsIndexName, that.resultsIndexName)
-                && Objects.equals(this.deleting, that.deleting);
+                && Objects.equals(this.deleting, that.deleting)
+                && Objects.equals(this.allowLazyOpen, that.allowLazyOpen)
+                && Objects.equals(this.blocked, that.blocked)
+                && Objects.equals(this.datafeedConfig, that.datafeedConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, jobType, jobVersion, groups, description, createTime, finishedTime, establishedModelMemory,
-                analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
-                backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-                modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting);
+        return Objects.hash(jobId, jobType, jobVersion, groups, description, createTime, finishedTime,
+            analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
+            backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
+            systemAnnotationsRetentionDays, customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting,
+            allowLazyOpen, blocked, datafeedConfig);
     }
 
     // Class already extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
@@ -626,7 +709,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return compatibleTypes;
     }
 
-    public static class Builder implements Writeable, ToXContentObject {
+    public static class Builder implements Writeable {
 
         private String id;
         private String jobType = ANOMALY_DETECTOR_JOB_TYPE;
@@ -638,17 +721,21 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         private DataDescription dataDescription;
         private Date createTime;
         private Date finishedTime;
-        private Long establishedModelMemory;
         private ModelPlotConfig modelPlotConfig;
         private Long renormalizationWindowDays;
         private TimeValue backgroundPersistInterval;
         private Long modelSnapshotRetentionDays = DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS;
+        private Long dailyModelSnapshotRetentionAfterDays;
         private Long resultsRetentionDays;
+        private Long systemAnnotationsRetentionDays;
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
         private Version modelSnapshotMinVersion;
         private String resultsIndexName;
         private boolean deleting;
+        private boolean allowLazyOpen;
+        private Blocked blocked = Blocked.none();
+        private DatafeedConfig.Builder datafeedConfig;
 
         public Builder() {
         }
@@ -668,40 +755,31 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             this.dataDescription = job.getDataDescription();
             this.createTime = job.getCreateTime();
             this.finishedTime = job.getFinishedTime();
-            this.establishedModelMemory = job.getEstablishedModelMemory();
             this.modelPlotConfig = job.getModelPlotConfig();
             this.renormalizationWindowDays = job.getRenormalizationWindowDays();
             this.backgroundPersistInterval = job.getBackgroundPersistInterval();
             this.modelSnapshotRetentionDays = job.getModelSnapshotRetentionDays();
+            this.dailyModelSnapshotRetentionAfterDays = job.getDailyModelSnapshotRetentionAfterDays();
             this.resultsRetentionDays = job.getResultsRetentionDays();
+            this.systemAnnotationsRetentionDays = job.getSystemAnnotationsRetentionDays();
             this.customSettings = job.getCustomSettings() == null ? null : new LinkedHashMap<>(job.getCustomSettings());
             this.modelSnapshotId = job.getModelSnapshotId();
             this.modelSnapshotMinVersion = job.getModelSnapshotMinVersion();
             this.resultsIndexName = job.getResultsIndexNameNoPrefix();
             this.deleting = job.isDeleting();
+            this.allowLazyOpen = job.allowLazyOpen();
+            this.blocked = job.getBlocked();
+            this.datafeedConfig = job.getDatafeedConfig().isPresent() ? new DatafeedConfig.Builder(job.datafeedConfig) : null;
         }
 
         public Builder(StreamInput in) throws IOException {
             id = in.readOptionalString();
             jobType = in.readString();
             jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                groups = in.readList(StreamInput::readString);
-            } else {
-                groups = Collections.emptyList();
-            }
+            groups = in.readStringList();
             description = in.readOptionalString();
             createTime = in.readBoolean() ? new Date(in.readVLong()) : null;
             finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
-            // for removed last_data_time field
-            if (in.getVersion().before(Version.V_7_0_0)) {
-                if (in.readBoolean()) {
-                    in.readVLong();
-                }
-            }
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                establishedModelMemory = in.readOptionalLong();
-            }
             analysisConfig = in.readOptionalWriteable(AnalysisConfig::new);
             analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
             dataDescription = in.readOptionalWriteable(DataDescription::new);
@@ -709,16 +787,21 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             renormalizationWindowDays = in.readOptionalLong();
             backgroundPersistInterval = in.readOptionalTimeValue();
             modelSnapshotRetentionDays = in.readOptionalLong();
+            dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
             resultsRetentionDays = in.readOptionalLong();
+            systemAnnotationsRetentionDays = in.readOptionalLong();
             customSettings = in.readMap();
             modelSnapshotId = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0) && in.readBoolean()) {
+            if (in.readBoolean()) {
                 modelSnapshotMinVersion = Version.readVersion(in);
             } else {
                 modelSnapshotMinVersion = null;
             }
             resultsIndexName = in.readOptionalString();
             deleting = in.readBoolean();
+            allowLazyOpen = in.readBoolean();
+            blocked = new Blocked(in);
+            datafeedConfig = in.readOptionalWriteable(DatafeedConfig.Builder::new);
         }
 
         public Builder setId(String id) {
@@ -744,6 +827,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         public void setGroups(List<String> groups) {
             this.groups = groups == null ? Collections.emptyList() : groups;
+        }
+
+        public List<String> getGroups() {
+            return groups;
         }
 
         public Builder setCustomSettings(Map<String, Object> customSettings) {
@@ -780,11 +867,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
-        public Builder setEstablishedModelMemory(Long establishedModelMemory) {
-            this.establishedModelMemory = establishedModelMemory;
-            return this;
-        }
-
         public Builder setDataDescription(DataDescription.Builder description) {
             dataDescription = ExceptionsHelper.requireNonNull(description, DATA_DESCRIPTION.getPreferredName()).build();
             return this;
@@ -810,8 +892,22 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
+        public Long getModelSnapshotRetentionDays() {
+            return modelSnapshotRetentionDays;
+        }
+
+        public Builder setDailyModelSnapshotRetentionAfterDays(Long dailyModelSnapshotRetentionAfterDays) {
+            this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
+            return this;
+        }
+
         public Builder setResultsRetentionDays(Long resultsRetentionDays) {
             this.resultsRetentionDays = resultsRetentionDays;
+            return this;
+        }
+
+        public Builder setSystemAnnotationsRetentionDays(Long systemAnnotationsRetentionDays) {
+            this.systemAnnotationsRetentionDays = systemAnnotationsRetentionDays;
             return this;
         }
 
@@ -825,7 +921,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
-        public Builder setModelSnapshotMinVersion(String modelSnapshotMinVersion) {
+        Builder setModelSnapshotMinVersion(String modelSnapshotMinVersion) {
             this.modelSnapshotMinVersion = Version.fromString(modelSnapshotMinVersion);
             return this;
         }
@@ -837,6 +933,38 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         public Builder setDeleting(boolean deleting) {
             this.deleting = deleting;
+            return this;
+        }
+
+        public Builder setAllowLazyOpen(boolean allowLazyOpen) {
+            this.allowLazyOpen = allowLazyOpen;
+            return this;
+        }
+
+        public Builder setBlocked(Blocked blocked) {
+            this.blocked = ExceptionsHelper.requireNonNull(blocked, BLOCKED);
+            return this;
+        }
+
+        public Builder setDatafeed(DatafeedConfig.Builder datafeed) {
+            this.datafeedConfig = datafeed;
+            return this;
+        }
+
+        public DatafeedConfig.Builder getDatafeedConfig() {
+            return datafeedConfig;
+        }
+
+        /**
+         * This is used for parsing. If the datafeed_config exists AND its indices options are `null`, we set them to these options
+         *
+         * @param indicesOptions To set if the datafeed indices options are null
+         * @return The job builder.
+         */
+        public Builder setDatafeedIndicesOptionsIfRequired(IndicesOptions indicesOptions) {
+            if (this.datafeedConfig != null && this.datafeedConfig.getIndicesOptions() == null) {
+                this.datafeedConfig.setIndicesOptions(indicesOptions);
+            }
             return this;
         }
 
@@ -870,9 +998,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             } else {
                 out.writeBoolean(false);
             }
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeStringList(groups);
-            }
+            out.writeStringCollection(groups);
             out.writeOptionalString(description);
             if (createTime != null) {
                 out.writeBoolean(true);
@@ -886,13 +1012,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             } else {
                 out.writeBoolean(false);
             }
-            // for removed last_data_time field
-            if (out.getVersion().before(Version.V_7_0_0)) {
-                out.writeBoolean(false);
-            }
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeOptionalLong(establishedModelMemory);
-            }
+
             out.writeOptionalWriteable(analysisConfig);
             out.writeOptionalWriteable(analysisLimits);
             out.writeOptionalWriteable(dataDescription);
@@ -900,88 +1020,24 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeOptionalLong(renormalizationWindowDays);
             out.writeOptionalTimeValue(backgroundPersistInterval);
             out.writeOptionalLong(modelSnapshotRetentionDays);
+            out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
             out.writeOptionalLong(resultsRetentionDays);
+            out.writeOptionalLong(systemAnnotationsRetentionDays);
             out.writeMap(customSettings);
             out.writeOptionalString(modelSnapshotId);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                if (modelSnapshotMinVersion != null) {
-                    out.writeBoolean(true);
-                    Version.writeVersion(modelSnapshotMinVersion, out);
-                } else {
-                    out.writeBoolean(false);
-                }
+            if (modelSnapshotMinVersion != null) {
+                out.writeBoolean(true);
+                Version.writeVersion(modelSnapshotMinVersion, out);
+            } else {
+                out.writeBoolean(false);
             }
             out.writeOptionalString(resultsIndexName);
             out.writeBoolean(deleting);
+            out.writeBoolean(allowLazyOpen);
+            blocked.writeTo(out);
+            out.writeOptionalWriteable(datafeedConfig);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            if (id != null) {
-                builder.field(ID.getPreferredName(), id);
-            }
-            builder.field(JOB_TYPE.getPreferredName(), jobType);
-            if (jobVersion != null) {
-                builder.field(JOB_VERSION.getPreferredName(), jobVersion);
-            }
-            if (description != null) {
-                builder.field(DESCRIPTION.getPreferredName(), description);
-            }
-            if (createTime != null) {
-                builder.field(CREATE_TIME.getPreferredName(), createTime.getTime());
-            }
-            if (finishedTime != null) {
-                builder.field(FINISHED_TIME.getPreferredName(), finishedTime.getTime());
-            }
-            if (establishedModelMemory != null) {
-                builder.field(ESTABLISHED_MODEL_MEMORY.getPreferredName(), establishedModelMemory);
-            }
-            if (analysisConfig != null) {
-                builder.field(ANALYSIS_CONFIG.getPreferredName(), analysisConfig, params);
-            }
-            if (analysisLimits != null) {
-                builder.field(ANALYSIS_LIMITS.getPreferredName(), analysisLimits, params);
-            }
-            if (dataDescription != null) {
-                builder.field(DATA_DESCRIPTION.getPreferredName(), dataDescription, params);
-            }
-            if (modelPlotConfig != null) {
-                builder.field(MODEL_PLOT_CONFIG.getPreferredName(), modelPlotConfig, params);
-            }
-            if (renormalizationWindowDays != null) {
-                builder.field(RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
-            }
-            if (backgroundPersistInterval != null) {
-                builder.field(BACKGROUND_PERSIST_INTERVAL.getPreferredName(), backgroundPersistInterval.getStringRep());
-            }
-            if (modelSnapshotRetentionDays != null) {
-                builder.field(MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
-            }
-            if (resultsRetentionDays != null) {
-                builder.field(RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
-            }
-            if (customSettings != null) {
-                builder.field(CUSTOM_SETTINGS.getPreferredName(), customSettings);
-            }
-            if (modelSnapshotId != null) {
-                builder.field(MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshotId);
-            }
-            if (modelSnapshotMinVersion != null) {
-                builder.field(MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(), modelSnapshotMinVersion);
-            }
-            if (resultsIndexName != null) {
-                builder.field(RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName);
-            }
-            if (deleting) {
-                builder.field(DELETING.getPreferredName(), deleting);
-            }
-
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -997,25 +1053,30 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     && Objects.equals(this.dataDescription, that.dataDescription)
                     && Objects.equals(this.createTime, that.createTime)
                     && Objects.equals(this.finishedTime, that.finishedTime)
-                    && Objects.equals(this.establishedModelMemory, that.establishedModelMemory)
                     && Objects.equals(this.modelPlotConfig, that.modelPlotConfig)
                     && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
                     && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
                     && Objects.equals(this.modelSnapshotRetentionDays, that.modelSnapshotRetentionDays)
+                    && Objects.equals(this.dailyModelSnapshotRetentionAfterDays, that.dailyModelSnapshotRetentionAfterDays)
                     && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
+                    && Objects.equals(this.systemAnnotationsRetentionDays, that.systemAnnotationsRetentionDays)
                     && Objects.equals(this.customSettings, that.customSettings)
                     && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
                     && Objects.equals(this.modelSnapshotMinVersion, that.modelSnapshotMinVersion)
                     && Objects.equals(this.resultsIndexName, that.resultsIndexName)
-                    && Objects.equals(this.deleting, that.deleting);
+                    && Objects.equals(this.deleting, that.deleting)
+                    && Objects.equals(this.allowLazyOpen, that.allowLazyOpen)
+                    && Objects.equals(this.blocked, that.blocked)
+                    && Objects.equals(this.datafeedConfig, that.datafeedConfig);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(id, jobType, jobVersion, groups, description, analysisConfig, analysisLimits, dataDescription,
-                    createTime, finishedTime, establishedModelMemory, modelPlotConfig, renormalizationWindowDays,
-                    backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
-                    modelSnapshotMinVersion, resultsIndexName, deleting);
+                    createTime, finishedTime, modelPlotConfig, renormalizationWindowDays,
+                    backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
+                    systemAnnotationsRetentionDays, customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting,
+                    allowLazyOpen, blocked, datafeedConfig);
         }
 
         /**
@@ -1036,20 +1097,22 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
             checkValidBackgroundPersistInterval();
             checkValueNotLessThan(0, RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
-            checkValueNotLessThan(0, MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
             checkValueNotLessThan(0, RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
+            checkValueNotLessThan(0, SYSTEM_ANNOTATIONS_RETENTION_DAYS.getPreferredName(), systemAnnotationsRetentionDays);
 
-            if (!MlStrings.isValidId(id)) {
+            if (MlStrings.isValidId(id) == false) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
             }
-            if (!MlStrings.hasValidLengthForId(id)) {
+            if (MlStrings.hasValidLengthForId(id) == false) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT));
             }
+
+            validateModelSnapshotRetentionSettings();
 
             validateGroups();
 
             // Results index name not specified in user input means use the default, so is acceptable in this validation
-            if (!Strings.isNullOrEmpty(resultsIndexName) && !MlStrings.isValidId(resultsIndexName)) {
+            if (Strings.isNullOrEmpty(resultsIndexName) == false && MlStrings.isValidId(resultsIndexName) == false) {
                 throw new IllegalArgumentException(
                         Messages.getMessage(Messages.INVALID_ID, RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName));
             }
@@ -1067,10 +1130,60 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB);
         }
 
+        /**
+         * This is meant to be called when a new job is created.
+         * It sets {@link #dailyModelSnapshotRetentionAfterDays} to the default value if it is not set and the default makes sense.
+         */
+        public void validateModelSnapshotRetentionSettingsAndSetDefaults() {
+            validateModelSnapshotRetentionSettings();
+            if (dailyModelSnapshotRetentionAfterDays == null &&
+                modelSnapshotRetentionDays != null &&
+                modelSnapshotRetentionDays > DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS) {
+                dailyModelSnapshotRetentionAfterDays = DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS;
+            }
+        }
+
+        /**
+         * Validates that {@link #modelSnapshotRetentionDays} and {@link #dailyModelSnapshotRetentionAfterDays} make sense,
+         * both individually and in combination.
+         */
+        public void validateModelSnapshotRetentionSettings() {
+
+            checkValueNotLessThan(0, MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
+            checkValueNotLessThan(0, DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(),
+                dailyModelSnapshotRetentionAfterDays);
+
+            if (modelSnapshotRetentionDays != null &&
+                dailyModelSnapshotRetentionAfterDays != null &&
+                dailyModelSnapshotRetentionAfterDays > modelSnapshotRetentionDays) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MODEL_SNAPSHOT_RETENTION_SETTINGS_INCONSISTENT,
+                    dailyModelSnapshotRetentionAfterDays, modelSnapshotRetentionDays));
+            }
+        }
+
         private void validateGroups() {
             for (String group : this.groups) {
                 if (MlStrings.isValidId(group) == false) {
                     throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_GROUP, group));
+                }
+                if (this.id.equals(group)) {
+                    // cannot have a group name the same as the job id
+                    throw new ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, group));
+                }
+            }
+        }
+
+        /**
+         * Validates that the Detector configs are unique up to detectorIndex field (which is ignored).
+         */
+        public void validateDetectorsAreUnique() {
+            Set<Detector> canonicalDetectors = new HashSet<>();
+            for (Detector detector : this.analysisConfig.getDetectors()) {
+                // While testing for equality, ignore detectorIndex field as this field is auto-generated.
+                Detector canonicalDetector = new Detector.Builder(detector).setDetectorIndex(0).build();
+                if (canonicalDetectors.add(canonicalDetector) == false) {
+                    throw new IllegalArgumentException(
+                        Messages.getMessage(Messages.JOB_CONFIG_DUPLICATE_DETECTORS_DISALLOWED, detector.getDetectorDescription()));
                 }
             }
         }
@@ -1085,11 +1198,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         public Job build(Date createTime) {
             setCreateTime(createTime);
             setJobVersion(Version.CURRENT);
-            // TODO: Maybe we _could_ accept a value for this supplied at create time - it would
-            // mean cloned jobs that hadn't been edited much would start with an accurate expected size.
-            // But on the other hand it would mean jobs that were cloned and then completely changed
-            // would start with a size that was completely wrong.
-            setEstablishedModelMemory(null);
             return build();
         }
 
@@ -1116,19 +1224,31 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
             if (Strings.isNullOrEmpty(resultsIndexName)) {
                 resultsIndexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
-            } else if (!resultsIndexName.equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT)) {
+            } else if (resultsIndexName.equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT) == false) {
                 // User-defined names are prepended with "custom"
                 // Conditional guards against multiple prepending due to updates instead of first creation
                 resultsIndexName = resultsIndexName.startsWith("custom-")
                         ? resultsIndexName
                         : "custom-" + resultsIndexName;
             }
+            if (datafeedConfig != null) {
+                if (datafeedConfig.getId() == null) {
+                    datafeedConfig.setId(id);
+                }
+                if (datafeedConfig.getJobId() != null && datafeedConfig.getJobId().equals(id) == false) {
+                    throw new IllegalArgumentException(
+                        Messages.getMessage(JOB_CONFIG_DATAFEED_CONFIG_JOB_ID_MISMATCH, datafeedConfig.getJobId(), id)
+                    );
+                }
+                datafeedConfig.setJobId(id);
+            }
 
             return new Job(
-                    id, jobType, jobVersion, groups, description, createTime, finishedTime, establishedModelMemory,
+                    id, jobType, jobVersion, groups, description, createTime, finishedTime,
                     analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
-                    backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-                    modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting);
+                    backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
+                    systemAnnotationsRetentionDays, customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting,
+                    allowLazyOpen, blocked, Optional.ofNullable(datafeedConfig).map(DatafeedConfig.Builder::build).orElse(null));
         }
 
         private void checkValidBackgroundPersistInterval() {

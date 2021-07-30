@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -28,9 +17,9 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.grok.Grok;
-import org.elasticsearch.grok.ThreadWatchdog;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.DropProcessor;
 import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
@@ -42,14 +31,14 @@ import org.elasticsearch.rest.RestHandler;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static java.util.Map.entry;
+
 public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
-    static final Map<String, String> GROK_PATTERNS = Grok.getBuiltinPatterns();
     static final Setting<TimeValue> WATCHDOG_INTERVAL =
         Setting.timeSetting("ingest.grok.watchdog.interval", TimeValue.timeValueSeconds(1), Setting.Property.NodeScope);
     static final Setting<TimeValue> WATCHDOG_MAX_EXECUTION_TIME =
@@ -60,39 +49,47 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        Map<String, Processor.Factory> processors = new HashMap<>();
-        processors.put(DateProcessor.TYPE, new DateProcessor.Factory(parameters.scriptService));
-        processors.put(SetProcessor.TYPE, new SetProcessor.Factory(parameters.scriptService));
-        processors.put(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.scriptService));
-        processors.put(RenameProcessor.TYPE, new RenameProcessor.Factory(parameters.scriptService));
-        processors.put(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.scriptService));
-        processors.put(SplitProcessor.TYPE, new SplitProcessor.Factory());
-        processors.put(JoinProcessor.TYPE, new JoinProcessor.Factory());
-        processors.put(UppercaseProcessor.TYPE, new UppercaseProcessor.Factory());
-        processors.put(LowercaseProcessor.TYPE, new LowercaseProcessor.Factory());
-        processors.put(TrimProcessor.TYPE, new TrimProcessor.Factory());
-        processors.put(ConvertProcessor.TYPE, new ConvertProcessor.Factory());
-        processors.put(GsubProcessor.TYPE, new GsubProcessor.Factory());
-        processors.put(FailProcessor.TYPE, new FailProcessor.Factory(parameters.scriptService));
-        processors.put(ForEachProcessor.TYPE, new ForEachProcessor.Factory(parameters.scriptService));
-        processors.put(DateIndexNameProcessor.TYPE, new DateIndexNameProcessor.Factory(parameters.scriptService));
-        processors.put(SortProcessor.TYPE, new SortProcessor.Factory());
-        processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(GROK_PATTERNS, createGrokThreadWatchdog(parameters)));
-        processors.put(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService));
-        processors.put(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory());
-        processors.put(JsonProcessor.TYPE, new JsonProcessor.Factory());
-        processors.put(KeyValueProcessor.TYPE, new KeyValueProcessor.Factory());
-        processors.put(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory());
-        processors.put(BytesProcessor.TYPE, new BytesProcessor.Factory());
-        processors.put(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService));
-        processors.put(DissectProcessor.TYPE, new DissectProcessor.Factory());
-        processors.put(DropProcessor.TYPE, new DropProcessor.Factory());
-        return Collections.unmodifiableMap(processors);
+        return Map.ofEntries(
+                entry(DateProcessor.TYPE, new DateProcessor.Factory(parameters.scriptService)),
+                entry(SetProcessor.TYPE, new SetProcessor.Factory(parameters.scriptService)),
+                entry(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.scriptService)),
+                entry(RenameProcessor.TYPE, new RenameProcessor.Factory(parameters.scriptService)),
+                entry(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.scriptService)),
+                entry(SplitProcessor.TYPE, new SplitProcessor.Factory()),
+                entry(JoinProcessor.TYPE, new JoinProcessor.Factory()),
+                entry(UppercaseProcessor.TYPE, new UppercaseProcessor.Factory()),
+                entry(LowercaseProcessor.TYPE, new LowercaseProcessor.Factory()),
+                entry(TrimProcessor.TYPE, new TrimProcessor.Factory()),
+                entry(ConvertProcessor.TYPE, new ConvertProcessor.Factory()),
+                entry(GsubProcessor.TYPE, new GsubProcessor.Factory()),
+                entry(FailProcessor.TYPE, new FailProcessor.Factory(parameters.scriptService)),
+                entry(ForEachProcessor.TYPE, new ForEachProcessor.Factory(parameters.scriptService)),
+                entry(DateIndexNameProcessor.TYPE, new DateIndexNameProcessor.Factory(parameters.scriptService)),
+                entry(SortProcessor.TYPE, new SortProcessor.Factory()),
+                entry(GrokProcessor.TYPE, new GrokProcessor.Factory(Grok.BUILTIN_PATTERNS, createGrokThreadWatchdog(parameters))),
+                entry(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService)),
+                entry(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory()),
+                entry(JsonProcessor.TYPE, new JsonProcessor.Factory()),
+                entry(KeyValueProcessor.TYPE, new KeyValueProcessor.Factory(parameters.scriptService)),
+                entry(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory()),
+                entry(BytesProcessor.TYPE, new BytesProcessor.Factory()),
+                entry(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService)),
+                entry(DissectProcessor.TYPE, new DissectProcessor.Factory()),
+                entry(DropProcessor.TYPE, new DropProcessor.Factory()),
+                entry(HtmlStripProcessor.TYPE, new HtmlStripProcessor.Factory()),
+                entry(CsvProcessor.TYPE, new CsvProcessor.Factory()),
+                entry(UriPartsProcessor.TYPE, new UriPartsProcessor.Factory()),
+                entry(NetworkDirectionProcessor.TYPE, new NetworkDirectionProcessor.Factory(parameters.scriptService)),
+                entry(CommunityIdProcessor.TYPE, new CommunityIdProcessor.Factory()),
+                entry(FingerprintProcessor.TYPE, new FingerprintProcessor.Factory()),
+                entry(RegisteredDomainProcessor.TYPE, new RegisteredDomainProcessor.Factory())
+            );
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(GrokProcessorGetAction.INSTANCE, GrokProcessorGetAction.TransportAction.class));
+        return Collections.singletonList(
+                new ActionHandler<>(GrokProcessorGetAction.INSTANCE, GrokProcessorGetAction.TransportAction.class));
     }
 
     @Override
@@ -100,7 +97,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        return Arrays.asList(new GrokProcessorGetAction.RestAction(settings, restController));
+        return Collections.singletonList(new GrokProcessorGetAction.RestAction());
     }
 
     @Override
@@ -108,10 +105,11 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         return Arrays.asList(WATCHDOG_INTERVAL, WATCHDOG_MAX_EXECUTION_TIME);
     }
 
-    private static ThreadWatchdog createGrokThreadWatchdog(Processor.Parameters parameters) {
+    private static MatcherWatchdog createGrokThreadWatchdog(Processor.Parameters parameters) {
         long intervalMillis = WATCHDOG_INTERVAL.get(parameters.env.settings()).getMillis();
         long maxExecutionTimeMillis = WATCHDOG_MAX_EXECUTION_TIME.get(parameters.env.settings()).getMillis();
-        return ThreadWatchdog.newInstance(intervalMillis, maxExecutionTimeMillis, parameters.relativeTimeSupplier, parameters.scheduler);
+        return MatcherWatchdog.newInstance(intervalMillis, maxExecutionTimeMillis,
+            parameters.relativeTimeSupplier, parameters.scheduler::apply);
     }
 
 }

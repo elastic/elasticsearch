@@ -1,20 +1,9 @@
 #
-# Licensed to Elasticsearch under one or more contributor
-# license agreements. See the NOTICE file distributed with
-# this work for additional information regarding copyright
-# ownership. Elasticsearch licenses this file to you under
-# the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
 #
 
 #
@@ -636,7 +625,7 @@ class java.lang.Math {
   double nextDown(double)
   double nextUp(double)
   double pow(double,double)
-  double random()
+  double random() @nondeterministic
   double rint(double)
   long round(double)
   double scalb(double,int)
@@ -729,7 +718,7 @@ class java.lang.StrictMath {
   double nextDown(double)
   double nextUp(double)
   double pow(double,double)
-  double random()
+  double random() @nondeterministic
   double rint(double)
   long round(double)
   double scalb(double,int)
@@ -758,6 +747,8 @@ class java.lang.String {
   String copyValueOf(char[],int,int)
   String org.elasticsearch.painless.api.Augmentation decodeBase64()
   String org.elasticsearch.painless.api.Augmentation encodeBase64()
+  String[] org.elasticsearch.painless.api.Augmentation splitOnToken(String)
+  String[] org.elasticsearch.painless.api.Augmentation splitOnToken(String, int)
   boolean endsWith(String)
   boolean equalsIgnoreCase(String)
   String format(Locale,String,def[])
@@ -842,8 +833,8 @@ class java.lang.StringBuilder {
 
 class java.lang.System {
   void arraycopy(Object,int,Object,int,int)
-  long currentTimeMillis()
-  long nanoTime()
+  long currentTimeMillis() @nondeterministic
+  long nanoTime() @nondeterministic
 }
 
 # Thread: skipped

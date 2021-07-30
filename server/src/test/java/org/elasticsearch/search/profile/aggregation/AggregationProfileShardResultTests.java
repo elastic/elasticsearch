@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the \"License\"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.profile.aggregation;
@@ -31,7 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -57,9 +46,9 @@ public class AggregationProfileShardResultTests extends ESTestCase {
 
         AggregationProfileShardResult parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             XContentParserUtils.ensureFieldName(parser, parser.nextToken(), AggregationProfileShardResult.AGGREGATIONS);
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
             parsed = AggregationProfileShardResult.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
@@ -69,10 +58,13 @@ public class AggregationProfileShardResultTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         List<ProfileResult> profileResults = new ArrayList<>();
-        Map<String, Long> timings = new HashMap<>();
-        timings.put("timing1", 2000L);
-        timings.put("timing2", 4000L);
-        ProfileResult profileResult = new ProfileResult("someType", "someDescription", timings, Collections.emptyList());
+        Map<String, Long> breakdown = new LinkedHashMap<>();
+        breakdown.put("timing1", 2000L);
+        breakdown.put("timing2", 4000L);
+        Map<String, Object> debug = new LinkedHashMap<>();
+        debug.put("stuff", "stuff");
+        debug.put("other_stuff", List.of("foo", "bar"));
+        ProfileResult profileResult = new ProfileResult("someType", "someDescription", breakdown, debug,6000L, Collections.emptyList());
         profileResults.add(profileResult);
         AggregationProfileShardResult aggProfileResults = new AggregationProfileShardResult(profileResults);
         BytesReference xContent = toXContent(aggProfileResults, XContentType.JSON, false);
@@ -80,7 +72,8 @@ public class AggregationProfileShardResultTests extends ESTestCase {
                         + "{\"type\":\"someType\","
                             + "\"description\":\"someDescription\","
                             + "\"time_in_nanos\":6000,"
-                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000}"
+                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
+                            + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
                         + "}"
                    + "]}", xContent.utf8ToString());
 
@@ -90,7 +83,8 @@ public class AggregationProfileShardResultTests extends ESTestCase {
                             + "\"description\":\"someDescription\","
                             + "\"time\":\"6micros\","
                             + "\"time_in_nanos\":6000,"
-                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000}"
+                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
+                            + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
                         + "}"
                    + "]}", xContent.utf8ToString());
     }

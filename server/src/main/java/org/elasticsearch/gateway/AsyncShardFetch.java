@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gateway;
 
@@ -30,8 +19,8 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
@@ -42,11 +31,11 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptySet;
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * Allows to asynchronously fetch shard related data from other nodes for allocation, without blocking
@@ -62,12 +51,13 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * An action that lists the relevant shard data that needs to be fetched.
      */
     public interface Lister<NodesResponse extends BaseNodesResponse<NodeResponse>, NodeResponse extends BaseNodeResponse> {
-        void list(ShardId shardId, DiscoveryNode[] nodes, ActionListener<NodesResponse> listener);
+        void list(ShardId shardId, @Nullable String customDataPath, DiscoveryNode[] nodes, ActionListener<NodesResponse> listener);
     }
 
     protected final Logger logger;
     protected final String type;
     protected final ShardId shardId;
+    protected final String customDataPath;
     private final Lister<BaseNodesResponse<T>, T> action;
     private final Map<String, NodeEntry<T>> cache = new HashMap<>();
     private final Set<String> nodesToIgnore = new HashSet<>();
@@ -75,10 +65,12 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     private boolean closed;
 
     @SuppressWarnings("unchecked")
-    protected AsyncShardFetch(Logger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
+    protected AsyncShardFetch(Logger logger, String type, ShardId shardId, String customDataPath,
+                              Lister<? extends BaseNodesResponse<T>, T> action) {
         this.logger = logger;
         this.type = type;
-        this.shardId = shardId;
+        this.shardId = Objects.requireNonNull(shardId);
+        this.customDataPath = Objects.requireNonNull(customDataPath);
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
     }
 
@@ -152,7 +144,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                     }
                 }
             }
-            Set<String> allIgnoreNodes = unmodifiableSet(new HashSet<>(nodesToIgnore));
+            Set<String> allIgnoreNodes = Set.copyOf(nodesToIgnore);
             // clear the nodes to ignore, we had a successful run in fetching everything we can
             // we need to try them if another full run is needed
             nodesToIgnore.clear();
@@ -233,6 +225,13 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     protected abstract void reroute(ShardId shardId, String reason);
 
     /**
+     * Clear cache for node, ensuring next fetch will fetch a fresh copy.
+     */
+    synchronized void clearCacheForNode(String nodeId) {
+        cache.remove(nodeId);
+    }
+
+    /**
      * Fills the shard fetched data with new (data) nodes and a fresh NodeEntry, and removes from
      * it nodes that are no longer part of the state.
      */
@@ -245,7 +244,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             }
         }
         // remove nodes that are not longer part of the data nodes set
-        shardCache.keySet().removeIf(nodeId -> !nodes.nodeExists(nodeId));
+        shardCache.keySet().removeIf(nodeId -> nodes.nodeExists(nodeId) == false);
     }
 
     /**
@@ -280,7 +279,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     // visible for testing
     void asyncFetch(final DiscoveryNode[] nodes, long fetchingRound) {
         logger.trace("{} fetching [{}] from {}", shardId, type, nodes);
-        action.list(shardId, nodes, new ActionListener<BaseNodesResponse<T>>() {
+        action.list(shardId, customDataPath, nodes, new ActionListener<BaseNodesResponse<T>>() {
             @Override
             public void onResponse(BaseNodesResponse<T> response) {
                 processAsyncFetch(response.getNodes(), response.failures(), fetchingRound);

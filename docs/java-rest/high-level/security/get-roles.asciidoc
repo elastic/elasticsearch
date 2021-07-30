@@ -2,9 +2,9 @@
 --
 :api: get-roles
 :request: GetRolesRequest
-:respnse: GetRolesResponse
+:response: GetRolesResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get Roles API
 

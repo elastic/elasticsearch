@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -14,9 +15,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpResource.ResourcePublishResult;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.wrapMockListener;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_EXISTS;
 import static org.elasticsearch.xpack.monitoring.exporter.http.WatcherExistsHttpResource.XPACK_DOES_NOT_EXIST;
 import static org.hamcrest.Matchers.is;
@@ -35,14 +38,14 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
     private final MultiHttpResource watches = mock(MultiHttpResource.class);
 
     private final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
-    private final Map<String, String> expectedParameters = getParameters(resource.getParameters(), GET_EXISTS, XPACK_DOES_NOT_EXIST);
+    private final Map<String, String> expectedParameters = getParameters(resource.getDefaultParameters(), GET_EXISTS, XPACK_DOES_NOT_EXIST);
 
     public void testDoCheckIgnoresClientWhenNotElectedMaster() {
         whenNotElectedMaster();
 
-        resource.doCheck(client, listener);
+        resource.doCheck(client, wrapMockListener(checkListener));
 
-        verify(listener).onResponse(true);
+        verify(checkListener).onResponse(true);
         verifyZeroInteractions(client);
     }
 
@@ -140,9 +143,9 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
         final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
 
-        resource.doPublish(client, listener);
+        resource.doPublish(client, wrapMockListener(publishListener));
 
-        verifyListener(true);
+        verifyPublishListener(ResourcePublishResult.ready());
 
         assertThat(mockWatch.checked, is(1));
         assertThat(mockWatch.published, is(publish ? 1 : 0));
@@ -153,9 +156,9 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
         final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
 
-        resource.doPublish(client, listener);
+        resource.doPublish(client, wrapMockListener(publishListener));
 
-        verifyListener(false);
+        verifyPublishListener(new ResourcePublishResult(false));
 
         assertThat(mockWatch.checked, is(1));
         assertThat(mockWatch.published, is(1));
@@ -166,16 +169,16 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
         final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
 
-        resource.doPublish(client, listener);
+        resource.doPublish(client, wrapMockListener(publishListener));
 
-        verifyListener(null);
+        verifyPublishListener(null);
 
         assertThat(mockWatch.checked, is(1));
         assertThat(mockWatch.published, is(1));
     }
 
     public void testParameters() {
-        final Map<String, String> parameters = resource.getParameters();
+        final Map<String, String> parameters = resource.getDefaultParameters();
 
         assertThat(parameters.get("filter_path"), is(WatcherExistsHttpResource.WATCHER_CHECK_PARAMETERS.get("filter_path")));
 

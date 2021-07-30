@@ -1,20 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.core.internal.io.Streams;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -53,10 +51,18 @@ public class ClusterAlertsUtil {
             Pattern.compile(Pattern.quote("${monitoring.watch.unique_id}"));
 
     /**
+     * Replace the <code>${monitoring.watch.unique_id}</code> field in the watches.
+     *
+     * @see #createUniqueWatchId(ClusterService, String)
+     */
+    private static final Pattern VERSION_CREATED_PROPERTY =
+        Pattern.compile(Pattern.quote("${monitoring.version_created}"));
+
+    /**
      * The last time that all watches were updated. For now, all watches have been updated in the same version and should all be replaced
      * together.
      */
-    public static final int LAST_UPDATED_VERSION = Version.V_7_0_0.id;
+    public static final int LAST_UPDATED_VERSION = Version.V_7_5_0.id;
 
     /**
      * An unsorted list of Watch IDs representing resource files for Monitoring Cluster Alerts.
@@ -79,7 +85,7 @@ public class ClusterAlertsUtil {
      * @see #WATCH_IDS
      */
     public static String createUniqueWatchId(final ClusterService clusterService, final String watchId) {
-        return createUniqueWatchId(clusterService.state().metaData().clusterUUID(), watchId);
+        return createUniqueWatchId(clusterService.state().metadata().clusterUUID(), watchId);
     }
 
     /**
@@ -107,7 +113,7 @@ public class ClusterAlertsUtil {
         final String resource = String.format(Locale.ROOT, WATCH_FILE, watchId);
 
         try {
-            final String clusterUuid = clusterService.state().metaData().clusterUUID();
+            final String clusterUuid = clusterService.state().metadata().clusterUUID();
             final String uniqueWatchId = createUniqueWatchId(clusterUuid, watchId);
 
             // load the resource as-is
@@ -116,6 +122,7 @@ public class ClusterAlertsUtil {
             source = CLUSTER_UUID_PROPERTY.matcher(source).replaceAll(clusterUuid);
             source = WATCH_ID_PROPERTY.matcher(source).replaceAll(watchId);
             source = UNIQUE_WATCH_ID_PROPERTY.matcher(source).replaceAll(uniqueWatchId);
+            source = VERSION_CREATED_PROPERTY.matcher(source).replaceAll(Integer.toString(LAST_UPDATED_VERSION));
 
             return source;
         } catch (final IOException e) {
@@ -124,13 +131,7 @@ public class ClusterAlertsUtil {
     }
 
     private static BytesReference loadResource(final String resource) throws IOException {
-        try (InputStream is = ClusterAlertsUtil.class.getResourceAsStream(resource)) {
-            try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                Streams.copy(is, out);
-
-                return new BytesArray(out.toByteArray());
-            }
-        }
+        return Streams.readFully(ClusterAlertsUtil.class.getResourceAsStream(resource));
     }
 
     /**
@@ -151,7 +152,7 @@ public class ClusterAlertsUtil {
 
             if (unknownIds.isEmpty() == false) {
                 throw new SettingsException(
-                    "[" + CLUSTER_ALERTS_BLACKLIST_SETTING.getConcreteSettingForNamespace(config.name()).getKey() + 
+                    "[" + CLUSTER_ALERTS_BLACKLIST_SETTING.getConcreteSettingForNamespace(config.name()).getKey() +
                             "] contains unrecognized Cluster Alert IDs [" + String.join(", ", unknownIds) + "]");
             }
         }

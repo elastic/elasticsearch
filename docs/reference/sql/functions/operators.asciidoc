@@ -3,60 +3,65 @@
 [[sql-operators]]
 === Comparison Operators
 
-beta[]
-
 Boolean operator for comparing against one or multiple expressions.
 
-* Equality (`=`)
+[[sql-operators-equality]]
+==== `Equality (=)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereFieldEquality]
 --------------------------------------------------
 
-* Null safe Equality (`<=>`)
+[[sql-operators-null-safe-equality]]
+==== `Null safe Equality (<=>)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[nullEqualsCompareWithNull]
---------------------------------------------------
-
-["source","sql",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[nullEqualsCompareTwoNulls]
+include-tagged::{sql-specs}/docs/docs.csv-spec[nullEqualsCompareWithNull]
 --------------------------------------------------
 
-* Inequality (`<>` or `!=`)
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[nullEqualsCompareTwoNulls]
+--------------------------------------------------
 
-["source","sql",subs="attributes,callouts,macros"]
+[[sql-operators-inequality]]
+==== `Inequality (<> or !=)`
+
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereFieldNonEquality]
 --------------------------------------------------
 
-* Comparison (`<`, `<=`, `>`, `>=`)
+[[sql-operators-comparison]]
+==== `Comparison (<, <=, >, >=)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereFieldLessThan]
 --------------------------------------------------
 
-* `BETWEEN`
+[[sql-operators-between]]
+==== `BETWEEN`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereBetween]
 --------------------------------------------------
 
-* `IS NULL`/`IS NOT NULL`
+[[sql-operators-is-null]]
+==== `IS NULL/IS NOT NULL`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereIsNotNullAndIsNull]
 --------------------------------------------------
 
-* `IN (<value1>, <value2>, ...)`
+[[sql-operators-in]]
+==== `IN (<value1>, <value2>, ...)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereWithInAndMultipleValues]
 --------------------------------------------------
@@ -66,23 +71,26 @@ include-tagged::{sql-specs}/filter.sql-spec[whereWithInAndMultipleValues]
 
 Boolean operator for evaluating one or two expressions.
 
-* `AND`
+[[sql-operators-and]]
+==== `AND`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereFieldAndComparison]
 --------------------------------------------------
 
-* `OR`
+[[sql-operators-or]]
+==== `OR`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereFieldOrComparison]
 --------------------------------------------------
 
-* `NOT`
+[[sql-operators-not]]
+==== `NOT`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereFieldEqualityNot]
 --------------------------------------------------
@@ -93,44 +101,63 @@ include-tagged::{sql-specs}/filter.sql-spec[whereFieldEqualityNot]
 Perform mathematical operations affecting one or two values.
 The result is a value of numeric type.
 
-* Add (`+`)
+[[sql-operators-plus]]
+==== `Add (+)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/arithmetic.sql-spec[plus]
 --------------------------------------------------
 
-* Subtract (infix `-`)
+[[sql-operators-subtract]]
+==== `Subtract (infix -)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/arithmetic.sql-spec[minus]
 --------------------------------------------------
 
-* Negate (unary `-`)
+[[sql-operators-negate]]
+==== `Negate (unary -)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/arithmetic.sql-spec[unaryMinus]
 --------------------------------------------------
 
-* Multiply (`*`)
+[[sql-operators-multiply]]
+==== `Multiply (*)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/arithmetic.sql-spec[multiply]
 --------------------------------------------------
 
-* Divide (`/`)
+[[sql-operators-divide]]
+==== `Divide (/)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/arithmetic.sql-spec[divide]
 --------------------------------------------------
 
-* https://en.wikipedia.org/wiki/Modulo_operation[Modulo] or Reminder(`%`)
+[[sql-operators-remainder]]
+==== `Modulo or Remainder(%)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/arithmetic.sql-spec[mod]
+--------------------------------------------------
+
+[[sql-operators-cast]]
+=== Cast Operators
+
+[[sql-operators-cast-cast]]
+==== `Cast (::)`
+
+`::` provides an alternative syntax to the <<sql-functions-type-conversion-cast>> function.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[conversionStringToLongCastOperator]
 --------------------------------------------------

@@ -1,23 +1,58 @@
 [[cat-master]]
-== cat master
+=== cat master API
+++++
+<titleabbrev>cat master</titleabbrev>
+++++
 
-`master` doesn't have any extra options. It simply displays the
-master's node ID, bound IP address, and node name. For example:
+Returns information about the master node, including the ID, bound IP address,
+and name.
 
-[source,js]
+
+[[cat-master-api-request]]
+==== {api-request-title}
+
+`GET /_cat/master`
+
+[[cat-master-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cat-master-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-master-api-example]]
+==== {api-examples-title}
+
+[source,console]
 --------------------------------------------------
-GET /_cat/master?v
+GET /_cat/master?v=true
 --------------------------------------------------
-// CONSOLE
 
-might respond:
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
 id                     host      ip        node
 YzWoH_2BT-6UjVGDyPdqYg 127.0.0.1 127.0.0.1 YzWoH_2
 --------------------------------------------------
-// TESTRESPONSE[s/YzWoH_2.+/.+/ _cat]
+// TESTRESPONSE[s/YzWoH_2.+/.+/ non_json]
 
 This information is also available via the `nodes` command, but this
 is slightly shorter when all you want to do, for example, is verify

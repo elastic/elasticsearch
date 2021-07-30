@@ -1,37 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.XContentSubParser;
+import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
@@ -41,7 +28,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.util.Collections;
 
 public class GeoUtils {
 
@@ -94,6 +81,7 @@ public class GeoUtils {
         }
         return true;
     }
+
 
     /**
      * Calculate the width (in meters) of geohash cells at a specific level
@@ -310,7 +298,7 @@ public class GeoUtils {
         assert lonLat != null && lonLat.length == 2;
 
         normLat = normLat && (lonLat[1] > 90 || lonLat[1] < -90);
-        normLon = normLon && (lonLat[0] > 180 || lonLat[0] < -180);
+        normLon = normLon && (lonLat[0] > 180 || lonLat[0] < -180 || normLat);
 
         if (normLat) {
             lonLat[1] = centeredModulus(lonLat[1], 360);
@@ -339,7 +327,7 @@ public class GeoUtils {
         }
     }
 
-    private static double centeredModulus(double dividend, double divisor) {
+    public static double centeredModulus(double dividend, double divisor) {
         double rtn = dividend % divisor;
         if (rtn <= 0) {
             rtn += divisor;
@@ -374,21 +362,25 @@ public class GeoUtils {
      * Array: two or more elements, the first element is longitude, the second is latitude, the rest is ignored if ignoreZValue is true
      */
     public static GeoPoint parseGeoPoint(Object value, final boolean ignoreZValue) throws ElasticsearchParseException {
-        try {
-            XContentBuilder content = JsonXContent.contentBuilder();
-            content.startObject();
-            content.field("null_value", value);
-            content.endObject();
+        return parseGeoPoint(value, new GeoPoint(), ignoreZValue);
+    }
 
-            try (InputStream stream = BytesReference.bytes(content).streamInput();
-                 XContentParser parser = JsonXContent.jsonXContent.createParser(
-                     NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-                parser.nextToken(); // start object
-                parser.nextToken(); // field name
-                parser.nextToken(); // field value
-                return parseGeoPoint(parser, new GeoPoint(), ignoreZValue);
-            }
-
+    /**
+     * Parses the value as a geopoint. The following types of values are supported:
+     * <p>
+     * Object: has to contain either lat and lon or geohash fields
+     * <p>
+     * String: expected to be in "latitude, longitude" format or a geohash
+     * <p>
+     * Array: two or more elements, the first element is longitude, the second is latitude, the rest is ignored if ignoreZValue is true
+     */
+    public static GeoPoint parseGeoPoint(Object value, GeoPoint point, final boolean ignoreZValue) throws ElasticsearchParseException {
+        try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+            Collections.singletonMap("null_value", value), null)) {
+            parser.nextToken(); // start object
+            parser.nextToken(); // field name
+            parser.nextToken(); // field value
+            return parseGeoPoint(parser, point, ignoreZValue);
         } catch (IOException ex) {
             throw new ElasticsearchParseException("error parsing geopoint", ex);
         }
@@ -435,56 +427,57 @@ public class GeoUtils {
         NumberFormatException numberFormatException = null;
 
         if(parser.currentToken() == Token.START_OBJECT) {
-            while(parser.nextToken() != Token.END_OBJECT) {
-                if(parser.currentToken() == Token.FIELD_NAME) {
-                    String field = parser.currentName();
-                    if(LATITUDE.equals(field)) {
-                        parser.nextToken();
-                        switch (parser.currentToken()) {
-                            case VALUE_NUMBER:
-                            case VALUE_STRING:
-                                try {
-                                    lat = parser.doubleValue(true);
-                                } catch (NumberFormatException e) {
-                                    numberFormatException = e;
-                                }
-                                break;
-                            default:
-                                throw new ElasticsearchParseException("latitude must be a number");
-                        }
-                    } else if (LONGITUDE.equals(field)) {
-                        parser.nextToken();
-                        switch (parser.currentToken()) {
-                            case VALUE_NUMBER:
-                            case VALUE_STRING:
-                                try {
-                                    lon = parser.doubleValue(true);
-                                } catch (NumberFormatException e) {
-                                    numberFormatException = e;
-                                }
-                                break;
-                            default:
-                                throw new ElasticsearchParseException("longitude must be a number");
-                        }
-                    } else if (GEOHASH.equals(field)) {
-                        if(parser.nextToken() == Token.VALUE_STRING) {
-                            geohash = parser.text();
+            try (XContentSubParser subParser = new XContentSubParser(parser)) {
+                while (subParser.nextToken() != Token.END_OBJECT) {
+                    if (subParser.currentToken() == Token.FIELD_NAME) {
+                        String field = subParser.currentName();
+                        if (LATITUDE.equals(field)) {
+                            subParser.nextToken();
+                            switch (subParser.currentToken()) {
+                                case VALUE_NUMBER:
+                                case VALUE_STRING:
+                                    try {
+                                        lat = subParser.doubleValue(true);
+                                    } catch (NumberFormatException e) {
+                                        numberFormatException = e;
+                                    }
+                                    break;
+                                default:
+                                    throw new ElasticsearchParseException("latitude must be a number");
+                            }
+                        } else if (LONGITUDE.equals(field)) {
+                            subParser.nextToken();
+                            switch (subParser.currentToken()) {
+                                case VALUE_NUMBER:
+                                case VALUE_STRING:
+                                    try {
+                                        lon = subParser.doubleValue(true);
+                                    } catch (NumberFormatException e) {
+                                        numberFormatException = e;
+                                    }
+                                    break;
+                                default:
+                                    throw new ElasticsearchParseException("longitude must be a number");
+                            }
+                        } else if (GEOHASH.equals(field)) {
+                            if (subParser.nextToken() == Token.VALUE_STRING) {
+                                geohash = subParser.text();
+                            } else {
+                                throw new ElasticsearchParseException("geohash must be a string");
+                            }
                         } else {
-                            throw new ElasticsearchParseException("geohash must be a string");
+                            throw new ElasticsearchParseException("field must be either [{}], [{}] or [{}]", LATITUDE, LONGITUDE, GEOHASH);
                         }
                     } else {
-                        throw new ElasticsearchParseException("field must be either [{}], [{}] or [{}]", LATITUDE, LONGITUDE, GEOHASH);
+                        throw new ElasticsearchParseException("token [{}] not allowed", subParser.currentToken());
                     }
-                } else {
-                    throw new ElasticsearchParseException("token [{}] not allowed", parser.currentToken());
                 }
             }
-
             if (geohash != null) {
-                if(!Double.isNaN(lat) || !Double.isNaN(lon)) {
+                if(Double.isNaN(lat) == false || Double.isNaN(lon) == false) {
                     throw new ElasticsearchParseException("field must be either lat/lon or geohash");
                 } else {
-                    return parseGeoHash(point, geohash, effectivePoint);
+                    return point.parseGeoHash(geohash, effectivePoint);
                 }
             } else if (numberFormatException != null) {
                 throw new ElasticsearchParseException("[{}] and [{}] must be valid double values", numberFormatException, LATITUDE,
@@ -498,51 +491,48 @@ public class GeoUtils {
             }
 
         } else if(parser.currentToken() == Token.START_ARRAY) {
-            int element = 0;
-            while(parser.nextToken() != Token.END_ARRAY) {
-                if(parser.currentToken() == Token.VALUE_NUMBER) {
-                    element++;
-                    if(element == 1) {
-                        lon = parser.doubleValue();
-                    } else if(element == 2) {
-                        lat = parser.doubleValue();
+            try (XContentSubParser subParser = new XContentSubParser(parser)) {
+                int element = 0;
+                while (subParser.nextToken() != Token.END_ARRAY) {
+                    if (subParser.currentToken() == Token.VALUE_NUMBER) {
+                        element++;
+                        if (element == 1) {
+                            lon = subParser.doubleValue();
+                        } else if (element == 2) {
+                            lat = subParser.doubleValue();
+                        } else if (element == 3) {
+                            GeoPoint.assertZValue(ignoreZValue, subParser.doubleValue());
+                        } else {
+                            throw new ElasticsearchParseException("[geo_point] field type does not accept > 3 dimensions");
+                        }
                     } else {
-                        GeoPoint.assertZValue(ignoreZValue, parser.doubleValue());
+                        throw new ElasticsearchParseException("numeric value expected");
                     }
-                } else {
-                    throw new ElasticsearchParseException("numeric value expected");
                 }
             }
             return point.reset(lat, lon);
         } else if(parser.currentToken() == Token.VALUE_STRING) {
             String val = parser.text();
-            if (val.contains(",")) {
-                return point.resetFromString(val, ignoreZValue);
-            } else {
-                return parseGeoHash(point, val, effectivePoint);
-            }
-
+            return point.resetFromString(val, ignoreZValue, effectivePoint);
         } else {
             throw new ElasticsearchParseException("geo_point expected");
         }
     }
 
-    private static GeoPoint parseGeoHash(GeoPoint point, String geohash, EffectivePoint effectivePoint) {
-        if (effectivePoint == EffectivePoint.BOTTOM_LEFT) {
-            return point.resetFromGeoHash(geohash);
-        } else {
-            Rectangle rectangle = GeoHashUtils.bbox(geohash);
-            switch (effectivePoint) {
-                case TOP_LEFT:
-                    return point.reset(rectangle.maxLat, rectangle.minLon);
-                case TOP_RIGHT:
-                    return point.reset(rectangle.maxLat, rectangle.maxLon);
-                case BOTTOM_RIGHT:
-                    return point.reset(rectangle.minLat, rectangle.maxLon);
-                default:
-                    throw new IllegalArgumentException("Unsupported effective point " + effectivePoint);
-            }
-        }
+    /**
+     * Parse a {@link GeoPoint} from a string. The string must have one of the following forms:
+     *
+     * <ul>
+     *     <li>Latitude, Longitude form: <pre>&quot;<i>&lt;latitude&gt;</i>,<i>&lt;longitude&gt;</i>&quot;</pre></li>
+     *     <li>Geohash form:: <pre>&quot;<i>&lt;geohash&gt;</i>&quot;</pre></li>
+     * </ul>
+     *
+     * @param val a String to parse the value from
+     * @return new parsed {@link GeoPoint}
+     */
+    public static GeoPoint parseFromString(String val) {
+        GeoPoint point = new GeoPoint();
+        return point.resetFromString(val, false, EffectivePoint.BOTTOM_LEFT);
     }
 
     /**
@@ -612,17 +602,6 @@ public class GeoUtils {
         double x = (lon2 - lon1) * SloppyMath.TO_RADIANS * Math.cos((lat2 + lat1) / 2.0 * SloppyMath.TO_RADIANS);
         double y = (lat2 - lat1) * SloppyMath.TO_RADIANS;
         return Math.sqrt(x * x + y * y) * EARTH_MEAN_RADIUS;
-    }
-
-    /** check if point is within a rectangle
-     * todo: move this to lucene Rectangle class
-     */
-    public static boolean rectangleContainsPoint(Rectangle r, double lat, double lon) {
-        if (lat >= r.minLat && lat <= r.maxLat) {
-            // if rectangle crosses the dateline we only check if the lon is >= min or max
-            return r.crossesDateline() ? lon >= r.minLon || lon <= r.maxLon : lon >= r.minLon && lon <= r.maxLon;
-        }
-        return false;
     }
 
     /**

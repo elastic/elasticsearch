@@ -26,9 +26,9 @@ this scenario:
 * The master rebalances the cluster by allocating shards to Node 5.
 
 If the master had just waited for a few minutes, then the missing shards could
-have been re-allocated to Node 5 with the minimum of network traffic.  This
+have been re-allocated to Node 5 with the minimum of network traffic. This
 process would be even quicker for idle shards (shards not receiving indexing
-requests) which have been automatically <<indices-synced-flush,sync-flushed>>.
+requests) which have been automatically <<indices-flush, flushed>>.
 
 The allocation of replica shards which become unassigned because a node has
 left can be delayed with the `index.unassigned.node_left.delayed_timeout`
@@ -36,7 +36,7 @@ dynamic setting, which defaults to `1m`.
 
 This setting can be updated on a live index (or on all indices):
 
-[source,js]
+[source,console]
 ------------------------------
 PUT _all/_settings
 {
@@ -45,7 +45,6 @@ PUT _all/_settings
   }
 }
 ------------------------------
-// CONSOLE
 // TEST[s/^/PUT test\n/]
 
 With delayed allocation enabled, the above scenario changes to look like this:
@@ -66,7 +65,7 @@ Also, in case of a master failover situation, elapsed delay time is forgotten
 ==== Cancellation of shard relocation
 
 If delayed allocation times out, the master assigns the missing shards to
-another node which will start recovery.  If the missing node rejoins the
+another node which will start recovery. If the missing node rejoins the
 cluster, and its shards still have the same sync-id as the primary, shard
 relocation will be cancelled and the synced shard will be used for recovery
 instead.
@@ -79,11 +78,11 @@ relocation begins, cancelling recovery in favour of the synced shard is cheap.
 The number of shards whose allocation has been delayed by this timeout setting
 can be viewed with the <<cluster-health,cluster health API>>:
 
-[source,js]
+[source,console]
 ------------------------------
 GET _cluster/health <1>
 ------------------------------
-// CONSOLE
+
 <1> This request will return a `delayed_unassigned_shards` value.
 
 ==== Removing a node permanently
@@ -92,7 +91,7 @@ If a node is not going to return and you would like Elasticsearch to allocate
 the missing shards immediately, just update the timeout to zero:
 
 
-[source,js]
+[source,console]
 ------------------------------
 PUT _all/_settings
 {
@@ -101,7 +100,6 @@ PUT _all/_settings
   }
 }
 ------------------------------
-// CONSOLE
 // TEST[s/^/PUT test\n/]
 
 You can reset the timeout as soon as the missing shards have started to recover.

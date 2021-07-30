@@ -2,9 +2,17 @@ ccruser:
   cluster:
     - manage_ccr
   indices:
-    - names: [ 'allowed-index', 'logs-eu-*' ]
+    - names: [ 'allowed-index', 'forget-follower', 'logs-eu*' ]
       privileges:
         - monitor
         - read
         - write
+        - manage_follow_index
+        - view_index_metadata
+    - names: [ 'clean-follower' ]
+      privileges:
+        - monitor
+        - read
+        - write
+        - delete_index
         - manage_follow_index

@@ -1,33 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -79,7 +68,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
         this(true, task, null, XContentHelper.toXContent(response, Requests.INDEX_CONTENT_TYPE, true));
     }
 
-    private TaskResult(boolean completed, TaskInfo task, @Nullable BytesReference error, @Nullable BytesReference result) {
+    public TaskResult(boolean completed, TaskInfo task, @Nullable BytesReference error, @Nullable BytesReference result) {
         this.completed = completed;
         this.task = requireNonNull(task, "task is required");
         this.error = error;
@@ -174,21 +163,17 @@ public final class TaskResult implements Writeable, ToXContentObject {
         return builder;
     }
 
-    public static final ConstructingObjectParser<TaskResult, Void> PARSER = new ConstructingObjectParser<>(
-            "stored_task_result", a -> {
-                int i = 0;
-                boolean completed = (boolean) a[i++];
-                TaskInfo task = (TaskInfo) a[i++];
-                BytesReference error = (BytesReference) a[i++];
-                BytesReference response = (BytesReference) a[i++];
-                return new TaskResult(completed, task, error, response);
-            });
+    public static final InstantiatingObjectParser<TaskResult, Void> PARSER;
+
     static {
-        PARSER.declareBoolean(constructorArg(), new ParseField("completed"));
-        PARSER.declareObject(constructorArg(), TaskInfo.PARSER, new ParseField("task"));
+        InstantiatingObjectParser.Builder<TaskResult, Void> parser = InstantiatingObjectParser.builder(
+            "stored_task_result", true, TaskResult.class);
+        parser.declareBoolean(constructorArg(), new ParseField("completed"));
+        parser.declareObject(constructorArg(), TaskInfo.PARSER, new ParseField("task"));
         ObjectParserHelper<TaskResult, Void> parserHelper = new ObjectParserHelper<>();
-        parserHelper.declareRawObject(PARSER, optionalConstructorArg(), new ParseField("error"));
-        parserHelper.declareRawObject(PARSER, optionalConstructorArg(), new ParseField("response"));
+        parserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("error"));
+        parserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("response"));
+        PARSER = parser.build();
     }
 
     @Override

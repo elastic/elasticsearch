@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringStringProcessor.BinaryStringStringOperation;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.function.BiFunction;
 
@@ -19,8 +20,8 @@ import java.util.function.BiFunction;
  */
 public class Position extends BinaryStringStringFunction {
 
-    public Position(Location location, Expression left, Expression right) {
-        super(location, left, right);
+    public Position(Source source, Expression left, Expression right) {
+        super(source, left, right);
     }
 
     @Override
@@ -30,12 +31,12 @@ public class Position extends BinaryStringStringFunction {
 
     @Override
     protected Position replaceChildren(Expression newLeft, Expression newRight) {
-        return new Position(location(), newLeft, newRight);
+        return new Position(source(), newLeft, newRight);
     }
 
     @Override
     protected Pipe makePipe() {
-        return new BinaryStringStringPipe(location(), this,
+        return new BinaryStringStringPipe(source(), this,
                 Expressions.pipe(left()),
                 Expressions.pipe(right()),
                 BinaryStringStringOperation.POSITION);

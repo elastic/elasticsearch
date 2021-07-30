@@ -1,24 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -31,9 +20,14 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+
 public class GetWatchResponse {
     private final String id;
     private final long version;
+    private final long seqNo;
+    private final long primaryTerm;
     private final WatchStatus status;
 
     private final BytesReference source;
@@ -43,15 +37,18 @@ public class GetWatchResponse {
      * Ctor for missing watch
      */
     public GetWatchResponse(String id) {
-        this(id, Versions.NOT_FOUND, null, null, null);
+        this(id, Versions.NOT_FOUND, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, null, null, null);
     }
 
-    public GetWatchResponse(String id, long version, WatchStatus status, BytesReference source, XContentType xContentType) {
+    public GetWatchResponse(String id, long version, long seqNo, long primaryTerm, WatchStatus status,
+                            BytesReference source, XContentType xContentType) {
         this.id = id;
         this.version = version;
         this.status = status;
         this.source = source;
         this.xContentType = xContentType;
+        this.seqNo = seqNo;
+        this.primaryTerm = primaryTerm;
     }
 
     public String getId() {
@@ -60,6 +57,14 @@ public class GetWatchResponse {
 
     public long getVersion() {
         return version;
+    }
+
+    public long getSeqNo() {
+        return seqNo;
+    }
+
+    public long getPrimaryTerm() {
+        return primaryTerm;
     }
 
     public boolean isFound() {
@@ -111,17 +116,20 @@ public class GetWatchResponse {
     private static final ParseField ID_FIELD = new ParseField("_id");
     private static final ParseField FOUND_FIELD = new ParseField("found");
     private static final ParseField VERSION_FIELD = new ParseField("_version");
+    private static final ParseField SEQ_NO_FIELD = new ParseField("_seq_no");
+    private static final ParseField PRIMARY_TERM_FIELD = new ParseField("_primary_term");
     private static final ParseField STATUS_FIELD = new ParseField("status");
     private static final ParseField WATCH_FIELD = new ParseField("watch");
 
-    private static ConstructingObjectParser<GetWatchResponse, Void> PARSER =
+    private static final ConstructingObjectParser<GetWatchResponse, Void> PARSER =
         new ConstructingObjectParser<>("get_watch_response", true,
             a -> {
                 boolean isFound = (boolean) a[1];
                 if (isFound) {
-                    XContentBuilder builder = (XContentBuilder) a[4];
+                    XContentBuilder builder = (XContentBuilder) a[6];
                     BytesReference source = BytesReference.bytes(builder);
-                    return new GetWatchResponse((String) a[0], (long) a[2], (WatchStatus) a[3], source, builder.contentType());
+                    return new GetWatchResponse((String) a[0], (long) a[2], (long) a[3], (long) a[4], (WatchStatus) a[5],
+                        source, builder.contentType());
                 } else {
                     return new GetWatchResponse((String) a[0]);
                 }
@@ -131,6 +139,8 @@ public class GetWatchResponse {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), FOUND_FIELD);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), VERSION_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), SEQ_NO_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), PRIMARY_TERM_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
             (parser, context) -> WatchStatus.parse(parser), STATUS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),

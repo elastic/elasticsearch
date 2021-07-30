@@ -28,6 +28,8 @@ On Linux systems, you can disable swap temporarily by running:
 sudo swapoff -a
 --------------
 
+This doesn't require a restart of Elasticsearch.
+
 To disable it permanently, you will need to edit the `/etc/fstab` file and
 comment out any lines that contain the word `swap`.
 
@@ -50,8 +52,14 @@ http://opengroup.org/onlinepubs/007908799/xsh/mlockall.html[mlockall] on
 Linux/Unix systems, or
 https://msdn.microsoft.com/en-us/library/windows/desktop/aa366895%28v=vs.85%29.aspx[VirtualLock]
 on Windows, to try to lock the process address space into RAM, preventing any
-Elasticsearch memory from being swapped out. This can be done, by adding this
-line to the `config/elasticsearch.yml` file:
+{es} heap memory from being swapped out.
+
+NOTE: Some platforms still swap off-heap memory when using a memory lock. To
+prevent off-heap memory swaps, <<disable-swap-files,disable all swap files>>
+instead.
+
+To enable a memory lock, set `bootstrap.memory_lock` to `true` in
+`elasticsearch.yml`:
 
 [source,yaml]
 --------------
@@ -65,33 +73,31 @@ After starting Elasticsearch, you can see whether this setting was applied
 successfully by checking the value of `mlockall` in the output from this
 request:
 
-[source,js]
+[source,console]
 --------------
 GET _nodes?filter_path=**.mlockall
 --------------
-// CONSOLE
 
 If you see that `mlockall` is `false`, then it means that the `mlockall`
-request has failed.  You will also see a line with more information in the logs
+request has failed. You will also see a line with more information in the logs
 with the words `Unable to lock JVM Memory`.
 
 The most probable reason, on Linux/Unix systems, is that the user running
-Elasticsearch doesn't have permission to lock memory.  This can be granted as
+Elasticsearch doesn't have permission to lock memory. This can be granted as
 follows:
 
 `.zip` and `.tar.gz`::
-
-  Set <<ulimit,`ulimit -l unlimited`>> as root before starting Elasticsearch,
-  or set `memlock` to `unlimited` in
-  <<limits.conf,`/etc/security/limits.conf`>>.
+Set <<ulimit,`ulimit -l unlimited`>> as root before starting {es}.
+Alternatively, set `memlock` to `unlimited` in `/etc/security/limits.conf`:
++
+[source,sh]
+----
+# allow user 'elasticsearch' mlockall
+elasticsearch soft memlock unlimited
+elasticsearch hard memlock unlimited
+----
 
 RPM and Debian::
-
-  Set `MAX_LOCKED_MEMORY` to `unlimited` in the
-  <<sysconfig,system configuration file>> (or see below for systems using
-  `systemd`).
-
-Systems using `systemd`::
 
   Set `LimitMEMLOCK` to `infinity` in the <<systemd,systemd configuration>>.
 

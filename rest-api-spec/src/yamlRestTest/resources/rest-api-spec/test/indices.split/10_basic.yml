@@ -1,0 +1,207 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: source
+        wait_for_active_shards: 1
+        body:
+          settings:
+            index.number_of_shards: 2
+            index.number_of_replicas: 0
+            index.number_of_routing_shards: 4
+  - do:
+      index:
+        index: source
+        id:    "1"
+        body:  { "foo": "hello world" }
+
+  - do:
+      index:
+        index: source
+        id:    "2"
+        body:  { "foo": "hello world 2" }
+
+  - do:
+      index:
+        index: source
+        id:    "3"
+        body:  { "foo": "hello world 3" }
+
+---
+"Split index via API":
+  # make it read-only
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+          index.number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: source
+
+  # now we do the actual split
+  - do:
+      indices.split:
+        index: "source"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 4
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      get:
+        index: target
+        id:    "1"
+
+  - match: { _index:   target }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+
+  - do:
+      get:
+        index: target
+        id:    "2"
+
+  - match: { _index:   target }
+  - match: { _id:      "2"     }
+  - match: { _source:  { foo: "hello world 2" } }
+
+
+  - do:
+      get:
+        index: target
+        id:    "3"
+
+  - match: { _index:   target }
+  - match: { _id:      "3"     }
+  - match: { _source:  { foo: "hello world 3" } }
+
+
+---
+"Split from 1 to N":
+  - skip:
+      version: " - 6.99.99"
+      reason: automatic preparation for splitting was added in 7.0.0
+  - do:
+      indices.create:
+        index: source_one_shard
+        wait_for_active_shards: 1
+        body:
+          settings:
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+  - do:
+      index:
+        index: source_one_shard
+        id:    "1"
+        body:  { "foo": "hello world" }
+
+  - do:
+      index:
+        index: source_one_shard
+        id:    "2"
+        body:  { "foo": "hello world 2" }
+
+  - do:
+      index:
+        index: source_one_shard
+        id:    "3"
+        body:  { "foo": "hello world 3" }
+
+  # make it read-only
+  - do:
+      indices.put_settings:
+        index: source_one_shard
+        body:
+          index.blocks.write: true
+          index.number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: source_one_shard
+
+  # now we do the actual split from 1 to 5
+  - do:
+      indices.split:
+        index: "source_one_shard"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 5
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      get:
+        index: target
+        id:    "1"
+
+  - match: { _index:   target }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+
+  - do:
+      get:
+        index: target
+        id:    "2"
+
+  - match: { _index:   target }
+  - match: { _id:      "2"     }
+  - match: { _source:  { foo: "hello world 2" } }
+
+
+  - do:
+      get:
+        index: target
+        id:    "3"
+
+  - match: { _index:   target }
+  - match: { _id:      "3"     }
+  - match: { _source:  { foo: "hello world 3" } }
+
+---
+"Create illegal split indices":
+  # try to do an illegal split with number_of_routing_shards set
+  - do:
+      catch: /illegal_argument_exception/
+      indices.split:
+        index: "source"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 4
+            index.number_of_routing_shards: 8
+
+  # try to do an illegal split with illegal number_of_shards
+  - do:
+      catch: /illegal_state_exception/
+      indices.split:
+        index: "source"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 6

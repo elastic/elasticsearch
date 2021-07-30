@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -32,7 +21,6 @@ import java.util.function.Function;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasIndex;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasType;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -43,14 +31,13 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTestCase {
 
-    @SuppressWarnings("unchecked")
     public void testGlobalPipelineOnBulkRequest() throws IOException {
         createFieldAddingPipleine("xyz", "fieldNameXYZ", "valueXYZ");
 
         BulkRequest request = new BulkRequest();
-        request.add(new IndexRequest("test", "doc", "1")
+        request.add(new IndexRequest("test").id("1")
             .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest("test", "doc", "2")
+        request.add(new IndexRequest("test").id("2")
             .source(XContentType.JSON, "field", "bulk2"));
         request.pipeline("xyz");
 
@@ -67,10 +54,10 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
 
         BulkRequest request = new BulkRequest();
         request.pipeline("globalId");
-        request.add(new IndexRequest("test", "doc", "1")
+        request.add(new IndexRequest("test").id("1")
             .source(XContentType.JSON, "field", "bulk1")
             .setPipeline("perIndexId"));
-        request.add(new IndexRequest("test", "doc", "2")
+        request.add(new IndexRequest("test").id("2")
             .source(XContentType.JSON, "field", "bulk2")
             .setPipeline("perIndexId"));
 
@@ -82,7 +69,6 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         assertThat(hits, everyItem(hasProperty(fieldFromSource("fieldXYZ"), nullValue())));
     }
 
-    @SuppressWarnings("unchecked")
     public void testMixPipelineOnRequestAndGlobal() throws IOException {
         createFieldAddingPipleine("globalId", "fieldXYZ", "valueXYZ");
         createFieldAddingPipleine("perIndexId", "someNewField", "someValue");
@@ -91,11 +77,11 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         BulkRequest request = new BulkRequest();
         request.pipeline("globalId");
 
-        request.add(new IndexRequest("test", "doc", "1")
+        request.add(new IndexRequest("test").id("1")
             .source(XContentType.JSON, "field", "bulk1")
             .setPipeline("perIndexId")); // <1>
 
-        request.add(new IndexRequest("test", "doc", "2")
+        request.add(new IndexRequest("test").id("2")
             .source(XContentType.JSON, "field", "bulk2")); // <2>
         // end::bulk-request-mix-pipeline
         bulk(request);
@@ -109,10 +95,10 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
     }
 
     public void testGlobalIndex() throws IOException {
-        BulkRequest request = new BulkRequest("global_index", null);
-        request.add(new IndexRequest().type("doc").id("1")
+        BulkRequest request = new BulkRequest("global_index");
+        request.add(new IndexRequest().id("1")
             .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest().type("doc").id("2")
+        request.add(new IndexRequest().id("2")
             .source(XContentType.JSON, "field", "bulk2"));
 
         bulk(request);
@@ -123,10 +109,10 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
 
     @SuppressWarnings("unchecked")
     public void testIndexGlobalAndPerRequest() throws IOException {
-        BulkRequest request = new BulkRequest("global_index", null);
-        request.add(new IndexRequest("local_index", "doc", "1")
+        BulkRequest request = new BulkRequest("global_index");
+        request.add(new IndexRequest("local_index").id("1")
             .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest().type("doc").id("2") // will take global index
+        request.add(new IndexRequest().id("2") // will take global index
             .source(XContentType.JSON, "field", "bulk2"));
 
         bulk(request);
@@ -139,48 +125,16 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
                 .and(hasIndex("global_index"))));
     }
 
-    public void testGlobalType() throws IOException {
-        BulkRequest request = new BulkRequest(null, "global_type");
+    public void testGlobalRouting() throws IOException {
+        createIndexWithMultipleShards("index");
+        BulkRequest request = new BulkRequest((String) null);
         request.add(new IndexRequest("index").id("1")
             .source(XContentType.JSON, "field", "bulk1"));
         request.add(new IndexRequest("index").id("2")
-            .source(XContentType.JSON, "field", "bulk2"));
-
-        bulk(request);
-
-        Iterable<SearchHit> hits = searchAll("index");
-        assertThat(hits, everyItem(hasType("global_type")));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testTypeGlobalAndPerRequest() throws IOException {
-        BulkRequest request = new BulkRequest(null, "global_type");
-        request.add(new IndexRequest("index1", "local_type", "1")
-            .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest("index2").id("2") // will take global type
-            .source(XContentType.JSON, "field", "bulk2"));
-
-        bulk(request);
-
-        Iterable<SearchHit> hits = searchAll("index1", "index2");
-        assertThat(hits, containsInAnyOrder(
-            both(hasId("1"))
-                .and(hasType("local_type")),
-            both(hasId("2"))
-                .and(hasType("global_type"))));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testGlobalRouting() throws IOException {
-        createIndexWithMultipleShards("index");
-        BulkRequest request = new BulkRequest(null, null);
-        request.add(new IndexRequest("index", "type", "1")
-            .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest("index", "type", "2")
             .source(XContentType.JSON, "field", "bulk1"));
         request.routing("1");
         bulk(request);
-        
+
         Iterable<SearchHit> emptyHits = searchAll(new SearchRequest("index").routing("xxx"));
         assertThat(emptyHits, is(emptyIterable()));
 
@@ -188,13 +142,12 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         assertThat(hits, containsInAnyOrder(hasId("1"), hasId("2")));
     }
 
-    @SuppressWarnings("unchecked")
     public void testMixLocalAndGlobalRouting() throws IOException {
-        BulkRequest request = new BulkRequest(null, null);
+        BulkRequest request = new BulkRequest((String) null);
         request.routing("globalRouting");
-        request.add(new IndexRequest("index", "type", "1")
+        request.add(new IndexRequest("index").id("1")
             .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest("index", "type", "2")
+        request.add(new IndexRequest("index").id( "2")
             .routing("localRouting")
             .source(XContentType.JSON, "field", "bulk1"));
 
@@ -205,7 +158,7 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
     }
 
     private BulkResponse bulk(BulkRequest request) throws IOException {
-        BulkResponse bulkResponse = execute(request, highLevelClient()::bulk, highLevelClient()::bulkAsync);
+        BulkResponse bulkResponse = execute(request, highLevelClient()::bulk, highLevelClient()::bulkAsync, RequestOptions.DEFAULT);
         assertFalse(bulkResponse.hasFailures());
         return bulkResponse;
     }

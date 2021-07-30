@@ -1,0 +1,36 @@
+--
+:api: slm-start-slm
+:request: StartSLMRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Start Snapshot Lifecycle Management API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Start Snapshot Lifecycle Management API allows you to start Snapshot
+Lifecycle Management if it has previously been stopped.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the request to start Snapshot Lifecycle
+Management was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the request to start Snapshot Lifecycle Management was
+acknowledged.
+
+include::../execution.asciidoc[]

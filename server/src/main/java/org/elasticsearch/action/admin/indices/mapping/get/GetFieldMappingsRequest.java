@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -28,46 +18,48 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 
-/** Request the mappings of specific fields */
+/**
+ * Request the mappings of specific fields
+ *
+ * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
+ * Any changes done to this class should go to that client class as well.
+ */
 public class GetFieldMappingsRequest extends ActionRequest implements IndicesRequest.Replaceable {
-
-    protected boolean local = false;
 
     private String[] fields = Strings.EMPTY_ARRAY;
 
     private boolean includeDefaults = false;
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    private String[] types = Strings.EMPTY_ARRAY;
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-    public GetFieldMappingsRequest() {
+    public GetFieldMappingsRequest() {}
 
-    }
+    public GetFieldMappingsRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String[] types = in.readStringArray();
+            if (types != Strings.EMPTY_ARRAY) {
+                throw new IllegalArgumentException("Expected empty type array but received [" + Arrays.toString(types) + "]");
+            }
 
-    /**
-     * Indicate whether the receiving node should operate based on local index information or forward requests,
-     * where needed, to other nodes. If running locally, request will not raise errors if running locally &amp; missing indices.
-     */
-    public GetFieldMappingsRequest local(boolean local) {
-        this.local = local;
-        return this;
-    }
-
-    public boolean local() {
-        return local;
+        }
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        // Consume the deprecated local parameter
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readBoolean();
+        }
+        fields = in.readStringArray();
+        includeDefaults = in.readBoolean();
     }
 
     @Override
     public GetFieldMappingsRequest indices(String... indices) {
         this.indices = indices;
-        return this;
-    }
-
-    public GetFieldMappingsRequest types(String... types) {
-        this.types = types;
         return this;
     }
 
@@ -81,13 +73,14 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
         return indices;
     }
 
-    public String[] types() {
-        return types;
-    }
-
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     /** @param fields a list of fields to retrieve the mapping for */
@@ -119,21 +112,14 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
-        out.writeStringArray(types);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
         indicesOptions.writeIndicesOptions(out);
-        out.writeBoolean(local);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeBoolean(true);
+        }
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        types = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        local = in.readBoolean();
-        fields = in.readStringArray();
-        includeDefaults = in.readBoolean();
     }
 }

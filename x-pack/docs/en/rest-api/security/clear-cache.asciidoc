@@ -1,59 +1,78 @@
 [role="xpack"]
 [[security-api-clear-cache]]
-=== Clear Cache API
+=== Clear cache API
+++++
+<titleabbrev>Clear cache</titleabbrev>
+++++
 
-The Clear Cache API evicts users from the user cache. You can completely clear
+Evicts users from the user cache. You can completely clear
 the cache or evict specific users.
 
-==== Request
+[[security-api-clear-request]]
+==== {api-request-title}
 
 `POST /_security/realm/<realms>/_clear_cache` +
 
 `POST /_security/realm/<realms>/_clear_cache?usernames=<usernames>`
 
 
-==== Description
+[[security-api-clear-desc]]
+==== {api-description-title}
 
 User credentials are cached in memory on each node to avoid connecting to a
 remote authentication service or hitting the disk for every incoming request.
 There are realm settings that you can use to configure the user cache. For more
-information, see {xpack-ref}/controlling-user-cache.html[Controlling the User Cache].
+information, see
+<<controlling-user-cache>>.
 
-To evict roles from the role cache, see the 
-<<security-api-clear-role-cache,Clear Roles Cache API>>.
+To evict roles from the role cache, see the
+<<security-api-clear-role-cache,Clear roles cache API>>.
+To evict privileges from the privilege cache, see the
+<<security-api-clear-privilege-cache,Clear privileges cache API>>.
+To evict API keys from the API key cache, see the
+<<security-api-clear-api-key-cache,Clear API key cache API>>.
 
-==== Path Parameters
+[[security-api-clear-path-params]]
+==== {api-path-parms-title}
 
-`realms` (required)::
-  (list) A comma-separated list of the realms to clear.
+`<realms>`::
+(Required, string)
+Comma-separated list of realms to clear. To clear all realms, use `*`. Does not
+support other wildcard patterns.
 
 `usernames`::
-  (list) A comma-separated list of the users to clear from the cache. If you
-  do not specify this parameter, the API evicts all users from the user cache.
+  (Optional, list) A comma-separated list of the users to clear from the cache.
+  If you do not specify this parameter, the API evicts all users from the user
+  cache.
 
-==== Examples
+[[security-api-clear-example]]
+==== {api-examples-title}
 
 For example, to evict all users cached by the `file` realm:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/realm/default_file/_clear_cache
 --------------------------------------------------
-// CONSOLE
 
 To evict selected users, specify the `usernames` parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/realm/default_file/_clear_cache?usernames=rdeniro,alpacino
 --------------------------------------------------
-// CONSOLE
 
 To clear the caches for multiple realms, specify the realms as a comma-delimited
 list:
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/realm/default_file,ldap1/_clear_cache
 ------------------------------------------------------------
-// CONSOLE
+
+To clear the caches for all realms, use `*`.
+
+[source,console]
+----
+POST /_security/realm/*/_clear_cache
+----

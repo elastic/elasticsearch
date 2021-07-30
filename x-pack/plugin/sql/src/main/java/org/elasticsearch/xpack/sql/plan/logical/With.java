@@ -1,21 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical;
+
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Map;
 import java.util.Objects;
 
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-
 public class With extends UnaryPlan {
     private final Map<String, SubQueryAlias> subQueries;
 
-    public With(Location location, LogicalPlan child, Map<String, SubQueryAlias> subQueries) {
-        super(location, child);
+    public With(Source source, LogicalPlan child, Map<String, SubQueryAlias> subQueries) {
+        super(source, child);
         this.subQueries = subQueries;
     }
 
@@ -26,7 +29,7 @@ public class With extends UnaryPlan {
 
     @Override
     protected With replaceChild(LogicalPlan newChild) {
-        return new With(location(), newChild, subQueries);
+        return new With(source(), newChild, subQueries);
     }
 
     public Map<String, SubQueryAlias> subQueries() {
@@ -45,7 +48,7 @@ public class With extends UnaryPlan {
 
     @Override
     public boolean equals(Object obj) {
-        if (!super.equals(obj)) {
+        if (super.equals(obj) == false) {
             return false;
         }
 

@@ -1,25 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transform.search;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.util.Objects;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 public class SearchTransform implements Transform {
 
@@ -27,9 +30,9 @@ public class SearchTransform implements Transform {
 
     private final WatcherSearchTemplateRequest request;
     @Nullable private final TimeValue timeout;
-    @Nullable private final DateTimeZone dynamicNameTimeZone;
+    @Nullable private final ZoneId dynamicNameTimeZone;
 
-    public SearchTransform(WatcherSearchTemplateRequest request, @Nullable TimeValue timeout, @Nullable DateTimeZone dynamicNameTimeZone) {
+    public SearchTransform(WatcherSearchTemplateRequest request, @Nullable TimeValue timeout, @Nullable ZoneId dynamicNameTimeZone) {
         this.request = request;
         this.timeout = timeout;
         this.dynamicNameTimeZone = dynamicNameTimeZone;
@@ -48,20 +51,22 @@ public class SearchTransform implements Transform {
         return timeout;
     }
 
-    public DateTimeZone getDynamicNameTimeZone() {
+    public ZoneId getDynamicNameTimeZone() {
         return dynamicNameTimeZone;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchTransform that = (SearchTransform) o;
-
-        if (request != null ? !request.equals(that.request) : that.request != null) return false;
-        if (timeout != null ? !timeout.equals(that.timeout) : that.timeout != null) return false;
-        return !(dynamicNameTimeZone != null ? !dynamicNameTimeZone.equals(that.dynamicNameTimeZone) : that.dynamicNameTimeZone != null);
+        return Objects.equals(request, that.request)
+            && Objects.equals(timeout, that.timeout)
+            && Objects.equals(dynamicNameTimeZone, that.dynamicNameTimeZone);
     }
 
     @Override
@@ -91,7 +96,7 @@ public class SearchTransform implements Transform {
     public static SearchTransform parse(String watchId, XContentParser parser) throws IOException {
         WatcherSearchTemplateRequest request = null;
         TimeValue timeout = null;
-        DateTimeZone dynamicNameTimeZone = null;
+        ZoneId dynamicNameTimeZone = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -112,7 +117,7 @@ public class SearchTransform implements Transform {
                 timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT_HUMAN.toString());
             } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.VALUE_STRING) {
-                    dynamicNameTimeZone = DateTimeZone.forID(parser.text());
+                    dynamicNameTimeZone = DateUtils.of(parser.text());
                 } else {
                     throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]. must be a" +
                             " string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
@@ -167,7 +172,7 @@ public class SearchTransform implements Transform {
 
         private final WatcherSearchTemplateRequest request;
         private TimeValue timeout;
-        private DateTimeZone dynamicNameTimeZone;
+        private ZoneId dynamicNameTimeZone;
 
         public Builder(WatcherSearchTemplateRequest request) {
             this.request = request;
@@ -178,7 +183,7 @@ public class SearchTransform implements Transform {
             return this;
         }
 
-        public Builder dynamicNameTimeZone(DateTimeZone dynamicNameTimeZone) {
+        public Builder dynamicNameTimeZone(ZoneId dynamicNameTimeZone) {
             this.dynamicNameTimeZone = dynamicNameTimeZone;
             return this;
         }

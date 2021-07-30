@@ -1,20 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.action;
-
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.sql.proto.ColumnInfo;
-import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -22,68 +12,49 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ql.async.QlStatusResponse;
+import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
+
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
+import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
+import static org.elasticsearch.xpack.sql.proto.Mode.JDBC;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.fromId;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.isClientCompatible;
 
 /**
  * Response to perform an sql query
  */
-public class SqlQueryResponse extends ActionResponse implements ToXContentObject {
+public class SqlQueryResponse extends ActionResponse implements ToXContentObject, QlStatusResponse.AsyncStatus {
 
     // TODO: Simplify cursor handling
     private String cursor;
     private Mode mode;
+    private SqlVersion sqlVersion;
+    private boolean columnar;
     private List<ColumnInfo> columns;
     // TODO investigate reusing Page here - it probably is much more efficient
     private List<List<Object>> rows;
+    private static final String INTERVAL_CLASS_NAME = "Interval";
+    // async
+    private final @Nullable String asyncExecutionId;
+    private final boolean isPartial;
+    private final boolean isRunning;
 
-    public SqlQueryResponse() {
-    }
-
-    public SqlQueryResponse(String cursor, Mode mode, @Nullable List<ColumnInfo> columns, List<List<Object>> rows) {
-        this.cursor = cursor;
-        this.mode = mode;
-        this.columns = columns;
-        this.rows = rows;
-    }
-
-    /**
-     * The key that must be sent back to SQL to access the next page of
-     * results. If equal to "" then there is no next page.
-     */
-    public String cursor() {
-        return cursor;
-    }
-
-    public long size() {
-        return rows.size();
-    }
-
-    public List<ColumnInfo> columns() {
-        return columns;
-    }
-
-    public List<List<Object>> rows() {
-        return rows;
-    }
-
-    public SqlQueryResponse cursor(String cursor) {
-        this.cursor = cursor;
-        return this;
-    }
-
-    public SqlQueryResponse columns(List<ColumnInfo> columns) {
-        this.columns = columns;
-        return this;
-    }
-
-    public SqlQueryResponse rows(List<List<Object>> rows) {
-        this.rows = rows;
-        return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public SqlQueryResponse(StreamInput in) throws IOException {
+        super(in);
         cursor = in.readString();
         if (in.readBoolean()) {
             // We might have rows without columns and we might have columns without rows
@@ -110,6 +81,86 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             }
         }
         this.rows = unmodifiableList(rows);
+        columnar = in.readBoolean();
+        asyncExecutionId = in.readOptionalString();
+        isPartial = in.readBoolean();
+        isRunning = in.readBoolean();
+    }
+
+    public SqlQueryResponse(
+        String cursor,
+        Mode mode,
+        SqlVersion sqlVersion,
+        boolean columnar,
+        @Nullable List<ColumnInfo> columns,
+        List<List<Object>> rows,
+        @Nullable String asyncExecutionId,
+        boolean isPartial,
+        boolean isRunning
+    ) {
+        this.cursor = cursor;
+        this.mode = mode;
+        this.sqlVersion = sqlVersion != null ? sqlVersion : fromId(CURRENT.id);
+        this.columnar = columnar;
+        this.columns = columns;
+        this.rows = rows;
+        this.asyncExecutionId = asyncExecutionId;
+        this.isPartial = isPartial;
+        this.isRunning = isRunning;
+    }
+
+    public SqlQueryResponse(
+        String cursor,
+        Mode mode,
+        SqlVersion sqlVersion,
+        boolean columnar,
+        @Nullable List<ColumnInfo> columns,
+        List<List<Object>> rows
+    ) {
+        this(cursor, mode, sqlVersion, columnar, columns, rows, null, false, false);
+    }
+
+    /**
+     * The key that must be sent back to SQL to access the next page of
+     * results. If equal to "" then there is no next page.
+     */
+    public String cursor() {
+        return cursor;
+    }
+
+    public boolean hasCursor() {
+        return StringUtils.EMPTY.equals(cursor) == false;
+    }
+
+    public long size() {
+        return rows.size();
+    }
+
+    public List<ColumnInfo> columns() {
+        return columns;
+    }
+
+    public boolean columnar() {
+        return columnar;
+    }
+
+    public List<List<Object>> rows() {
+        return rows;
+    }
+
+    public SqlQueryResponse cursor(String cursor) {
+        this.cursor = cursor;
+        return this;
+    }
+
+    public SqlQueryResponse columns(List<ColumnInfo> columns) {
+        this.columns = columns;
+        return this;
+    }
+
+    public SqlQueryResponse rows(List<List<Object>> rows) {
+        this.rows = rows;
+        return this;
     }
 
     @Override
@@ -133,12 +184,22 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
                 }
             }
         }
+        out.writeBoolean(columnar);
+        out.writeOptionalString(asyncExecutionId);
+        out.writeBoolean(isPartial);
+        out.writeBoolean(isRunning);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
+            if (hasId()) {
+                builder.field(Protocol.ID_NAME, asyncExecutionId);
+                builder.field(Protocol.IS_PARTIAL_NAME, isPartial);
+                builder.field(Protocol.IS_RUNNING_NAME, isRunning);
+            }
+
             if (columns != null) {
                 builder.startArray("columns");
                 {
@@ -148,15 +209,35 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
                 }
                 builder.endArray();
             }
-            builder.startArray("rows");
-            for (List<Object> row : rows()) {
-                builder.startArray();
-                for (Object value : row) {
-                    value(builder, mode, value);
+
+            if (columnar) {
+                // columns can be specified (for the first REST request for example), or not (on a paginated/cursor based request)
+                // if the columns are missing, we take the first rows' size as the number of columns
+                long columnsCount = columns != null ? columns.size() : 0;
+                if (size() > 0) {
+                    columnsCount = rows().get(0).size();
+                }
+
+                builder.startArray("values");
+                for (int index = 0; index < columnsCount; index++) {
+                    builder.startArray();
+                    for (List<Object> row : rows()) {
+                        value(builder, mode, sqlVersion, row.get(index));
+                    }
+                    builder.endArray();
+                }
+                builder.endArray();
+            } else {
+                builder.startArray("rows");
+                for (List<Object> row : rows()) {
+                    builder.startArray();
+                    for (Object value : row) {
+                        value(builder, mode, sqlVersion, value);
+                    }
+                    builder.endArray();
                 }
                 builder.endArray();
             }
-            builder.endArray();
 
             if (cursor.equals("") == false) {
                 builder.field(CURSOR.getPreferredName(), cursor);
@@ -168,19 +249,21 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     /**
      * Serializes the provided value in SQL-compatible way based on the client mode
      */
-    public static XContentBuilder value(XContentBuilder builder, Mode mode, Object value) throws IOException {
+    public static XContentBuilder value(XContentBuilder builder, Mode mode, SqlVersion sqlVersion, Object value) throws IOException {
         if (value instanceof ZonedDateTime) {
             ZonedDateTime zdt = (ZonedDateTime) value;
-            if (Mode.isDriver(mode)) {
-                // JDBC cannot parse dates in string format and ODBC can have issues with it
-                // so instead, use the millis since epoch (in UTC)
-                builder.value(zdt.toInstant().toEpochMilli());
-            }
-            // otherwise use the ISO format
-            else {
+            // use the ISO format
+            if (mode == JDBC && isClientCompatible(SqlVersion.fromId(CURRENT.id), sqlVersion)) {
+                builder.value(StringUtils.toString(zdt, sqlVersion));
+            } else {
                 builder.value(StringUtils.toString(zdt));
             }
-        } else {
+        } else if (mode == CLI && value != null && value.getClass().getSuperclass().getSimpleName().equals(INTERVAL_CLASS_NAME)) {
+            // use the SQL format for intervals when sending back the response for CLI
+            // all other clients will receive ISO 8601 formatted intervals
+            builder.value(value.toString());
+        }
+        else {
             builder.value(value);
         }
         return builder;
@@ -190,29 +273,35 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         String table = in.readString();
         String name = in.readString();
         String esType = in.readString();
-        Integer jdbcType;
-        int displaySize;
-        if (in.readBoolean()) {
-            jdbcType = in.readVInt();
-            displaySize = in.readVInt();
-        } else {
-            jdbcType = null;
-            displaySize = 0;
-        }
-        return new ColumnInfo(table, name, esType, jdbcType, displaySize);
+        Integer displaySize = in.readOptionalVInt();
+
+        return new ColumnInfo(table, name, esType, displaySize);
     }
 
     public static void writeColumnInfo(StreamOutput out, ColumnInfo columnInfo) throws IOException {
         out.writeString(columnInfo.table());
         out.writeString(columnInfo.name());
         out.writeString(columnInfo.esType());
-        if (columnInfo.jdbcType() != null) {
-            out.writeBoolean(true);
-            out.writeVInt(columnInfo.jdbcType());
-            out.writeVInt(columnInfo.displaySize());
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalVInt(columnInfo.displaySize());
+    }
+
+    public boolean hasId() {
+        return Strings.hasText(asyncExecutionId);
+    }
+
+    @Override
+    public String id() {
+        return asyncExecutionId;
+    }
+
+    @Override
+    public boolean isRunning() {
+        return isRunning;
+    }
+
+    @Override
+    public boolean isPartial() {
+        return isPartial;
     }
 
     @Override

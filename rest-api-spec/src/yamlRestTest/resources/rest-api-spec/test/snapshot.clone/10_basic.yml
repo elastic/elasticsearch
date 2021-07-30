@@ -1,0 +1,54 @@
+---
+setup:
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_create_1
+        body:
+          type: fs
+          settings:
+            location: "test_repo_create_1_loc"
+
+  - do:
+      indices.create:
+        index: test_index_1
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 1
+
+  - do:
+      indices.create:
+        index: test_index_2
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 1
+
+  - do:
+      snapshot.create:
+        repository: test_repo_create_1
+        snapshot: test_snapshot
+        wait_for_completion: true
+
+---
+"Clone a snapshot":
+  - skip:
+      version: " - 7.9.99"
+      reason: "Clone snapshot functionality was introduced in 7.10"
+  - do:
+      snapshot.clone:
+        repository: test_repo_create_1
+        snapshot: test_snapshot
+        target_snapshot: target_snapshot_1
+        body:
+          "indices": test_index_2
+
+  - match: { acknowledged: true }
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_create_1
+        snapshot: target_snapshot_1
+
+  - match: { acknowledged: true }

@@ -11,8 +11,8 @@ score to documents returned from a query.
         User-defined parameters passed in as part of the query.
 
 `doc` (`Map`, read-only)::
-        Contains the fields of the current document.  For single-valued fields,
-        the value can be accessed via `doc['fieldname'].value`.  For multi-valued
+        Contains the fields of the current document. For single-valued fields,
+        the value can be accessed via `doc['fieldname'].value`. For multi-valued
         fields, this returns the first value; other values can be accessed
         via `doc['fieldname'].get(index)`
 
@@ -26,7 +26,8 @@ score to documents returned from a query.
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+Both the standard <<painless-api-reference-shared, Painless API>> and
+<<painless-api-reference-score, Specialized Score API>> are available.
 
 *Example*
 
@@ -36,23 +37,24 @@ To run this example, first follow the steps in
 The following query finds all unsold seats, with lower 'row' values
 scored higher.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /seats/_search
 {
-    "query": {
-        "function_score": {
-            "query": {
-                "match": { "sold": "false" }
-            },
-            "script_score" : {
-                "script" : {
-                  "source": "1.0 / doc['row'].value"
-                }
-            }
+  "query": {
+    "function_score": {
+      "query": {
+        "match": {
+          "sold": "false"
         }
+      },
+      "script_score": {
+        "script": {
+          "source": "1.0 / doc['row'].value"
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:seats]

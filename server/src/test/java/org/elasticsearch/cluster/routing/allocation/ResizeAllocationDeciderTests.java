@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.routing.allocation;
 
@@ -23,8 +12,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -38,9 +27,9 @@ import org.elasticsearch.cluster.routing.allocation.decider.ResizeAllocationDeci
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
-import java.util.Arrays;
 import java.util.Collections;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -57,29 +46,26 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         super.setUp();
         strategy = new AllocationService(new AllocationDeciders(
             Collections.singleton(new ResizeAllocationDecider())),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE);
     }
 
     private ClusterState createInitialClusterState(boolean startShards) {
-        return createInitialClusterState(startShards, Version.CURRENT);
-    }
-
-    private ClusterState createInitialClusterState(boolean startShards, Version nodeVersion) {
-        MetaData.Builder metaBuilder = MetaData.builder();
-        metaBuilder.put(IndexMetaData.builder("source").settings(settings(Version.CURRENT))
+        Metadata.Builder metaBuilder = Metadata.builder();
+        metaBuilder.put(IndexMetadata.builder("source").settings(settings(Version.CURRENT))
             .numberOfShards(2).numberOfReplicas(0).setRoutingNumShards(16));
-        MetaData metaData = metaBuilder.build();
+        Metadata metadata = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        routingTableBuilder.addAsNew(metaData.index("source"));
+        routingTableBuilder.addAsNew(metadata.index("source"));
 
         RoutingTable routingTable = routingTableBuilder.build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(metaData).routingTable(routingTable).build();
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1", nodeVersion)).add(newNode
-            ("node2", nodeVersion)))
+            .metadata(metadata).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1", Version.CURRENT)).add(newNode
+            ("node2", Version.CURRENT)))
             .build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState, "reroute", false).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertEquals(prevRoutingTable.index("source").shards().size(), 2);
@@ -94,9 +80,9 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
 
 
         if (startShards) {
-            clusterState = strategy.applyStartedShards(clusterState,
-                Arrays.asList(routingTable.index("source").shard(0).shards().get(0),
-                    routingTable.index("source").shard(1).shards().get(0)));
+            clusterState = startShardsAndReroute(strategy, clusterState,
+                routingTable.index("source").shard(0).shards().get(0),
+                routingTable.index("source").shard(1).shards().get(0));
             routingTable = clusterState.routingTable();
             assertEquals(routingTable.index("source").shards().size(), 2);
             assertEquals(routingTable.index("source").shard(0).shards().get(0).state(), STARTED);
@@ -109,7 +95,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
     public void testNonResizeRouting() {
         ClusterState clusterState = createInitialClusterState(true);
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, null, clusterState, null, 0);
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, null, clusterState, null, null, 0);
         ShardRouting shardRouting = TestShardRouting.newShardRouting("non-resize", 0, null, true, ShardRoutingState.UNASSIGNED);
         assertEquals(Decision.ALWAYS, resizeAllocationDecider.canAllocate(shardRouting, routingAllocation));
         assertEquals(Decision.ALWAYS, resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node1"),
@@ -118,22 +104,22 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testShrink() { // we don't handle shrink yet
         ClusterState clusterState = createInitialClusterState(true);
-        MetaData.Builder metaBuilder = MetaData.builder(clusterState.metaData());
-        metaBuilder.put(IndexMetaData.builder("target").settings(settings(Version.CURRENT)
-            .put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
-            .put(IndexMetaData.INDEX_RESIZE_SOURCE_UUID_KEY, IndexMetaData.INDEX_UUID_NA_VALUE))
+        Metadata.Builder metaBuilder = Metadata.builder(clusterState.metadata());
+        metaBuilder.put(IndexMetadata.builder("target").settings(settings(Version.CURRENT)
+            .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
+            .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, IndexMetadata.INDEX_UUID_NA_VALUE))
             .numberOfShards(1).numberOfReplicas(0));
-        MetaData metaData = metaBuilder.build();
+        Metadata metadata = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
-        routingTableBuilder.addAsNew(metaData.index("target"));
+        routingTableBuilder.addAsNew(metadata.index("target"));
 
         clusterState = ClusterState.builder(clusterState)
             .routingTable(routingTableBuilder.build())
-            .metaData(metaData).build();
-        Index idx = clusterState.metaData().index("target").getIndex();
+            .metadata(metadata).build();
+        Index idx = clusterState.metadata().index("target").getIndex();
 
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, null, clusterState, null, 0);
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, null, clusterState, null, null, 0);
         ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(idx, 0), null, true, ShardRoutingState.UNASSIGNED,
             RecoverySource.LocalShardsRecoverySource.INSTANCE);
         assertEquals(Decision.ALWAYS, resizeAllocationDecider.canAllocate(shardRouting, routingAllocation));
@@ -145,25 +131,25 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testSourceNotActive() {
         ClusterState clusterState = createInitialClusterState(false);
-        MetaData.Builder metaBuilder = MetaData.builder(clusterState.metaData());
-        metaBuilder.put(IndexMetaData.builder("target").settings(settings(Version.CURRENT)
-            .put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
-            .put(IndexMetaData.INDEX_RESIZE_SOURCE_UUID_KEY, IndexMetaData.INDEX_UUID_NA_VALUE))
+        Metadata.Builder metaBuilder = Metadata.builder(clusterState.metadata());
+        metaBuilder.put(IndexMetadata.builder("target").settings(settings(Version.CURRENT)
+            .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
+            .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, IndexMetadata.INDEX_UUID_NA_VALUE))
             .numberOfShards(4).numberOfReplicas(0));
-        MetaData metaData = metaBuilder.build();
+        Metadata metadata = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
-        routingTableBuilder.addAsNew(metaData.index("target"));
+        routingTableBuilder.addAsNew(metadata.index("target"));
 
         clusterState = ClusterState.builder(clusterState)
             .routingTable(routingTableBuilder.build())
-            .metaData(metaData).build();
-        Index idx = clusterState.metaData().index("target").getIndex();
+            .metadata(metadata).build();
+        Index idx = clusterState.metadata().index("target").getIndex();
 
 
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, null, 0);
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, null, null, 0);
         int shardId = randomIntBetween(0, 3);
-        int sourceShardId = IndexMetaData.selectSplitShard(shardId, clusterState.metaData().index("source"), 4).id();
+        int sourceShardId = IndexMetadata.selectSplitShard(shardId, clusterState.metadata().index("source"), 4).id();
         ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(idx, shardId), null, true, ShardRoutingState.UNASSIGNED,
             RecoverySource.LocalShardsRecoverySource.INSTANCE);
         assertEquals(Decision.NO, resizeAllocationDecider.canAllocate(shardRouting, routingAllocation));
@@ -185,25 +171,25 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testSourcePrimaryActive() {
         ClusterState clusterState = createInitialClusterState(true);
-        MetaData.Builder metaBuilder = MetaData.builder(clusterState.metaData());
-        metaBuilder.put(IndexMetaData.builder("target").settings(settings(Version.CURRENT)
-            .put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
-            .put(IndexMetaData.INDEX_RESIZE_SOURCE_UUID_KEY, IndexMetaData.INDEX_UUID_NA_VALUE))
+        Metadata.Builder metaBuilder = Metadata.builder(clusterState.metadata());
+        metaBuilder.put(IndexMetadata.builder("target").settings(settings(Version.CURRENT)
+            .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
+            .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, IndexMetadata.INDEX_UUID_NA_VALUE))
             .numberOfShards(4).numberOfReplicas(0));
-        MetaData metaData = metaBuilder.build();
+        Metadata metadata = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
-        routingTableBuilder.addAsNew(metaData.index("target"));
+        routingTableBuilder.addAsNew(metadata.index("target"));
 
         clusterState = ClusterState.builder(clusterState)
             .routingTable(routingTableBuilder.build())
-            .metaData(metaData).build();
-        Index idx = clusterState.metaData().index("target").getIndex();
+            .metadata(metadata).build();
+        Index idx = clusterState.metadata().index("target").getIndex();
 
 
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, null, 0);
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, null, null, 0);
         int shardId = randomIntBetween(0, 3);
-        int sourceShardId = IndexMetaData.selectSplitShard(shardId, clusterState.metaData().index("source"), 4).id();
+        int sourceShardId = IndexMetadata.selectSplitShard(shardId, clusterState.metadata().index("source"), 4).id();
         ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(idx, shardId), null, true, ShardRoutingState.UNASSIGNED,
             RecoverySource.LocalShardsRecoverySource.INSTANCE);
         assertEquals(Decision.YES, resizeAllocationDecider.canAllocate(shardRouting, routingAllocation));

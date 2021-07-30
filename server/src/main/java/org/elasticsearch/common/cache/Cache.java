@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.cache;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
 import java.util.Arrays;
@@ -33,6 +22,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -336,7 +326,8 @@ public class Cache<K, V> {
     }
 
     public static final int NUMBER_OF_SEGMENTS = 256;
-    @SuppressWarnings("unchecked") private final CacheSegment<K, V>[] segments = new CacheSegment[NUMBER_OF_SEGMENTS];
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private final CacheSegment<K, V>[] segments = new CacheSegment[NUMBER_OF_SEGMENTS];
 
     {
         for (int i = 0; i < segments.length; i++) {
@@ -647,6 +638,31 @@ public class Cache<K, V> {
                 iterator.remove();
             }
         };
+    }
+
+    /**
+     * Performs an action for each cache entry in the cache. While iterating over the cache entries this method is protected from mutations
+     * that occurs within the same cache segment by acquiring the segment's read lock during all the iteration. As such, the specified
+     * consumer should not try to modify the cache. Modifications that occur in already traveled segments won't been seen by the consumer
+     * but modification that occur in non yet traveled segments should be.
+     *
+     * @param consumer the {@link Consumer}
+     */
+    public void forEach(BiConsumer<K, V> consumer) {
+        for (CacheSegment<K, V> segment : segments) {
+            try (ReleasableLock ignored = segment.readLock.acquire()) {
+                for (CompletableFuture<Entry<K, V>> future : segment.map.values()) {
+                    try {
+                        if (future != null && future.isDone()) {
+                            final Entry<K, V> entry = future.get();
+                            consumer.accept(entry.key, entry.value);
+                        }
+                    } catch (ExecutionException | InterruptedException e) {
+                        throw new IllegalStateException(e);
+                    }
+                }
+            }
+        }
     }
 
     private class CacheIterator implements Iterator<Entry<K, V>> {

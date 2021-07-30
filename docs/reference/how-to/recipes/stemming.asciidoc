@@ -7,7 +7,7 @@ what if a user wants to search for `skiing` specifically? The typical way to do
 this would be to use a <<multi-fields,multi-field>> in order to have the same
 content indexed in two different ways:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index
 {
@@ -24,16 +24,14 @@ PUT index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "body": {
-          "type": "text",
-          "analyzer": "english",
-          "fields": {
-            "exact": {
-              "type": "text",
-              "analyzer": "english_exact"
-            }
+    "properties": {
+      "body": {
+        "type": "text",
+        "analyzer": "english",
+        "fields": {
+          "exact": {
+            "type": "text",
+            "analyzer": "english_exact"
           }
         }
       }
@@ -53,11 +51,10 @@ PUT index/_doc/2
 
 POST index/_refresh
 --------------------------------------------------
-// CONSOLE
 
 With such a setup, searching for `ski` on `body` would return both documents:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -69,10 +66,9 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 2,
@@ -92,7 +88,6 @@ GET index/_search
     "hits": [
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.18232156,
         "_source": {
@@ -101,7 +96,6 @@ GET index/_search
       },
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "2",
         "_score": 0.18232156,
         "_source": {
@@ -118,7 +112,7 @@ On the other hand, searching for `ski` on `body.exact` would only return
 document `1` since the analysis chain of `body.exact` does not perform
 stemming.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -130,10 +124,9 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 1,
@@ -153,7 +146,6 @@ GET index/_search
     "hits": [
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.8025915,
         "_source": {
@@ -173,11 +165,11 @@ the query need to be matched exactly while other parts should still take
 stemming into account?
 
 Fortunately, the `query_string` and `simple_query_string` queries have a feature
-that solve this exact problem: `quote_field_suffix`. This tell Elasticsearch
+that solves this exact problem: `quote_field_suffix`. This tells Elasticsearch
 that the words that appear in between quotes are to be redirected to a different
 field, see below:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -190,10 +182,9 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 2,
@@ -213,7 +204,6 @@ GET index/_search
     "hits": [
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.8025915,
         "_source": {
@@ -230,3 +220,6 @@ In the above case, since `ski` was in-between quotes, it was searched on the
 `body.exact` field due to the `quote_field_suffix` parameter, so only document
 `1` matched. This allows users to mix exact search with stemmed search as they
 like.
+
+NOTE: If the choice of field passed in `quote_field_suffix` does not exist 
+the search will fall back to using the default field for the query string.

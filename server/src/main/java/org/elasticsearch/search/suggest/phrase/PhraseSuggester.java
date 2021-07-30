@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.suggest.phrase;
 
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiTerms;
@@ -36,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
@@ -45,6 +35,7 @@ import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
 
+import java.io.CharArrayReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -69,7 +60,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     @Override
     public Suggestion<? extends Entry<? extends Option>> innerExecute(String name, PhraseSuggestionContext suggestion,
             IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
-        double realWordErrorLikelihood = suggestion.realworldErrorLikelyhood();
+        double realWordErrorLikelihood = suggestion.realworldErrorLikelihood();
         final PhraseSuggestion response = new PhraseSuggestion(name, suggestion.getSize());
         final IndexReader indexReader = searcher.getIndexReader();
         List<PhraseSuggestionContext.DirectCandidateGenerator>  generators = suggestion.generators();
@@ -93,11 +84,12 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood,
                     separator);
             Result checkerResult;
-            try (TokenStream stream = checker.tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField())) {
+            try (TokenStream stream = tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare,
+                    suggestion.getField())) {
                 checkerResult = checker.getCorrections(stream,
                         new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens.toArray(new CandidateGenerator[gens.size()])),
                         suggestion.maxErrors(), suggestion.getShardSize(), wordScorer, suggestion.confidence(), suggestion.gramSize());
-                }
+            }
 
             PhraseSuggestion.Entry resultEntry = buildResultEntry(suggestion, spare, checkerResult.cutoffScore);
             response.addTerm(resultEntry);
@@ -114,16 +106,16 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     // from the index for a correction, collateMatch is updated
                     final Map<String, Object> vars = suggestion.getCollateScriptParams();
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
-                    QueryShardContext shardContext = suggestion.getShardContext();
+                    SearchExecutionContext searchExecutionContext = suggestion.getSearchExecutionContext();
                     final String querySource = scriptFactory.newInstance(vars).execute();
                     try (XContentParser parser = XContentFactory.xContent(querySource)
-                            .createParser(shardContext.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, querySource)) {
+                            .createParser(searchExecutionContext.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, querySource)) {
                         QueryBuilder innerQueryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
-                        final ParsedQuery parsedQuery = shardContext.toQuery(innerQueryBuilder);
+                        final ParsedQuery parsedQuery = searchExecutionContext.toQuery(innerQueryBuilder);
                         collateMatch = Lucene.exists(searcher, parsedQuery.query());
                     }
                 }
-                if (!collateMatch && !collatePrune) {
+                if (collateMatch == false && collatePrune == false) {
                     continue;
                 }
                 Text phrase = new Text(spare.toString());
@@ -144,8 +136,22 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         return response;
     }
 
+    private static TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRefBuilder spare, String field) throws IOException {
+        spare.copyUTF8Bytes(query);
+        return analyzer.tokenStream(field, new CharArrayReader(spare.chars(), 0, spare.length()));
+    }
+
     private static PhraseSuggestion.Entry buildResultEntry(SuggestionContext suggestion, CharsRefBuilder spare, double cutoffScore) {
         spare.copyUTF8Bytes(suggestion.getText());
         return new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length(), cutoffScore);
+    }
+
+    @Override
+    protected Suggestion<? extends Entry<? extends Option>> emptySuggestion(String name, PhraseSuggestionContext suggestion,
+            CharsRefBuilder spare) throws IOException {
+        PhraseSuggestion phraseSuggestion = new PhraseSuggestion(name, suggestion.getSize());
+        spare.copyUTF8Bytes(suggestion.getText());
+        phraseSuggestion.addTerm(new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length()));
+        return phraseSuggestion;
     }
 }

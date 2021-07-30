@@ -25,15 +25,15 @@
       bulk:
         refresh: true
         body:
-          - '{"index": {"_index": "test_search_template", "_type": "doc"}}'
+          - '{"index": {"_index": "test_search_template"}}'
           - '{"f1": "v1_old"}'
-          - '{"index": {"_index": "test_search_template", "_type": "doc"}}'
+          - '{"index": {"_index": "test_search_template"}}'
           - '{"f1": "v2_old"}'
-          - '{"index": {"_index": "test_search_template", "_type": "doc"}}'
+          - '{"index": {"_index": "test_search_template"}}'
           - '{"f1": "v3_old"}'
-          - '{"index": {"_index": "test_search_template", "_type": "doc"}}'
+          - '{"index": {"_index": "test_search_template"}}'
           - '{"f1": "v4_old"}'
-          - '{"index": {"_index": "test_search_template", "_type": "doc"}}'
+          - '{"index": {"_index": "test_search_template"}}'
           - '{"f1": "v5_old"}'
 
   - do:
@@ -65,23 +65,24 @@
         index: queries
         body:
           mappings:
-            doc:
-              properties:
-                query:
-                  type: percolator
-                field1:
-                  type: keyword
-                field2:
-                  type: keyword
-                field3:
-                  type: keyword
+            properties:
+              id:
+                type: keyword
+              query:
+                type: percolator
+              field1:
+                type: keyword
+              field2:
+                type: keyword
+              field3:
+                type: keyword
 
   - do:
        index:
          index: queries
-         type: doc
          id: q1
          body:
+          id: q1
           query:
             term:
               field1: value
@@ -89,9 +90,9 @@
   - do:
       index:
         index: queries
-        type: doc
         id: q2
         body:
+          id: q2
           query:
             bool:
               must:
@@ -103,9 +104,9 @@
   - do:
       index:
         index: queries
-        type: doc
         id: q3
         body:
+          id: q3
           query:
             bool:
               minimum_should_match: 2
@@ -137,7 +138,7 @@
         rest_total_hits_as_int: true
         index: queries
         body:
-          sort: _id
+          sort: id
           query:
             percolate:
               field: query
@@ -153,7 +154,7 @@
         rest_total_hits_as_int: true
         index: queries
         body:
-          sort: _id
+          sort: id
           query:
             percolate:
               field: query
@@ -176,15 +177,15 @@
       bulk:
         refresh: true
         body:
-          - '{"index": {"_index": "reindexed_index", "_type": "doc"}}'
+          - '{"index": {"_index": "reindexed_index"}}'
           - '{"f1": "1"}'
-          - '{"index": {"_index": "reindexed_index", "_type": "doc"}}'
+          - '{"index": {"_index": "reindexed_index"}}'
           - '{"f1": "2"}'
-          - '{"index": {"_index": "reindexed_index", "_type": "doc"}}'
+          - '{"index": {"_index": "reindexed_index"}}'
           - '{"f1": "3"}'
-          - '{"index": {"_index": "reindexed_index", "_type": "doc"}}'
+          - '{"index": {"_index": "reindexed_index"}}'
           - '{"f1": "4"}'
-          - '{"index": {"_index": "reindexed_index", "_type": "doc"}}'
+          - '{"index": {"_index": "reindexed_index"}}'
           - '{"f1": "5"}'
 
   - do:
@@ -203,3 +204,55 @@
       tasks.get:
         wait_for_completion: true
         task_id: $task
+
+---
+"Component and composable template validation":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      cluster.put_component_template:
+        name: my-ct
+        body:
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              dynamic: false
+            aliases:
+              aliasname: {}
+          version: 2
+          _meta:
+            foo: bar
+            baz:
+              eggplant: true
+
+  - do:
+      allowed_warnings:
+        - "index template [my-it] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-it] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-it
+        body:
+          index_patterns: [test-*]
+          composed_of: ["my-ct"]
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: text
+            aliases:
+              test_alias: {}
+              test_blias: { routing: b }
+              test_clias: { filter: { term: { user: kimchy }}}
+
+  - do:
+      cluster.get_component_template:
+        name: my-ct
+
+  - do:
+      indices.get_index_template:
+        name: my-it

@@ -1,17 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,18 +28,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.Response> {
+public class UpdateModelSnapshotAction extends ActionType<UpdateModelSnapshotAction.Response> {
 
     public static final UpdateModelSnapshotAction INSTANCE = new UpdateModelSnapshotAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/update";
 
     private UpdateModelSnapshotAction() {
-        super(NAME);
-    }
-
-    @Override
-    public UpdateModelSnapshotAction.Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -71,6 +65,14 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
         private Boolean retain;
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            snapshotId = in.readString();
+            description = in.readOptionalString();
+            retain = in.readOptionalBoolean();
         }
 
         public Request(String jobId, String snapshotId) {
@@ -105,15 +107,6 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            snapshotId = in.readString();
-            description = in.readOptionalString();
-            retain = in.readOptionalBoolean();
         }
 
         @Override
@@ -166,10 +159,11 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
         private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
         private static final ParseField MODEL = new ParseField("model");
 
-        private ModelSnapshot model;
+        private final ModelSnapshot model;
 
-        public Response() {
-
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            model = new ModelSnapshot(in);
         }
 
         public Response(ModelSnapshot modelSnapshot) {
@@ -181,14 +175,7 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            model = new ModelSnapshot(in);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             model.writeTo(out);
         }
 
@@ -229,12 +216,4 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
             return Strings.toString(this);
         }
     }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client, UpdateModelSnapshotAction action) {
-            super(client, action, new Request());
-        }
-    }
-
 }

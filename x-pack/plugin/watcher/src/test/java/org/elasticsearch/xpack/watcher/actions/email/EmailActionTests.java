@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
@@ -11,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -18,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -43,20 +46,18 @@ import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttach
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentsParser;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpEmailAttachementParser;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpRequestAttachment;
-import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -71,6 +72,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -85,7 +87,7 @@ public class EmailActionTests extends ESTestCase {
 
     @Before
     public void addEmailAttachmentParsers() {
-        Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
+        Map<String, EmailAttachmentParser<? extends EmailAttachmentParser.EmailAttachment>> emailAttachmentParsers = new HashMap<>();
         emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient,
             new MockTextTemplateEngine()));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
@@ -94,7 +96,7 @@ public class EmailActionTests extends ESTestCase {
 
     public void testExecute() throws Exception {
         final String account = "account1";
-        EmailService service = new AbstractWatcherIntegrationTestCase.NoopEmailService();
+        EmailService service = new NoopEmailService();
         TextTemplateEngine engine = mock(TextTemplateEngine.class);
         HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
 
@@ -131,8 +133,8 @@ public class EmailActionTests extends ESTestCase {
 
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
-        JodaCompatibleZonedDateTime jodaJavaNow = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(now.getMillis()), ZoneOffset.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+        JodaCompatibleZonedDateTime jodaJavaNow = new JodaCompatibleZonedDateTime(now.toInstant(), ZoneOffset.UTC);
 
         Wid wid = new Wid("watch1", now);
         WatchExecutionContext ctx = mockExecutionContextBuilder("watch1")
@@ -172,7 +174,7 @@ public class EmailActionTests extends ESTestCase {
         assertThat(result, instanceOf(EmailAction.Result.Success.class));
         assertThat(((EmailAction.Result.Success) result).account(), equalTo(account));
         Email actualEmail = ((EmailAction.Result.Success) result).email();
-        assertThat(actualEmail.id(), is("_id_" + wid.value()));
+        assertThat(actualEmail.id(), startsWith("_id_" + wid.value() + "_"));
         assertThat(actualEmail, notNullValue());
         assertThat(actualEmail.subject(), is(subject == null ? null : subject.getTemplate()));
         assertThat(actualEmail.textBody(), is(textBody == null ? null : textBody.getTemplate()));
@@ -180,6 +182,12 @@ public class EmailActionTests extends ESTestCase {
         if (dataAttachment != null) {
             assertThat(actualEmail.attachments(), hasKey("data"));
         }
+
+        // a second execution with the same parameters may not yield the same message id
+        result = executable.execute("_id", ctx, payload);
+        String oldMessageId = actualEmail.id();
+        String newMessageId = ((EmailAction.Result.Success) result).email().id();
+        assertThat(oldMessageId, is(not(newMessageId)));
     }
 
     public void testParser() throws Exception {
@@ -382,7 +390,7 @@ public class EmailActionTests extends ESTestCase {
         ExecutableEmailAction parsed = new EmailActionFactory(Settings.EMPTY, service, engine, emailAttachmentParser)
                 .parseExecutable(randomAlphaOfLength(4), randomAlphaOfLength(10), parser);
 
-        if (!hideSecrets) {
+        if (hideSecrets == false) {
             assertThat(parsed, equalTo(executable));
         } else {
             assertThat(parsed.action().getAccount(), is(executable.action().getAccount()));
@@ -499,7 +507,7 @@ public class EmailActionTests extends ESTestCase {
     }
 
     public void testThatOneFailedEmailAttachmentResultsInActionFailure() throws Exception {
-        EmailService emailService = new AbstractWatcherIntegrationTestCase.NoopEmailService();
+        EmailService emailService = new NoopEmailService();
         TextTemplateEngine engine = new MockTextTemplateEngine();
         HttpClient httpClient = mock(HttpClient.class);
 
@@ -511,7 +519,7 @@ public class EmailActionTests extends ESTestCase {
                 .thenReturn(new HttpResponse(403));
 
         // setup email attachment parsers
-        Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
+        Map<String, EmailAttachmentParser<? extends EmailAttachmentParser.EmailAttachment>> attachmentParsers = new HashMap<>();
         attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, engine));
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
 
@@ -536,7 +544,7 @@ public class EmailActionTests extends ESTestCase {
         ExecutableEmailAction executableEmailAction = new EmailActionFactory(Settings.EMPTY, emailService, engine, emailAttachmentsParser)
                 .parseExecutable(randomAlphaOfLength(3), randomAlphaOfLength(7), parser);
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Wid wid = new Wid(randomAlphaOfLength(5), now);
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
         WatchExecutionContext ctx = mockExecutionContextBuilder("watch1")
@@ -555,14 +563,14 @@ public class EmailActionTests extends ESTestCase {
     }
 
     private EmailActionFactory createEmailActionFactory() {
-        EmailService emailService = new AbstractWatcherIntegrationTestCase.NoopEmailService();
+        EmailService emailService = new NoopEmailService();
         TextTemplateEngine engine = mock(TextTemplateEngine.class);
 
         return new EmailActionFactory(Settings.EMPTY, emailService, engine, emailAttachmentParser);
     }
 
     private WatchExecutionContext createWatchExecutionContext() {
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Wid wid = new Wid(randomAlphaOfLength(5), now);
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
         return mockExecutionContextBuilder("watch1")
@@ -600,4 +608,18 @@ public class EmailActionTests extends ESTestCase {
 
         return new EmailAttachments(attachments);
     }
+
+    public static class NoopEmailService extends EmailService {
+
+        public NoopEmailService() {
+            super(Settings.EMPTY, null, mock(SSLService.class),
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
+        }
+
+        @Override
+        public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
+            return new EmailSent(accountName, email);
+        }
+    }
+
 }

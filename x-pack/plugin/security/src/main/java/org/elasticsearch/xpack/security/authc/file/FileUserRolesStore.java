@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.file;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -84,7 +86,7 @@ public class FileUserRolesStore {
 
     /**
      * Internally in this class, we try to load the file, but if for some reason we can't, we're being more lenient by
-     * logging the error and skipping all enries. This is aligned with how we handle other auto-loaded files in security.
+     * logging the error and skipping all entries. This is aligned with how we handle other auto-loaded files in security.
      */
     static Map<String, String[]> parseFileLenient(Path path, Logger logger) {
         try {
@@ -206,9 +208,13 @@ public class FileUserRolesStore {
         @Override
         public void onFileChanged(Path file) {
             if (file.equals(FileUserRolesStore.this.file)) {
-                logger.info("users roles file [{}] changed. updating users roles...", file.toAbsolutePath());
+                final Map<String, String[]> previousUserRoles = userRoles;
                 userRoles = parseFileLenient(file, logger);
-                notifyRefresh();
+
+                if (Maps.deepEquals(previousUserRoles, userRoles) == false) {
+                    logger.info("users roles file [{}] changed. updating users roles...", file.toAbsolutePath());
+                    notifyRefresh();
+                }
             }
         }
     }

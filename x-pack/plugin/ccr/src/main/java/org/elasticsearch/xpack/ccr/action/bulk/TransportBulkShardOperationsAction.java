@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action.bulk;
@@ -12,18 +13,23 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.index.engine.AlreadyProcessedFollowingEngineException;
@@ -44,36 +50,66 @@ public class TransportBulkShardOperationsAction
             final ThreadPool threadPool,
             final ShardStateAction shardStateAction,
             final ActionFilters actionFilters,
-            final IndexNameExpressionResolver indexNameExpressionResolver) {
+            final IndexingPressure indexingPressure,
+            final SystemIndices systemIndices,
+            final ExecutorSelector executorSelector) {
         super(
-                settings,
-                BulkShardOperationsAction.NAME,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                actionFilters,
-                indexNameExpressionResolver,
-                BulkShardOperationsRequest::new,
-                BulkShardOperationsRequest::new,
-                ThreadPool.Names.WRITE);
+            settings,
+            BulkShardOperationsAction.NAME,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            BulkShardOperationsRequest::new,
+            BulkShardOperationsRequest::new,
+            ExecutorSelector::getWriteExecutorForShard,
+            false,
+            indexingPressure,
+            systemIndices
+        );
     }
 
     @Override
-    protected WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
-            final BulkShardOperationsRequest request, final IndexShard primary) throws Exception {
-        return shardOperationOnPrimary(request.shardId(), request.getHistoryUUID(), request.getOperations(),
-            request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
+    protected void doExecute(Task task, BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener) {
+        // This is executed on the follower coordinator node and we need to mark the bytes.
+        Releasable releasable = indexingPressure.markCoordinatingOperationStarted(primaryOperationCount(request),
+            primaryOperationSize(request), false);
+        ActionListener<BulkShardOperationsResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
+        try {
+            super.doExecute(task, request, releasingListener);
+        } catch (Exception e) {
+            releasingListener.onFailure(e);
+        }
     }
 
-    static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
+    @Override
+    protected void dispatchedShardOperationOnPrimary(BulkShardOperationsRequest request, IndexShard primary,
+            ActionListener<PrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse>> listener) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("index [{}] on the following primary shard {}", request.getOperations(), primary.routingEntry());
+        }
+        ActionListener.completeWith(listener, () -> shardOperationOnPrimary(request.shardId(), request.getHistoryUUID(),
+            request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger));
+    }
+
+    @Override
+    protected long primaryOperationSize(BulkShardOperationsRequest request) {
+        return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).sum();
+    }
+
+    @Override
+    protected int primaryOperationCount(BulkShardOperationsRequest request) {
+        return request.getOperations().size();
+    }
+
+    public static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
         final Translog.Operation operationWithPrimaryTerm;
         switch (operation.opType()) {
             case INDEX:
                 final Translog.Index index = (Translog.Index) operation;
                 operationWithPrimaryTerm = new Translog.Index(
-                    index.type(),
                     index.id(),
                     index.seqNo(),
                     primaryTerm,
@@ -85,9 +121,7 @@ public class TransportBulkShardOperationsAction
             case DELETE:
                 final Translog.Delete delete = (Translog.Delete) operation;
                 operationWithPrimaryTerm = new Translog.Delete(
-                    delete.type(),
                     delete.id(),
-                    delete.uid(),
                     delete.seqNo(),
                     primaryTerm,
                     delete.version());
@@ -103,7 +137,7 @@ public class TransportBulkShardOperationsAction
     }
 
     // public for testing purposes only
-    public static CcrWritePrimaryResult shardOperationOnPrimary(
+    public static WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
             final ShardId shardId,
             final String historyUUID,
             final List<Translog.Operation> sourceOperations,
@@ -134,13 +168,18 @@ public class TransportBulkShardOperationsAction
                     // replicated to replicas but with the existing primary term (not the current primary term) in order
                     // to guarantee the consistency between the primary and replicas, and between translog and Lucene index.
                     final AlreadyProcessedFollowingEngineException failure = (AlreadyProcessedFollowingEngineException) result.getFailure();
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("operation [{}] was processed before on following primary shard {} with existing term {}",
+                            targetOp, primary.routingEntry(), failure.getExistingPrimaryTerm());
+                    }
                     assert failure.getSeqNo() == targetOp.seqNo() : targetOp.seqNo() + " != " + failure.getSeqNo();
                     if (failure.getExistingPrimaryTerm().isPresent()) {
                         appliedOperations.add(rewriteOperationWithPrimaryTerm(sourceOp, failure.getExistingPrimaryTerm().getAsLong()));
-                    } else if (targetOp.seqNo() > primary.getGlobalCheckpoint()) {
-                        assert false : "can't find primary_term for existing op=" + targetOp + " gcp=" + primary.getGlobalCheckpoint();
+                    } else if (targetOp.seqNo() > primary.getLastKnownGlobalCheckpoint()) {
+                        assert false :
+                            "can't find primary_term for existing op=" + targetOp + " gcp=" + primary.getLastKnownGlobalCheckpoint();
                         throw new IllegalStateException("can't find primary_term for existing op=" + targetOp +
-                            " global_checkpoint=" + primary.getGlobalCheckpoint(), failure);
+                            " global_checkpoint=" + primary.getLastKnownGlobalCheckpoint(), failure);
                     }
                 } else {
                     assert false : "Only already-processed error should happen; op=[" + targetOp + "] error=[" + result.getFailure() + "]";
@@ -150,13 +189,28 @@ public class TransportBulkShardOperationsAction
         }
         final BulkShardOperationsRequest replicaRequest = new BulkShardOperationsRequest(
             shardId, historyUUID, appliedOperations, maxSeqNoOfUpdatesOrDeletes);
-        return new CcrWritePrimaryResult(replicaRequest, location, primary, logger);
+        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, null, primary, logger);
     }
 
     @Override
-    protected WriteReplicaResult<BulkShardOperationsRequest> shardOperationOnReplica(
-            final BulkShardOperationsRequest request, final IndexShard replica) throws Exception {
-        return shardOperationOnReplica(request, replica, logger);
+    protected void dispatchedShardOperationOnReplica(BulkShardOperationsRequest request, IndexShard replica,
+            ActionListener<ReplicaResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            if (logger.isTraceEnabled()) {
+                logger.trace("index [{}] on the following replica shard {}", request.getOperations(), replica.routingEntry());
+            }
+            return shardOperationOnReplica(request, replica, logger);
+        });
+    }
+
+    @Override
+    protected long replicaOperationSize(BulkShardOperationsRequest request) {
+        return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).sum();
+    }
+
+    @Override
+    protected int replicaOperationCount(BulkShardOperationsRequest request) {
+        return request.getOperations().size();
     }
 
     // public for testing purposes only
@@ -179,30 +233,20 @@ public class TransportBulkShardOperationsAction
     }
 
     @Override
-    protected BulkShardOperationsResponse newResponseInstance() {
-        return new BulkShardOperationsResponse();
+    protected BulkShardOperationsResponse newResponseInstance(StreamInput in) throws IOException {
+        return new BulkShardOperationsResponse(in);
     }
 
-    /**
-     * Custom write result to include global checkpoint after ops have been replicated.
-     */
-    static final class CcrWritePrimaryResult extends WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> {
-        CcrWritePrimaryResult(BulkShardOperationsRequest request, Translog.Location location, IndexShard primary, Logger logger) {
-            super(request, new BulkShardOperationsResponse(), location, null, primary, logger);
-        }
+    @Override
+    protected void adaptResponse(BulkShardOperationsResponse response, IndexShard indexShard) {
+        adaptBulkShardOperationsResponse(response, indexShard);
+    }
 
-        @Override
-        public synchronized void respond(ActionListener<BulkShardOperationsResponse> listener) {
-            final ActionListener<BulkShardOperationsResponse> wrappedListener = ActionListener.wrap(response -> {
-                final SeqNoStats seqNoStats = primary.seqNoStats();
-                // return a fresh global checkpoint after the operations have been replicated for the shard follow task
-                response.setGlobalCheckpoint(seqNoStats.getGlobalCheckpoint());
-                response.setMaxSeqNo(seqNoStats.getMaxSeqNo());
-                listener.onResponse(response);
-            }, listener::onFailure);
-            super.respond(wrappedListener);
-        }
-
+    public static void adaptBulkShardOperationsResponse(BulkShardOperationsResponse response, IndexShard indexShard) {
+        final SeqNoStats seqNoStats = indexShard.seqNoStats();
+        // return a fresh global checkpoint after the operations have been replicated for the shard follow task
+        response.setGlobalCheckpoint(seqNoStats.getGlobalCheckpoint());
+        response.setMaxSeqNo(seqNoStats.getMaxSeqNo());
     }
 
 }

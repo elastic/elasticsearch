@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+
 import java.util.List;
 import java.util.Objects;
-
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class FilterExec extends UnaryExec implements Unexecutable {
 
@@ -20,12 +21,12 @@ public class FilterExec extends UnaryExec implements Unexecutable {
     // gets setup automatically and then copied over during cloning
     private final boolean isHaving;
 
-    public FilterExec(Location location, PhysicalPlan child, Expression condition) {
-        this(location, child, condition, child instanceof AggregateExec);
+    public FilterExec(Source source, PhysicalPlan child, Expression condition) {
+        this(source, child, condition, child instanceof AggregateExec);
     }
 
-    public FilterExec(Location location, PhysicalPlan child, Expression condition, boolean isHaving) {
-        super(location, child);
+    public FilterExec(Source source, PhysicalPlan child, Expression condition, boolean isHaving) {
+        super(source, child);
         this.condition = condition;
         this.isHaving = isHaving;
     }
@@ -37,7 +38,7 @@ public class FilterExec extends UnaryExec implements Unexecutable {
 
     @Override
     protected FilterExec replaceChild(PhysicalPlan newChild) {
-        return new FilterExec(location(), newChild, condition, isHaving);
+        return new FilterExec(source(), newChild, condition, isHaving);
     }
 
     public Expression condition() {

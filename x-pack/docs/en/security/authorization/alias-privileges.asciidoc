@@ -1,102 +1,107 @@
 [role="xpack"]
 [[securing-aliases]]
-=== Granting privileges for indices and aliases
+=== Granting privileges for data streams and aliases
 
-Elasticsearch allows to execute operations against {ref}/indices-aliases.html[index aliases],
-which are effectively virtual indices. An alias points to one or more indices,
-holds metadata and potentially a filter. {security} treats aliases and indices
-the same. Privileges for indices actions are granted on specific indices or
-aliases. In order for an indices action to be authorized, the user that executes
-it needs to have permissions for that action on all the specific indices or
-aliases that the request relates to.
+{es} {security-features} allow you to secure operations executed against
+<<data-streams,data streams>> and <<alias,aliases>>.
 
-Let's look at an example. Assuming we have an index called `2015`, an alias that
-points to it called `current_year`, and a user with the following role:
+[[data-stream-privileges]]
+==== Data stream privileges
+
+// tag::data-stream-security[]
+Use <<privileges-list-indices,index privileges>> to control access to a data
+stream. Granting privileges on a data stream grants the same privileges on its
+backing indices.
+// end::data-stream-security[]
+
+For example, `my-data-stream` consists of two backing indices:
+`.ds-my-data-stream-2099.03.07-000001` and
+`.ds-my-data-stream-2099.03.08-000002`.
+
+A user is granted the `read` privilege to `my-data-stream`.
 
 [source,js]
 --------------------------------------------------
+{
+  "names" : [ "my-data-stream" ],
+  "privileges" : [ "read" ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Because the user is automatically granted the same privileges to the stream's
+backing indices, the user can retrieve a document directly from
+`.ds-my-data-stream-2099.03.08-000002`:
+
+////
+[source,console]
+----
+PUT my-index/_doc/2
+{
+  "my-field": "foo"
+}
+----
+////
+
+[source,console]
+----
+GET .ds-my-data-stream-2099.03.08-000002/_doc/2
+----
+// TEST[continued]
+// TEST[s/.ds-my-data-stream-2099.03.08-000002/my-index/]
+
+Later `my-data-stream` <<manually-roll-over-a-data-stream,rolls over>>. This
+creates a new backing index: `.ds-my-data-stream-2099.03.09-000003`. Because the
+user still has the `read` privilege for `my-data-stream`, the user can retrieve
+documents directly from `.ds-my-data-stream-2099.03.09-000003`:
+
+[source,console]
+----
+GET .ds-my-data-stream-2099.03.09-000003/_doc/2
+----
+// TEST[continued]
+// TEST[s/.ds-my-data-stream-2099.03.09-000003/my-index/]
+
+[[index-alias-privileges]]
+==== Alias privileges
+
+Use <<privileges-list-indices,index privileges>> to control access to an
+<<alias,alias>>. Privileges on an index or data stream do not grant privileges
+on its aliases. For information about managing aliases, see <<alias>>.
+
+IMPORTANT: Don't use <<filter-alias,filtered aliases>> in place of
+<<document-level-security,document level security>>. {es} doesn't always apply
+alias filters.
+
+For example, the `current_year` alias points only to the `2015` index. A user is
+granted the `read` privilege for the `2015` index.
+
+[source,js]
+----
 {
   "names" : [ "2015" ],
   "privileges" : [ "read" ]
 }
---------------------------------------------------
+----
 // NOTCONSOLE
 
-The user attempts to retrieve a document from `current_year`:
+When the user attempts to retrieve a document from the `current_year` alias,
+{es} rejects the request.
 
-[source,shell]
--------------------------------------------------------------------------------
-GET /current_year/event/1
--------------------------------------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT 2015\n{"aliases": {"current_year": {}}}\nPUT 2015\/event\/1\n{}\n/]
+[source,console]
+----
+GET current_year/_doc/1
+----
+// TEST[s/^/PUT 2015\n{"aliases": {"current_year": {}}}\nPUT 2015\/_doc\/1\n{}\n/]
 
-The above request gets rejected, although the user has `read` privilege on the
-concrete index that the `current_year` alias points to. The correct permission
-would be as follows:
+To retrieve documents from `current_year`, the user must have the `read` index
+privilege for the alias.
 
 [source,js]
---------------------------------------------------
+----
 {
   "names" : [ "current_year" ],
   "privileges" : [ "read" ]
 }
---------------------------------------------------
+----
 // NOTCONSOLE
-
-[float]
-==== Managing aliases
-
-Unlike creating indices, which requires the `create_index` privilege, adding,
-removing and retrieving aliases requires the `manage` permission. Aliases can be
-added to an index directly as part of the index creation:
-
-[source,shell]
--------------------------------------------------------------------------------
-PUT /2015
-{
-    "aliases" : {
-        "current_year" : {}
-    }
-}
--------------------------------------------------------------------------------
-// CONSOLE
-
-or via the dedicated aliases api if the index already exists:
-
-[source,shell]
--------------------------------------------------------------------------------
-POST /_aliases
-{
-    "actions" : [
-        { "add" : { "index" : "2015", "alias" : "current_year" } }
-    ]
-}
--------------------------------------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT 2015\n/]
-
-The above requests both require the `manage` privilege on the alias name as well
-as the targeted index, as follows:
-
-[source,js]
---------------------------------------------------
-{
-  "names" : [ "20*", "current_year" ],
-  "privileges" : [ "manage" ]
-}
---------------------------------------------------
-// NOTCONSOLE
-
-The index aliases api also allows also to delete aliases from existing indices.
-The privileges required for such a request are the same as above. Both index and
-alias need the `manage` permission.
-
-
-[float]
-==== Filtered aliases
-
-Aliases can hold a filter, which allows to select a subset of documents that can
-be accessed out of all the documents that the physical index contains. These
-filters are not always applied and should not be used in place of
-<<document-level-security, document level security>>.

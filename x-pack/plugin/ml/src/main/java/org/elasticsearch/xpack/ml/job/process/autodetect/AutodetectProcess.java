@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.core.ml.job.config.PerPartitionCategorizationConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -51,14 +53,21 @@ public interface AutodetectProcess extends NativeProcess {
     void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) throws IOException;
 
     /**
+     * Update the per-partition categorization configuration
+     *
+     * @param perPartitionCategorizationConfig New per-partition categorization config
+     * @throws IOException If the write fails
+     */
+    void writeUpdatePerPartitionCategorizationMessage(PerPartitionCategorizationConfig perPartitionCategorizationConfig) throws IOException;
+
+    /**
      * Write message to update the detector rules
      *
      * @param detectorIndex Index of the detector to update
      * @param rules Detector rules
      * @throws IOException If the write fails
      */
-    void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules)
-            throws IOException;
+    void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException;
 
     /**
      * Write message to update the filters

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.nio;
@@ -63,8 +52,28 @@ public class EventHandler {
      */
     protected void handleRegistration(ChannelContext<?> context) throws IOException {
         context.register();
-        SelectionKey selectionKey = context.getSelectionKey();
-        selectionKey.attach(context);
+        assert context.getSelectionKey() != null : "SelectionKey should not be null after registration";
+        assert context.getSelectionKey().attachment() != null : "Attachment should not be null after registration";
+    }
+
+    /**
+     * This method is called when an attempt to register a channel throws an exception.
+     *
+     * @param context that was registered
+     * @param exception that occurred
+     */
+    protected void registrationException(ChannelContext<?> context, Exception exception) {
+        context.handleException(exception);
+    }
+
+    /**
+     * This method is called after a NioChannel is active with the selector. It should only be called once
+     * per channel.
+     *
+     * @param context that was marked active
+     */
+    protected void handleActive(ChannelContext<?> context) throws IOException {
+        context.channelActive();
         if (context instanceof SocketChannelContext) {
             if (((SocketChannelContext) context).readyForFlush()) {
                 SelectionKeyUtils.setConnectReadAndWriteInterested(context.getSelectionKey());
@@ -78,12 +87,12 @@ public class EventHandler {
     }
 
     /**
-     * This method is called when an attempt to register a channel throws an exception.
+     * This method is called when setting a channel to active throws an exception.
      *
-     * @param context that was registered
+     * @param context that was marked active
      * @param exception that occurred
      */
-    protected void registrationException(ChannelContext<?> context, Exception exception) {
+    protected void activeException(ChannelContext<?> context, Exception exception) {
         context.handleException(exception);
     }
 
@@ -150,11 +159,20 @@ public class EventHandler {
     }
 
     /**
-     * This method is called when a listener attached to a channel operation throws an exception.
+     * This method is called when a task or listener attached to a channel is available to run.
+     *
+     * @param task to handle
+     */
+    protected void handleTask(Runnable task) {
+        task.run();
+    }
+
+    /**
+     * This method is called when a task or listener attached to a channel operation throws an exception.
      *
      * @param exception that occurred
      */
-    protected void listenerException(Exception exception) {
+    protected void taskException(Exception exception) {
         exceptionHandler.accept(exception);
     }
 
@@ -165,7 +183,11 @@ public class EventHandler {
      */
     protected void postHandling(SocketChannelContext context) {
         if (context.selectorShouldClose()) {
-            handleClose(context);
+            try {
+                handleClose(context);
+            } catch (IOException e) {
+                closeException(context, e);
+            }
         } else {
             SelectionKey selectionKey = context.getSelectionKey();
             boolean currentlyWriteInterested = SelectionKeyUtils.isWriteInterested(selectionKey);
@@ -203,23 +225,19 @@ public class EventHandler {
      *
      * @param context that should be closed
      */
-    protected void handleClose(ChannelContext<?> context) {
-        try {
-            context.closeFromSelector();
-        } catch (IOException e) {
-            closeException(context, e);
-        }
+    protected void handleClose(ChannelContext<?> context) throws IOException {
+        context.closeFromSelector();
         assert context.isOpen() == false : "Should always be done as we are on the selector thread";
     }
 
     /**
      * This method is called when an attempt to close a channel throws an exception.
      *
-     * @param channel that was being closed
+     * @param context that was being closed
      * @param exception that occurred
      */
-    protected void closeException(ChannelContext<?> channel, Exception exception) {
-        channel.handleException(exception);
+    protected void closeException(ChannelContext<?> context, Exception exception) {
+        context.handleException(exception);
     }
 
     /**
@@ -227,10 +245,10 @@ public class EventHandler {
      * An example would be if checking ready ops on a {@link java.nio.channels.SelectionKey} threw
      * {@link java.nio.channels.CancelledKeyException}.
      *
-     * @param channel that caused the exception
+     * @param context that caused the exception
      * @param exception that was thrown
      */
-    protected void genericChannelException(ChannelContext<?> channel, Exception exception) {
-        channel.handleException(exception);
+    protected void genericChannelException(ChannelContext<?> context, Exception exception) {
+        context.handleException(exception);
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
@@ -46,7 +47,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
 
     @Override
     public void renormalize(Quantiles quantiles) {
-        if (!isEnabled()) {
+        if (isEnabled() == false) {
             return;
         }
 
@@ -113,7 +114,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     private boolean tryFinishWork() {
         // We cannot tolerate new work being added in between the isEmpty() check and releasing the semaphore
         synchronized (quantilesDeque) {
-            if (!quantilesDeque.isEmpty()) {
+            if (quantilesDeque.isEmpty() == false) {
                 return false;
             }
             semaphore.release();
@@ -122,7 +123,26 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     }
 
     private void forceFinishWork() {
-        semaphore.release();
+        // We cannot allow new quantiles to be added while we are failing from a previous renormalization failure.
+        synchronized (quantilesDeque) {
+            // We discard all but the earliest quantiles, if they exist
+            QuantilesWithLatch earliestQuantileWithLatch = null;
+            for (QuantilesWithLatch quantilesWithLatch = quantilesDeque.pollFirst(); quantilesWithLatch != null;
+                 quantilesWithLatch = quantilesDeque.pollFirst()) {
+                if (earliestQuantileWithLatch == null) {
+                    earliestQuantileWithLatch = quantilesWithLatch;
+                }
+                // Count down all the latches as they no longer matter since we failed
+                quantilesWithLatch.latch.countDown();
+            }
+            // Keep the earliest quantile so that the next call to doRenormalizations() will include as much as the failed normalization
+            // window as possible.
+            // Since this latch is already countedDown, there is no reason to put it in the `latchDeque` again
+            if (earliestQuantileWithLatch != null) {
+                quantilesDeque.addLast(earliestQuantileWithLatch);
+            }
+            semaphore.release();
+        }
     }
 
     private void doRenormalizations() {

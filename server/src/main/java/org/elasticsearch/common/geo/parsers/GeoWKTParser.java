@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.geo.parsers;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
@@ -32,9 +20,10 @@ import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
@@ -63,7 +52,7 @@ public class GeoWKTParser {
     // no instance
     private GeoWKTParser() {}
 
-    public static ShapeBuilder parse(XContentParser parser, final GeoShapeFieldMapper shapeMapper)
+    public static ShapeBuilder parse(XContentParser parser, final AbstractShapeGeometryFieldMapper shapeMapper)
             throws IOException, ElasticsearchParseException {
         return parseExpectedType(parser, null, shapeMapper);
     }
@@ -75,12 +64,11 @@ public class GeoWKTParser {
 
     /** throws an exception if the parsed geometry type does not match the expected shape type */
     public static ShapeBuilder parseExpectedType(XContentParser parser, final GeoShapeType shapeType,
-                                                 final GeoShapeFieldMapper shapeMapper)
+                                                 final AbstractShapeGeometryFieldMapper shapeMapper)
             throws IOException, ElasticsearchParseException {
         try (StringReader reader = new StringReader(parser.text())) {
-            Explicit<Boolean> ignoreZValue = (shapeMapper == null) ? GeoShapeFieldMapper.Defaults.IGNORE_Z_VALUE :
-                shapeMapper.ignoreZValue();
-            Explicit<Boolean> coerce = (shapeMapper == null) ? GeoShapeFieldMapper.Defaults.COERCE : shapeMapper.coerce();
+            boolean coerce = shapeMapper != null && shapeMapper.coerce();
+            boolean ignoreZValue = shapeMapper == null || shapeMapper.ignoreZValue();
             // setup the tokenizer; configured to read words w/o numbers
             StreamTokenizer tokenizer = new StreamTokenizer(reader);
             tokenizer.resetSyntax();
@@ -93,7 +81,7 @@ public class GeoWKTParser {
             tokenizer.wordChars('.', '.');
             tokenizer.whitespaceChars(0, ' ');
             tokenizer.commentChar('#');
-            ShapeBuilder builder = parseGeometry(tokenizer, shapeType, ignoreZValue.value(), coerce.value());
+            ShapeBuilder builder = parseGeometry(tokenizer, shapeType, ignoreZValue, coerce);
             checkEOF(tokenizer);
             return builder;
         }
@@ -152,7 +140,7 @@ public class GeoWKTParser {
             return null;
         }
         PointBuilder pt = new PointBuilder(nextNumber(stream), nextNumber(stream));
-        if (isNumberNext(stream) == true) {
+        if (isNumberNext(stream)) {
             GeoPoint.assertZValue(ignoreZValue, nextNumber(stream));
         }
         nextCloser(stream);
@@ -198,7 +186,7 @@ public class GeoWKTParser {
             throws IOException, ElasticsearchParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
-            return null;
+            return new MultiPointBuilder();
         }
         return new MultiPointBuilder(parseCoordinateList(stream, ignoreZValue, coerce));
     }
@@ -223,8 +211,8 @@ public class GeoWKTParser {
         List<Coordinate> coordinates = parseCoordinateList(stream, ignoreZValue, coerce);
         int coordinatesNeeded = coerce ? 3 : 4;
         if (coordinates.size() >= coordinatesNeeded) {
-            if (!coordinates.get(0).equals(coordinates.get(coordinates.size() - 1))) {
-                if (coerce == true) {
+            if (coordinates.get(0).equals(coordinates.get(coordinates.size() - 1)) == false) {
+                if (coerce) {
                     coordinates.add(coordinates.get(0));
                 } else {
                     throw new ElasticsearchParseException("invalid LinearRing found (coordinates are not closed)");
@@ -242,7 +230,7 @@ public class GeoWKTParser {
             throws IOException, ElasticsearchParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
-            return null;
+            return new MultiLineStringBuilder();
         }
         MultiLineStringBuilder builder = new MultiLineStringBuilder();
         builder.linestring(parseLine(stream, ignoreZValue, coerce));
@@ -257,7 +245,8 @@ public class GeoWKTParser {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return null;
         }
-        PolygonBuilder builder = new PolygonBuilder(parseLinearRing(stream, ignoreZValue, coerce), ShapeBuilder.Orientation.RIGHT);
+        PolygonBuilder builder = new PolygonBuilder(parseLinearRing(stream, ignoreZValue, coerce),
+            Orientation.RIGHT);
         while (nextCloserOrComma(stream).equals(COMMA)) {
             builder.hole(parseLinearRing(stream, ignoreZValue, coerce));
         }
@@ -351,7 +340,7 @@ public class GeoWKTParser {
     }
 
     private static String nextComma(StreamTokenizer stream) throws IOException, ElasticsearchParseException {
-        if (nextWord(stream).equals(COMMA) == true) {
+        if (nextWord(stream).equals(COMMA)) {
             return COMMA;
         }
         throw new ElasticsearchParseException("expected " + COMMA + " but found: " + tokenString(stream), stream.lineno());

@@ -1,0 +1,35 @@
+{
+  "shutdown.put_node":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current",
+      "description":"Adds a node to be shut down"
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_nodes/{node_id}/shutdown",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "node_id":{
+              "type":"string",
+              "description":"The node id of node to be shut down"
+            }
+          }
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The shutdown type definition to register",
+      "required": true
+    }
+  }
+}

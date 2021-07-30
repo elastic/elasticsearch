@@ -1,35 +1,30 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -37,7 +32,7 @@ public class PipelineProcessorTests extends ESTestCase {
 
     public void testExecutesPipeline() throws Exception {
         String pipelineId = "pipeline";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         CompletableFuture<IngestDocument> invoked = new CompletableFuture<>();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Pipeline pipeline = new Pipeline(
@@ -58,64 +53,67 @@ public class PipelineProcessorTests extends ESTestCase {
                 public String getTag() {
                     return null;
                 }
+
+                @Override
+                public String getDescription() {
+                    return null;
+                }
             })
         );
         when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Map<String, Object> config = new HashMap<>();
         config.put("name", pipelineId);
-        factory.create(Collections.emptyMap(), null, config).execute(testIngestDocument);
+        factory.create(Collections.emptyMap(), null, null, config).execute(testIngestDocument, (result, e) -> {});
         assertEquals(testIngestDocument, invoked.get());
     }
 
     public void testThrowsOnMissingPipeline() throws Exception {
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Map<String, Object> config = new HashMap<>();
         config.put("name", "missingPipelineId");
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> factory.create(Collections.emptyMap(), null, config).execute(testIngestDocument)
-        );
+        IllegalStateException[] e = new IllegalStateException[1];
+        factory.create(Collections.emptyMap(), null, null, config)
+            .execute(testIngestDocument, (result, e1) -> e[0] = (IllegalStateException) e1);
         assertEquals(
-            "Pipeline processor configured for non-existent pipeline [missingPipelineId]", e.getMessage()
+            "Pipeline processor configured for non-existent pipeline [missingPipelineId]", e[0].getMessage()
         );
     }
 
     public void testThrowsOnRecursivePipelineInvocations() throws Exception {
         String innerPipelineId = "inner";
         String outerPipelineId = "outer";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Map<String, Object> outerConfig = new HashMap<>();
         outerConfig.put("name", innerPipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Pipeline outer = new Pipeline(
             outerPipelineId, null, null,
-            new CompoundProcessor(factory.create(Collections.emptyMap(), null, outerConfig))
+            new CompoundProcessor(factory.create(Collections.emptyMap(), null, null, outerConfig))
         );
         Map<String, Object> innerConfig = new HashMap<>();
         innerConfig.put("name", outerPipelineId);
         Pipeline inner = new Pipeline(
             innerPipelineId, null, null,
-            new CompoundProcessor(factory.create(Collections.emptyMap(), null, innerConfig))
+            new CompoundProcessor(factory.create(Collections.emptyMap(), null, null, innerConfig))
         );
         when(ingestService.getPipeline(outerPipelineId)).thenReturn(outer);
         when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
         outerConfig.put("name", innerPipelineId);
-        ElasticsearchException e = expectThrows(
-            ElasticsearchException.class,
-            () -> factory.create(Collections.emptyMap(), null, outerConfig).execute(testIngestDocument)
-        );
+        ElasticsearchException[] e = new ElasticsearchException[1];
+        factory.create(Collections.emptyMap(), null, null, outerConfig)
+            .execute(testIngestDocument, (result, e1) -> e[0] = (ElasticsearchException) e1);
         assertEquals(
-            "Cycle detected for pipeline: inner", e.getRootCause().getMessage()
+            "Cycle detected for pipeline: inner", e[0].getRootCause().getMessage()
         );
     }
 
     public void testAllowsRepeatedPipelineInvocations() throws Exception {
         String innerPipelineId = "inner";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Map<String, Object> outerConfig = new HashMap<>();
         outerConfig.put("name", innerPipelineId);
@@ -124,25 +122,25 @@ public class PipelineProcessorTests extends ESTestCase {
             innerPipelineId, null, null, new CompoundProcessor()
         );
         when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
-        Processor outerProc = factory.create(Collections.emptyMap(), null, outerConfig);
-        outerProc.execute(testIngestDocument);
-        outerProc.execute(testIngestDocument);
+        Processor outerProc = factory.create(Collections.emptyMap(), null, null, outerConfig);
+        outerProc.execute(testIngestDocument, (result, e) -> {});
+        outerProc.execute(testIngestDocument, (result, e) -> {});
     }
 
     public void testPipelineProcessorWithPipelineChain() throws Exception {
         String pipeline1Id = "pipeline1";
         String pipeline2Id = "pipeline2";
         String pipeline3Id = "pipeline3";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         Map<String, Object> pipeline1ProcessorConfig = new HashMap<>();
         pipeline1ProcessorConfig.put("name", pipeline2Id);
-        PipelineProcessor pipeline1Processor = factory.create(Collections.emptyMap(), null, pipeline1ProcessorConfig);
+        PipelineProcessor pipeline1Processor = factory.create(Collections.emptyMap(), null, null, pipeline1ProcessorConfig);
 
         Map<String, Object> pipeline2ProcessorConfig = new HashMap<>();
         pipeline2ProcessorConfig.put("name", pipeline3Id);
-        PipelineProcessor pipeline2Processor = factory.create(Collections.emptyMap(), null, pipeline2ProcessorConfig);
+        PipelineProcessor pipeline2Processor = factory.create(Collections.emptyMap(), null, null, pipeline2ProcessorConfig);
 
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L);
@@ -177,7 +175,7 @@ public class PipelineProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         //start the chain
-        ingestDocument.executePipeline(pipeline1);
+        ingestDocument.executePipeline(pipeline1, (result, e) -> {});
         assertNotNull(ingestDocument.getSourceAndMetadata().get(key1));
 
         //check the stats
@@ -204,5 +202,64 @@ public class PipelineProcessorTests extends ESTestCase {
         assertThat(pipeline1Stats.getIngestFailedCount(), equalTo(0L));
         assertThat(pipeline2Stats.getIngestFailedCount(), equalTo(0L));
         assertThat(pipeline3Stats.getIngestFailedCount(), equalTo(1L));
+    }
+
+    public void testIngestPipelineMetadata() {
+        IngestService ingestService = createIngestService();
+
+        final int numPipelines = 16;
+        Pipeline firstPipeline = null;
+        for (int i = 0; i < numPipelines; i++) {
+            String pipelineId = Integer.toString(i);
+            List<Processor> processors = new ArrayList<>();
+            processors.add(new AbstractProcessor(null, null) {
+                @Override
+                public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
+                    ingestDocument.appendFieldValue("pipelines", ingestDocument.getIngestMetadata().get("pipeline"));
+                    return ingestDocument;
+                }
+
+                @Override
+                public String getType() {
+                    return null;
+                }
+
+            });
+            if (i < (numPipelines - 1)) {
+                TemplateScript.Factory pipelineName = new TestTemplateService.MockTemplateScript.Factory(Integer.toString(i + 1));
+                processors.add(new PipelineProcessor(null, null, pipelineName, ingestService));
+            }
+
+
+            Pipeline pipeline = new Pipeline(pipelineId, null, null, new CompoundProcessor(false, processors, List.of()));
+            when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
+            if (firstPipeline == null) {
+                firstPipeline = pipeline;
+            }
+        }
+
+        IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        IngestDocument[] docHolder = new IngestDocument[1];
+        Exception[] errorHolder = new Exception[1];
+        testIngestDocument.executePipeline(firstPipeline, (doc, e) -> {
+            docHolder[0] = doc;
+            errorHolder[0] = e;
+        });
+        assertThat(docHolder[0], notNullValue());
+        assertThat(errorHolder[0], nullValue());
+
+        IngestDocument ingestDocument = docHolder[0];
+        List<?> pipelines = ingestDocument.getFieldValue("pipelines", List.class);
+        assertThat(pipelines.size(), equalTo(numPipelines));
+        for (int i = 0; i < numPipelines; i++) {
+            assertThat(pipelines.get(i), equalTo(Integer.toString(i)));
+        }
+    }
+
+    static IngestService createIngestService() {
+        IngestService ingestService = mock(IngestService.class);
+        ScriptService scriptService = mock(ScriptService.class);
+        when(ingestService.getScriptService()).thenReturn(scriptService);
+        return ingestService;
     }
 }

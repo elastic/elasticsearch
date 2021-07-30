@@ -1,98 +1,100 @@
 [[query-dsl-regexp-query]]
-=== Regexp Query
+=== Regexp query
+++++
+<titleabbrev>Regexp</titleabbrev>
+++++
 
-The `regexp` query allows you to use regular expression term queries.
-See <<regexp-syntax>> for details of the supported regular expression language.
-The "term queries" in that first sentence means that Elasticsearch will apply
-the regexp to the terms produced by the tokenizer for that field, and not
-to the original text of the field.
+Returns documents that contain terms matching a
+{wikipedia}/Regular_expression[regular expression].
 
-*Note*: The performance of a `regexp` query heavily depends on the
-regular expression chosen. Matching everything like `.*` is very slow as
-well as using lookaround regular expressions. If possible, you should
-try to use a long prefix before your regular expression starts. Wildcard
-matchers like `.*?+` will mostly lower performance.
+A regular expression is a way to match patterns in data using placeholder
+characters, called operators. For a list of operators supported by the
+`regexp` query, see <<regexp-syntax, Regular expression syntax>>.
 
-[source,js]
---------------------------------------------------
+[[regexp-query-ex-request]]
+==== Example request
+
+The following search returns documents where the `user.id` field contains any term
+that begins with `k` and ends with `y`. The `.*` operators match any
+characters of any length, including no characters. Matching
+terms can include `ky`, `kay`, and `kimchy`.
+
+[source,console]
+----
 GET /_search
 {
-    "query": {
-        "regexp":{
-            "name.first": "s.*y"
-        }
+  "query": {
+    "regexp": {
+      "user.id": {
+        "value": "k.*y",
+        "flags": "ALL",
+        "case_insensitive": true,
+        "max_determinized_states": 10000,
+        "rewrite": "constant_score"
+      }
     }
+  }
 }
---------------------------------------------------
-// CONSOLE
+----
 
-Boosting is also supported
 
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "regexp":{
-            "name.first":{
-                "value":"s.*y",
-                "boost":1.2
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
+[[regexp-top-level-params]]
+==== Top-level parameters for `regexp`
+`<field>`::
+(Required, object) Field you wish to search.
 
-You can also use special flags
+[[regexp-query-field-params]]
+==== Parameters for `<field>`
+`value`::
+(Required, string) Regular expression for terms you wish to find in the provided
+`<field>`. For a list of supported operators, see <<regexp-syntax, Regular
+expression syntax>>.
++
+--
+By default, regular expressions are limited to 1,000 characters. You can change
+this limit using the <<index-max-regex-length, `index.max_regex_length`>>
+setting.
 
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "regexp":{
-            "name.first": {
-                "value": "s.*y",
-                "flags" : "INTERSECTION|COMPLEMENT|EMPTY"
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
+[WARNING]
+=====
+The performance of the `regexp` query can vary based on the regular expression
+provided. To improve performance, avoid using wildcard patterns, such as `.*` or
+`.*?+`, without a prefix or suffix.
+=====
+--
 
-Possible flags are `ALL` (default), `ANYSTRING`, `COMPLEMENT`,
-`EMPTY`, `INTERSECTION`, `INTERVAL`, or `NONE`. Please check the
-http://lucene.apache.org/core/4_9_0/core/org/apache/lucene/util/automaton/RegExp.html[Lucene
-documentation] for their meaning
+`flags`::
+(Optional, string) Enables optional operators for the regular expression. For
+valid values and more information, see <<regexp-optional-operators, Regular
+expression syntax>>.
 
-Regular expressions are dangerous because it's easy to accidentally
-create an innocuous looking one that requires an exponential number of
-internal determinized automaton states (and corresponding RAM and CPU)
-for Lucene to execute.  Lucene prevents these using the
-`max_determinized_states` setting (defaults to 10000).  You can raise
-this limit to allow more complex regular expressions to execute.
+`case_insensitive` added:[7.10.0]::
+(Optional, Boolean) Allows case insensitive matching of the regular expression
+value with the indexed field values when set to true. Default is false which means
+the case sensitivity of matching depends on the underlying field's mapping.
 
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "regexp":{
-            "name.first": {
-                "value": "s.*y",
-                "flags" : "INTERSECTION|COMPLEMENT|EMPTY",
-                "max_determinized_states": 20000
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
+`max_determinized_states`::
++
+--
+(Optional, integer) Maximum number of
+{wikipedia}/Deterministic_finite_automaton[automaton states]
+required for the query. Default is `10000`.
 
-NOTE: By default the maximum length of regex string allowed in a Regexp Query 
-is limited to 1000. You can update the `index.max_regex_length` index setting 
-to bypass this limit.
+{es} uses https://lucene.apache.org/core/[Apache Lucene] internally to parse
+regular expressions. Lucene converts each regular expression to a finite
+automaton containing a number of determinized states.
 
-include::regexp-syntax.asciidoc[]
+You can use this parameter to prevent that conversion from unintentionally
+consuming too many resources. You may need to increase this limit to run complex
+regular expressions.
+--
+
+`rewrite`::
+(Optional, string) Method used to rewrite the query. For valid values and more
+information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
+
+[[regexp-query-notes]]
+==== Notes
+===== Allow expensive queries
+Regexp queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.

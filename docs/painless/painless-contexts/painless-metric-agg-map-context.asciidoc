@@ -32,7 +32,7 @@ part of a full metric aggregation.
         primitive. The same `state` `Map` is shared between all aggregated documents
         on a given shard. If an initialization script is provided as part of the
         aggregation then values added from the initialization script are
-        available.  If no combine script is specified, values must be
+        available. If no combine script is specified, values must be
         directly stored in `state` in a usable form. If no combine script and no
         <<painless-metric-agg-reduce-context, reduce script>> are specified, the
         `state` values are used as the result.
@@ -44,4 +44,4 @@ part of a full metric aggregation.
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+The standard <<painless-api-reference-shared, Painless API>> is available.

@@ -1,20 +1,31 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-put-lifecycle]]
-=== Create Lifecycle Policy API
+=== Create or update lifecycle policy API
 ++++
-<titleabbrev>Create Policy</titleabbrev>
+<titleabbrev>Create or update lifecycle policy</titleabbrev>
 ++++
 
-beta[]
+Creates or updates lifecycle policy. See <<ilm-policy-definition>> for
+definitions of policy components.
 
-Creates or updates lifecycle policy.
-
-==== Request
+[[ilm-put-lifecycle-request]]
+==== {api-request-title}
 
 `PUT _ilm/policy/<policy_id>`
 
-==== Description
+[[ilm-put-lifecycle-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage_ilm`
+cluster privilege to use this API. You must also have the `manage` index
+privilege on all indices being managed by `policy`. {ilm-init} performs
+operations as the user who last updated the policy. {ilm-init} only has the
+<<defining-roles,roles>> assigned to the user at the time of the last policy
+update.
+
+[[ilm-put-lifecycle-desc]]
+==== {api-description-title}
 
 Creates a lifecycle policy. If the specified policy exists, the policy is
 replaced and the policy version is incremented.
@@ -22,28 +33,37 @@ replaced and the policy version is incremented.
 NOTE: Only the latest version of the policy is stored, you cannot revert to
 previous versions.
 
-==== Path Parameters
+[[ilm-put-lifecycle-path-params]]
+==== {api-path-parms-title}
 
-`policy` (required)::
-  (string) Identifier for the policy.
+`<policy_id>`::
+  (Required, string) Identifier for the policy.
 
-==== Request Parameters
+[[ilm-put-lifecycle-query-params]]
+==== {api-query-parms-title}
 
-include::{docdir}/rest-api/timeoutparms.asciidoc[]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
+[[ilm-put-lifecycle-example]]
+==== {api-examples-title}
 
-include::ilm-cluster-mgt-privilege.asciidoc[]
+The following example creates a new policy named `my_policy`. In addition, you can use the
+`_meta` parameter to add arbitrary metadata to the policy, the `_meta` parameter is optional
+and not automatically generated or used by Elasticsearch. To unset `_meta`, replace the policy
+without specifying one. To check the `_meta`, you can use the <<ilm-get-lifecycle,Get lifecycle policy>> API.
 
-==== Examples
-
-The following example creates a new policy named `my_policy`:
-
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
   "policy": {
+    "_meta": {
+      "description": "used for nginx log",
+      "project": {
+        "name": "myProject",
+        "department": "myDepartment"
+      }
+    },
     "phases": {
       "warm": {
         "min_age": "10d",
@@ -63,15 +83,12 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 If the request succeeds, you receive the following result:
-[source,js]
+
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// CONSOLE
-// TESTRESPONSE

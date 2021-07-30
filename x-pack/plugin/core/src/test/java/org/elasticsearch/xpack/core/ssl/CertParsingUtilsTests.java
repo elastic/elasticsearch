@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,10 +22,10 @@ import java.security.interfaces.ECPrivateKey;
 import java.util.Collections;
 import java.util.List;
 
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class CertParsingUtilsTests extends ESTestCase {
     public void testReadKeysCorrectly() throws Exception {
@@ -79,14 +81,14 @@ public class CertParsingUtilsTests extends ESTestCase {
         verifyPrime256v1ECKey(keyNoSpecPath);
 
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-cert.pem");
-        Certificate[] certs = CertParsingUtils.readCertificates(Collections.singletonList(certPath.toString()), null);
+        Certificate[] certs = CertParsingUtils.readCertificates(Collections.singletonList(certPath.toString()), newEnvironment());
         assertEquals(1, certs.length);
         Certificate cert = certs[0];
         assertNotNull(cert);
         assertEquals("EC", cert.getPublicKey().getAlgorithm());
     }
 
-    private void verifyPrime256v1ECKey(Path keyPath) {
+    private void verifyPrime256v1ECKey(Path keyPath) throws IOException {
         PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, () -> null);
         assertEquals("EC", privateKey.getAlgorithm());
         assertThat(privateKey, instanceOf(ECPrivateKey.class));

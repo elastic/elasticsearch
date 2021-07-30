@@ -1,51 +1,35 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
-import java.util.function.BiConsumer;
 import java.util.function.UnaryOperator;
 
 /**
  * Script level doc values, the assumption is that any implementation will
- * implement a <code>getValue</code> and a <code>getValues</code> that return
- * the relevant type that then can be used in scripts.
+ * implement a {@link Longs#getValue getValue} method.
  *
  * Implementations should not internally re-use objects for the values that they
  * return as a single {@link ScriptDocValues} instance can be reused to return
@@ -53,38 +37,10 @@ import java.util.function.UnaryOperator;
  */
 public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScriptDocValues.class));
-    /**
-     * Callback for deprecated fields. In production this should always point to
-     * {@link #deprecationLogger} but tests will override it so they can test
-     * that we use the required permissions when calling it.
-     */
-    private final BiConsumer<String, String> deprecationCallback;
-
-    public ScriptDocValues() {
-        deprecationCallback = deprecationLogger::deprecatedAndMaybeLog;
-    }
-
-    /**
-     * Constructor for testing deprecation callback.
-     */
-    ScriptDocValues(BiConsumer<String, String> deprecationCallback) {
-        this.deprecationCallback = deprecationCallback;
-    }
-
     /**
      * Set the current doc ID.
      */
     public abstract void setNextDocId(int docId) throws IOException;
-
-    /**
-     * Return a copy of the list of the values for the current document.
-     */
-    public final List<T> getValues() {
-        deprecated("ScriptDocValues#getValues", "Deprecated getValues used, the field is a list and should be accessed directly."
-                + " For example, use doc['foo'] instead of doc['foo'].values.");
-        return this;
-    }
 
     // Throw meaningful exceptions if someone tries to modify the ScriptDocValues.
     @Override
@@ -112,21 +68,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         throw new UnsupportedOperationException("doc values are unmodifiable");
     }
 
-    /**
-     * Log a deprecation log, with the server's permissions and not the permissions
-     * of the script calling this method. We need to do this to prevent errors
-     * when rolling the log file.
-     */
-    private void deprecated(String key, String message) {
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                deprecationCallback.accept(key, message);
-                return null;
-            }
-        });
-    }
-
     public static final class Longs extends ScriptDocValues<Long> {
         private final SortedNumericDocValues in;
         private long[] values = new long[0];
@@ -136,14 +77,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Standard constructor.
          */
         public Longs(SortedNumericDocValues in) {
-            this.in = in;
-        }
-
-        /**
-         * Constructor for testing deprecation callback.
-         */
-        Longs(SortedNumericDocValues in, BiConsumer<String, String> deprecationCallback) {
-            super(deprecationCallback);
             this.in = in;
         }
 
@@ -169,15 +102,15 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public long getValue() {
-            if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
-            }
-            return values[0];
+            return get(0);
         }
 
         @Override
         public Long get(int index) {
+            if (count == 0) {
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+            }
             return values[index];
         }
 
@@ -190,6 +123,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     public static final class Dates extends ScriptDocValues<JodaCompatibleZonedDateTime> {
 
         private final SortedNumericDocValues in;
+        private final boolean isNanos;
 
         /**
          * Values wrapped in {@link java.time.ZonedDateTime} objects.
@@ -197,19 +131,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         private JodaCompatibleZonedDateTime[] dates;
         private int count;
 
-        /**
-         * Standard constructor.
-         */
-        public Dates(SortedNumericDocValues in) {
+        public Dates(SortedNumericDocValues in, boolean isNanos) {
             this.in = in;
-        }
-
-        /**
-         * Constructor for testing deprecation callback.
-         */
-        Dates(SortedNumericDocValues in, BiConsumer<String, String> deprecationCallback) {
-            super(deprecationCallback);
-            this.in = in;
+            this.isNanos = isNanos;
         }
 
         /**
@@ -217,15 +141,15 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * in.
          */
         public JodaCompatibleZonedDateTime getValue() {
-            if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
-            }
             return get(0);
         }
 
         @Override
         public JodaCompatibleZonedDateTime get(int index) {
+            if (count == 0) {
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+            }
             if (index >= count) {
                 throw new IndexOutOfBoundsException(
                         "attempted to fetch the [" + index + "] date when there are only ["
@@ -261,7 +185,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 dates = new JodaCompatibleZonedDateTime[count];
             }
             for (int i = 0; i < count; ++i) {
-                dates[i] = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
+                if (isNanos) {
+                    dates[i] = new JodaCompatibleZonedDateTime(DateUtils.toInstant(in.nextValue()), ZoneOffset.UTC);
+                } else {
+                    dates[i] = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
+                }
             }
         }
     }
@@ -302,15 +230,15 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public double getValue() {
-            if (count == 0) {
-               throw new IllegalStateException("A document doesn't have a value for a field! " +
-                   "Use doc[<field>].size()==0 to check if a document is missing a field!");
-            }
-            return values[0];
+            return get(0);
         }
 
         @Override
         public Double get(int index) {
+            if (count == 0) {
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+            }
             return values[index];
         }
 
@@ -320,35 +248,73 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static final class GeoPoints extends ScriptDocValues<GeoPoint> {
+    public abstract static class Geometry<T> extends ScriptDocValues<T> {
+        /** Returns the dimensional type of this geometry */
+        public abstract int getDimensionalType();
+        /** Returns the bounding box of this geometry  */
+        public abstract GeoBoundingBox getBoundingBox();
+        /** Returns the centroid of this geometry  */
+        public abstract GeoPoint getCentroid();
+        /** Returns the width of the bounding box diagonal in the spherical Mercator projection (meters)  */
+        public abstract double getMercatorWidth();
+        /** Returns the height of the bounding box diagonal in the spherical Mercator projection (meters) */
+        public abstract double getMercatorHeight();
+    }
+
+    public static final class GeoPoints extends Geometry<GeoPoint> {
 
         private final MultiGeoPointValues in;
         private GeoPoint[] values = new GeoPoint[0];
+        private final GeoPoint centroid = new GeoPoint();
+        private final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
         private int count;
 
         public GeoPoints(MultiGeoPointValues in) {
             this.in = in;
         }
 
-        /**
-         * Constructor for testing deprecation callback.
-         */
-        GeoPoints(MultiGeoPointValues in, BiConsumer<String, String> deprecationCallback) {
-            super(deprecationCallback);
-            this.in =  in;
-        }
-
         @Override
         public void setNextDocId(int docId) throws IOException {
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
-                for (int i = 0; i < count; i++) {
-                    GeoPoint point = in.nextValue();
-                    values[i] = new GeoPoint(point.lat(), point.lon());
+                if (count == 1) {
+                    setSingleValue();
+                } else {
+                    setMultiValue();
                 }
             } else {
                 resize(0);
             }
+        }
+
+        private void setSingleValue() throws IOException {
+            GeoPoint point = in.nextValue();
+            values[0].reset(point.lat(), point.lon());
+            centroid.reset(point.lat(), point.lon());
+            boundingBox.topLeft().reset(point.lat(), point.lon());
+            boundingBox.bottomRight().reset(point.lat(), point.lon());
+        }
+
+        private void setMultiValue() throws IOException {
+            double centroidLat = 0;
+            double centroidLon = 0;
+            double maxLon = Double.NEGATIVE_INFINITY;
+            double minLon = Double.POSITIVE_INFINITY;
+            double maxLat = Double.NEGATIVE_INFINITY;
+            double minLat = Double.POSITIVE_INFINITY;
+            for (int i = 0; i < count; i++) {
+                GeoPoint point = in.nextValue();
+                values[i].reset(point.lat(), point.lon());
+                centroidLat += point.getLat();
+                centroidLon += point.getLon();
+                maxLon = Math.max(maxLon, values[i].getLon());
+                minLon = Math.min(minLon, values[i].getLon());
+                maxLat = Math.max(maxLat, values[i].getLat());
+                minLat = Math.min(minLat, values[i].getLat());
+            }
+            centroid.reset(centroidLat / count, centroidLon / count);
+            boundingBox.topLeft().reset(maxLat, minLon);
+            boundingBox.bottomRight().reset(minLat, maxLon);
         }
 
         /**
@@ -361,17 +327,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 int oldLength = values.length;
                 values = ArrayUtil.grow(values, count);
                 for (int i = oldLength; i < values.length; ++i) {
-                values[i] = new GeoPoint();
+                    values[i] = new GeoPoint();
                 }
             }
         }
 
         public GeoPoint getValue() {
-            if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
-            }
-            return values[0];
+            return get(0);
         }
 
         public double getLat() {
@@ -379,19 +341,17 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public double[] getLats() {
-            List<GeoPoint> points = getValues();
-            double[] lats = new double[points.size()];
-            for (int i = 0; i < points.size(); i++) {
-                lats[i] = points.get(i).lat();
+            double[] lats = new double[size()];
+            for (int i = 0; i < size(); i++) {
+                lats[i] = get(i).lat();
             }
             return lats;
         }
 
         public double[] getLons() {
-            List<GeoPoint> points = getValues();
-            double[] lons = new double[points.size()];
-            for (int i = 0; i < points.size(); i++) {
-                lons[i] = points.get(i).lon();
+            double[] lons = new double[size()];
+            for (int i = 0; i < size(); i++) {
+                lons[i] = get(i).lon();
             }
             return lons;
         }
@@ -402,6 +362,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoPoint get(int index) {
+            if (count == 0) {
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+            }
             final GeoPoint point = values[index];
             return new GeoPoint(point.lat(), point.lon());
         }
@@ -437,8 +401,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public double geohashDistance(String geohash) {
             GeoPoint point = getValue();
-            return GeoUtils.arcDistance(point.lat(), point.lon(), GeoHashUtils.decodeLatitude(geohash),
-                GeoHashUtils.decodeLongitude(geohash));
+            return GeoUtils.arcDistance(point.lat(), point.lon(), Geohash.decodeLatitude(geohash),
+                Geohash.decodeLongitude(geohash));
         }
 
         public double geohashDistanceWithDefault(String geohash, double defaultValue) {
@@ -446,6 +410,31 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 return defaultValue;
             }
             return geohashDistance(geohash);
+        }
+
+        @Override
+        public int getDimensionalType() {
+            return size() == 0 ? -1 : 0;
+        }
+
+        @Override
+        public GeoPoint getCentroid() {
+            return size() == 0 ? null : centroid;
+        }
+
+        @Override
+        public double getMercatorWidth() {
+            return 0;
+        }
+
+        @Override
+        public double getMercatorHeight() {
+            return 0;
+        }
+
+        @Override
+        public GeoBoundingBox getBoundingBox() {
+          return size() == 0 ? null : boundingBox;
         }
     }
 
@@ -481,15 +470,15 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public boolean getValue() {
-            if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
-            }
-            return values[0];
+            return get(0);
         }
 
         @Override
         public Boolean get(int index) {
+            if (count == 0) {
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+            }
             return values[index];
         }
 
@@ -524,7 +513,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
-                    // We need to make a copy here, because BytesBinaryDVAtomicFieldData's SortedBinaryDocValues
+                    // We need to make a copy here, because BytesBinaryDVLeafFieldData's SortedBinaryDocValues
                     // implementation reuses the returned BytesRef. Otherwise we would end up with the same BytesRef
                     // instance for all slots in the values array.
                     values[i].copyBytes(in.nextValue());
@@ -553,25 +542,30 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public int size() {
             return count;
         }
-
     }
 
-    public static final class Strings extends BinaryScriptDocValues<String> {
-
+    public static class Strings extends BinaryScriptDocValues<String> {
         public Strings(SortedBinaryDocValues in) {
             super(in);
         }
 
         @Override
-        public String get(int index) {
-            return values[index].get().utf8ToString();
-        }
-
-        public String getValue() {
+        public final String get(int index) {
             if (count == 0) {
                 throw new IllegalStateException("A document doesn't have a value for a field! " +
-                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
             }
+            return bytesToString(values[index].get());
+        }
+
+        /**
+         * Convert the stored bytes to a String.
+         */
+        protected String bytesToString(BytesRef bytes) {
+            return bytes.utf8ToString();
+        }
+
+        public final String getValue() {
             return get(0);
         }
     }
@@ -584,6 +578,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public BytesRef get(int index) {
+            if (count == 0) {
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+            }
             /**
              * We need to make a copy here because {@link BinaryScriptDocValues} might reuse the
              * returned value and the same instance might be used to
@@ -593,10 +591,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public BytesRef getValue() {
-            if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
-            }
             return get(0);
         }
 

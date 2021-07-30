@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -74,12 +74,15 @@ public final class Request {
      */
     public void addParameter(String name, String value) {
         Objects.requireNonNull(name, "url parameter name cannot be null");
-        // .putIfAbsent(name, value) except we are in Java 7 which doesn't have that.
         if (parameters.containsKey(name)) {
             throw new IllegalArgumentException("url parameter [" + name + "] has already been set to [" + parameters.get(name) + "]");
         } else {
             parameters.put(name, value);
         }
+    }
+
+    public void addParameters(Map<String, String> paramSource){
+        paramSource.forEach(this::addParameter);
     }
 
     /**

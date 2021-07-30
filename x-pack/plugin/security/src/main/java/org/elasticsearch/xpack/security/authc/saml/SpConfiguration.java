@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.opensaml.security.x509.X509Credential;
 
 import java.util.Collections;
@@ -41,23 +42,23 @@ public class SpConfiguration {
     /**
      * The SAML identifier (as a URI) for the Sp
      */
-    String getEntityId() {
+    public String getEntityId() {
         return entityId;
     }
 
-    String getAscUrl() {
+    public String getAscUrl() {
         return ascUrl;
     }
 
-    String getLogoutUrl() {
+    public String getLogoutUrl() {
         return logoutUrl;
     }
 
-    List<X509Credential> getEncryptionCredentials() {
+    public List<X509Credential> getEncryptionCredentials() {
         return encryptionCredentials;
     }
 
-    SigningConfiguration getSigningConfiguration() {
+    public SigningConfiguration getSigningConfiguration() {
         return signingConfiguration;
     }
 

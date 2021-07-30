@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -38,8 +38,10 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.security.AccessController;
 import java.security.KeyFactory;
 import java.security.KeyStore;
+import java.security.PrivilegedAction;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
@@ -79,6 +81,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     }
 
     public void testBuilderUsesDefaultSSLContext() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final SSLContext defaultSSLContext = SSLContext.getDefault();
         try {
             try (RestClient client = buildRestClient()) {
@@ -106,8 +109,9 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     }
 
     private static SSLContext getSslContext() throws Exception {
-        SSLContext sslContext = SSLContext.getInstance("TLS");
-        try (InputStream certFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test.crt")) {
+        SSLContext sslContext = SSLContext.getInstance(getProtocol());
+        try (InputStream certFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test.crt");
+             InputStream keyStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test_truststore.jks")) {
             // Build a keystore of default type programmatically since we can't use JKS keystores to
             // init a KeyManagerFactory in FIPS 140 JVMs.
             KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
@@ -120,10 +124,51 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
                 new Certificate[]{certFactory.generateCertificate(certFile)});
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             kmf.init(keyStore, "password".toCharArray());
+            KeyStore trustStore = KeyStore.getInstance("JKS");
+            trustStore.load(keyStoreFile, "password".toCharArray());
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            tmf.init(keyStore);
+            tmf.init(trustStore);
             sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
         }
         return sslContext;
+    }
+
+    /**
+     * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
+     * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
+     */
+    private static String getProtocol() {
+        String version = AccessController.doPrivileged((PrivilegedAction<String>) () -> System.getProperty("java.version"));
+        String[] parts = version.split("-");
+        String[] numericComponents;
+        if (parts.length == 1) {
+            numericComponents = version.split("\\.");
+        } else if (parts.length == 2) {
+            numericComponents = parts[0].split("\\.");
+        } else {
+            throw new IllegalArgumentException("Java version string [" + version + "] could not be parsed.");
+        }
+        if (numericComponents.length > 0) {
+            final int major = Integer.valueOf(numericComponents[0]);
+            if (major > 12) {
+                return "TLS";
+            } else if (major == 12 && numericComponents.length > 2) {
+                final int minor = Integer.valueOf(numericComponents[1]);
+                if (minor > 0) {
+                    return "TLS";
+                } else {
+                    String patch = numericComponents[2];
+                    final int index = patch.indexOf("_");
+                    if (index > -1) {
+                        patch = patch.substring(0, index);
+                    }
+
+                    if (Integer.valueOf(patch) >= 1) {
+                        return "TLS";
+                    }
+                }
+            }
+        }
+        return "TLSv1.2";
     }
 }

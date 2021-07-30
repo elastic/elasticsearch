@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.slack.message;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,11 +70,11 @@ public class SlackMessage implements MessageElement {
 
         SlackMessage that = (SlackMessage) o;
 
-        if (from != null ? !from.equals(that.from) : that.from != null) return false;
-        if (!Arrays.equals(to, that.to)) return false;
-        if (icon != null ? !icon.equals(that.icon) : that.icon != null) return false;
-        if (text != null ? !text.equals(that.text) : that.text != null) return false;
-        return Arrays.equals(attachments, that.attachments);
+        return Objects.equals(from, that.from)
+            && Arrays.equals(to, that.to)
+            && Objects.equals(icon, that.icon)
+            && Objects.equals(text, that.text)
+            && Arrays.equals(attachments, that.attachments);
     }
 
     @Override

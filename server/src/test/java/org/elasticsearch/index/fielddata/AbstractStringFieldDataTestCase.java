@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.fielddata;
@@ -27,7 +16,9 @@ import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
@@ -327,7 +318,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");
             if (first && docValue == null) {
                 assertNull(previousValue);
-            } else if (!first && docValue != null) {
+            } else if (first == false && docValue != null) {
                 assertNotNull(previousValue);
             }
             final BytesRef value = docValue == null ? null : new BytesRef(docValue);
@@ -456,6 +447,35 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         searcher.getIndexReader().close();
     }
 
+    public void testSingleValuedGlobalOrdinals() throws Exception {
+        Document d = new Document();
+        addField(d, "_id", "1");
+        addField(d, "value", "2");
+        writer.addDocument(d);
+
+        d = new Document();
+        addField(d, "_id", "2");
+        addField(d, "value", "1");
+        writer.addDocument(d);
+
+        // Force a second segment
+        writer.commit();
+
+        d = new Document();
+        addField(d, "_id", "3");
+        addField(d, "value", "3");
+        writer.addDocument(d);
+        refreshReader();
+        IndexOrdinalsFieldData ifd = getForField("string", "value", hasDocValues());
+        IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
+        assertNotNull(globalOrdinals.getOrdinalMap());
+        assertThat(topLevelReader.leaves().size(), equalTo(2));
+        for (int l = 0; l < 2; l++) {
+            SortedSetDocValues ords = globalOrdinals.load(topLevelReader.leaves().get(l)).getOrdinalsValues();
+            assertThat(DocValues.unwrapSingleton(ords), instanceOf(SortedDocValues.class));
+        }
+    }
+
     public void testGlobalOrdinals() throws Exception {
         fillExtendedMvSet();
         refreshReader();
@@ -465,9 +485,9 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(topLevelReader.leaves().size(), equalTo(3));
 
         // First segment
-        assertThat(globalOrdinals, instanceOf(GlobalOrdinalsIndexFieldData.class));
+        assertThat(globalOrdinals, instanceOf(GlobalOrdinalsIndexFieldData.Consumer.class));
         LeafReaderContext leaf = topLevelReader.leaves().get(0);
-        AtomicOrdinalsFieldData afd = globalOrdinals.load(leaf);
+        LeafOrdinalsFieldData afd = globalOrdinals.load(leaf);
         SortedSetDocValues values = afd.getOrdinalsValues();
         assertTrue(values.advanceExact(0));
         long ord = values.nextOrd();
@@ -553,7 +573,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
 
         IndexOrdinalsFieldData ifd = getForField("value");
         for (LeafReaderContext atomicReaderContext : atomicReaderContexts) {
-            AtomicOrdinalsFieldData afd = ifd.load(atomicReaderContext);
+            LeafOrdinalsFieldData afd = ifd.load(atomicReaderContext);
 
             TermsEnum termsEnum = afd.getOrdinalsValues().termsEnum();
             int size = 0;
@@ -590,7 +610,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         IndexOrdinalsFieldData ifd = getForField("string", "value", hasDocValues());
         IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertNotNull(globalOrdinals.getOrdinalMap());
-        assertThat(ifd.loadGlobal(topLevelReader), sameInstance(globalOrdinals));
+        assertThat(ifd.loadGlobal(topLevelReader).getOrdinalMap(), sameInstance(globalOrdinals.getOrdinalMap()));
         // 3 b/c 1 segment level caches and 1 top level cache
         // in case of doc values, we don't cache atomic FD, so only the top-level cache is there
         assertThat(indicesFieldDataCache.getCache().weight(), equalTo(hasDocValues() ? 1L : 4L));
@@ -602,7 +622,8 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
                 break;
             }
         }
-        assertThat(cachedInstance, sameInstance(globalOrdinals));
+        assertNotSame(cachedInstance, globalOrdinals);
+        assertThat(cachedInstance.getOrdinalMap(), sameInstance(globalOrdinals.getOrdinalMap()));
         topLevelReader.close();
         // Now only 3 segment level entries, only the toplevel reader has been closed, but the segment readers are still used by IW
         assertThat(indicesFieldDataCache.getCache().weight(), equalTo(hasDocValues() ? 0L : 3L));

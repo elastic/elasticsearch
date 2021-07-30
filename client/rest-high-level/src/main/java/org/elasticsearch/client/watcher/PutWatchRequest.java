@@ -1,31 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.util.Objects;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * This request class contains the data needed to create a watch along with the name of the watch.
@@ -39,7 +31,8 @@ public final class PutWatchRequest implements Validatable {
     private final BytesReference source;
     private final XContentType xContentType;
     private boolean active = true;
-    private long version = Versions.MATCH_ANY;
+    private long ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+    private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
     public PutWatchRequest(String id, BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(id, "watch id is missing");
@@ -88,13 +81,55 @@ public final class PutWatchRequest implements Validatable {
         return xContentType;
     }
 
-    public long getVersion() {
-        return version;
+    /**
+     * only performs this put request if the watch's last modification was assigned the given
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+     *
+     * If the watch's last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public PutWatchRequest setIfSeqNo(long seqNo) {
+        if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+        }
+        ifSeqNo = seqNo;
+        return this;
     }
 
-    public void setVersion(long version) {
-        this.version = version;
+    /**
+     * only performs this put request if the watch's last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+     *
+     * If the watch last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public PutWatchRequest setIfPrimaryTerm(long term) {
+        if (term < 0) {
+            throw new IllegalArgumentException("primary term must be non negative. got [" + term + "]");
+        }
+        ifPrimaryTerm = term;
+        return this;
     }
+
+    /**
+     * If set, only perform this put watch request if the watch's last modification was assigned this sequence number.
+     * If the watch last last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public long ifSeqNo() {
+        return ifSeqNo;
+    }
+
+    /**
+     * If set, only perform this put watch request if the watch's last modification was assigned this primary term.
+     *
+     * If the watch's last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public long ifPrimaryTerm() {
+        return ifPrimaryTerm;
+    }
+
 
     public static boolean isValidId(String id) {
         return Strings.isEmpty(id) == false && NO_WS_PATTERN.matcher(id).matches();

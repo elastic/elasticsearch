@@ -1,23 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util.concurrent;
+
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;
@@ -48,26 +39,13 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         this(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, new EsAbortPolicy(), contextHolder);
     }
 
+    @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
     EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
             BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, XRejectedExecutionHandler handler,
             ThreadContext contextHolder) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
         this.name = name;
         this.contextHolder = contextHolder;
-    }
-
-    public void shutdown(ShutdownListener listener) {
-        synchronized (monitor) {
-            if (this.listener != null) {
-                throw new IllegalStateException("Shutdown was already called on this thread pool");
-            }
-            if (isTerminated()) {
-                listener.onTerminated();
-            } else {
-                this.listener = listener;
-            }
-        }
-        shutdown();
     }
 
     @Override
@@ -89,11 +67,8 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     @Override
-    public void execute(final Runnable command) {
-        doExecute(wrapRunnable(command));
-    }
-
-    protected void doExecute(final Runnable command) {
+    public void execute(Runnable command) {
+        command = wrapRunnable(command);
         try {
             super.execute(command);
         } catch (EsRejectedExecutionException ex) {
@@ -115,21 +90,13 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
         super.afterExecute(r, t);
+        EsExecutors.rethrowErrors(unwrap(r));
         assert assertDefaultContext(r);
     }
 
     private boolean assertDefaultContext(Runnable r) {
-        try {
-            assert contextHolder.isDefaultContext() : "the thread context is not the default context and the thread [" +
-                Thread.currentThread().getName() + "] is being returned to the pool after executing [" + r + "]";
-        } catch (IllegalStateException ex) {
-            // sometimes we execute on a closed context and isDefaultContext doen't bypass the ensureOpen checks
-            // this must not trigger an exception here since we only assert if the default is restored and
-            // we don't really care if we are closed
-            if (contextHolder.isClosed() == false) {
-                throw ex;
-            }
-        }
+        assert contextHolder.isDefaultContext() : "the thread context is not the default context and the thread [" +
+            Thread.currentThread().getName() + "] is being returned to the pool after executing [" + r + "]";
         return true;
     }
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.upgrades;
@@ -155,7 +144,6 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             }
             {
                 mappingsAndSettings.startObject("mappings");
-                mappingsAndSettings.startObject("doc");
                 mappingsAndSettings.startObject("properties");
                 {
                     mappingsAndSettings.startObject("query");
@@ -174,7 +162,6 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                 }
                 mappingsAndSettings.endObject();
                 mappingsAndSettings.endObject();
-                mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
             Request request = new Request("PUT", "/" + index);
@@ -183,20 +170,20 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             assertEquals(200, rsp.getStatusLine().getStatusCode());
 
             for (int i = 0; i < CANDIDATES.size(); i++) {
-                request = new Request("PUT", "/" + index + "/doc/" + Integer.toString(i));
+                request = new Request("PUT", "/" + index + "/_doc/" + Integer.toString(i));
                 request.setJsonEntity((String) CANDIDATES.get(i)[0]);
                 rsp = client().performRequest(request);
                 assertEquals(201, rsp.getStatusLine().getStatusCode());
             }
         } else {
-            NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, false,
+            NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY,
                 Collections.emptyList()).getNamedWriteables());
 
             for (int i = 0; i < CANDIDATES.size(); i++) {
                 QueryBuilder expectedQueryBuilder = (QueryBuilder) CANDIDATES.get(i)[1];
                 Request request = new Request("GET", "/" + index + "/_search");
                 request.setJsonEntity("{\"query\": {\"ids\": {\"values\": [\"" + Integer.toString(i) + "\"]}}, " +
-                        "\"docvalue_fields\": [{\"field\":\"query.query_builder_field\", \"format\":\"use_field_mapping\"}]}");
+                        "\"docvalue_fields\": [{\"field\":\"query.query_builder_field\"}]}");
                 Response rsp = client().performRequest(request);
                 assertEquals(200, rsp.getStatusLine().getStatusCode());
                 Map<?, ?> hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>)toMap(rsp).get("hits")).get("hits")).get(0);

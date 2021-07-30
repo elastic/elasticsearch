@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
@@ -14,9 +15,9 @@ import java.util.Map;
 import java.util.Set;
 
 public class ScheduleRegistry {
-    private final Map<String, Schedule.Parser> parsers = new HashMap<>();
+    private final Map<String, Schedule.Parser<? extends Schedule>> parsers = new HashMap<>();
 
-    public ScheduleRegistry(Set<Schedule.Parser> parsers) {
+    public ScheduleRegistry(Set<Schedule.Parser<? extends Schedule>> parsers) {
         parsers.stream().forEach(parser -> this.parsers.put(parser.type(), parser));
     }
 
@@ -45,7 +46,7 @@ public class ScheduleRegistry {
     }
 
     public Schedule parse(String context, String type, XContentParser parser) throws IOException {
-        Schedule.Parser scheduleParser = parsers.get(type);
+        Schedule.Parser<?> scheduleParser = parsers.get(type);
         if (scheduleParser == null) {
             throw new ElasticsearchParseException("could not parse schedule for [{}]. unknown schedule type [{}]", context, type);
         }

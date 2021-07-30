@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
 
 /**
  * Trims the leading whitespaces.
  */
 public class LTrim extends UnaryStringFunction {
 
-    public LTrim(Location location, Expression field) {
-        super(location, field);
+    public LTrim(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -27,7 +29,7 @@ public class LTrim extends UnaryStringFunction {
 
     @Override
     protected LTrim replaceChild(Expression newChild) {
-        return new LTrim(location(), newChild);
+        return new LTrim(source(), newChild);
     }
 
     @Override
@@ -37,7 +39,7 @@ public class LTrim extends UnaryStringFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return DataTypes.KEYWORD;
     }
 
 }

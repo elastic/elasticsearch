@@ -1,43 +1,53 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: ':modules:reindex')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation project(path: ':modules:reindex')
 }
 
-integTestCluster {
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.key'
+  exclude '**/*.pem'
+  exclude '**/*.p12'
+  exclude '**/*.jks'
+}
+
+File caFile = project.file('src/test/resources/ssl/ca.crt')
+
+testClusters.matching { it.name == "integTest" }.configureEach {
+  testDistribution = 'DEFAULT'
   // Whitelist reindexing from the local node so we can test it.
+  extraConfigFile 'http.key', file('src/test/resources/ssl/http.key')
+  extraConfigFile 'http.crt', file('src/test/resources/ssl/http.crt')
+  extraConfigFile 'ca.crt', caFile
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
-  extraConfigFile 'roles.yml', 'roles.yml'
-  [
-    test_admin: 'superuser',
-    powerful_user: 'superuser',
-    minimal_user: 'minimal',
-    minimal_with_task_user: 'minimal_with_task',
-    readonly_user: 'readonly',
-    dest_only_user: 'dest_only',
-    can_not_see_hidden_docs_user: 'can_not_see_hidden_docs',
-    can_not_see_hidden_fields_user: 'can_not_see_hidden_fields',
-  ].each { String user, String role ->
-    setupCommand 'setupUser#' + user,
-                 'bin/elasticsearch-users', 'useradd', user, '-p', 'x-pack-test-password', '-r', role
+  setting 'xpack.security.http.ssl.enabled', 'true'
+  setting 'xpack.security.http.ssl.certificate', 'http.crt'
+  setting 'xpack.security.http.ssl.key', 'http.key'
+  setting 'xpack.security.http.ssl.key_passphrase', 'http-password'
+  setting 'reindex.ssl.certificate_authorities', 'ca.crt'
+
+  // Workaround for JDK-8212885
+  if (BuildParams.runtimeJavaVersion.isJava12Compatible() == false) {
+    setting 'reindex.ssl.supported_protocols', 'TLSv1.2'
   }
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: 'test_admin',
-            password: 'x-pack-test-password',
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
-  }
+
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: "test_admin", password: 'x-pack-test-password', role: "superuser"
+  user username: "powerful_user", password: 'x-pack-test-password', role: "superuser"
+  user username: "minimal_user", password: 'x-pack-test-password', role: "minimal"
+  user username: "minimal_with_task_user", password: 'x-pack-test-password', role: "minimal_with_task"
+  user username: "readonly_user", password: 'x-pack-test-password', role: "readonly"
+  user username: "dest_only_user", password: 'x-pack-test-password', role: "dest_only"
+  user username: "can_not_see_hidden_docs_user", password: 'x-pack-test-password', role: "can_not_see_hidden_docs"
+  user username: "can_not_see_hidden_fields_user", password: 'x-pack-test-password', role: "can_not_see_hidden_fields"
 }

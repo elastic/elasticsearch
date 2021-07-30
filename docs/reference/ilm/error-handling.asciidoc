@@ -1,22 +1,20 @@
 [role="xpack"]
 [testenv="basic"]
 [[index-lifecycle-error-handling]]
-== Index Lifecycle Error Handling
+== Resolve lifecycle policy execution errors
 
-beta[]
+When {ilm-init} executes a lifecycle policy, it's possible for errors to occur
+while performing the necessary index operations for a step. 
+When this happens, {ilm-init} moves the index to an `ERROR` step. 
+If {ilm-init} cannot resolve the error automatically, execution is halted  
+until you resolve the underlying issues with the policy, index, or cluster.
 
-During Index Lifecycle Management's execution of the policy for an index, it's
-possible for a step to encounter an error during its execution. When this
-happens, ILM will move the management state into an "error" step. This halts
-further execution of the policy and gives an administrator the chance to address
-any issues with the policy, index, or cluster.
+For example, you might have a `shrink-index` policy that shrinks an index to four shards once it
+is at least five days old: 
 
-An example will be helpful in illustrating this, imagine the following policy
-has been created by a user:
-
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT _ilm/policy/shrink-the-index
+PUT _ilm/policy/shrink-index
 {
   "policy": {
     "phases": {
@@ -32,52 +30,48 @@ PUT _ilm/policy/shrink-the-index
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST
 
-This policy waits until the index is at least 5 days old, and then shrinks
-the index to 4 shards.
+There is nothing that prevents you from applying the `shrink-index` policy to a new
+index that has only two shards:
 
-Now imagine that a user creates a new index "myindex" with two primary shards,
-telling it to use the policy they have created:
-
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /myindex
+PUT /my-index-000001
 {
   "settings": {
     "index.number_of_shards": 2,
-    "index.lifecycle.name": "shrink-the-index"
+    "index.lifecycle.name": "shrink-index"
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-After five days have passed, ILM will attempt to shrink this index from 2
-shards to 4, which is invalid since the shrink action cannot increase the
-number of shards. When this occurs, ILM will move this
-index to the "error" step. Once an index is in this step, information about the
-reason for the error can be retrieved from the <<ilm-explain-lifecycle,ILM Explain API>>:
+After five days, {ilm-init} attempts to shrink `my-index-000001` from two shards to four shards.
+Because the shrink action cannot _increase_ the number of shards, this operation fails 
+and {ilm-init} moves `my-index-000001` to the `ERROR` step. 
 
-[source,js]
+You can use the <<ilm-explain-lifecycle,{ilm-init} Explain API>> to get information about
+what went wrong: 
+
+[source,console]
 --------------------------------------------------
-GET /myindex/_ilm/explain
+GET /my-index-000001/_ilm/explain
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Which returns the following information:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "indices" : {
-    "myindex" : {
-      "index" : "myindex",
-      "managed" : true,                         <1>
-      "policy" : "shrink-the-index",            <2>
+    "my-index-000001" : {
+      "index" : "my-index-000001",
+      "managed" : true,                         
+      "policy" : "shrink-index",                <1>
       "lifecycle_date_millis" : 1541717265865,
+      "age": "5.1d",                            <2>
       "phase" : "warm",                         <3>
       "phase_time_millis" : 1541717272601,
       "action" : "shrink",                      <4>
@@ -86,12 +80,12 @@ Which returns the following information:
       "step_time_millis" : 1541717272688,
       "failed_step" : "shrink",                 <6>
       "step_info" : {
-        "type" : "illegal_argument_exception",   <7>
-        "reason" : "the number of target shards [4] must be less that the number of source shards [2]" <8>
+        "type" : "illegal_argument_exception",  <7>
+        "reason" : "the number of target shards [4] must be less that the number of source shards [2]"
       },
       "phase_execution" : {
-        "policy" : "shrink-the-index",
-        "phase_definition" : {                   <9>
+        "policy" : "shrink-index",
+        "phase_definition" : {                  <8>
           "min_age" : "5d",
           "actions" : {
             "shrink" : {
@@ -106,26 +100,22 @@ Which returns the following information:
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
-<1> this index is managed by ILM
-<2> the policy in question, in this case, "shrink-the-index"
-<3> what phase the index is currently in
-<4> what action the index is currently on
-<5> what step the index is currently on, in this case, because there is an error, the index is in the "ERROR" step
-<6> the name of the step that failed to execute, in this case "shrink"
-<7> the error class that occurred during this step
-<8> the error message that occurred during the execution failure
-<9> the definition of the phase (in this case, the "warm" phase) that the index is currently on
 
-The index here has been moved to the error step because the shrink definition in
-the policy is using an incorrect number of shards. So rectifing that in the
-policy entails updating the existing policy to use one instead of four for
-the targeted number of shards.
+<1> The policy being used to manage the index: `shrink-index`
+<2> The index age: 5.1 days
+<3> The phase the index is currently in: `warm`
+<4> The current action: `shrink`
+<5> The step the index is currently in: `ERROR`
+<6> The step that failed to execute: `shrink`
+<7> The type of error and a description of that error.
+<8> The definition of the current phase from the `shrink-index` policy
 
-[source,js]
+To resolve this, you could update the policy to shrink the index to a single shard after 5 days:
+
+[source,console]
 --------------------------------------------------
-PUT _ilm/policy/shrink-the-index
+PUT _ilm/policy/shrink-index
 {
   "policy": {
     "phases": {
@@ -141,24 +131,19 @@ PUT _ilm/policy/shrink-the-index
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[float]
-=== Retrying failed index lifecycle management steps
+[discrete]
+=== Retrying failed lifecycle policy steps
 
-Once the underlying issue that caused an index to move to the error step has
-been corrected, index lifecycle management must be told to retry the step to see
-if it can progress further. This is accomplished by invoking the retry API
+Once you fix the problem that put an index in the `ERROR` step, 
+you might need to explicitly tell {ilm-init} to retry the step:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /myindex/_ilm/retry
+POST /my-index-000001/_ilm/retry
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:we can't be sure the index is ready to be retried at this point]
 
-Once this has been issue, index lifecycle management will asynchronously pick up
-on the step that is in a failed state, attempting to re-run it. The
-<<ilm-explain-lifecycle,ILM Explain API>> can again be used to monitor the status of
-re-running the step.
+{ilm-init} subsequently attempts to re-run the step that failed. 
+You can use the <<ilm-explain-lifecycle,{ilm-init} Explain API>> to monitor the progress.

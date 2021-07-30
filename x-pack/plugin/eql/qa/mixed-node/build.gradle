@@ -1,0 +1,61 @@
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.rest-test'
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+dependencies {
+  testImplementation project(':x-pack:qa')
+  testImplementation(project(xpackModule('ql:test-fixtures')))
+  testImplementation project(path: xpackModule('eql'), configuration: 'default')
+}
+
+tasks.named("integTest").configure{ enabled = false}
+
+for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.onOrAfter('7.10.0') }) {
+  if (bwcVersion == VersionProperties.getElasticsearchVersion()) {
+    // Not really a mixed cluster
+    continue;
+  }
+
+  String baseName = "v${bwcVersion}"
+
+  testClusters {
+    "${baseName}" {
+      versions = [bwcVersion.toString(), project.version]
+      numberOfNodes = 3
+      testDistribution = 'DEFAULT'
+      setting 'xpack.security.enabled', 'false'
+      setting 'xpack.watcher.enabled', 'false'
+      setting 'xpack.ml.enabled', 'false'
+      setting 'xpack.eql.enabled', 'true'
+      setting 'xpack.license.self_generated.type', 'trial'
+      // for debugging purposes
+      // setting 'logger.org.elasticsearch.xpack.eql.plugin.TransportEqlSearchAction', 'TRACE'
+    }
+  }
+
+  tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
+    useCluster testClusters."${baseName}"
+    mustRunAfter("precommit")
+    doFirst {
+      // Getting the endpoints causes a wait for the cluster
+      println "Endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
+      println "Upgrading one node to create a mixed cluster"
+      testClusters."${baseName}".nextNodeToNextVersion()
+
+      println "Upgrade complete, endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
+      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+      nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    }
+    onlyIf { project.bwc_tests_enabled }
+  }
+
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn "${baseName}#mixedClusterTest"
+  }
+}

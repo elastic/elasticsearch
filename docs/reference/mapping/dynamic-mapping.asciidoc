@@ -1,23 +1,23 @@
 [[dynamic-mapping]]
-== Dynamic Mapping
+== Dynamic mapping
 
-One of the most important features of Elasticsearch is that it tries to get
+One of the most important features of {es} is that it tries to get
 out of your way and let you start exploring your data as quickly as possible.
 To index a document, you don't have to first create an index, define a mapping
 type, and define your fields -- you can just index a document and the index,
-type, and fields will spring to life automatically:
+type, and fields will display automatically:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT data/_doc/1 <1>
 { "count": 5 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Creates the `data` index, the `_doc` mapping type, and a field
-    called `count` with datatype `long`.
+    called `count` with data type `long`.
 
 The automatic detection and addition of new fields is called
-_dynamic mapping_. The dynamic mapping rules can be customised to suit your
+_dynamic mapping_. The dynamic mapping rules can be customized to suit your
 purposes with:
 
 <<dynamic-field-mapping,Dynamic field mappings>>::
@@ -28,11 +28,10 @@ purposes with:
 
     Custom rules to configure the mapping for dynamically added fields.
 
-TIP: <<indices-templates,Index templates>> allow you to configure the default
+TIP: <<index-templates,Index templates>> allow you to configure the default
 mappings, settings and aliases for new indices, whether created
 automatically or explicitly.
 
 include::dynamic/field-mapping.asciidoc[]
 
 include::dynamic/templates.asciidoc[]
-

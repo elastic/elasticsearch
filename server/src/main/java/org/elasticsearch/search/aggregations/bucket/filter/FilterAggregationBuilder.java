@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
@@ -30,7 +19,7 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -60,14 +49,14 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     protected FilterAggregationBuilder(FilterAggregationBuilder clone,
-                                       AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                       AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.filter = clone.filter;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new FilterAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new FilterAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -84,8 +73,13 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     @Override
-    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder result = Rewriteable.rewrite(filter, queryShardContext);
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.ONE;
+    }
+
+    @Override
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder result = Rewriteable.rewrite(filter, queryRewriteContext);
         if (result != filter) {
             return new FilterAggregationBuilder(getName(), result);
         }
@@ -93,9 +87,9 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     @Override
-    protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new FilterAggregatorFactory(name, filter, context, parent, subFactoriesBuilder, metaData);
+    protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
+                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        return new FilterAggregatorFactory(name, filter, context, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
@@ -106,18 +100,21 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
         return builder;
     }
 
-    public static FilterAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+    public static FilterAggregationBuilder parse(XContentParser parser, String aggregationName) throws IOException {
         QueryBuilder filter = parseInnerQueryBuilder(parser);
         return new FilterAggregationBuilder(aggregationName, filter);
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(filter);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), filter);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         FilterAggregationBuilder other = (FilterAggregationBuilder) obj;
         return Objects.equals(filter, other.filter);
     }

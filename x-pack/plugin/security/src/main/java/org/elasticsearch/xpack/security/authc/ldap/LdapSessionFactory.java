@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -9,6 +10,7 @@ import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -18,9 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
-import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetaDataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
@@ -41,7 +41,6 @@ public class LdapSessionFactory extends SessionFactory {
 
     private final String[] userDnTemplates;
     private final GroupsResolver groupResolver;
-    private final LdapMetaDataResolver metaDataResolver;
 
     public LdapSessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) {
         super(config, sslService, threadPool);
@@ -52,7 +51,6 @@ public class LdapSessionFactory extends SessionFactory {
         }
         logger.info("Realm [{}] is in user-dn-template mode: [{}]", config.name(), userDnTemplates);
         groupResolver = groupResolver(config);
-        metaDataResolver = new LdapMetaDataResolver(config, ignoreReferralErrors);
     }
 
     /**
@@ -74,7 +72,7 @@ public class LdapSessionFactory extends SessionFactory {
                 protected void doRun() throws Exception {
                     listener.onResponse(
                             (new LdapSession(logger, config, connection, ((SimpleBindRequest) connection.getLastBindRequest()).getBindDN(),
-                                    groupResolver, metaDataResolver, timeout, null)));
+                                    groupResolver, metadataResolver, timeout, null)));
                 }
 
                 @Override

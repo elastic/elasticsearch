@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -24,16 +13,16 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
-import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.StartILMRequest;
-import org.elasticsearch.client.indexlifecycle.StopILMRequest;
+import org.elasticsearch.client.ilm.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.ExplainLifecycleRequest;
+import org.elasticsearch.client.ilm.GetLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.LifecycleManagementStatusRequest;
+import org.elasticsearch.client.ilm.LifecyclePolicy;
+import org.elasticsearch.client.ilm.PutLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.RemoveIndexLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.RetryLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.StartILMRequest;
+import org.elasticsearch.client.ilm.StopILMRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -45,7 +34,7 @@ import static org.elasticsearch.client.RequestConvertersTests.randomIndicesNames
 import static org.elasticsearch.client.RequestConvertersTests.setRandomIndicesOptions;
 import static org.elasticsearch.client.RequestConvertersTests.setRandomMasterTimeout;
 import static org.elasticsearch.client.RequestConvertersTests.setRandomTimeoutTimeValue;
-import static org.elasticsearch.client.indexlifecycle.LifecyclePolicyTests.createRandomPolicy;
+import static org.elasticsearch.client.ilm.LifecyclePolicyTests.createRandomPolicy;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class IndexLifecycleRequestConvertersTests extends ESTestCase {

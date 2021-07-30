@@ -6,7 +6,7 @@ getting the artifact to using it in an application.
 
 [[java-rest-high-compatibility]]
 === Compatibility
-The Java High Level REST Client requires Java 1.8 and depends on the Elasticsearch
+The Java High Level REST Client requires at least Java 1.8 and depends on the Elasticsearch
 core project. The client version is the same as the Elasticsearch version that the
 client was developed for. It accepts the same request arguments as the `TransportClient`
 and returns the same response objects. See the <<java-rest-high-level-migration>>
@@ -40,14 +40,33 @@ The javadoc for the REST high level client can be found at {rest-high-level-clie
 === Maven Repository
 
 The high-level Java REST client is hosted on
-http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
+https://search.maven.org/search?q=g:org.elasticsearch.client[Maven
 Central]. The minimum Java version required is `1.8`.
 
 The High Level REST Client is subject to the same release cycle as
 Elasticsearch. Replace the version with the desired client version.
 
-If you are looking for a SNAPSHOT version, the Elastic Maven Snapshot repository is available
-at https://snapshots.elastic.co/maven/.
+If you are looking for a SNAPSHOT version, you should add our snapshot repository to your Maven config:
+
+["source","xml",subs="attributes"]
+--------------------------------------------------
+<repositories>
+    <repository>
+        <id>es-snapshots</id>
+        <name>elasticsearch snapshot repo</name>
+        <url>https://snapshots.elastic.co/maven/</url>
+    </repository>
+</repositories>
+--------------------------------------------------
+
+or in Gradle:
+
+["source","groovy",subs="attributes"]
+--------------------------------------------------
+maven {
+        url "https://snapshots.elastic.co/maven/"
+}
+--------------------------------------------------
 
 [[java-rest-high-getting-started-maven-maven]]
 ==== Maven configuration
@@ -83,7 +102,7 @@ dependencies {
 The very first releases of any major version (like a beta), might have been built on top of a Lucene Snapshot version.
 In such a case you will be unable to resolve the Lucene dependencies of the client.
 
-For example, if you want to use the `7.0.0-alpha1` version which depends on Lucene `8.0.0-snapshot-6d9c714052`, you must
+For example, if you want to use the `7.0.0-beta1` version which depends on Lucene `8.0.0-snapshot-83f9835`, you must
 define the following repository.
 
 For Maven:
@@ -93,7 +112,7 @@ For Maven:
 <repository>
     <id>elastic-lucene-snapshots</id>
     <name>Elastic Lucene Snapshots</name>
-    <url>http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/6d9c714052</url>
+    <url>https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/83f9835</url>
     <releases><enabled>true</enabled></releases>
     <snapshots><enabled>false</enabled></snapshots>
 </repository>
@@ -104,7 +123,8 @@ For Gradle:
 ["source","groovy",subs="attributes"]
 --------------------------------------------------
 maven {
-    url 'http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/6d9c714052'
+    name 'lucene-snapshots'
+    url 'https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/83f9835'
 }
 --------------------------------------------------
 
@@ -144,7 +164,7 @@ include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-cl
 In the rest of this documentation about the Java High Level Client, the `RestHighLevelClient` instance
 will be referenced as `client`.
 
-[[java-rest-hight-getting-started-request-options]]
+[[java-rest-high-getting-started-request-options]]
 === RequestOptions
 
 All APIs in the `RestHighLevelClient` accept a `RequestOptions` which you can
@@ -153,3 +173,25 @@ executes the request. For example, this is the place where you'd specify a
 `NodeSelector` to control which node receives the request. See the
 <<java-rest-low-usage-request-options,low level client documentation>> for
 more examples of customizing the options.
+
+[[java-rest-high-getting-started-asynchronous-usage]]
+=== Asynchronous usage
+
+All of the methods across the different clients exist in a traditional synchronous and 
+asynchronous variant. The difference is that the asynchronous ones use asynchronous requests 
+in the REST Low Level Client. This is useful if you are doing multiple requests or are using e.g.
+rx java, Kotlin co-routines, or similar frameworks.
+
+The asynchronous methods are recognizable by the fact that they have the word "Async" in their name 
+and return a `Cancellable` instance. The asynchronous methods accept the same request object 
+as the synchronous variant and accept a generic `ActionListener<T>` where `T` is the return 
+type of the synchronous method. 
+
+All asynchronous methods return a `Cancellable` object with a `cancel` method that you may call 
+in case you want to abort the request. Cancelling
+no longer needed requests is a good way to avoid putting unnecessary 
+load on Elasticsearch.
+
+Using the `Cancellable` instance is optional and you can safely ignore this if you have 
+no need for this. A use case for this would be using this with e.g. Kotlin's `suspendCancellableCoRoutine`. 
+

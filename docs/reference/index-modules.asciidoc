@@ -2,17 +2,16 @@
 [[index-modules]]
 = Index modules
 
-[partintro]
---
-
 Index Modules are modules created per index and control all aspects related to
 an index.
 
-[float]
+[discrete]
 [[index-modules-settings]]
 == Index Settings
 
-Index level settings can be set per-index.  Settings may be:
+[[index-modules-settings-description]]
+// tag::index-modules-settings-description-tag[]
+Index level settings can be set per-index. Settings may be:
 
 _static_::
 
@@ -23,54 +22,58 @@ _dynamic_::
 
 They can be changed on a live index using the
 <<indices-update-settings,update-index-settings>> API.
+// end::index-modules-settings-description-tag[]
 
 WARNING: Changing static or dynamic index settings on a closed index could
 result in incorrect settings that are impossible to rectify without deleting
 and recreating the index.
 
-[float]
+[discrete]
 === Static index settings
 
 Below is a list of all _static_ index settings that are not associated with any
 specific index module:
 
-`index.number_of_shards`::
-
-    The number of primary shards that an index should have.  Defaults to 5.
-    This setting can only be set at index creation time.  It cannot be
-    changed on a closed index. Note: the number of shards are limited to `1024` per
-    index. This limitation is a safety limit to prevent accidental creation of indices
-    that can destabilize a cluster due to resource allocation. The limit can be modified
-    by specifying `export ES_JAVA_OPTS="-Des.index.max_number_of_shards=128"` system property on every node that is
-    part of the cluster.
-
-`index.shard.check_on_startup`::
+[[index-number-of-shards]]
+// tag::index-number-of-shards-tag[]
+`index.number_of_shards` {ess-icon}::
+The number of primary shards that an index should have. Defaults to `1`. This setting can only be set at index creation time. It cannot be changed on a closed index.
 +
---
-Whether or not shards should be checked for corruption before opening. When
-corruption is detected, it will prevent the shard from being opened. Accepts:
+NOTE: The number of shards are limited to `1024` per index. This limitation is a safety limit to prevent accidental creation of indices that can destabilize a cluster due to resource allocation. The limit can be modified by specifying `export ES_JAVA_OPTS="-Des.index.max_number_of_shards=128"` system property on every node that is part of the cluster.
 
-`false`::
+// end::index-number-of-shards-tag[]
 
-    (default) Don't check for corruption when opening a shard.
+[[index-number-of-routing-shards]]
+`index.number_of_routing_shards`::
++
+====
+Number of routing shards used to <<indices-split-index,split>> an index.
 
-`checksum`::
+For example, a 5 shard index with `number_of_routing_shards` set to `30` (`5 x
+2 x 3`) could be split by a factor of `2` or `3`. In other words, it could be
+split as follows:
 
-    Check for physical corruption.
+* `5` -> `10` -> `30`  (split by 2, then by 3)
+* `5` -> `15` -> `30` (split by 3, then by 2)
+* `5` -> `30` (split by 6)
 
-`true`::
+This setting's default value depends on the number of primary shards in the
+index. The default is designed to allow you to split by factors of 2 up
+to a maximum of 1024 shards.
 
-    Check for both physical and logical corruption. This is much more
-    expensive in terms of CPU and memory usage.
-
-WARNING: Expert only. Checking shards may take a lot of time on large indices.
---
+NOTE: In {es} 7.0.0 and later versions, this setting affects how documents are
+distributed across shards. When reindexing an older index with custom routing,
+you must explicitly set `index.number_of_routing_shards` to maintain the same
+document distribution. See the
+{ref-70}/breaking-changes-7.0.html#_document_distribution_changes[related
+breaking change].
+====
 
 [[index-codec]] `index.codec`::
 
     The +default+ value compresses stored data with LZ4
     compression, but this can be set to +best_compression+
-    which uses https://en.wikipedia.org/wiki/DEFLATE[DEFLATE] for a higher
+    which uses {wikipedia}/DEFLATE[DEFLATE] for a higher
     compression ratio, at the expense of slower stored fields performance.
     If you are updating the compression type, the new one will be applied
     after segments are merged. Segment merging can be forced using
@@ -83,37 +86,112 @@ WARNING: Expert only. Checking shards may take a lot of time on large indices.
     than the `index.number_of_shards` unless the `index.number_of_shards` value is also 1.
     See <<routing-index-partition>> for more details about how this setting is used.
 
-[float]
+[[ccr-index-soft-deletes]]
+// tag::ccr-index-soft-deletes-tag[]
+`index.soft_deletes.enabled`::
+deprecated:[7.6.0, Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.]
+Indicates whether soft deletes are enabled on the index. Soft deletes can only
+be configured at index creation and only on indices created on or after
+{es} 6.5.0. Defaults to `true`.
+// end::ccr-index-soft-deletes-tag[]
+
+[[ccr-index-soft-deletes-retention-period]]
+//tag::ccr-index-soft-deletes-retention-tag[]
+`index.soft_deletes.retention_lease.period`::
+The maximum period to retain a shard history retention lease before it is
+considered expired. Shard history retention leases ensure that soft deletes are
+retained during merges on the Lucene index. If a soft delete is merged away
+before it can be replicated to a follower the following process will fail due
+to incomplete history on the leader. Defaults to `12h`.
+//end::ccr-index-soft-deletes-retention-tag[]
+
+[[load-fixed-bitset-filters-eagerly]] `index.load_fixed_bitset_filters_eagerly`::
+
+    Indicates whether <<query-filter-context, cached filters>> are pre-loaded for
+    nested queries. Possible values are `true` (default) and `false`.
+
+[[index-hidden]] `index.hidden`::
+
+    Indicates whether the index should be hidden by default. Hidden indices are not
+    returned by default when using a wildcard expression. This behavior is controlled
+    per request through the use of the `expand_wildcards` parameter. Possible values are
+    `true` and `false` (default).
+
+[[index-shard-check-on-startup]] `index.shard.check_on_startup`::
++
+====
+WARNING: Expert users only. This setting enables some very expensive processing
+at shard startup and is only ever useful while diagnosing a problem in your
+cluster. If you do use it, you should do so only temporarily and remove it
+once it is no longer needed.
+
+{es} automatically performs integrity checks on the contents of shards at
+various points during their lifecycle. For instance, it verifies the checksum
+of every file transferred when recovering a replica or taking a snapshot. It
+also verifies the integrity of many important files when opening a shard, which
+happens when starting up a node and when finishing a shard recovery or
+relocation. You can therefore manually verify the integrity of a whole shard
+while it is running by taking a snapshot of it into a fresh repository or by
+recovering it onto a fresh node.
+
+This setting determines whether {es} performs additional integrity checks while
+opening a shard. If these checks detect corruption then they will prevent the
+shard from being opened. It accepts the following values:
+
+`false`::: Don't perform additional checks for corruption when opening a shard.
+This is the default and recommended behaviour.
+
+`checksum`::: Verify that the checksum of every file in the shard matches its
+contents. This will detect cases where the data read from disk differ from the
+data that {es} originally wrote, for instance due to undetected disk corruption
+or other hardware failures. These checks require reading the entire shard from
+disk which takes substantial time and IO bandwidth and may affect cluster
+performance by evicting important data from your filesystem cache.
+
+`true`::: Performs the same checks as `checksum` and also checks for logical
+inconsistencies in the shard, which could for instance be caused by the data
+being corrupted while it was being written due to faulty RAM or other hardware
+failures. These checks require reading the entire shard from disk which takes
+substantial time and IO bandwidth, and then performing various checks on the
+contents of the shard which take substantial time, CPU and memory.
+====
+
+[discrete]
 [[dynamic-index-settings]]
 === Dynamic index settings
 
 Below is a list of all _dynamic_ index settings that are not associated with any
 specific index module:
 
-
+[[dynamic-index-number-of-replicas]]
 `index.number_of_replicas`::
 
-    The number of replicas each primary shard has.  Defaults to 1.
+    The number of replicas each primary shard has. Defaults to 1.
 
 `index.auto_expand_replicas`::
-
-    Auto-expand the number of replicas based on the number of data nodes in the cluster.
-    Set to a dash delimited lower and upper bound (e.g. `0-5`) or use `all`
-    for the upper bound (e.g. `0-all`). Defaults to `false` (i.e. disabled).
-    Note that the auto-expanded number of replicas does not take any other allocation
-    rules into account, such as <<allocation-awareness,shard allocation awareness>>,
-    <<shard-allocation-filtering,filtering>> or <<allocation-total-shards,total shards per node>>,
-    and this can lead to the cluster health becoming `YELLOW` if the applicable rules
-    prevent all the replicas from being allocated.
+Auto-expand the number of replicas based on the number of data nodes in the
+cluster. Set to a dash delimited lower and upper bound (e.g. `0-5`) or use `all`
+for the upper bound (e.g. `0-all`). Defaults to `false` (i.e. disabled). Note
+that the auto-expanded number of replicas only takes
+<<shard-allocation-filtering,allocation filtering>> rules into account, but
+ignores other allocation rules such as <<allocation-total-shards,total shards
+per node>>, and this can lead to the cluster health becoming `YELLOW` if the
+applicable rules prevent all the replicas from being allocated.
++
+If the upper bound is `all` then <<shard-allocation-awareness,shard allocation
+awareness>> and
+<<cluster-routing-allocation-same-shard-host,`cluster.routing.allocation.same_shard.host`>>
+are ignored for this index.
 
 `index.search.idle.after`::
     How long a shard can not receive a search or get request until it's considered
     search idle. (default is `30s`)
 
+[[index-refresh-interval-setting]]
 `index.refresh_interval`::
 
     How often to perform a refresh operation, which makes recent changes to the
-    index visible to search. Defaults to `1s`.  Can be set to `-1` to disable
+    index visible to search. Defaults to `1s`. Can be set to `-1` to disable
     refresh. If this setting is not explicitly set, shards that haven't seen
     search traffic for at least `index.search.idle.after` seconds will not receive
     background refreshes until they receive a search request. Searches that hit an
@@ -123,12 +201,13 @@ specific index module:
     out of this behavior an explicit value of `1s` should set as the refresh
     interval.
 
+[[index-max-result-window]]
 `index.max_result_window`::
 
     The maximum value of `from + size` for searches to this index. Defaults to
     `10000`. Search requests take heap memory and time proportional to
     `from + size` and this limits that memory. See
-    <<search-request-scroll,Scroll>> or <<search-request-search-after,Search After>> for a more efficient alternative
+    <<scroll-search-results,Scroll>> or <<search-after,Search After>> for a more efficient alternative
     to raising this.
 
 `index.max_inner_result_window`::
@@ -154,38 +233,18 @@ specific index module:
     The maximum number of `script_fields` that are allowed in a query.
     Defaults to `32`.
 
+[[index-max-ngram-diff]]
 `index.max_ngram_diff`::
 
     The maximum allowed difference between min_gram and max_gram for NGramTokenizer and NGramTokenFilter.
     Defaults to `1`.
 
+[[index-max-shingle-diff]]
 `index.max_shingle_diff`::
 
-    The maximum allowed difference between max_shingle_size and min_shingle_size for ShingleTokenFilter.
-    Defaults to `3`.
-
-`index.blocks.read_only`::
-
-    Set to `true` to make the index and index metadata read only, `false` to
-    allow writes and metadata changes.
-
-`index.blocks.read_only_allow_delete`::
-    Identical to `index.blocks.read_only` but allows deleting the index to free
-     up resources.
-
-`index.blocks.read`::
-
-    Set to `true` to disable read operations against the index.
-
-`index.blocks.write`::
-
-    Set to `true` to disable data write operations against the index. Unlike `read_only`, 
-    this setting does not affect metadata. For instance, you can close an index with a `write` 
-    block, but not an index with a `read_only` block.
-
-`index.blocks.metadata`::
-
-    Set to `true` to disable index metadata reads and writes.
+    The maximum allowed difference between max_shingle_size and min_shingle_size
+    for the <<analysis-shingle-tokenfilter,`shingle` token filter>>. Defaults to
+    `3`.
 
 `index.max_refresh_listeners`::
 
@@ -197,21 +256,41 @@ specific index module:
     The maximum number of tokens that can be produced using _analyze API.
     Defaults to `10000`.
 
+[[index-max-analyzed-offset]]
  `index.highlight.max_analyzed_offset`::
 
      The maximum number of characters that will be analyzed for a highlight request.
      This setting is only applicable when highlighting is requested on a text that was indexed without offsets or term vectors.
      Defaults to `1000000`.
 
+[[index-max-terms-count]]
  `index.max_terms_count`::
 
     The maximum number of terms that can be used in Terms Query.
     Defaults to `65536`.
 
+[[index-max-regex-length]]
  `index.max_regex_length`::
 
     The maximum length of regex that can be used in Regexp Query.
     Defaults to `1000`.
+
+
+`index.query.default_field`::
++
+--
+(string or array of strings)
+Wildcard (`*`) patterns matching one or more fields. The following query types
+search these matching fields by default:
+
+* <<query-dsl-mlt-query>>
+* <<query-dsl-multi-match-query>>
+* <<query-dsl-query-string-query>>
+* <<query-dsl-simple-query-string-query>>
+
+Defaults to `*`, which matches all fields eligible for
+<<term-level-queries,term-level queries>>, excluding metadata fields.
+--
 
  `index.routing.allocation.enable`::
 
@@ -234,14 +313,30 @@ specific index module:
     The length of time that a <<delete-versioning,deleted document's version number>> remains available for <<index-versioning,further versioned operations>>.
     Defaults to `60s`.
 
-  `index.default_pipeline`::
+[[index-default-pipeline]]
+ `index.default_pipeline`::
 
     The default <<ingest,ingest node>> pipeline for this index. Index requests will fail
     if the default pipeline is set and the pipeline does not exist. The default may be
     overridden using the `pipeline` parameter. The special pipeline name `_none` indicates
     no ingest pipeline should be run.
 
-[float]
+[[index-final-pipeline]]
+ `index.final_pipeline`::
+    The final <<ingest,ingest node>> pipeline for this index. Index requests
+    will fail if the final pipeline is set and the pipeline does not exist.
+    The final pipeline always runs after the request pipeline (if specified) and
+    the default pipeline (if it exists). The special pipeline name `_none`
+    indicates no ingest pipeline will run.
+
+[[index-mapping-dimension-fields-limit]]
+`index.mapping.dimension_fields.limit`::
+For internal use by {kib} only. Maximum number of time series dimensions for the
+index. Defaults to `16`.
++
+You can mark a field as a dimension using the `dimension` mapping parameter.
+
+[discrete]
 === Settings in other index modules
 
 Other index settings are available in index modules:
@@ -280,11 +375,27 @@ Other index settings are available in index modules:
 
     Control over the transaction log and background flush operations.
 
---
+<<index-modules-history-retention,History retention>>::
+
+    Control over the retention of a history of operations in the index.
+
+<<index-modules-indexing-pressure,Indexing pressure>>::
+
+    Configure indexing back pressure limits.
+
+[discrete]
+[[x-pack-index-settings]]
+=== [xpack]#{xpack} index settings#
+
+<<ilm-settings,{ilm-cap}>>::
+
+    Specify the lifecycle policy and rollover alias for an index.
 
 include::index-modules/analysis.asciidoc[]
 
 include::index-modules/allocation.asciidoc[]
+
+include::index-modules/blocks.asciidoc[]
 
 include::index-modules/mapper.asciidoc[]
 
@@ -298,4 +409,8 @@ include::index-modules/store.asciidoc[]
 
 include::index-modules/translog.asciidoc[]
 
+include::index-modules/history-retention.asciidoc[]
+
 include::index-modules/index-sorting.asciidoc[]
+
+include::index-modules/indexing-pressure.asciidoc[]

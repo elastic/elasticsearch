@@ -1,44 +1,104 @@
+[testenv="platinum"]
+`settings`::
+  (object) Settings to override from the leader index. Note that certain
+  settings can not be overrode (e.g., `index.number_of_shards`).
+
 `max_read_request_operation_count`::
-  (integer) the maximum number of operations to pull per read from the remote
-  cluster
+  (integer) The maximum number of operations to pull per read from the remote
+  cluster.
 
 `max_outstanding_read_requests`::
-  (long) the maximum number of outstanding reads requests from the remote
-  cluster
+  (long) The maximum number of outstanding reads requests from the remote
+  cluster.
 
 `max_read_request_size`::
-  (<<byte-units,byte value>>) the maximum size in bytes of per read of a batch
-  of operations pulled from the remote cluster
+  (<<byte-units,byte value>>) The maximum size in bytes of per read of a batch
+  of operations pulled from the remote cluster.
 
 `max_write_request_operation_count`::
-  (integer) the maximum number of operations per bulk write request executed on
-  the follower
+  (integer) The maximum number of operations per bulk write request executed on
+  the follower.
 
 `max_write_request_size`::
-  (<<byte-units,byte value>>) the maximum total bytes of operations per bulk write request
-  executed on the follower
+  (<<byte-units,byte value>>) The maximum total bytes of operations per bulk write request
+  executed on the follower.
 
 `max_outstanding_write_requests`::
-  (integer) the maximum number of outstanding write requests on the follower
+  (integer) The maximum number of outstanding write requests on the follower.
 
 `max_write_buffer_count`::
-  (integer) the maximum number of operations that can be queued for writing;
-  when this limit is reached, reads from the remote cluster will be deferred
-  until the number of queued operations goes below the limit
+  (integer) The maximum number of operations that can be queued for writing.
+  When this limit is reached, reads from the remote cluster will be deferred
+  until the number of queued operations goes below the limit.
 
 `max_write_buffer_size`::
-  (<<byte-units,byte value>>) the maximum total bytes of operations that can be queued for
-  writing; when this limit is reached, reads from the remote cluster will be
-  deferred until the total bytes of queued operations goes below the limit
+  (<<byte-units,byte value>>) The maximum total bytes of operations that can be
+  queued for
+  writing. When this limit is reached, reads from the remote cluster will be
+  deferred until the total bytes of queued operations goes below the limit.
 
 `max_retry_delay`::
-  (<<time-units,time value>>) the maximum time to wait before retrying an
-  operation that failed exceptionally; an exponential backoff strategy is
-  employed when retrying
+  (<<time-units,time value>>) The maximum time to wait before retrying an
+  operation that failed exceptionally. An exponential backoff strategy is
+  employed when retrying.
 
 `read_poll_timeout`::
-  (<<time-units,time value>>) the maximum time to wait for new operations on the
-  remote cluster when the follower index is synchronized with the leader index;
-  when the timeout has elapsed, the poll for operations will return to the
-  follower so that it can update some statistics, and then the follower will
-  immediately attempt to read from the leader again
+  (<<time-units,time value>>) The maximum time to wait for new operations on the
+  remote cluster when the follower index is synchronized with the leader index.
+  When the timeout has elapsed, the poll for operations will return to the
+  follower so that it can update some statistics. Then the follower will
+  immediately attempt to read from the leader again.
+
+===== Default values
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index" : "leader_index"
+}
+--------------------------------------------------
+// TESTSETUP
+// TEST[setup:remote_cluster_and_leader_index]
+
+[source,console]
+--------------------------------------------------
+POST /follower_index/_ccr/pause_follow
+--------------------------------------------------
+// TEARDOWN
+
+[source,console]
+--------------------------------------------------
+GET /follower_index/_ccr/info?filter_path=follower_indices.parameters
+--------------------------------------------------
+
+//////////////////////////
+
+The following output from the follow info api describes all the default
+values for the above described index follow request parameters:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "follower_indices" : [
+    {
+      "parameters" : {
+        "max_read_request_operation_count" : 5120,
+        "max_read_request_size" : "32mb",
+        "max_outstanding_read_requests" : 12,
+        "max_write_request_operation_count" : 5120,
+        "max_write_request_size" : "9223372036854775807b",
+        "max_outstanding_write_requests" : 9,
+        "max_write_buffer_count" : 2147483647,
+        "max_write_buffer_size" : "512mb",
+        "max_retry_delay" : "500ms",
+        "read_poll_timeout" : "1m"
+      }
+    }
+  ]
+}
+
+--------------------------------------------------

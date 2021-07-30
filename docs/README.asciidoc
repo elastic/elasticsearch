@@ -3,20 +3,66 @@ Elasticsearch documentation build process.
 
 See: https://github.com/elastic/docs
 
-Snippets marked with `// CONSOLE` are automatically annotated with "VIEW IN
-CONSOLE" and "COPY AS CURL" in the documentation and are automatically tested
-by the command `gradle :docs:check`. To test just the docs from a single page,
-use e.g. `gradle :docs:check -Dtests.method="\*rollover*"`.
+=== Adding API reference pages
 
-NOTE: If you have an elasticsearch-extra folder alongside your elasticsearch
-folder, you must temporarily rename it when you are testing 6.3 or later branches.
+When you need to add a reference page for a new API:
 
-By default each `// CONSOLE` snippet runs as its own isolated test. You can
-manipulate the test execution in the following ways:
+* Use the API reference template: 
+https://github.com/elastic/docs/blob/master/shared/api-ref-ex.asciidoc[template], 
+https://www.elastic.co/guide/en/elasticsearch/reference/master/get-snapshot-repo-api.html[real-life example].
+* Create a separate source file for each API. 
+* The anchor for the top-level heading should match the heading as closely as possible. 
+* Use dashes to separate words in the anchor. (Avoid underscores.) 
+* The name of the source file should match the anchor text. 
+* Include an abbreviated title that drops the heading's _API_ suffix.
+* Start the short description with a verb.
+* Include the sections from the reference template as applicable. 
+See the template for information about each section. 
+* Add a link to the new topic from the appropriate API category page.
+These links are typically grouped into sub-categories and listed in logical order. 
+For example, the put API is listed before the get and delete APIs.
+* Include the new file so the API appears in alphabetical order in the TOC nav.
+
+The template uses https://github.com/elastic/docs/blob/master/shared/attributes.asciidoc[shared attributes] 
+for a number of the standard headings so we can tweak them globally if need be. 
+
+Many of the API reference pages also use shared parameter definitions from 
+https://github.com/elastic/elasticsearch/blob/master/docs/reference/rest-api/common-parms.asciidoc[elasticsearch/docs/reference/rest-api/common-parms].
+You don't have to do that. 
+
+=== Backporting doc fixes
+
+* Doc changes should generally be made against master and backported through to the current version
+  (as applicable).  
+  
+* Changes can also be backported to the maintenance version of the previous major version. 
+  This is typically reserved for technical corrections, as it can require resolving more complex
+  merge conflicts, fixing test failures, and figuring out where to apply the change.
+
+* Avoid backporting to out-of-maintenance versions. 
+  Docs follow the same policy as code and fixes are not ordinarily merged to
+  versions that are out of maintenance.
+  
+* Do not backport doc changes to https://www.elastic.co/support/eol[EOL versions].
+
+* Release notes for known issues are an exception to this policy. Document the 
+  known issue in the release notes for any minor version affected by the issue.
+  Backport the changes to any branch containing release notes for those
+  versions, even if the branch is no longer maintained.
+
+=== Snippet testing
+
+Snippets marked with `[source,console]` are automatically annotated with
+"VIEW IN CONSOLE" and "COPY AS CURL" in the documentation and are automatically
+tested by the command `./gradlew -pdocs check`. To test just the docs from a
+single page, use e.g. `./gradlew -pdocs integTest --tests "\*rollover*"`.
+
+By default each `[source,console]` snippet runs as its own isolated test. You
+can manipulate the test execution in the following ways:
 
 * `// TEST`: Explicitly marks a snippet as a test. Snippets marked this way
-are tests even if they don't have `// CONSOLE` but usually `// TEST` is used
-for its modifiers:
+are tests even if they don't have `[source,console]` but usually `// TEST` is
+used for its modifiers:
   * `// TEST[s/foo/bar/]`: Replace `foo` with `bar` in the generated test. This
   should be used sparingly because it makes the snippet "lie". Sometimes,
   though, you can use it to make the snippet more clear. Keep in mind that
@@ -31,22 +77,39 @@ for its modifiers:
   This is most useful when you have text and snippets that work together to
   tell the story of some use case because it merges the snippets (and thus the
   use case) into one big test.
+      * You can't use `// TEST[continued]` immediately after `// TESTSETUP` or
+      `// TEARDOWN`.
   * `// TEST[skip:reason]`: Skip this test. Replace `reason` with the actual
   reason to skip the test. Snippets without `// TEST` or `// CONSOLE` aren't
   considered tests anyway but this is useful for explicitly documenting the
   reason why the test shouldn't be run.
   * `// TEST[setup:name]`: Run some setup code before running the snippet. This
-  is useful for creating and populating indexes used in the snippet. The setup
-  code is defined in `docs/build.gradle`. See `// TESTSETUP` below for a
-  similar feature.
+  is useful for creating and populating indexes used in the snippet. The `name`
+  is split on `,` and looked up in the `setups` defined in `docs/build.gradle`.
+  See `// TESTSETUP` below for a similar feature.
+  * `// TEST[teardown:name]`: Run some teardown code after the snippet.
+  This is useful for performing hidden cleanup, such as deleting index templates. The
+  `name` is split on `,` and looked up in the `teardowns` defined in
+  `docs/build.gradle`. See `// TESTSETUP` below for a similar feature.
   * `// TEST[warning:some warning]`: Expect the response to include a `Warning`
   header. If the response doesn't include a `Warning` header with the exact
   text then the test fails. If the response includes `Warning` headers that
   aren't expected then the test fails.
-* `// TESTRESPONSE`: Matches this snippet against the body of the response of
-  the last test. If the response is JSON then order is ignored. If you add
-  `// TEST[continued]` to the snippet after `// TESTRESPONSE` it will continue
-  in the same test, allowing you to interleave requests with responses to check.
+* `[source,console-result]`: Matches this snippet against the body of the
+  response of the last test. If the response is JSON then order is ignored. If
+  you add `// TEST[continued]` to the snippet after `[source,console-result]`
+  it will continue in the same test, allowing you to interleave requests with
+  responses to check.
+* `// TESTRESPONSE`: Explicitly marks a snippet as a test response even without
+  `[source,console-result]`. Similarly to `// TEST` this is mostly used for
+  its modifiers.
+  * You can't use `[source,console-result]` immediately after `// TESTSETUP`.
+  Instead, consider using `// TEST[continued]` or rearrange your snippets.
+
+  NOTE: Previously we only used `// TESTRESPONSE` instead of
+  `[source,console-result]` so you'll see that a lot in older branches but we
+  prefer `[source,console-result]` now.
+
   * `// TESTRESPONSE[s/foo/bar/]`: Substitutions. See `// TEST[s/foo/bar]` for
   how it works. These are much more common than `// TEST[s/foo/bar]` because
   they are useful for eliding portions of the response that are not pertinent
@@ -60,9 +123,9 @@ for its modifiers:
     "figures out" the path. This is especially useful for making sweeping
     assertions like "I made up all the numbers in this example, don't compare
     them" which looks like `// TESTRESPONSE[s/\d+/$body.$_path/]`.
-  * `// TESTRESPONSE[_cat]`: Add substitutions for testing `_cat` responses. Use
-  this after all other substitutions so it doesn't make other substitutions
-  difficult.
+  * `// TESTRESPONSE[non_json]`: Add substitutions for testing responses in a
+  format other than JSON. Use this after all other substitutions so it doesn't
+  make other substitutions difficult.
   * `// TESTRESPONSE[skip:reason]`: Skip the assertions specified by this
   response.
 * `// TESTSETUP`: Marks this snippet as the "setup" for all other snippets in
@@ -74,7 +137,11 @@ for its modifiers:
   but rather than the setup defined in `docs/build.gradle` the setup is defined
   right in the documentation file. In general, we should prefer `// TESTSETUP`
   over `// TEST[setup:name]` because it makes it more clear what steps have to
-  be taken before the examples will work.
+  be taken before the examples will work. Tip: `// TESTSETUP` can only be used
+  on the first snippet of a document.
+* `// TEARDOWN`: Ends and cleans up a test series started with `// TESTSETUP` or
+  `// TEST[setup:name]`. You can use `// TEARDOWN` to set up multiple tests in
+  the same file.
 * `// NOTCONSOLE`: Marks this snippet as neither `// CONSOLE` nor
   `// TESTRESPONSE`, excluding it from the list of unconverted snippets. We
   should only use this for snippets that *are* JSON but are *not* responses or
@@ -90,7 +157,7 @@ endyaml
 ```
 
 This allows slightly more expressive testing of the snippets. Since that syntax
-is not supported by CONSOLE the usual way to incorporate it is with a
+is not supported by `[source,console]` the usual way to incorporate it is with a
 `// TEST[s//]` marker like this:
 
 ```

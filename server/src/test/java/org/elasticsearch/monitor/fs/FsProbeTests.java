@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.fs;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
 import org.elasticsearch.test.ESTestCase;
@@ -39,10 +28,11 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 
 public class FsProbeTests extends ESTestCase {
@@ -52,7 +42,7 @@ public class FsProbeTests extends ESTestCase {
         try (NodeEnvironment env = newNodeEnvironment()) {
             FsProbe probe = new FsProbe(env);
 
-            FsInfo stats = probe.stats(null, null);
+            FsInfo stats = probe.stats(null);
             assertNotNull(stats);
             assertThat(stats.getTimestamp(), greaterThan(0L));
 
@@ -70,6 +60,8 @@ public class FsProbeTests extends ESTestCase {
                     assertThat(deviceStats.previousWritesCompleted, equalTo(-1L));
                     assertThat(deviceStats.currentSectorsWritten, greaterThanOrEqualTo(0L));
                     assertThat(deviceStats.previousSectorsWritten, equalTo(-1L));
+                    assertThat(deviceStats.currentIOTime, greaterThanOrEqualTo(0L));
+                    assertThat(deviceStats.previousIOTime, equalTo(-1L));
                 }
             } else {
                 assertNull(stats.getIoStats());
@@ -83,9 +75,9 @@ public class FsProbeTests extends ESTestCase {
 
             for (FsInfo.Path path : stats) {
                 assertNotNull(path);
-                assertThat(path.getPath(), not(isEmptyOrNullString()));
-                assertThat(path.getMount(), not(isEmptyOrNullString()));
-                assertThat(path.getType(), not(isEmptyOrNullString()));
+                assertThat(path.getPath(), is(not(emptyOrNullString())));
+                assertThat(path.getMount(), is(not(emptyOrNullString())));
+                assertThat(path.getType(), is(not(emptyOrNullString())));
                 assertThat(path.total, greaterThan(0L));
                 assertThat(path.free, greaterThan(0L));
                 assertThat(path.available, greaterThan(0L));
@@ -188,6 +180,8 @@ public class FsProbeTests extends ESTestCase {
         assertThat(first.devicesStats[0].previousWritesCompleted, equalTo(-1L));
         assertThat(first.devicesStats[0].currentSectorsWritten, equalTo(118857776L));
         assertThat(first.devicesStats[0].previousSectorsWritten, equalTo(-1L));
+        assertThat(first.devicesStats[0].currentIOTime, equalTo(1918440L));
+        assertThat(first.devicesStats[0].previousIOTime, equalTo(-1L));
         assertThat(first.devicesStats[1].majorDeviceNumber, equalTo(253));
         assertThat(first.devicesStats[1].minorDeviceNumber, equalTo(2));
         assertThat(first.devicesStats[1].deviceName, equalTo("dm-2"));
@@ -199,6 +193,8 @@ public class FsProbeTests extends ESTestCase {
         assertThat(first.devicesStats[1].previousWritesCompleted, equalTo(-1L));
         assertThat(first.devicesStats[1].currentSectorsWritten, equalTo(64126096L));
         assertThat(first.devicesStats[1].previousSectorsWritten, equalTo(-1L));
+        assertThat(first.devicesStats[1].currentIOTime, equalTo(1058193L));
+        assertThat(first.devicesStats[1].previousIOTime, equalTo(-1L));
 
         diskStats.set(Arrays.asList(
                 " 259       0 nvme0n1 336870 0 7928397 82876 10264393 0 182986405 52451610 0 2971042 52536492",
@@ -223,6 +219,8 @@ public class FsProbeTests extends ESTestCase {
         assertThat(second.devicesStats[0].previousWritesCompleted, equalTo(8398869L));
         assertThat(second.devicesStats[0].currentSectorsWritten, equalTo(118857776L));
         assertThat(second.devicesStats[0].previousSectorsWritten, equalTo(118857776L));
+        assertThat(second.devicesStats[0].currentIOTime, equalTo(1918444L));
+        assertThat(second.devicesStats[0].previousIOTime, equalTo(1918440L));
         assertThat(second.devicesStats[1].majorDeviceNumber, equalTo(253));
         assertThat(second.devicesStats[1].minorDeviceNumber, equalTo(2));
         assertThat(second.devicesStats[1].deviceName, equalTo("dm-2"));
@@ -234,12 +232,15 @@ public class FsProbeTests extends ESTestCase {
         assertThat(second.devicesStats[1].previousWritesCompleted, equalTo(1371977L));
         assertThat(second.devicesStats[1].currentSectorsWritten, equalTo(64128568L));
         assertThat(second.devicesStats[1].previousSectorsWritten, equalTo(64126096L));
+        assertThat(second.devicesStats[1].currentIOTime, equalTo(1058347L));
+        assertThat(second.devicesStats[1].previousIOTime, equalTo(1058193L));
 
         assertThat(second.totalOperations, equalTo(575L));
         assertThat(second.totalReadOperations, equalTo(261L));
         assertThat(second.totalWriteOperations, equalTo(314L));
         assertThat(second.totalReadKilobytes, equalTo(2392L));
         assertThat(second.totalWriteKilobytes, equalTo(1236L));
+        assertThat(second.totalIOTimeInMillis, equalTo(158L));
     }
 
     public void testAdjustForHugeFilesystems() throws Exception {

@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -27,7 +15,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -38,12 +26,12 @@ import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 
 public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>> extends ActionRequest {
 
-    public static final int SIZE_ALL_MATCHES = -1;
+    public static final int MAX_DOCS_ALL_MATCHES = -1;
     public static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
     public static final int DEFAULT_SCROLL_SIZE = 1000;
 
@@ -60,7 +48,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Maximum number of processed documents. Defaults to -1 meaning process all
      * documents.
      */
-    private int size = SIZE_ALL_MATCHES;
+    private int maxDocs = MAX_DOCS_ALL_MATCHES;
 
     /**
      * Should version conflicts cause aborts? Defaults to true.
@@ -110,10 +98,18 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     private int slices = DEFAULT_SLICES;
 
-    /**
-     * Constructor for deserialization.
-     */
-    public AbstractBulkByScrollRequest() {
+    public AbstractBulkByScrollRequest(StreamInput in) throws IOException {
+        super(in);
+        searchRequest = new SearchRequest(in);
+        abortOnVersionConflict = in.readBoolean();
+        maxDocs = in.readVInt();
+        refresh = in.readBoolean();
+        timeout = in.readTimeValue();
+        activeShardCount = ActiveShardCount.readFrom(in);
+        retryBackoffInitialTime = in.readTimeValue();
+        maxRetries = in.readVInt();
+        requestsPerSecond = in.readFloat();
+        slices = in.readVInt();
     }
 
     /**
@@ -152,10 +148,10 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         if (maxRetries < 0) {
             e = addValidationError("retries cannot be negative", e);
         }
-        if (false == (size == -1 || size > 0)) {
+        if (false == (maxDocs == -1 || maxDocs > 0)) {
             e = addValidationError(
-                    "size should be greater than 0 if the request is limited to some number of documents or -1 if it isn't but it was ["
-                            + size + "]",
+                    "maxDocs should be greater than 0 if the request is limited to some number of documents or -1 if it isn't but it was ["
+                            + maxDocs + "]",
                     e);
         }
         if (searchRequest.source().slice() != null && slices != DEFAULT_SLICES) {
@@ -168,31 +164,34 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Maximum number of processed documents. Defaults to -1 meaning process all
      * documents.
      */
-    public int getSize() {
-        return size;
+    public int getMaxDocs() {
+        return maxDocs;
     }
 
     /**
      * Maximum number of processed documents. Defaults to -1 meaning process all
      * documents.
      */
-    public Self setSize(int size) {
-        if (size < 0) {
-            throw new IllegalArgumentException("[size] parameter cannot be negative, found [" + size + "]");
+    public Self setMaxDocs(int maxDocs) {
+        if (maxDocs < 0) {
+            throw new IllegalArgumentException("[max_docs] parameter cannot be negative, found [" + maxDocs + "]");
         }
-        this.size = size;
+        if (maxDocs < slices) {
+            throw new IllegalArgumentException("[max_docs] should be >= [slices]");
+        }
+        this.maxDocs = maxDocs;
         return self();
     }
 
     /**
-     * Should version conflicts cause aborts? Defaults to false.
+     * Whether or not version conflicts cause the action to abort.
      */
     public boolean isAbortOnVersionConflict() {
         return abortOnVersionConflict;
     }
 
     /**
-     * Should version conflicts cause aborts? Defaults to false.
+     * Set whether or not version conflicts cause the action to abort.
      */
     public Self setAbortOnVersionConflict(boolean abortOnVersionConflict) {
         this.abortOnVersionConflict = abortOnVersionConflict;
@@ -368,6 +367,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
+     * A value of 0 is equivalent to the "auto" slices parameter of the Rest API.
      */
     public Self setSlices(int slices) {
         if (slices < 0) {
@@ -405,10 +405,10 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
                 .setRequestsPerSecond(requestsPerSecond / totalSlices)
                 // Sub requests don't have workers
                 .setSlices(1);
-        if (size != -1) {
-            // Size is split between workers. This means the size might round
+        if (maxDocs != MAX_DOCS_ALL_MATCHES) {
+            // maxDocs is split between workers. This means the maxDocs might round
             // down!
-            request.setSize(size == SIZE_ALL_MATCHES ? SIZE_ALL_MATCHES : size / totalSlices);
+            request.setMaxDocs(maxDocs / totalSlices);
         }
         // Set the parent task so this task is cancelled if we cancel the parent
         request.setParentTask(slicingTask);
@@ -422,38 +422,18 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        searchRequest = new SearchRequest(in);
-        abortOnVersionConflict = in.readBoolean();
-        size = in.readVInt();
-        refresh = in.readBoolean();
-        timeout = in.readTimeValue();
-        activeShardCount = ActiveShardCount.readFrom(in);
-        retryBackoffInitialTime = in.readTimeValue();
-        maxRetries = in.readVInt();
-        requestsPerSecond = in.readFloat();
-        slices = in.readVInt();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         searchRequest.writeTo(out);
         out.writeBoolean(abortOnVersionConflict);
-        out.writeVInt(size);
+        out.writeVInt(maxDocs);
         out.writeBoolean(refresh);
         out.writeTimeValue(timeout);
         activeShardCount.writeTo(out);
         out.writeTimeValue(retryBackoffInitialTime);
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
-        if (out.getVersion().before(Version.V_6_1_0) && slices == AUTO_SLICES) {
-            throw new IllegalArgumentException("Slices set as \"auto\" are not supported before version [" + Version.V_6_1_0 + "]. " +
-                "Found version [" + out.getVersion() + "]");
-        } else {
-            out.writeVInt(slices);
-        }
+        out.writeVInt(slices);
     }
 
     /**
@@ -465,9 +445,6 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             b.append(Arrays.toString(searchRequest.indices()));
         } else {
             b.append("[all indices]");
-        }
-        if (searchRequest.types() != null && searchRequest.types().length != 0) {
-            b.append(Arrays.toString(searchRequest.types()));
         }
     }
 

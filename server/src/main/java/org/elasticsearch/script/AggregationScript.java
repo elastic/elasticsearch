@@ -1,34 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.script;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
 
 public abstract class AggregationScript implements ScorerAware {
 
@@ -36,22 +29,22 @@ public abstract class AggregationScript implements ScorerAware {
 
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs", Factory.class);
 
-    private static final Map<String, String> DEPRECATIONS;
-
-    static {
-        Map<String, String> deprecations = new HashMap<>();
-        deprecations.put(
-            "doc",
-            "Accessing variable [doc] via [params.doc] from within an aggregation-script " +
-                "is deprecated in favor of directly accessing [doc]."
-        );
-        deprecations.put(
-            "_doc",
-            "Accessing variable [doc] via [params._doc] from within an aggregation-script " +
-                "is deprecated in favor of directly accessing [doc]."
-        );
-        DEPRECATIONS = Collections.unmodifiableMap(deprecations);
-    }
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
+            "doc", value -> {
+                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "aggregation-script_doc",
+                        "Accessing variable [doc] via [params.doc] from within an aggregation-script "
+                                + "is deprecated in favor of directly accessing [doc].");
+                return value;
+            },
+            "_doc", value -> {
+                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "aggregation-script__doc",
+                        "Accessing variable [doc] via [params._doc] from within an aggregation-script "
+                                + "is deprecated in favor of directly accessing [doc].");
+                return value;
+            },
+            "_source", value -> ((SourceLookup)value).source()
+    );
 
     /**
      * The generic runtime parameters for the script.
@@ -71,7 +64,7 @@ public abstract class AggregationScript implements ScorerAware {
     private Object value;
 
     public AggregationScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
-        this.params = new ParameterMap(new HashMap<>(params), DEPRECATIONS);
+        this.params = new DynamicMap(new HashMap<>(params), PARAMS_FUNCTIONS);
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         this.params.putAll(leafLookup.asMap());
     }
@@ -159,7 +152,7 @@ public abstract class AggregationScript implements ScorerAware {
     /**
      * A factory to construct stateful {@link AggregationScript} factories for a specific index.
      */
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
     }
 }

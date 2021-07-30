@@ -1,0 +1,284 @@
+[discrete]
+[[breaking_80_security_changes]]
+==== Security changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+.The realm `order` setting is now required.
+[%collapsible]
+====
+*Details* +
+The `xpack.security.authc.realms.{type}.{name}.order` setting is now required and must be
+specified for each explicitly configured realm. Each value must be unique.
+
+*Impact* +
+The cluster will fail to start if the requirements are not met.
+
+For example, the following configuration is invalid:
+[source,yaml]
+--------------------------------------------------
+xpack.security.authc.realms.kerberos.kerb1:
+  keytab.path: es.keytab
+  remove_realm_name: false
+--------------------------------------------------
+
+And must be configured as:
+[source,yaml]
+--------------------------------------------------
+xpack.security.authc.realms.kerberos.kerb1:
+  order: 0
+  keytab.path: es.keytab
+  remove_realm_name: false
+--------------------------------------------------
+====
+
+[[audit-logs-are-rolled-over-and-archived-by-size]]
+.Audit logs are rolled-over and archived by size.
+[%collapsible]
+====
+*Details* +
+In addition to the existing daily rollover, the security audit logs are
+now rolled-over by disk size limit as well. Moreover, the rolled-over logs
+are also gzip compressed.
+
+*Impact* +
+The names of rolled over audit logfiles (but not the name of the current log)
+have changed.
+If you've setup automated tools to consume these files, you must configure them
+to use the new names and to possibly account for gzip archives instead of plaintext.
+The Docker build of Elasticsearch is not affected since it logs on stdout where
+rollover is not performed.
+====
+
+[[accept-default-password-removed]]
+.The `accept_default_password` setting has been removed.
+[%collapsible]
+====
+*Details* +
+The `xpack.security.authc.accept_default_password` setting has not had any affect
+since the 6.0 release of {es}. It has been removed and cannot be used.
+
+*Impact* +
+Discontinue use of the `xpack.security.authc.accept_default_password` setting.
+Specifying this setting in `elasticsearch.yml` will result in an error on
+startup.
+====
+
+[[roles-index-cache-removed]]
+.The `roles.index.cache.*` settings have been removed.
+[%collapsible]
+====
+*Details* +
+The `xpack.security.authz.store.roles.index.cache.max_size` and
+`xpack.security.authz.store.roles.index.cache.ttl` settings have
+been removed. These settings have been redundant and deprecated
+since the 5.2 release of {es}.
+
+*Impact* +
+Discontinue use of the `xpack.security.authz.store.roles.index.cache.max_size`
+and `xpack.security.authz.store.roles.index.cache.ttl` settings. Specifying
+these settings in `elasticsearch.yml` will result in an error on startup.
+====
+
+[[migrate-tool-removed]]
+.The `elasticsearch-migrate` tool has been removed.
+[%collapsible]
+====
+*Details* +
+The `elasticsearch-migrate` tool provided a way to convert file
+realm users and roles into the native realm. It has been deprecated
+since 7.2.0. Users and roles should now be created in the native
+realm directly.
+
+*Impact* +
+Discontinue use of the `elasticsearch-migrate` tool. Attempts to use the
+`elasticsearch-migrate` tool will result in an error.
+====
+
+[[separating-node-and-client-traffic]]
+.The `transport.profiles.*.xpack.security.type` setting has been removed.
+[%collapsible]
+====
+*Details* +
+The `transport.profiles.*.xpack.security.type` setting has been removed since
+the Transport Client has been removed and therefore all client traffic now uses
+the HTTP transport. Transport profiles using this setting should be removed.
+
+*Impact* +
+Discontinue use of the `transport.profiles.*.xpack.security.type` setting.
+Specifying this setting in a transport profile in `elasticsearch.yml` will
+result in an error on startup.
+====
+
+[discrete]
+[[ssl-validation-changes]]
+===== SSL/TLS configuration validation
+
+.The `xpack.security.transport.ssl.enabled` setting is now required to configure `xpack.security.transport.ssl` settings.
+[%collapsible]
+====
+*Details* +
+It is now an error to configure any SSL settings for
+`xpack.security.transport.ssl` without also configuring
+`xpack.security.transport.ssl.enabled`.
+
+*Impact* +
+If using other `xpack.security.transport.ssl` settings, you must explicitly
+specify the `xpack.security.transport.ssl.enabled` setting.
+
+If you do not want to enable SSL and are currently using other
+`xpack.security.transport.ssl` settings, do one of the following:
+
+* Explicitly specify `xpack.security.transport.ssl.enabled` as `false`
+* Discontinue use of other `xpack.security.transport.ssl` settings
+
+If you want to enable SSL, follow the instructions in
+{ref}/configuring-tls.html#tls-transport[Encrypting communications between nodes
+in a cluster]. As part of this configuration, explicitly specify
+`xpack.security.transport.ssl.enabled` as `true`.
+
+For example, the following configuration is invalid:
+[source,yaml]
+--------------------------------------------------
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
+--------------------------------------------------
+
+And must be configured as:
+[source,yaml]
+--------------------------------------------------
+xpack.security.transport.ssl.enabled: true <1>
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
+--------------------------------------------------
+<1> or `false`.
+====
+
+.The `xpack.security.http.ssl.enabled` setting is now required to configure `xpack.security.http.ssl` settings.
+[%collapsible]
+====
+*Details* +
+It is now an error to configure any SSL settings for
+`xpack.security.http.ssl` without also configuring
+`xpack.security.http.ssl.enabled`.
+
+*Impact* +
+If using other `xpack.security.http.ssl` settings, you must explicitly
+specify the `xpack.security.http.ssl.enabled` setting.
+
+If you do not want to enable SSL and are currently using other
+`xpack.security.http.ssl` settings, do one of the following:
+
+* Explicitly specify `xpack.security.http.ssl.enabled` as `false`
+* Discontinue use of other `xpack.security.http.ssl` settings
+
+If you want to enable SSL, follow the instructions in
+{ref}/configuring-tls.html#tls-http[Encrypting HTTP client communications]. As part
+of this configuration, explicitly specify `xpack.security.http.ssl.enabled`
+as `true`.
+
+For example, the following configuration is invalid:
+[source,yaml]
+--------------------------------------------------
+xpack.security.http.ssl.certificate: elasticsearch.crt
+xpack.security.http.ssl.key: elasticsearch.key
+xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
+--------------------------------------------------
+
+And must be configured as either:
+[source,yaml]
+--------------------------------------------------
+xpack.security.http.ssl.enabled: true <1>
+xpack.security.http.ssl.certificate: elasticsearch.crt
+xpack.security.http.ssl.key: elasticsearch.key
+xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
+--------------------------------------------------
+<1> or `false`.
+====
+
+.A `xpack.security.transport.ssl` certificate and key are now required to enable SSL for the transport interface.
+[%collapsible]
+====
+*Details* +
+It is now an error to enable SSL for the transport interface without also configuring
+a certificate and key through use of the `xpack.security.transport.ssl.keystore.path`
+setting or the `xpack.security.transport.ssl.certificate` and
+`xpack.security.transport.ssl.key` settings.
+
+*Impact* +
+If `xpack.security.transport.ssl.enabled` is set to `true`, provide a
+certificate and key using the `xpack.security.transport.ssl.keystore.path`
+setting or the `xpack.security.transport.ssl.certificate` and
+`xpack.security.transport.ssl.key` settings. If a certificate and key is not
+provided, {es} will return in an error on startup.
+====
+
+.A `xpack.security.http.ssl` certificate and key are now required to enable SSL for the HTTP server.
+[%collapsible]
+====
+*Details* +
+It is now an error to enable SSL for the HTTP (Rest) server without also configuring
+a certificate and key through use of the `xpack.security.http.ssl.keystore.path`
+setting or the `xpack.security.http.ssl.certificate` and
+`xpack.security.http.ssl.key` settings.
+
+*Impact* +
+If `xpack.security.http.ssl.enabled` is set to `true`, provide a certificate and
+key using the `xpack.security.http.ssl.keystore.path` setting or the
+`xpack.security.http.ssl.certificate` and `xpack.security.http.ssl.key`
+settings. If certificate and key is not provided, {es} will return in an error
+on startup.
+====
+
+[discrete]
+[[builtin-users-changes]]
+===== Changes to built-in users
+
+.The `kibana` user has been replaced by `kibana_system`.
+[%collapsible]
+====
+*Details* +
+The `kibana` user was historically used to authenticate {kib} to {es}.
+The name of this user was confusing, and was often mistakenly used to login to {kib}.
+This has been renamed to `kibana_system` in order to reduce confusion, and to better
+align with other built-in system accounts.
+
+*Impact* +
+Replace any use of the `kibana` user with the `kibana_system` user. Specifying
+the `kibana` user in `kibana.yml` will result in an error on startup.
+
+If your `kibana.yml` used to contain:
+[source,yaml]
+--------------------------------------------------
+elasticsearch.username: kibana
+--------------------------------------------------
+
+then you should update to use the new `kibana_system` user instead:
+[source,yaml]
+--------------------------------------------------
+elasticsearch.username: kibana_system
+--------------------------------------------------
+
+IMPORTANT: The new `kibana_system` user does not preserve the previous `kibana`
+user password. You must explicitly set a password for the `kibana_system` user.
+====
+
+[discrete]
+[[builtin-roles-changes]]
+===== Changes to built-in roles
+
+.The `kibana_user` role has been renamed `kibana_admin`.
+[%collapsible]
+====
+*Details* +
+Users who were previously assigned the `kibana_user` role should instead be assigned
+the `kibana_admin` role. This role grants the same set of privileges as `kibana_user`, but has been
+renamed to better reflect its intended use.
+
+*Impact* +
+Assign users with the `kibana_user` role to the `kibana_admin` role.
+Discontinue use of the `kibana_user` role.
+====
+// end::notable-breaking-changes[]

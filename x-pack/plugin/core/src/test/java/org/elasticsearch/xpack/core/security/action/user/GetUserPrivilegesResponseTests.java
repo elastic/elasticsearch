@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action.user;
@@ -21,8 +22,8 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges.ManageApplicationPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,10 +49,10 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
 
-        final GetUserPrivilegesResponse copy = new GetUserPrivilegesResponse();
+
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-        copy.readFrom(in);
+        final GetUserPrivilegesResponse copy = new GetUserPrivilegesResponse(in);
 
         assertThat(copy.getClusterPrivileges(), equalTo(original.getClusterPrivileges()));
         assertThat(copy.getConditionalClusterPrivileges(), equalTo(original.getConditionalClusterPrivileges()));
@@ -75,10 +76,11 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
                 public GetUserPrivilegesResponse mutate(GetUserPrivilegesResponse original) {
                     final int random = randomIntBetween(1, 0b11111);
                     final Set<String> cluster = maybeMutate(random, 0, original.getClusterPrivileges(), () -> randomAlphaOfLength(5));
-                    final Set<ConditionalClusterPrivilege> conditionalCluster = maybeMutate(random, 1,
+                    final Set<ConfigurableClusterPrivilege> conditionalCluster = maybeMutate(random, 1,
                         original.getConditionalClusterPrivileges(), () -> new ManageApplicationPrivileges(randomStringSet(3)));
-                    final Set<GetUserPrivilegesResponse.Indices> index = maybeMutate(random, 2, original.getIndexPrivileges(),
-                        () -> new GetUserPrivilegesResponse.Indices(randomStringSet(1), randomStringSet(1), emptySet(), emptySet()));
+                        final Set<GetUserPrivilegesResponse.Indices> index = maybeMutate(random, 2, original.getIndexPrivileges(),
+                                () -> new GetUserPrivilegesResponse.Indices(randomStringSet(1), randomStringSet(1), emptySet(), emptySet(),
+                                        randomBoolean()));
                     final Set<ApplicationResourcePrivileges> application = maybeMutate(random, 3, original.getApplicationPrivileges(),
                         () -> ApplicationResourcePrivileges.builder().resources(generateRandomStringArray(3, 3, false, false))
                             .application(randomAlphaOfLength(5)).privileges(generateRandomStringArray(3, 5, false, false)).build());
@@ -102,7 +104,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
 
     private GetUserPrivilegesResponse randomResponse() {
         final Set<String> cluster = randomStringSet(5);
-        final Set<ConditionalClusterPrivilege> conditionalCluster = Sets.newHashSet(randomArray(3, ConditionalClusterPrivilege[]::new,
+        final Set<ConfigurableClusterPrivilege> conditionalCluster = Sets.newHashSet(randomArray(3, ConfigurableClusterPrivilege[]::new,
             () -> new ManageApplicationPrivileges(
                 randomStringSet(3)
             )));
@@ -110,7 +112,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
             () -> new GetUserPrivilegesResponse.Indices(randomStringSet(6), randomStringSet(8),
                 Sets.newHashSet(randomArray(3, FieldGrantExcludeGroup[]::new, () -> new FieldGrantExcludeGroup(
                     generateRandomStringArray(3, 5, false, false), generateRandomStringArray(3, 5, false, false)))),
-                randomStringSet(3).stream().map(BytesArray::new).collect(Collectors.toSet())
+                randomStringSet(3).stream().map(BytesArray::new).collect(Collectors.toSet()), randomBoolean()
             ))
         );
         final Set<ApplicationResourcePrivileges> application = Sets.newHashSet(randomArray(5, ApplicationResourcePrivileges[]::new,

@@ -1,15 +1,18 @@
+[role="xpack"]
 [[input-search]]
-=== Search Input
+=== {watcher} search input
+++++
+<titleabbrev>Search input</titleabbrev>
+++++
 
 Use the `search` input to load the results of an Elasticsearch search request
 into the execution context when the watch is triggered. See
-<<search-input-attributes, Search Input Attributes>> for all of the
-supported attributes.
+<<search-input-attributes>> for all of the supported attributes.
 
 In the search input's `request` object, you specify:
 
 * The indices you want to search
-* The {ref}/search-request-search-type.html[search type]
+* The <<search-type,search type>>
 * The search request body
 
 The search request body supports the full Elasticsearch Query DSL--it's the
@@ -24,7 +27,6 @@ documents from the `logs` index:
   "search" : {
     "request" : {
       "indices" : [ "logs" ],
-      "types" : [ "event" ],
       "body" : {
         "query" : { "match_all" : {}}
       }
@@ -60,7 +62,7 @@ the following input loads the latest VIXZ quote from today's daily quotes index:
 --------------------------------------------------
 // NOTCONSOLE
 
-==== Extracting Specific Fields
+==== Extracting specific fields
 
 You can specify which fields in the search response you want to load into the
 watch payload with the `extract` attribute. This is useful when a search
@@ -84,7 +86,7 @@ watch payload:
 
 ==== Using Templates
 
-The `search` input supports {ref}/search-template.html[search templates]. For
+The `search` input supports <<search-template,search templates>>. For
 example, the following snippet references the indexed template called
 `my_template` and passes a value of 23 to fill in the template's `value`
 parameter:
@@ -110,11 +112,11 @@ parameter:
 --------------------------------------------------
 // NOTCONSOLE
 
-==== Applying Conditions
+==== Applying conditions
 
-The `search` input is often used in conjunction with the <<condition-script,
-`script`>> condition. For example, the following snippet adds a condition to
-check if the search returned more than five hits:
+The `search` input is often used in conjunction with the
+<<condition-script,`script`>> condition. For example, the following snippet adds
+a condition to check if the search returned more than five hits:
 
 [source,js]
 --------------------------------------------------
@@ -130,20 +132,20 @@ check if the search returned more than five hits:
     }
   },
   "condition" : {
-    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 5 }}
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 5 }}
   }
   ...
 }
 --------------------------------------------------
 // NOTCONSOLE
 
-==== Accessing the Search Results
+==== Accessing the search results
 
 Conditions, transforms, and actions can access the search results through the
 watch execution context. For example:
 
 * To load all of the search hits into an email body, use `ctx.payload.hits`.
-* To reference the total number of hits, use `ctx.payload.hits.total.value`.
+* To reference the total number of hits, use `ctx.payload.hits.total`.
 * To access a particular hit, use its zero-based array index. For example, to
   get the third hit, use `ctx.payload.hits.hits.2`.
 * To get a field value from a particular hit, use
@@ -164,32 +166,28 @@ accurately.
 |======
 | Name                                          |Required   | Default             | Description
 
-| `request.search_type`                         | no        | `query_then_fetch`  | The {ref}/search-request-search-type.html#search-request-search-type[type]
-                                                                                    of search request to perform. Valid values are: `dfs_query_and_fetch`,
-                                                                                    `dfs_query_then_fetch`, `query_and_fetch`, and `query_then_fetch`. The
-                                                                                    Elasticsearch default is `query_then_fetch`.
+| `request.search_type`                         | no        | `query_then_fetch`  | The <<search-type,type>> of search request to perform.
+                                                                                    Valid values are: `dfs_query_then_fetch` and `query_then_fetch`.
+                                                                                    The Elasticsearch default is `query_then_fetch`.
 
 | `request.indices`                             | no        | -                   | The indices to search. If omitted, all indices are searched, which is the
                                                                                     default behaviour in Elasticsearch.
 
-| `request.types`                               | no        | -                   | The document types to search for. If omitted, all document types are are
-                                                                                    searched, which is the default behaviour in Elasticsearch.
-
-| `request.body`                                | no        | -                   | The body of the request. The {ref}/search-request-body.html[request body]
+| `request.body`                                | no        | -                   | The body of the request. The <<search-request-body,request body>>
                                                                                     follows the same structure you normally send in the body of a REST `_search`
-                                                                                    request. The body can be static text or include `mustache` <<templates, templates>>.
+                                                                                    request. The body can be static text or include `mustache` <<templates,templates>>.
 
-| `request.template`                            | no        | -                   | The body of the search template. See <<templates, configure templates>>
+| `request.template`                            | no        | -                   | The body of the search template. See <<templates,configure templates>>
                                                                                     for more information.
 
 | `request.indices_options.expand_wildcards`    | no        | `open`              | How to expand wildcards. Valid values are: `all`, `open`, `closed`, and `none`
-                                                                                    See {ref}/multi-index.html#multi-index[`expand_wildcards`] for more information.
+                                                                                    See <<multi-index,`expand_wildcards`>> for more information.
 
 | `request.indices_options.ignore_unavailable`  | no        | `true`              | Whether the search should ignore unavailable indices. See
-                                                                                    {ref}/multi-index.html#multi-index[`ignore_unavailable`] for more information.
+                                                                                    <<multi-index,`ignore_unavailable`>> for more information.
 
 | `request.indices_options.allow_no_indices`    | no        | `true`              | Whether to allow a search where a wildcard indices expression results in no
-                                                                                    concrete indices. See {ref}/multi-index.html#multi-index[allow_no_indices]
+                                                                                    concrete indices. See <<multi-index,allow_no_indices>>
                                                                                     for more information.
 
 | `extract`                                     | no        | -                   | A array of JSON keys to extract from the search response and load as the payload.

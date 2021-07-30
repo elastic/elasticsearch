@@ -1,35 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -42,7 +30,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
  * registered watcher periodically. The frequency of checks can be specified using {@code resource.reload.interval} setting, which
  * defaults to {@code 60s}. The service can be disabled by setting {@code resource.reload.enabled} setting to {@code false}.
  */
-public class ResourceWatcherService extends AbstractLifecycleComponent {
+public class ResourceWatcherService implements Closeable {
     private static final Logger logger = LogManager.getLogger(ResourceWatcherService.class);
 
     public enum Frequency {
@@ -78,21 +66,17 @@ public class ResourceWatcherService extends AbstractLifecycleComponent {
         Setting.timeSetting("resource.reload.interval.low", Frequency.LOW.interval, Property.NodeScope);
 
     private final boolean enabled;
-    private final ThreadPool threadPool;
 
     final ResourceMonitor lowMonitor;
     final ResourceMonitor mediumMonitor;
     final ResourceMonitor highMonitor;
 
-    private volatile Cancellable lowFuture;
-    private volatile Cancellable mediumFuture;
-    private volatile Cancellable highFuture;
+    private final Cancellable lowFuture;
+    private final Cancellable mediumFuture;
+    private final Cancellable highFuture;
 
-    @Inject
     public ResourceWatcherService(Settings settings, ThreadPool threadPool) {
-        super(settings);
         this.enabled = ENABLED.get(settings);
-        this.threadPool = threadPool;
 
         TimeValue interval = RELOAD_INTERVAL_LOW.get(settings);
         lowMonitor = new ResourceMonitor(interval, Frequency.LOW);
@@ -100,30 +84,24 @@ public class ResourceWatcherService extends AbstractLifecycleComponent {
         mediumMonitor = new ResourceMonitor(interval, Frequency.MEDIUM);
         interval = RELOAD_INTERVAL_HIGH.get(settings);
         highMonitor = new ResourceMonitor(interval, Frequency.HIGH);
-    }
-
-    @Override
-    protected void doStart() {
-        if (!enabled) {
-            return;
+        if (enabled) {
+            lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval, Names.SAME);
+            mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval, Names.SAME);
+            highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval, Names.SAME);
+        } else {
+            lowFuture = null;
+            mediumFuture = null;
+            highFuture = null;
         }
-        lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval, Names.SAME);
-        mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval, Names.SAME);
-        highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval, Names.SAME);
     }
 
     @Override
-    protected void doStop() {
-        if (!enabled) {
-            return;
+    public void close() {
+        if (enabled) {
+            lowFuture.cancel();
+            mediumFuture.cancel();
+            highFuture.cancel();
         }
-        lowFuture.cancel();
-        mediumFuture.cancel();
-        highFuture.cancel();
-    }
-
-    @Override
-    protected void doClose() {
     }
 
     /**
@@ -150,10 +128,6 @@ public class ResourceWatcherService extends AbstractLifecycleComponent {
         }
     }
 
-    public void notifyNow() {
-        notifyNow(Frequency.MEDIUM);
-    }
-
     public void notifyNow(Frequency frequency) {
         switch (frequency) {
             case LOW:
@@ -170,7 +144,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent {
         }
     }
 
-    class ResourceMonitor implements Runnable {
+    static class ResourceMonitor implements Runnable {
 
         final TimeValue interval;
         final Frequency frequency;
@@ -189,7 +163,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent {
 
         @Override
         public synchronized void run() {
-            for(ResourceWatcher watcher : watchers) {
+            for (ResourceWatcher watcher : watchers) {
                 try {
                     watcher.checkAndNotify();
                 } catch (IOException e) {

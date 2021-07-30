@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -80,9 +69,10 @@ public final class LicenseClient {
      * Asynchronously updates license for the cluster.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void putLicenseAsync(PutLicenseRequest request, RequestOptions options, ActionListener<PutLicenseResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::putLicense, options,
+    public Cancellable putLicenseAsync(PutLicenseRequest request, RequestOptions options, ActionListener<PutLicenseResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::putLicense, options,
             PutLicenseResponse::fromXContent, listener, emptySet());
     }
 
@@ -101,9 +91,10 @@ public final class LicenseClient {
      * Asynchronously returns the current license for the cluster cluster.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getLicenseAsync(GetLicenseRequest request, RequestOptions options, ActionListener<GetLicenseResponse> listener) {
-        restHighLevelClient.performRequestAsync(request, LicenseRequestConverters::getLicense, options,
+    public Cancellable getLicenseAsync(GetLicenseRequest request, RequestOptions options, ActionListener<GetLicenseResponse> listener) {
+        return restHighLevelClient.performRequestAsync(request, LicenseRequestConverters::getLicense, options,
             response -> new GetLicenseResponse(convertResponseToJson(response)), listener, emptySet());
     }
 
@@ -122,9 +113,12 @@ public final class LicenseClient {
      * Asynchronously deletes license from the cluster.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void deleteLicenseAsync(DeleteLicenseRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::deleteLicense, options,
+    public Cancellable deleteLicenseAsync(DeleteLicenseRequest request, RequestOptions options,
+                                          ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            LicenseRequestConverters::deleteLicense, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -143,12 +137,13 @@ public final class LicenseClient {
      * Asynchronously starts a trial license on the cluster.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void startTrialAsync(StartTrialRequest request,
-                                RequestOptions options,
-                                ActionListener<StartTrialResponse> listener) {
+    public Cancellable startTrialAsync(StartTrialRequest request,
+                                       RequestOptions options,
+                                       ActionListener<StartTrialResponse> listener) {
 
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::startTrial, options,
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::startTrial, options,
             StartTrialResponse::fromXContent, listener, singleton(403));
     }
 
@@ -167,10 +162,11 @@ public final class LicenseClient {
      * Asynchronously initiates an indefinite basic license.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void startBasicAsync(StartBasicRequest request, RequestOptions options,
-                                ActionListener<StartBasicResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::startBasic, options,
+    public Cancellable startBasicAsync(StartBasicRequest request, RequestOptions options,
+                                       ActionListener<StartBasicResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::startBasic, options,
             StartBasicResponse::fromXContent, listener, emptySet());
     }
 
@@ -210,7 +206,7 @@ public final class LicenseClient {
         if (entity.getContentType() == null) {
             throw new IllegalStateException("Elasticsearch didn't return the [Content-Type] header, unable to parse response body");
         }
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(entity.getContentType().getValue());
+        XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
         }

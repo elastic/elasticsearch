@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
@@ -25,12 +14,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -39,11 +30,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -494,10 +485,10 @@ public class SettingsTests extends ESTestCase {
 
     public void testSecureSettingIllegalName() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            SecureSetting.secureString("UpperCaseSetting", null));
+            SecureSetting.secureString("*IllegalName", null));
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
         e = expectThrows(IllegalArgumentException.class, () ->
-            SecureSetting.secureFile("UpperCaseSetting", null));
+            SecureSetting.secureFile("*IllegalName", null));
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
     }
 
@@ -635,61 +626,9 @@ public class SettingsTests extends ESTestCase {
             e.getMessage().contains("null-valued setting found for key [foo] found at line number [1], column number [5]"));
     }
 
-    public void testReadLegacyFromStream() throws IOException {
-        BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
-        output.writeVInt(5);
-        output.writeString("foo.bar.1");
-        output.writeOptionalString("1");
-        output.writeString("foo.bar.0");
-        output.writeOptionalString("0");
-        output.writeString("foo.bar.2");
-        output.writeOptionalString("2");
-        output.writeString("foo.bar.3");
-        output.writeOptionalString("3");
-        output.writeString("foo.bar.baz");
-        output.writeOptionalString("baz");
-        StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
-        in.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
-        Settings settings = Settings.readSettingsFromStream(in);
-        assertEquals(2, settings.size());
-        assertEquals(Arrays.asList("0", "1", "2", "3"), settings.getAsList("foo.bar"));
-        assertEquals("baz", settings.get("foo.bar.baz"));
-    }
-
-    public void testWriteLegacyOutput() throws IOException {
-        BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
-        Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3")
-            .put("foo.bar.baz", "baz").putNull("foo.null").build();
-        Settings.writeSettingsToStream(settings, output);
-        StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
-        assertEquals(6, in.readVInt());
-        Map<String, String> keyValues = new HashMap<>();
-        for (int i = 0; i < 6; i++){
-            keyValues.put(in.readString(), in.readOptionalString());
-        }
-        assertEquals(keyValues.get("foo.bar.0"), "0");
-        assertEquals(keyValues.get("foo.bar.1"), "1");
-        assertEquals(keyValues.get("foo.bar.2"), "2");
-        assertEquals(keyValues.get("foo.bar.3"), "3");
-        assertEquals(keyValues.get("foo.bar.baz"), "baz");
-        assertTrue(keyValues.containsKey("foo.null"));
-        assertNull(keyValues.get("foo.null"));
-
-        in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
-        in.setVersion(output.getVersion());
-        Settings readSettings = Settings.readSettingsFromStream(in);
-        assertEquals(3, readSettings.size());
-        assertEquals(Arrays.asList("0", "1", "2", "3"), readSettings.getAsList("foo.bar"));
-        assertEquals(readSettings.get("foo.bar.baz"), "baz");
-        assertTrue(readSettings.keySet().contains("foo.null"));
-        assertNull(readSettings.get("foo.null"));
-    }
-
     public void testReadWriteArray() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(randomFrom(Version.CURRENT, Version.V_6_1_0));
+        output.setVersion(randomFrom(Version.CURRENT, Version.V_7_0_0));
         Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
         Settings.writeSettingsToStream(settings, output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
@@ -708,4 +647,75 @@ public class SettingsTests extends ESTestCase {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Settings.builder().copy("not_there", settings));
         assertEquals("source key not found in the source settings", iae.getMessage());
     }
+
+    public void testFractionalTimeValue() {
+        final Setting<TimeValue> setting =
+                Setting.timeSetting("key", TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"), TimeValue.ZERO);
+        final TimeValue expected = TimeValue.timeValueMillis(randomNonNegativeLong());
+        final Settings settings = Settings.builder().put("key", expected).build();
+        /*
+         * Previously we would internally convert the time value to a string using a method that tries to be smart about the units (e.g.,
+         * 1000ms would be converted to 1s). However, this had a problem in that, for example, 1500ms would be converted to 1.5s. Then,
+         * 1.5s could not be converted back to a TimeValue because TimeValues do not support fractional components. Effectively this test
+         * is then asserting that we no longer make this mistake when doing the internal string conversion. Instead, we convert to a string
+         * using a method that does not lose the original unit.
+         */
+        final TimeValue actual = setting.get(settings);
+        assertThat(actual, equalTo(expected));
+    }
+
+    public void testFractionalByteSizeValue() {
+        final Setting<ByteSizeValue> setting =
+                Setting.byteSizeSetting("key", ByteSizeValue.parseBytesSizeValue(randomIntBetween(1, 16) + "k", "key"));
+        final ByteSizeValue expected = new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES);
+        final Settings settings = Settings.builder().put("key", expected).build();
+        /*
+         * Previously we would internally convert the byte size value to a string using a method that tries to be smart about the units
+         * (e.g., 1024 bytes would be converted to 1kb). However, this had a problem in that, for example, 1536 bytes would be converted to
+         * 1.5k. Then, 1.5k could not be converted back to a ByteSizeValue because ByteSizeValues do not support fractional components.
+         * Effectively this test is then asserting that we no longer make this mistake when doing the internal string conversion. Instead,
+         * we convert to a string using a method that does not lose the original unit.
+         */
+        final ByteSizeValue actual = setting.get(settings);
+        assertThat(actual, equalTo(expected));
+    }
+
+    public void testSetByTimeUnit() {
+        final Setting<TimeValue> setting =
+                Setting.timeSetting("key", TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"), TimeValue.ZERO);
+        final TimeValue expected = new TimeValue(1500, TimeUnit.MICROSECONDS);
+        final Settings settings = Settings.builder().put("key", expected.getMicros(), TimeUnit.MICROSECONDS).build();
+        /*
+         * Previously we would internally convert the duration to a string by converting to milliseconds which could lose precision  (e.g.,
+         * 1500 microseconds would be converted to 1ms). Effectively this test is then asserting that we no longer make this mistake when
+         * doing the internal string conversion. Instead, we convert to a duration using a method that does not lose the original unit.
+         */
+        final TimeValue actual = setting.get(settings);
+        assertThat(actual, equalTo(expected));
+    }
+
+    public void testProcessSetting() throws IOException {
+        Settings test = Settings.builder()
+            .put("ant", "value1")
+            .put("ant.bee.cat", "value2")
+            .put("bee.cat", "value3")
+            .build();
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
+        builder.endObject();
+        assertEquals("{\"ant.bee\":{\"cat\":\"value2\"},\"ant\":\"value1\",\"bee\":{\"cat\":\"value3\"}}", Strings.toString(builder));
+
+        test = Settings.builder()
+            .put("ant", "value1")
+            .put("ant.bee.cat", "value2")
+            .put("ant.bee.cat.dog.ewe", "value3")
+            .build();
+        builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
+        builder.endObject();
+        assertEquals("{\"ant.bee\":{\"cat.dog\":{\"ewe\":\"value3\"},\"cat\":\"value2\"},\"ant\":\"value1\"}", Strings.toString(builder));
+    }
+
 }

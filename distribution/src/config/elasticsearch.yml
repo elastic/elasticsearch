@@ -30,11 +30,11 @@
 #
 # Path to directory where to store the data (separate multiple locations by comma):
 #
-${path.data}
+@path.data@
 #
 # Path to log files:
 #
-${path.logs}
+@path.logs@
 #
 # ----------------------------------- Memory -----------------------------------
 #
@@ -50,11 +50,13 @@ ${path.logs}
 #
 # ---------------------------------- Network -----------------------------------
 #
-# Set the bind address to a specific IP (IPv4 or IPv6):
+# By default Elasticsearch is only accessible on localhost. Set a different
+# address here to expose this node on the network:
 #
 #network.host: 192.168.0.1
 #
-# Set a custom port for HTTP:
+# By default Elasticsearch listens for HTTP traffic on the first free port it
+# finds starting at 9200. Set a specific HTTP port here:
 #
 #http.port: 9200
 #
@@ -62,27 +64,19 @@ ${path.logs}
 #
 # --------------------------------- Discovery ----------------------------------
 #
-# Pass an initial list of hosts to perform discovery when new node is started:
+# Pass an initial list of hosts to perform discovery when this node is started:
 # The default list of hosts is ["127.0.0.1", "[::1]"]
 #
-#discovery.zen.ping.unicast.hosts: ["host1", "host2"]
+#discovery.seed_hosts: ["host1", "host2"]
 #
-# Prevent the "split brain" by configuring the majority of nodes (total number of master-eligible nodes / 2 + 1):
+# Bootstrap the cluster using an initial set of master-eligible nodes:
 #
-#discovery.zen.minimum_master_nodes: 
+#cluster.initial_master_nodes: ["node-1", "node-2"]
 #
-# For more information, consult the zen discovery module documentation.
-#
-# ---------------------------------- Gateway -----------------------------------
-#
-# Block initial recovery after a full cluster restart until N nodes are started:
-#
-#gateway.recover_after_nodes: 3
-#
-# For more information, consult the gateway module documentation.
+# For more information, consult the discovery and cluster formation module documentation.
 #
 # ---------------------------------- Various -----------------------------------
 #
-# Require explicit names when deleting indices:
+# Allow wildcard deletion of indices:
 #
-#action.destructive_requires_name: true
+#action.destructive_requires_name: false

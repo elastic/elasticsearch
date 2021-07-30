@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -45,11 +46,11 @@ public class LicensingClient {
     }
 
     public PostStartTrialRequestBuilder preparePostStartTrial() {
-        return new PostStartTrialRequestBuilder(client, PostStartTrialAction.INSTANCE);
+        return new PostStartTrialRequestBuilder(client);
     }
 
     public GetTrialStatusRequestBuilder prepareGetStartTrial() {
-        return new GetTrialStatusRequestBuilder(client, GetTrialStatusAction.INSTANCE);
+        return new GetTrialStatusRequestBuilder(client);
     }
 
     public void postStartTrial(PostStartTrialRequest request, ActionListener<PostStartTrialResponse> listener) {
@@ -61,10 +62,10 @@ public class LicensingClient {
     }
 
     public PostStartBasicRequestBuilder preparePostStartBasic() {
-        return new PostStartBasicRequestBuilder(client, PostStartBasicAction.INSTANCE);
+        return new PostStartBasicRequestBuilder(client);
     }
 
     public GetBasicStatusRequestBuilder prepareGetStartBasic() {
-        return new GetBasicStatusRequestBuilder(client, GetBasicStatusAction.INSTANCE);
+        return new GetBasicStatusRequestBuilder(client);
     }
 }

@@ -1,41 +1,54 @@
 [[docs-termvectors]]
-== Term Vectors
+=== Term vectors API
+++++
+<titleabbrev>Term vectors</titleabbrev>
+++++
 
-Returns information and statistics on terms in the fields of a particular
-document. The document could be stored in the index or artificially provided
-by the user. Term vectors are <<realtime,realtime>> by default, not near
-realtime. This can be changed by setting `realtime` parameter to `false`.
+Retrieves information and statistics for terms in the fields of a particular document. 
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /twitter/_termvectors/1
+GET /my-index-000001/_termvectors/1
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-Optionally, you can specify the fields for which the information is
-retrieved either with a parameter in the url
+[[docs-termvectors-api-request]]
+==== {api-request-title}
 
-[source,js]
+`GET /<index>/_termvectors/<_id>`
+
+[[docs-termvectors-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
+
+[[docs-termvectors-api-desc]]
+==== {api-description-title}
+
+You can retrieve term vectors for documents stored in the index or 
+for _artificial_ documents passed in the body of the request. 
+
+You can specify the fields you are interested in through the `fields` parameter,
+or by adding the fields to the request body. 
+
+[source,console]
 --------------------------------------------------
-GET /twitter/_termvectors/1?fields=message
+GET /my-index-000001/_termvectors/1?fields=message
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-or by adding the requested fields in the request body (see
-example below). Fields can also be specified with wildcards
-in similar way to the <<query-dsl-multi-match-query,multi match query>>
+Fields can be specified using wildcards, similar to the <<query-dsl-multi-match-query,multi match query>>.
 
-[float]
-=== Return values
+Term vectors are <<realtime,real-time>> by default, not near real-time. 
+This can be changed by setting `realtime` parameter to `false`.
 
-Three types of values can be requested: _term information_, _term statistics_
+You can request three types of values: _term information_, _term statistics_
 and _field statistics_. By default, all term information and field
-statistics are returned for all fields but no term statistics.
+statistics are returned for all fields but term statistics are excluded.
 
-[float]
-==== Term information
+[[docs-termvectors-api-term-info]]
+===== Term information
 
  * term frequency in the field (always returned)
  * term positions (`positions` : true)
@@ -54,8 +67,8 @@ should make sure that the string you are taking a sub-string of is also encoded
 using UTF-16.
 ======
 
-[float]
-==== Term statistics
+[[docs-termvectors-api-term-stats]]
+===== Term statistics
 
 Setting `term_statistics` to `true` (default is `false`) will
 return
@@ -67,8 +80,8 @@ return
 By default these values are not returned since term statistics can
 have a serious performance impact.
 
-[float]
-==== Field statistics
+[[docs-termvectors-api-field-stats]]
+===== Field statistics
 
 Setting `field_statistics` to `false` (default is `true`) will
 omit :
@@ -79,8 +92,8 @@ omit :
  * sum of total term frequencies (the sum of total term frequencies of
    each term in this field)
 
-[float]
-==== Terms Filtering
+[[docs-termvectors-api-terms-filtering]]
+===== Terms filtering
 
 With the parameter `filter`, the terms returned could also be filtered based
 on their tf-idf scores. This could be useful in order find out a good
@@ -107,8 +120,8 @@ The following sub-parameters are supported:
 `max_word_length`::
   The maximum word length above which words will be ignored. Defaults to unbounded (`0`).
 
-[float]
-=== Behaviour
+[[docs-termvectors-api-behavior]]
+==== Behaviour
 
 The term and field statistics are not accurate. Deleted documents
 are not taken into account. The information is only retrieved for the
@@ -118,28 +131,63 @@ whereas the absolute numbers have no meaning in this context. By default,
 when requesting term vectors of artificial documents, a shard to get the statistics
 from is randomly selected. Use `routing` only to hit a particular shard.
 
-[float]
-==== Example: Returning stored term vectors
+[[docs-termvectors-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Required, string) Name of the index that contains the document.
+
+`<_id>`::
+(Optional, string) Unique identifier of the document.
+
+[[docs-termvectors-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=field_statistics]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=offsets]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=payloads]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=positions]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=term_statistics]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
+
+[[docs-termvectors-api-example]]
+==== {api-examples-title}
+
+[[docs-termvectors-api-stored-termvectors]]
+===== Returning stored term vectors
 
 First, we create an index that stores term vectors, payloads etc. :
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /twitter/
+PUT /my-index-000001
 { "mappings": {
-    "_doc": {
-      "properties": {
-        "text": {
-          "type": "text",
-          "term_vector": "with_positions_offsets_payloads",
-          "store" : true,
-          "analyzer" : "fulltext_analyzer"
-         },
-         "fullname": {
-          "type": "text",
-          "term_vector": "with_positions_offsets_payloads",
-          "analyzer" : "fulltext_analyzer"
-        }
+    "properties": {
+      "text": {
+        "type": "text",
+        "term_vector": "with_positions_offsets_payloads",
+        "store" : true,
+        "analyzer" : "fulltext_analyzer"
+       },
+       "fullname": {
+        "type": "text",
+        "term_vector": "with_positions_offsets_payloads",
+        "analyzer" : "fulltext_analyzer"
       }
     }
   },
@@ -163,33 +211,31 @@ PUT /twitter/
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Second, we add some documents:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /twitter/_doc/1
+PUT /my-index-000001/_doc/1
 {
   "fullname" : "John Doe",
-  "text" : "twitter test test test "
+  "text" : "test test test "
 }
 
-PUT /twitter/_doc/2
+PUT /my-index-000001/_doc/2?refresh=wait_for
 {
   "fullname" : "Jane Doe",
-  "text" : "Another twitter test ..."
+  "text" : "Another test ..."
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The following request returns all information and statistics for field
 `text` in document `1` (John Doe):
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /twitter/_termvectors/1
+GET /my-index-000001/_termvectors/1
 {
   "fields" : ["text"],
   "offsets" : true,
@@ -199,85 +245,70 @@ GET /twitter/_termvectors/1
   "field_statistics" : true
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-    "_id": "1",
-    "_index": "twitter",
-    "_type": "_doc",
-    "_version": 1,
-    "found": true,
-    "took": 6,
-    "term_vectors": {
-        "text": {
-            "field_statistics": {
-                "doc_count": 2,
-                "sum_doc_freq": 6,
-                "sum_ttf": 8
+  "_index": "my-index-000001",
+  "_id": "1",
+  "_version": 1,
+  "found": true,
+  "took": 6,
+  "term_vectors": {
+    "text": {
+      "field_statistics": {
+        "sum_doc_freq": 4,
+        "doc_count": 2,
+        "sum_ttf": 6
+      },
+      "terms": {
+        "test": {
+          "doc_freq": 2,
+          "ttf": 4,
+          "term_freq": 3,
+          "tokens": [
+            {
+              "position": 0,
+              "start_offset": 0,
+              "end_offset": 4,
+              "payload": "d29yZA=="
             },
-            "terms": {
-                "test": {
-                    "doc_freq": 2,
-                    "term_freq": 3,
-                    "tokens": [
-                        {
-                            "end_offset": 12,
-                            "payload": "d29yZA==",
-                            "position": 1,
-                            "start_offset": 8
-                        },
-                        {
-                            "end_offset": 17,
-                            "payload": "d29yZA==",
-                            "position": 2,
-                            "start_offset": 13
-                        },
-                        {
-                            "end_offset": 22,
-                            "payload": "d29yZA==",
-                            "position": 3,
-                            "start_offset": 18
-                        }
-                    ],
-                    "ttf": 4
-                },
-                "twitter": {
-                    "doc_freq": 2,
-                    "term_freq": 1,
-                    "tokens": [
-                        {
-                            "end_offset": 7,
-                            "payload": "d29yZA==",
-                            "position": 0,
-                            "start_offset": 0
-                        }
-                    ],
-                    "ttf": 2
-                }
+            {
+              "position": 1,
+              "start_offset": 5,
+              "end_offset": 9,
+              "payload": "d29yZA=="
+            },
+            {
+              "position": 2,
+              "start_offset": 10,
+              "end_offset": 14,
+              "payload": "d29yZA=="
             }
+          ]
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
 // TESTRESPONSE[s/"took": 6/"took": "$body.took"/]
 
-[float]
-==== Example: Generating term vectors on the fly
+[[docs-termvectors-api-generate-termvectors]]
+===== Generating term vectors on the fly
 
 Term vectors which are not explicitly stored in the index are automatically
 computed on the fly. The following request returns all information and statistics for the
 fields in document `1`, even though the terms haven't been explicitly stored in the index.
 Note that for the field `text`, the terms are not re-generated.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /twitter/_termvectors/1
+GET /my-index-000001/_termvectors/1
 {
   "fields" : ["text", "some_field_without_term_vectors"],
   "offsets" : true,
@@ -286,36 +317,32 @@ GET /twitter/_termvectors/1
   "field_statistics" : true
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[docs-termvectors-artificial-doc]]
-[float]
-==== Example: Artificial documents
+===== Artificial documents
 
 Term vectors can also be generated for artificial documents,
-that is for documents not present in the index.  For example, the following request would
+that is for documents not present in the index. For example, the following request would
 return the same results as in example 1. The mapping used is determined by the `index`.
 
 *If dynamic mapping is turned on (default), the document fields not in the original
 mapping will be dynamically created.*
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /twitter/_termvectors
+GET /my-index-000001/_termvectors
 {
   "doc" : {
     "fullname" : "John Doe",
-    "text" : "twitter test test test"
+    "text" : "test test test"
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[docs-termvectors-per-field-analyzer]]
-[float]
-===== Per-field analyzer
+====== Per-field analyzer
 
 Additionally, a different analyzer than the one at the field may be provided
 by using the `per_field_analyzer` parameter. This is useful in order to
@@ -323,13 +350,13 @@ generate term vectors in any fashion, especially when using artificial
 documents. When providing an analyzer for a field that already stores term
 vectors, the term vectors will be re-generated.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /twitter/_termvectors
+GET /my-index-000001/_termvectors
 {
   "doc" : {
     "fullname" : "John Doe",
-    "text" : "twitter test test test"
+    "text" : "test test test"
   },
   "fields": ["fullname"],
   "per_field_analyzer" : {
@@ -337,16 +364,14 @@ GET /twitter/_termvectors
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-  "_index": "twitter",
-  "_type": "_doc",
+  "_index": "my-index-000001",
   "_version": 0,
   "found": true,
   "took": 6,
@@ -381,8 +406,7 @@ Response:
 
 
 [[docs-termvectors-terms-filtering]]
-[float]
-==== Example: Terms filtering
+===== Terms filtering
 
 Finally, the terms returned could be filtered based on their tf-idf scores. In
 the example below we obtain the three most "interesting" keywords from the
@@ -390,34 +414,32 @@ artificial document having the given "plot" field value. Notice
 that the keyword "Tony" or any stop words are not part of the response, as
 their tf-idf must be too low.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /imdb/_termvectors
 {
-    "doc": {
-      "plot": "When wealthy industrialist Tony Stark is forced to build an armored suit after a life-threatening incident, he ultimately decides to use its technology to fight against evil."
-    },
-    "term_statistics" : true,
-    "field_statistics" : true,
-    "positions": false,
-    "offsets": false,
-    "filter" : {
-      "max_num_terms" : 3,
-      "min_term_freq" : 1,
-      "min_doc_freq" : 1
-    }
+  "doc": {
+    "plot": "When wealthy industrialist Tony Stark is forced to build an armored suit after a life-threatening incident, he ultimately decides to use its technology to fight against evil."
+  },
+  "term_statistics": true,
+  "field_statistics": true,
+  "positions": false,
+  "offsets": false,
+  "filter": {
+    "max_num_terms": 3,
+    "min_term_freq": 1,
+    "min_doc_freq": 1
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:no imdb test index]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "_index": "imdb",
-   "_type": "_doc",
    "_version": 0,
    "found": true,
    "term_vectors": {
@@ -451,4 +473,3 @@ Response:
    }
 }
 --------------------------------------------------
-// TESTRESPONSE

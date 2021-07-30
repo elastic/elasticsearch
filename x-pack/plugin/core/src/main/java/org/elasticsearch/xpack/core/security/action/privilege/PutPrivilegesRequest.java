@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -32,6 +32,12 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
     private List<ApplicationPrivilegeDescriptor> privileges;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
+    public PutPrivilegesRequest(StreamInput in) throws IOException {
+        super(in);
+        privileges = Collections.unmodifiableList(in.readList(ApplicationPrivilegeDescriptor::new));
+        refreshPolicy = RefreshPolicy.readFrom(in);
+    }
+
     public PutPrivilegesRequest() {
         privileges = Collections.emptyList();
     }
@@ -39,34 +45,38 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        for (ApplicationPrivilegeDescriptor privilege : privileges) {
-            try {
-                ApplicationPrivilege.validateApplicationName(privilege.getApplication());
-            } catch (IllegalArgumentException e) {
-                validationException = addValidationError(e.getMessage(), validationException);
-            }
-            try {
-                ApplicationPrivilege.validatePrivilegeName(privilege.getName());
-            } catch (IllegalArgumentException e) {
-                validationException = addValidationError(e.getMessage(), validationException);
-            }
-            if (privilege.getActions().isEmpty()) {
-                validationException = addValidationError("Application privileges must have at least one action", validationException);
-            }
-            for (String action : privilege.getActions()) {
-                if (action.indexOf('/') == -1 && action.indexOf('*') == -1 && action.indexOf(':') == -1) {
-                    validationException = addValidationError("action [" + action + "] must contain one of [ '/' , '*' , ':' ]",
-                        validationException);
-                }
+        if (privileges.isEmpty()) {
+            validationException = addValidationError("At least one application privilege must be provided", validationException);
+        } else {
+            for (ApplicationPrivilegeDescriptor privilege : privileges) {
                 try {
-                    ApplicationPrivilege.validatePrivilegeOrActionName(action);
+                    ApplicationPrivilege.validateApplicationName(privilege.getApplication());
                 } catch (IllegalArgumentException e) {
                     validationException = addValidationError(e.getMessage(), validationException);
                 }
-            }
-            if (MetadataUtils.containsReservedMetadata(privilege.getMetadata())) {
-                validationException = addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX
-                    + "] (in privilege " + privilege.getApplication() + ' ' + privilege.getName() + ")", validationException);
+                try {
+                    ApplicationPrivilege.validatePrivilegeName(privilege.getName());
+                } catch (IllegalArgumentException e) {
+                    validationException = addValidationError(e.getMessage(), validationException);
+                }
+                if (privilege.getActions().isEmpty()) {
+                    validationException = addValidationError("Application privileges must have at least one action", validationException);
+                }
+                for (String action : privilege.getActions()) {
+                    if (action.indexOf('/') == -1 && action.indexOf('*') == -1 && action.indexOf(':') == -1) {
+                        validationException = addValidationError("action [" + action + "] must contain one of [ '/' , '*' , ':' ]",
+                            validationException);
+                    }
+                    try {
+                        ApplicationPrivilege.validatePrivilegeOrActionName(action);
+                    } catch (IllegalArgumentException e) {
+                        validationException = addValidationError(e.getMessage(), validationException);
+                    }
+                }
+                if (MetadataUtils.containsReservedMetadata(privilege.getMetadata())) {
+                    validationException = addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX
+                        + "] (in privilege " + privilege.getApplication() + ' ' + privilege.getName() + ")", validationException);
+                }
             }
         }
         return validationException;
@@ -92,7 +102,7 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
     }
 
     public void setPrivileges(Collection<ApplicationPrivilegeDescriptor> privileges) {
-        this.privileges = Collections.unmodifiableList(new ArrayList<>(privileges));
+        this.privileges = List.copyOf(privileges);
     }
 
     @Override
@@ -106,13 +116,6 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
     public String toString() {
         return getClass().getSimpleName() + "{[" + privileges.stream().map(Strings::toString).collect(Collectors.joining(","))
             + "];" + refreshPolicy + "}";
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        privileges = Collections.unmodifiableList(in.readList(ApplicationPrivilegeDescriptor::new));
-        refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override

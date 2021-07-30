@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,46 +16,42 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.build'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersTask
 
-targetCompatibility = JavaVersion.VERSION_1_7
-sourceCompatibility = JavaVersion.VERSION_1_7
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+
+targetCompatibility = JavaVersion.VERSION_1_8
+sourceCompatibility = JavaVersion.VERSION_1_8
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-client-sniffer'
 
-publishing {
-  publications {
-    nebula {
-      artifactId = archivesBaseName
-    }
-  }
-}
+// rest client sniffer is licenses under Apache 2.0
+ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
+ext.licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
 
 dependencies {
-  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
-  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
-  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api project(":client:rest")
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
 
-  testCompile "org.elasticsearch.client:test:${version}"
-  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
-  testCompile "org.elasticsearch:securemock:${versions.securemock}"
-  testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  testImplementation project(":client:test")
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.elasticsearch:securemock:${versions.securemock}"
+  testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   //client does not depend on server, so only jdk signatures should be checked
   replaceSignatureFiles 'jdk-signatures'
 }
 
-forbiddenApisTest {
+tasks.named('forbiddenApisTest').configure {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
@@ -63,37 +59,40 @@ forbiddenApisTest {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /http.*/, to: 'httpclient'
   mapping from: /commons-.*/, to: 'commons'
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in :libs:core
-jarHell.enabled=false
+// TODO: Not anymore. Now in :libs:elasticsearch-core
+tasks.named("jarHell").configure { enabled = false }
 
-namingConventions {
-  testClass = 'org.elasticsearch.client.RestClientTestCase'
-  //we don't have integration tests
-  skipIntegTestInDisguise = true
-}
-
-dependencyLicenses {
-  dependencies = project.configurations.runtime.fileCollection {
-    it.group.startsWith('org.elasticsearch') == false
+tasks.named("testingConventions").configure {
+  naming.clear()
+  naming {
+    Tests {
+      baseClass 'org.elasticsearch.client.RestClientTestCase'
+    }
   }
 }
 
-thirdPartyAudit.excludes = [
-  //commons-logging optional dependencies
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger',
-  'org.apache.log4j.Category',
-  'org.apache.log4j.Level',
-  'org.apache.log4j.Logger',
-  'org.apache.log4j.Priority',
-  //commons-logging provided dependencies
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener'
-]
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          //commons-logging optional dependencies
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger',
+          'org.apache.log4j.Category',
+          'org.apache.log4j.Level',
+          'org.apache.log4j.Logger',
+          'org.apache.log4j.Priority',
+          //commons-logging provided dependencies
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener'
+  )
+}
+
+tasks.withType(LicenseHeadersTask.class).configureEach {
+  approvedLicenses = ['Apache', 'Generated', 'Vendored']
+}

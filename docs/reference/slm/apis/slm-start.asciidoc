@@ -1,0 +1,53 @@
+[role="xpack"]
+[testenv="basic"]
+[[slm-api-start]]
+=== Start {slm} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Start {slm}</titleabbrev>
+++++
+
+Turns on {slm} ({slm-init}).
+
+[[slm-api-start-request]]
+==== {api-request-title}
+
+`POST /_slm/start`
+
+[[slm-api-start-prereqs]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the `manage_slm`
+cluster privilege to use this API. For more information, see
+<<security-privileges>>.
+
+[[slm-api-start-desc]]
+==== {api-description-title}
+
+Starts the {slm-init} plugin if it's not running. 
+{slm-init} starts automatically when a cluster is formed. 
+Manually starting {slm-init} is only necessary if it has been stopped using the <<slm-api-stop>>.
+
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[[slm-api-start-example]]
+==== {api-examples-title}
+
+Start the {slm-init} plugin:
+
+[source,console]
+--------------------------------------------------
+POST _slm/start
+--------------------------------------------------
+
+If successful, this request returns:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------

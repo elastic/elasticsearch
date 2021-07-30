@@ -19,10 +19,12 @@ one or more conditions that determine when the index has to be rolled over:
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The alias (first argument) that points to the index to rollover, and
-optionally the name of the new index in case the rollover operation is performed
+the name of the new index in case the rollover operation is performed.
+The new index argument is optional, and can be set to null
 <2> Condition on the age of the index
 <3> Condition on the number of documents in the index
 <4> Condition on the size of the index
+<5> Condition on the size of the largest primary shard of the index
 
 ==== Optional arguments
 The following arguments can optionally be provided:
@@ -39,24 +41,20 @@ include-tagged::{doc-tests-file}[{api}-request-timeout]
 --------------------------------------------------
 <1> Timeout to wait for the all the nodes to acknowledge the index is opened
 as a `TimeValue`
-<2> Timeout to wait for the all the nodes to acknowledge the index is opened
-as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
-<2> Timeout to connect to the master node as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-waitForActiveShards]
 --------------------------------------------------
-<1> The number of active shard copies to wait for before the rollover index API
-returns a response, as an `int`
-<2> The number of active shard copies to wait for before the rollover index API
-returns a response, as an `ActiveShardCount`
+<1> Sets the number of active shard copies to wait for before the rollover
+index API returns a response
+<2> Resets the number of active shard copies to wait for to the default value
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -98,5 +96,3 @@ each shard in the index before timing out
 <5> Whether the index has been rolled over
 <6> Whether the operation was performed or it was a dry run
 <7> The different conditions and whether they were matched or not
-
-

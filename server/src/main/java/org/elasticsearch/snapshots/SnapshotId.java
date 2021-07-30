@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.snapshots;
@@ -24,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -129,27 +117,4 @@ public final class SnapshotId implements Comparable<SnapshotId>, Writeable, ToXC
         builder.endObject();
         return builder;
     }
-
-    public static SnapshotId fromXContent(XContentParser parser) throws IOException {
-        // the new format from 5.0 which contains the snapshot name and uuid
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            String name = null;
-            String uuid = null;
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                String currentFieldName = parser.currentName();
-                parser.nextToken();
-                if (NAME.equals(currentFieldName)) {
-                    name = parser.text();
-                } else if (UUID.equals(currentFieldName)) {
-                    uuid = parser.text();
-                }
-            }
-            return new SnapshotId(name, uuid);
-        } else {
-            // the old format pre 5.0 that only contains the snapshot name, use the name as the uuid too
-            final String name = parser.text();
-            return new SnapshotId(name, name);
-        }
-    }
-
 }

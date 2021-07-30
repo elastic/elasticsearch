@@ -2,61 +2,55 @@
 === `index_prefixes`
 
 The `index_prefixes` parameter enables the indexing of term prefixes to speed
-up prefix searches.  It accepts the following optional settings:
+up prefix searches. It accepts the following optional settings:
 
 [horizontal]
 `min_chars`::
 
-  The minimum prefix length to index.  Must be greater than 0, and defaults
-  to 2.  The value is inclusive.
+  The minimum prefix length to index. Must be greater than 0, and defaults
+  to 2. The value is inclusive.
 
 `max_chars`::
 
-  The maximum prefix length to index.  Must be less than 20, and defaults to 5.
+  The maximum prefix length to index. Must be less than 20, and defaults to 5.
   The value is inclusive.
 
 This example creates a text field using the default prefix length settings:
 
-[source,js]
+[source,console]
 --------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "body_text": {
-          "type": "text",
-          "index_prefixes": { }    <1>
-        }
+    "properties": {
+      "body_text": {
+        "type": "text",
+        "index_prefixes": { }    <1>
       }
     }
   }
 }
 --------------------------------
-// CONSOLE
 
 <1> An empty settings object will use the default `min_chars` and `max_chars`
 settings
 
 This example uses custom prefix length settings:
 
-[source,js]
+[source,console]
 --------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "full_name": {
-          "type": "text",
-          "index_prefixes": {
-            "min_chars" : 1,
-            "max_chars" : 10
-          }
+    "properties": {
+      "full_name": {
+        "type": "text",
+        "index_prefixes": {
+          "min_chars" : 1,
+          "max_chars" : 10
         }
       }
     }
   }
 }
 --------------------------------
-// CONSOLE

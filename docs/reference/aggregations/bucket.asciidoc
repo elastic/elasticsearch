@@ -1,5 +1,5 @@
 [[search-aggregations-bucket]]
-== Bucket Aggregations
+== Bucket aggregations
 
 Bucket aggregations don't calculate metrics over fields like the metrics aggregations do, but instead, they create
 buckets of documents. Each bucket is associated with a criterion (depending on the aggregation type) which determines
@@ -13,9 +13,8 @@ aggregated for the buckets created by their "parent" bucket aggregation.
 There are different bucket aggregators, each with a different "bucketing" strategy. Some define a single bucket, some
 define fixed number of multiple buckets, and others dynamically create the buckets during the aggregation process.
 
-NOTE: The maximum number of buckets allowed in a single response is limited by a dynamic cluster
-setting named `search.max_buckets`. It defaults to 10,000, requests that try to return more than
-the limit will fail with an exception.
+NOTE: The <<search-settings-max-buckets,`search.max_buckets`>> cluster setting
+limits the number of buckets allowed in a single response.
 
 include::bucket/adjacency-matrix-aggregation.asciidoc[]
 
@@ -39,6 +38,8 @@ include::bucket/geodistance-aggregation.asciidoc[]
 
 include::bucket/geohashgrid-aggregation.asciidoc[]
 
+include::bucket/geotilegrid-aggregation.asciidoc[]
+
 include::bucket/global-aggregation.asciidoc[]
 
 include::bucket/histogram-aggregation.asciidoc[]
@@ -47,11 +48,15 @@ include::bucket/iprange-aggregation.asciidoc[]
 
 include::bucket/missing-aggregation.asciidoc[]
 
+include::bucket/multi-terms-aggregation.asciidoc[]
+
 include::bucket/nested-aggregation.asciidoc[]
 
 include::bucket/parent-aggregation.asciidoc[]
 
 include::bucket/range-aggregation.asciidoc[]
+
+include::bucket/rare-terms-aggregation.asciidoc[]
 
 include::bucket/reverse-nested-aggregation.asciidoc[]
 
@@ -63,3 +68,6 @@ include::bucket/significanttext-aggregation.asciidoc[]
 
 include::bucket/terms-aggregation.asciidoc[]
 
+include::bucket/variablewidthhistogram-aggregation.asciidoc[]
+
+include::bucket/range-field-note.asciidoc[]

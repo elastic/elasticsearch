@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.profile.query;
@@ -28,9 +17,9 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -43,12 +32,12 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -82,8 +71,17 @@ public class QueryProfilerTests extends ESTestCase {
         }
         reader = w.getReader();
         w.close();
-        Engine.Searcher engineSearcher = new Engine.Searcher("test", new IndexSearcher(reader), null);
-        searcher = new ContextIndexSearcher(engineSearcher, IndexSearcher.getDefaultQueryCache(), MAYBE_CACHE_POLICY);
+        searcher = new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(), ALWAYS_CACHE_POLICY, true);
+    }
+
+    @After
+    public void checkNoCache() {
+        LRUQueryCache cache = (LRUQueryCache) searcher.getQueryCache();
+        assertThat(cache.getHitCount(), equalTo(0L));
+        assertThat(cache.getCacheCount(), equalTo(0L));
+        assertThat(cache.getTotalCount(), equalTo(cache.getMissCount()));
+        assertThat(cache.getCacheSize(), equalTo(0L));
     }
 
     @AfterClass
@@ -102,226 +100,40 @@ public class QueryProfilerTests extends ESTestCase {
         List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
-        assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.ADVANCE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdown.get(QueryTimingType.SCORE.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.MATCH.toString()).longValue(), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.ADVANCE.toString()), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.SCORE.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.MATCH.toString()), equalTo(0L));
 
-        assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.ADVANCE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdown.get(QueryTimingType.SCORE.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.MATCH.toString() + "_count").longValue(), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.ADVANCE.toString() + "_count"), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.SCORE.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.MATCH.toString() + "_count"), equalTo(0L));
 
         long rewriteTime = profiler.getRewriteTime();
         assertThat(rewriteTime, greaterThan(0L));
     }
 
-    public void testConstantScoreQuery() throws IOException {
+    public void testNodeTime() throws IOException {
         QueryProfiler profiler = new QueryProfiler();
         searcher.setProfiler(profiler);
-        Query query = new ConstantScoreQuery(new TermQuery(new Term("foo", "bar")));
+        Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1);
         List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
-        Map<String, Long> breakdownConstantScoreQuery = results.get(0).getTimeBreakdown();
-        assertEquals(1, results.get(0).getProfiledChildren().size());
-        Map<String, Long> breakdownTermQuery = results.get(0).getProfiledChildren().get(0).getTimeBreakdown();
+        Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
 
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.CREATE_WEIGHT.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.ADVANCE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.SCORE.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.MATCH.toString()).longValue(), equalTo(0L));
-
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.BUILD_SCORER.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.NEXT_DOC.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.ADVANCE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.SCORE.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.MATCH.toString() + "_count").longValue(), equalTo(0L));
-
-        assertThat(breakdownTermQuery.get(QueryTimingType.CREATE_WEIGHT.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.ADVANCE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.SCORE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.MATCH.toString()).longValue(), equalTo(0L));
-
-        assertThat(breakdownTermQuery.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.BUILD_SCORER.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.NEXT_DOC.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.ADVANCE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.SCORE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.MATCH.toString() + "_count").longValue(), equalTo(0L));
-
-        assertEquals(breakdownConstantScoreQuery.get(QueryTimingType.NEXT_DOC.toString()).longValue(),
-            breakdownTermQuery.get(QueryTimingType.NEXT_DOC.toString()).longValue());
-
-        long rewriteTime = profiler.getRewriteTime();
-        assertThat(rewriteTime, greaterThan(0L));
+        // test that nodeTime is sum of values excluding the _count values
+        long sum = 0;
+        for (QueryTimingType type : QueryTimingType.values()) {
+            sum += breakdown.get(type.toString());
+        }
+        assertEquals(results.get(0).getTime(), sum);
     }
-
-    public void testConstantScoreTotalHitsBeingCachedQuery() throws IOException {
-        Query query =  new ConstantScoreQuery(new TermQuery(new Term("foo", "bar")));
-        //clean cache and make sure queries will be cached
-        searcher.setQueryCache(IndexSearcher.getDefaultQueryCache());
-        searcher.setQueryCachingPolicy(ALWAYS_CACHE_POLICY);
-
-        QueryProfiler profiler = new QueryProfiler();
-        searcher.setProfiler(profiler);
-        TotalHitCountCollector collector  = new TotalHitCountCollector();
-        searcher.search(query, collector);
-
-        List<ProfileResult> results = profiler.getTree();
-        assertEquals(1, results.size());
-        Map<String, Long> breakdownConstantScoreQuery = results.get(0).getTimeBreakdown();
-        assertEquals(1, results.get(0).getProfiledChildren().size());
-        Map<String, Long> breakdownTermQuery = results.get(0).getProfiledChildren().get(0).getTimeBreakdown();
-        //In this case scorers for constant score query and term query are disconnected.
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.CREATE_WEIGHT.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.ADVANCE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.SCORE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.MATCH.toString()).longValue(), equalTo(0L));
-
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.BUILD_SCORER.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.NEXT_DOC.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.ADVANCE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.SCORE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.MATCH.toString() + "_count").longValue(), equalTo(0L));
-
-        assertThat(breakdownTermQuery.get(QueryTimingType.CREATE_WEIGHT.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.ADVANCE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.SCORE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.MATCH.toString()).longValue(), equalTo(0L));
-
-        assertThat(breakdownTermQuery.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.BUILD_SCORER.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.NEXT_DOC.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.ADVANCE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.SCORE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.MATCH.toString() + "_count").longValue(), equalTo(0L));
-
-        long rewriteTime = profiler.getRewriteTime();
-        assertThat(rewriteTime, greaterThan(0L));
-    }
-
-    public void testConstantScoreTotalHitsNotCachedQuery() throws IOException {
-        Query query =  new ConstantScoreQuery(new TermQuery(new Term("foo", "bar")));
-
-        //clean cache and make sure queries will not be cached
-        searcher.setQueryCache(IndexSearcher.getDefaultQueryCache());
-        searcher.setQueryCachingPolicy(NEVER_CACHE_POLICY);
-
-        QueryProfiler profiler = new QueryProfiler();
-        searcher.setProfiler(profiler);
-        TotalHitCountCollector collector  = new TotalHitCountCollector();
-        searcher.search(query, collector);
-
-        List<ProfileResult> results = profiler.getTree();
-        assertEquals(1, results.size());
-        Map<String, Long> breakdownConstantScoreQuery = results.get(0).getTimeBreakdown();
-        assertEquals(1, results.get(0).getProfiledChildren().size());
-        Map<String, Long> breakdownTermQuery = results.get(0).getProfiledChildren().get(0).getTimeBreakdown();
-        //Timing from the scorer of term query are inherited by constant score query scorer.
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.CREATE_WEIGHT.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.ADVANCE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.SCORE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.MATCH.toString()).longValue(), equalTo(0L));
-
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.BUILD_SCORER.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.NEXT_DOC.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.ADVANCE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.SCORE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.MATCH.toString() + "_count").longValue(), equalTo(0L));
-
-        assertThat(breakdownTermQuery.get(QueryTimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.ADVANCE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.SCORE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.MATCH.toString()).longValue(), equalTo(0L));
-
-        assertThat(breakdownTermQuery.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.BUILD_SCORER.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.NEXT_DOC.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.ADVANCE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.SCORE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.MATCH.toString() + "_count").longValue(), equalTo(0L));
-
-
-        assertEquals(breakdownConstantScoreQuery.get(QueryTimingType.NEXT_DOC.toString()).longValue(),
-                breakdownTermQuery.get(QueryTimingType.NEXT_DOC.toString()).longValue());
-
-
-        long rewriteTime = profiler.getRewriteTime();
-        assertThat(rewriteTime, greaterThan(0L));
-    }
-
-    public void testConstantScoreTotalHitsCachedQuery() throws IOException {
-        Query query =  new ConstantScoreQuery(new TermQuery(new Term("foo", "bar")));
-
-        //clean cache and make sure queries will be cached
-        searcher.setQueryCache(IndexSearcher.getDefaultQueryCache());
-        searcher.setQueryCachingPolicy(ALWAYS_CACHE_POLICY);
-        //Put query on cache
-        TotalHitCountCollector collector  = new TotalHitCountCollector();
-        searcher.search(query, collector);
-
-        QueryProfiler profiler = new QueryProfiler();
-        searcher.setProfiler(profiler);
-        collector  = new TotalHitCountCollector();
-        searcher.search(query, collector);
-
-        List<ProfileResult> results = profiler.getTree();
-        assertEquals(1, results.size());
-        Map<String, Long> breakdownConstantScoreQuery = results.get(0).getTimeBreakdown();
-        assertEquals(1, results.get(0).getProfiledChildren().size());
-        Map<String, Long> breakdownTermQuery = results.get(0).getProfiledChildren().get(0).getTimeBreakdown();
-
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.CREATE_WEIGHT.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.ADVANCE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.SCORE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.MATCH.toString()).longValue(), equalTo(0L));
-
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.BUILD_SCORER.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.NEXT_DOC.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.ADVANCE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.SCORE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownConstantScoreQuery.get(QueryTimingType.MATCH.toString() + "_count").longValue(), equalTo(0L));
-
-        assertThat(breakdownTermQuery.get(QueryTimingType.CREATE_WEIGHT.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.BUILD_SCORER.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.NEXT_DOC.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.ADVANCE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.SCORE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.MATCH.toString()).longValue(), equalTo(0L));
-
-        assertThat(breakdownTermQuery.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.BUILD_SCORER.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.NEXT_DOC.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.ADVANCE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.SCORE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdownTermQuery.get(QueryTimingType.MATCH.toString() + "_count").longValue(), equalTo(0L));
-
-        long rewriteTime = profiler.getRewriteTime();
-        assertThat(rewriteTime, greaterThan(0L));
-    }
-
 
     public void testNoScoring() throws IOException {
         QueryProfiler profiler = new QueryProfiler();
@@ -331,19 +143,19 @@ public class QueryProfilerTests extends ESTestCase {
         List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
-        assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.ADVANCE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdown.get(QueryTimingType.SCORE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdown.get(QueryTimingType.MATCH.toString()).longValue(), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.ADVANCE.toString()), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.SCORE.toString()), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.MATCH.toString()), equalTo(0L));
 
-        assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.ADVANCE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdown.get(QueryTimingType.SCORE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdown.get(QueryTimingType.MATCH.toString() + "_count").longValue(), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.ADVANCE.toString() + "_count"), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.SCORE.toString() + "_count"), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.MATCH.toString() + "_count"), equalTo(0L));
 
         long rewriteTime = profiler.getRewriteTime();
         assertThat(rewriteTime, greaterThan(0L));
@@ -363,33 +175,28 @@ public class QueryProfilerTests extends ESTestCase {
 
     public void testApproximations() throws IOException {
         QueryProfiler profiler = new QueryProfiler();
-        Engine.Searcher engineSearcher = new Engine.Searcher("test", new IndexSearcher(reader), reader::close);
-        // disable query caching since we want to test approximations, which won't
-        // be exposed on a cached entry
-        ContextIndexSearcher searcher = new ContextIndexSearcher(engineSearcher, null, MAYBE_CACHE_POLICY);
         searcher.setProfiler(profiler);
         Query query = new RandomApproximationQuery(new TermQuery(new Term("foo", "bar")), random());
         searcher.count(query);
         List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
-        assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.ADVANCE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdown.get(QueryTimingType.SCORE.toString()).longValue(), equalTo(0L));
-        assertThat(breakdown.get(QueryTimingType.MATCH.toString()).longValue(), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.ADVANCE.toString()), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.SCORE.toString()), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.MATCH.toString()), greaterThan(0L));
 
-        assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString() + "_count").longValue(), greaterThan(0L));
-        assertThat(breakdown.get(QueryTimingType.ADVANCE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdown.get(QueryTimingType.SCORE.toString() + "_count").longValue(), equalTo(0L));
-        assertThat(breakdown.get(QueryTimingType.MATCH.toString() + "_count").longValue(), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.ADVANCE.toString() + "_count"), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.SCORE.toString() + "_count"), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.MATCH.toString() + "_count"), greaterThan(0L));
 
         long rewriteTime = profiler.getRewriteTime();
         assertThat(rewriteTime, greaterThan(0L));
-
     }
 
     public void testCollector() throws IOException {
@@ -493,17 +300,4 @@ public class QueryProfilerTests extends ESTestCase {
         }
 
     };
-
-    private static final QueryCachingPolicy NEVER_CACHE_POLICY = new QueryCachingPolicy() {
-
-        @Override
-        public void onUse(Query query) {}
-
-        @Override
-        public boolean shouldCache(Query query) throws IOException {
-            return false;
-        }
-
-    };
-
 }

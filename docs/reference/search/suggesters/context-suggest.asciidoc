@@ -1,5 +1,5 @@
-[[suggester-context]]
-=== Context Suggester
+[[context-suggester]]
+==== Context Suggester
 
 The completion suggester considers all documents in the index, but it is often
 desirable to serve suggestions filtered and/or boosted by some criteria.
@@ -16,65 +16,63 @@ the field mapping.
 NOTE: It is mandatory to provide a context when indexing and querying
       a context enabled completion field.
 
+NOTE: The maximum allowed number of completion field context mappings is 10.
+
 The following defines types, each with two context mappings for a completion
 field:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT place
 {
-    "mappings": {
-        "_doc" : {
-            "properties" : {
-                "suggest" : {
-                    "type" : "completion",
-                    "contexts": [
-                        { <1>
-                            "name": "place_type",
-                            "type": "category"
-                        },
-                        { <2>
-                            "name": "location",
-                            "type": "geo",
-                            "precision": 4
-                        }
-                    ]
-                }
-            }
-        }
+  "mappings": {
+    "properties": {
+      "suggest": {
+        "type": "completion",
+        "contexts": [
+          {                                 <1>
+            "name": "place_type",
+            "type": "category"
+          },
+          {                                 <2>
+            "name": "location",
+            "type": "geo",
+            "precision": 4
+          }
+        ]
+      }
     }
+  }
 }
 PUT place_path_category
 {
-    "mappings": {
-        "_doc" : {
-            "properties" : {
-                "suggest" : {
-                    "type" : "completion",
-                    "contexts": [
-                        { <3>
-                            "name": "place_type",
-                            "type": "category",
-                            "path": "cat"
-                        },
-                        { <4>
-                            "name": "location",
-                            "type": "geo",
-                            "precision": 4,
-                            "path": "loc"
-                        }
-                    ]
-                },
-                "loc": {
-                    "type": "geo_point"
-                }
-            }
-        }
+  "mappings": {
+    "properties": {
+      "suggest": {
+        "type": "completion",
+        "contexts": [
+          {                           <3>
+            "name": "place_type",
+            "type": "category",
+            "path": "cat"
+          },
+          {                           <4>
+            "name": "location",
+            "type": "geo",
+            "precision": 4,
+            "path": "loc"
+          }
+        ]
+      },
+      "loc": {
+        "type": "geo_point"
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
+
 <1> Defines a `category` context named 'place_type' where the categories must be
     sent with the suggestions.
 <2> Defines a `geo` context named 'location' where the categories must be sent
@@ -88,8 +86,8 @@ NOTE: Adding context mappings increases the index size for completion field. The
 is entirely heap resident, you can monitor the completion field index size using <<indices-stats>>.
 
 [[suggester-context-category]]
-[float]
-==== Category Context
+[discrete]
+===== Category Context
 
 The `category` context allows you to associate one or more categories with suggestions at index
 time. At query time, suggestions can be filtered and boosted by their associated categories.
@@ -98,33 +96,33 @@ The mappings are set up like the `place_type` fields above. If `path` is defined
 then the categories are read from that path in the document, otherwise they must
 be sent in the suggest field like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT place/_doc/1
 {
-    "suggest": {
-        "input": ["timmy's", "starbucks", "dunkin donuts"],
-        "contexts": {
-            "place_type": ["cafe", "food"] <1>
-        }
+  "suggest": {
+    "input": [ "timmy's", "starbucks", "dunkin donuts" ],
+    "contexts": {
+      "place_type": [ "cafe", "food" ]                    <1>
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> These suggestions will be associated with 'cafe' and 'food' category.
 
 If the mapping had a `path` then the following index request would be enough to
 add the categories:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT place_path_category/_doc/1
 {
-    "suggest": ["timmy's", "starbucks", "dunkin donuts"],
-    "cat": ["cafe", "food"] <1>
+  "suggest": ["timmy's", "starbucks", "dunkin donuts"],
+  "cat": ["cafe", "food"] <1>
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> These suggestions will be associated with 'cafe' and 'food' category.
 
 NOTE: If context mapping references another field and the categories
@@ -132,31 +130,30 @@ are explicitly indexed, the suggestions are indexed with both set
 of categories.
 
 
-[float]
-===== Category Query
+[discrete]
+====== Category Query
 
 Suggestions can be filtered by one or more categories. The following
 filters suggestions by multiple categories:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST place/_search?pretty
 {
-    "suggest": {
-        "place_suggestion" : {
-            "prefix" : "tim",
-            "completion" : {
-                "field" : "suggest",
-                "size": 10,
-                "contexts": {
-                    "place_type": [ "cafe", "restaurants" ]
-                }
-            }
+  "suggest": {
+    "place_suggestion": {
+      "prefix": "tim",
+      "completion": {
+        "field": "suggest",
+        "size": 10,
+        "contexts": {
+          "place_type": [ "cafe", "restaurants" ]
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 NOTE: If multiple categories or category contexts are set on the query
@@ -167,29 +164,29 @@ Suggestions with certain categories can be boosted higher than others.
 The following filters suggestions by categories and additionally boosts
 suggestions associated with some categories:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST place/_search?pretty
 {
-    "suggest": {
-        "place_suggestion" : {
-            "prefix" : "tim",
-            "completion" : {
-                "field" : "suggest",
-                "size": 10,
-                "contexts": {
-                    "place_type": [ <1>
-                        { "context" : "cafe" },
-                        { "context" : "restaurants", "boost": 2 }
-                     ]
-                }
-            }
+  "suggest": {
+    "place_suggestion": {
+      "prefix": "tim",
+      "completion": {
+        "field": "suggest",
+        "size": 10,
+        "contexts": {
+          "place_type": [                             <1>
+            { "context": "cafe" },
+            { "context": "restaurants", "boost": 2 }
+          ]
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
+
 <1> The context query filter suggestions associated with
     categories 'cafe' and 'restaurants' and boosts the
     suggestions associated with 'restaurants' by a
@@ -221,8 +218,8 @@ NOTE: If a suggestion entry matches multiple contexts the final score is compute
 maximum score produced by any matching contexts.
 
 [[suggester-context-geo]]
-[float]
-==== Geo location Context
+[discrete]
+===== Geo location Context
 
 A `geo` context allows you to associate one or more geo points or geohashes with suggestions
 at index time. At query time, suggestions can be filtered and boosted if they are within
@@ -230,8 +227,8 @@ a certain distance of a specified geo location.
 
 Internally, geo points are encoded as geohashes with the specified precision.
 
-[float]
-===== Geo Mapping
+[discrete]
+====== Geo Mapping
 
 In addition to the `path` setting, `geo` context mapping accepts the following settings:
 
@@ -244,66 +241,64 @@ In addition to the `path` setting, `geo` context mapping accepts the following s
 NOTE: The index time `precision` setting sets the maximum geohash precision that
 can be used at query time.
 
-[float]
-===== Indexing geo contexts
+[discrete]
+====== Indexing geo contexts
 
 `geo` contexts can be explicitly set with suggestions or be indexed from a geo point field in the
 document via the `path` parameter, similar to `category` contexts. Associating multiple geo location context
 with a suggestion, will index the suggestion for every geo location. The following indexes a suggestion
 with two geo location contexts:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT place/_doc/1
 {
-    "suggest": {
-        "input": "timmy's",
-        "contexts": {
-            "location": [
-                {
-                    "lat": 43.6624803,
-                    "lon": -79.3863353
-                },
-                {
-                    "lat": 43.6624718,
-                    "lon": -79.3873227
-                }
-            ]
+  "suggest": {
+    "input": "timmy's",
+    "contexts": {
+      "location": [
+        {
+          "lat": 43.6624803,
+          "lon": -79.3863353
+        },
+        {
+          "lat": 43.6624718,
+          "lon": -79.3873227
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
-[float]
-===== Geo location Query
+[discrete]
+====== Geo location Query
 
 Suggestions can be filtered and boosted with respect to how close they are to one or
 more geo points. The following filters suggestions that fall within the area represented by
 the encoded geohash of a geo point:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST place/_search
 {
-    "suggest": {
-        "place_suggestion" : {
-            "prefix" : "tim",
-            "completion" : {
-                "field" : "suggest",
-                "size": 10,
-                "contexts": {
-                    "location": {
-                        "lat": 43.662,
-                        "lon": -79.380
-                    }
-                }
-            }
+  "suggest": {
+    "place_suggestion": {
+      "prefix": "tim",
+      "completion": {
+        "field": "suggest",
+        "size": 10,
+        "contexts": {
+          "location": {
+            "lat": 43.662,
+            "lon": -79.380
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 NOTE: When a location with a lower precision at query time is specified, all suggestions
@@ -316,39 +311,39 @@ if they contain at least one of the provided context values.
 Suggestions that are within an area represented by a geohash can also be boosted higher
 than others, as shown by the following:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST place/_search?pretty
 {
-    "suggest": {
-        "place_suggestion" : {
-            "prefix" : "tim",
-            "completion" : {
-                "field" : "suggest",
-                "size": 10,
-                "contexts": {
-                    "location": [ <1>
-                        {
-                            "lat": 43.6624803,
-                            "lon": -79.3863353,
-                            "precision": 2
-                        },
-                        {
-                            "context": {
-                                "lat": 43.6624803,
-                                "lon": -79.3863353
-                            },
-                            "boost": 2
-                        }
-                     ]
-                }
+  "suggest": {
+    "place_suggestion": {
+      "prefix": "tim",
+      "completion": {
+        "field": "suggest",
+        "size": 10,
+        "contexts": {
+          "location": [             <1>
+                      {
+              "lat": 43.6624803,
+              "lon": -79.3863353,
+              "precision": 2
+            },
+            {
+              "context": {
+                "lat": 43.6624803,
+                "lon": -79.3863353
+              },
+              "boost": 2
             }
+          ]
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
+
 <1> The context query filters for suggestions that fall under
     the geo location represented by a geohash of '(43.662, -79.380)'
     with a precision of '2' and boosts suggestions
@@ -360,7 +355,7 @@ maximum score produced by any matching contexts.
 
 In addition to accepting context values, a context query can be composed of
 multiple context clauses. The following parameters are supported for a
-`category` context clause:
+`geo` context clause:
 
 [horizontal]
 `context`::

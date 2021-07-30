@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -17,10 +18,10 @@ import java.util.Locale;
 import java.util.function.Function;
 
 public class StringProcessor implements Processor {
-    
+
     private interface StringFunction<R> {
         default R apply(Object o) {
-            if (!(o instanceof String || o instanceof Character)) {
+            if ((o instanceof String || o instanceof Character) == false) {
                 throw new SqlIllegalArgumentException("A string/char is required; received [{}]", o);
             }
 
@@ -32,7 +33,7 @@ public class StringProcessor implements Processor {
 
     private interface NumericFunction<R> {
         default R apply(Object o) {
-            if (!(o instanceof Number)) {
+            if ((o instanceof Number) == false) {
                 throw new SqlIllegalArgumentException("A number is required; received [{}]", o);
             }
 
@@ -50,18 +51,19 @@ public class StringProcessor implements Processor {
         }),
         LCASE((String s) -> s.toLowerCase(Locale.ROOT)),
         UCASE((String s) -> s.toUpperCase(Locale.ROOT)),
-        LENGTH((String s) -> StringFunctionUtils.trimTrailingWhitespaces(s).length()),
-        RTRIM((String s) -> StringFunctionUtils.trimTrailingWhitespaces(s)),
-        LTRIM((String s) -> StringFunctionUtils.trimLeadingWhitespaces(s)),
+        LENGTH((String s) -> s.stripTrailing().length()),
+        RTRIM(String::stripTrailing),
+        LTRIM(String::stripLeading),
+        TRIM(String::trim),
         SPACE((Number n) -> {
             int i = n.intValue();
             if (i < 0) {
                 return null;
-            };
+            }
             char[] spaces = new char[i];
             char whitespace = ' ';
             Arrays.fill(spaces, whitespace);
-            
+
             return new String(spaces);
         }),
         BIT_LENGTH((String s) -> UnicodeUtil.calcUTF16toUTF8Length(s, 0, s.length()) * 8),
@@ -91,7 +93,7 @@ public class StringProcessor implements Processor {
             return this == CHAR ? "character" : super.toString();
         }
     }
-    
+
     public static final String NAME = "s";
 
     private final StringOperation processor;

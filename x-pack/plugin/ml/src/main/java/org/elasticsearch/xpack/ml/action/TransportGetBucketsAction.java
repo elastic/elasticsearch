@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -17,8 +18,6 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
-import java.util.function.Supplier;
-
 public class TransportGetBucketsAction extends HandledTransportAction<GetBucketsAction.Request, GetBucketsAction.Response> {
 
     private final JobResultsProvider jobResultsProvider;
@@ -28,7 +27,7 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
     @Inject
     public TransportGetBucketsAction(TransportService transportService, ActionFilters actionFilters, JobResultsProvider jobResultsProvider,
                                      JobManager jobManager, Client client) {
-        super(GetBucketsAction.NAME, transportService, actionFilters, (Supplier<GetBucketsAction.Request>) GetBucketsAction.Request::new);
+        super(GetBucketsAction.NAME, transportService, actionFilters, GetBucketsAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
         this.client = client;
@@ -36,28 +35,33 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
 
     @Override
     protected void doExecute(Task task, GetBucketsAction.Request request, ActionListener<GetBucketsAction.Response> listener) {
-        jobManager.getJobOrThrowIfUnknown(request.getJobId());
+        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
+                ok -> {
+                    BucketsQueryBuilder query =
+                            new BucketsQueryBuilder().expand(request.isExpand())
+                                    .includeInterim(request.isExcludeInterim() == false)
+                                    .start(request.getStart())
+                                    .end(request.getEnd())
+                                    .anomalyScoreThreshold(request.getAnomalyScore())
+                                    .sortField(request.getSort())
+                                    .sortDescending(request.isDescending());
 
-        BucketsQueryBuilder query =
-                new BucketsQueryBuilder().expand(request.isExpand())
-                        .includeInterim(request.isExcludeInterim() == false)
-                        .start(request.getStart())
-                        .end(request.getEnd())
-                        .anomalyScoreThreshold(request.getAnomalyScore())
-                        .sortField(request.getSort())
-                        .sortDescending(request.isDescending());
+                    if (request.getPageParams() != null) {
+                        query.from(request.getPageParams().getFrom())
+                                .size(request.getPageParams().getSize());
+                    }
+                    if (request.getTimestamp() != null) {
+                        query.timestamp(request.getTimestamp());
+                    } else {
+                        query.start(request.getStart());
+                        query.end(request.getEnd());
+                    }
+                    jobResultsProvider.buckets(request.getJobId(), query, q ->
+                            listener.onResponse(new GetBucketsAction.Response(q)), listener::onFailure, client);
 
-        if (request.getPageParams() != null) {
-            query.from(request.getPageParams().getFrom())
-                    .size(request.getPageParams().getSize());
-        }
-        if (request.getTimestamp() != null) {
-            query.timestamp(request.getTimestamp());
-        } else {
-            query.start(request.getStart());
-            query.end(request.getEnd());
-        }
-        jobResultsProvider.buckets(request.getJobId(), query, q ->
-                listener.onResponse(new GetBucketsAction.Response(q)), listener::onFailure, client);
+                },
+                listener::onFailure
+
+        ));
     }
 }

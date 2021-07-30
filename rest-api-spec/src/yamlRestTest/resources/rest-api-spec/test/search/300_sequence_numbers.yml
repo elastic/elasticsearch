@@ -1,0 +1,62 @@
+setup:
+  - do:
+      indices.create:
+          index:  test_1
+
+  - do:
+      index:
+          index:  test_1
+          id:     1
+          body:   { foo: foo }
+
+## we index again in order to make the seq# 1 (so we can check for the field existence with is_false)
+  - do:
+      index:
+        index:  test_1
+        id:     1
+        body:   { foo: bar }
+
+  - do:
+      indices.refresh:
+        index: [test_1]
+
+---
+"sequence numbers are returned if requested from body":
+  - do:
+      search:
+        index: _all
+        body:
+          query:
+            match:
+              foo: bar
+          seq_no_primary_term: true
+
+  - match: {hits.hits.0._seq_no: 1}
+  - gte: {hits.hits.0._primary_term: 1}
+
+---
+"sequence numbers are returned if requested from url":
+  - do:
+      search:
+        index: _all
+        body:
+          query:
+            match:
+              foo: bar
+        seq_no_primary_term: true
+
+  - match: {hits.hits.0._seq_no: 1}
+  - gte: {hits.hits.0._primary_term: 1}
+
+---
+"sequence numbers are not returned if not requested":
+  - do:
+      search:
+        index: _all
+        body:
+          query:
+            match:
+              foo: bar
+
+  - is_false: hits.hits.0._seq_no
+  - is_false: hits.hits.0._primary_term

@@ -1,15 +1,12 @@
-[[search-suggesters-term]]
-=== Term suggester
-
-NOTE: In order to understand the format of suggestions, please
-read the <<search-suggesters>> page first.
+[[term-suggester]]
+==== Term suggester
 
 The `term` suggester suggests terms based on edit distance. The provided
 suggest text is analyzed before terms are suggested. The suggested terms
 are provided per analyzed suggest text token. The `term` suggester
 doesn't take the query into account that is part of request.
 
-==== Common suggest options:
+===== Common suggest options:
 
 [horizontal]
 `text`::
@@ -18,7 +15,7 @@ doesn't take the query into account that is part of request.
 
 `field`::
     The field to fetch the candidate suggestions from. This is
-    an required option that either needs to be set globally or per
+    a required option that either needs to be set globally or per
     suggestion.
 
 `analyzer`::
@@ -50,27 +47,24 @@ doesn't take the query into account that is part of request.
      ** `always`:   Suggest any matching suggestions based on terms in the
                     suggest text.
 
-==== Other term suggest options:
+===== Other term suggest options:
 
 [horizontal]
-`lowercase_terms`::
-    Lower cases the suggest text terms after text analysis.
-
 `max_edits`::
     The maximum edit distance candidate suggestions can
     have in order to be considered as a suggestion. Can only be a value
-    between 1 and 2. Any other value result in an bad request error being
+    between 1 and 2. Any other value results in a bad request error being
     thrown. Defaults to 2.
 
 `prefix_length`::
     The number of minimal prefix characters that must
-    match in order be a candidate suggestions. Defaults to 1. Increasing
+    match in order be a candidate for suggestions. Defaults to 1. Increasing
     this number improves spellcheck performance. Usually misspellings don't
-    occur in the beginning of terms. (Old name "prefix_len" is deprecated)
+    occur in the beginning of terms.
 
 `min_word_length`::
     The minimum length a suggest text term must have in
-    order to be included. Defaults to 4. (Old name "min_word_len" is deprecated)
+    order to be included. Defaults to `4`.
 
 `shard_size`::
     Sets the maximum number of suggestions to be retrieved
@@ -85,7 +79,7 @@ doesn't take the query into account that is part of request.
 
 `max_inspections`::
     A factor that is used to multiply with the
-    `shards_size` in order to inspect more candidate spell corrections on
+    `shards_size` in order to inspect more candidate spelling corrections on
     the shard level. Can improve accuracy at the cost of performance.
     Defaults to 5.
 
@@ -94,29 +88,29 @@ doesn't take the query into account that is part of request.
     suggestion should appear in. This can be specified as an absolute number
     or as a relative percentage of number of documents. This can improve
     quality by only suggesting high frequency terms. Defaults to 0f and is
-    not enabled. If a value higher than 1 is specified then the number
+    not enabled. If a value higher than 1 is specified, then the number
     cannot be fractional. The shard level document frequencies are used for
     this option.
 
 `max_term_freq`::
-    The maximum threshold in number of documents a
+    The maximum threshold in number of documents in which a
     suggest text token can exist in order to be included. Can be a relative
-    percentage number (e.g 0.4) or an absolute number to represent document
-    frequencies. If an value higher than 1 is specified then fractional can
+    percentage number (e.g., 0.4) or an absolute number to represent document
+    frequencies. If a value higher than 1 is specified, then fractional can
     not be specified. Defaults to 0.01f. This can be used to exclude high
-    frequency terms from being spellchecked. High frequency terms are
-    usually spelled correctly on top of this also improves the spellcheck
-    performance. The shard level document frequencies are used for this
-    option.
+    frequency terms -- which are usually spelled correctly -- from being spellchecked.
+    This also improves the spellcheck performance. The shard level document frequencies
+    are used for this option.
 
 `string_distance`::
     Which string distance implementation to use for comparing how similar
     suggested terms are. Five possible values can be specified:
-    `internal` - The default based on damerau_levenshtein but highly optimized
+    
+    ** `internal`: The default based on damerau_levenshtein but highly optimized
     for comparing string distance for terms inside the index.
-    `damerau_levenshtein` - String distance algorithm based on
+    ** `damerau_levenshtein`: String distance algorithm based on
     Damerau-Levenshtein algorithm.
-    `levenshtein` - String distance algorithm based on Levenshtein edit distance
+    ** `levenshtein`: String distance algorithm based on Levenshtein edit distance
     algorithm.
-    `jaro_winkler` - String distance algorithm based on Jaro-Winkler algorithm.
-    `ngram` - String distance algorithm based on character n-grams.
+    ** `jaro_winkler`: String distance algorithm based on Jaro-Winkler algorithm.
+    ** `ngram`: String distance algorithm based on character n-grams.

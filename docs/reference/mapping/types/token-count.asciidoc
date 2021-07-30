@@ -1,5 +1,8 @@
 [[token-count]]
-=== Token count datatype
+=== Token count field type
+++++
+<titleabbrev>Token count</titleabbrev>
+++++
 
 A field of type `token_count` is really an <<number,`integer`>> field which
 accepts string values, analyzes them, then indexes the number of tokens in the
@@ -7,20 +10,18 @@ string.
 
 For instance:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "name": { <1>
-          "type": "text",
-          "fields": {
-            "length": { <2>
-              "type":     "token_count",
-              "analyzer": "standard"
-            }
+    "properties": {
+      "name": { <1>
+        "type": "text",
+        "fields": {
+          "length": { <2>
+            "type":     "token_count",
+            "analyzer": "standard"
           }
         }
       }
@@ -28,13 +29,13 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 { "name": "John Smith" }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 { "name": "Rachel Alice Williams" }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "term": {
@@ -43,8 +44,9 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
-<1> The `name` field is an analyzed string field which uses the default `standard` analyzer.
+
+<1> The `name` field is a <<text,`text`>> field which uses the default
+`standard` analyzer.
 <2> The `name.length` field is a `token_count` <<multi-fields,multi-field>> which will index the number of tokens in the `name` field.
 <3> This query matches only the document containing `Rachel Alice Williams`, as it contains three tokens.
 
@@ -68,11 +70,6 @@ Indicates if position increments should be counted.
 Set to `false` if you don't want to count tokens removed by analyzer filters (like <<analysis-stop-tokenfilter,`stop`>>). 
 Defaults to `true`.
 
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
-
 <<doc-values,`doc_values`>>::
 
     Should the field be stored on disk in a column-stride fashion, so that it
@@ -86,7 +83,7 @@ Defaults to `true`.
 <<null-value,`null_value`>>::
 
     Accepts a numeric value of the same `type` as the field which is
-    substituted for any explicit `null` values.  Defaults to `null`, which
+    substituted for any explicit `null` values. Defaults to `null`, which
     means the field is treated as missing.
 
 <<mapping-store,`store`>>::

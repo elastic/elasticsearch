@@ -1,28 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.rounding.DateTimeUnit;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
@@ -35,10 +25,15 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
 import java.time.zone.ZoneOffsetTransition;
+import java.time.zone.ZoneOffsetTransitionRule;
+import java.time.zone.ZoneRules;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -56,6 +51,30 @@ public class RoundingTests extends ESTestCase {
         tzRounding = Rounding.builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR).build();
         assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-09T00:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2012-01-16T00:00:00.000Z"), tz));
+
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR).build();
+        assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-01T00:00:00.000Z"), tz));
+        assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2012-04-01T00:00:00.000Z"), tz));
+
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build();
+        assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-10T01:00:00.000Z"), tz));
+        assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2012-01-09T01:00:00.000Z"), tz));
+
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build();
+        assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-10T00:00:00.000Z"), tz));
+        assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2012-01-10T00:00:00.000Z"), tz));
+
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).build();
+        assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-01T00:00:00.000Z"), tz));
+        assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2013-01-01T00:00:00.000Z"), tz));
+
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.MINUTES_OF_HOUR).build();
+        assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-10T01:01:00.000Z"), tz));
+        assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2012-01-09T00:01:00.000Z"), tz));
+
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.SECOND_OF_MINUTE).build();
+        assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-10T01:01:01.000Z"), tz));
+        assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2012-01-09T00:00:01.000Z"), tz));
     }
 
     public void testUTCIntervalRounding() {
@@ -104,8 +123,8 @@ public class RoundingTests extends ESTestCase {
         Rounding tzRounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH)
             .timeZone(ZoneOffset.ofHours(timezoneOffset)).build();
         assertThat(tzRounding.round(0), equalTo(0L - TimeValue.timeValueHours(24 + timezoneOffset).millis()));
-        assertThat(tzRounding.nextRoundingValue(0L - TimeValue.timeValueHours(24 + timezoneOffset).millis()), equalTo(0L - TimeValue
-            .timeValueHours(timezoneOffset).millis()));
+        assertThat(tzRounding.nextRoundingValue(0L - TimeValue.timeValueHours(24 + timezoneOffset).millis()), equalTo(TimeValue
+            .timeValueHours(-timezoneOffset).millis()));
 
         ZoneId tz = ZoneId.of("-08:00");
         tzRounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).timeZone(tz).build();
@@ -170,6 +189,29 @@ public class RoundingTests extends ESTestCase {
         assertThat(tzRounding_chg.round(time("2014-11-02T06:01:01", chg)), isDate(time("2014-11-02T06:00:00", chg), chg));
     }
 
+    public void testOffsetRounding() {
+        long twoHours = TimeUnit.HOURS.toMillis(2);
+        long oneDay = TimeUnit.DAYS.toMillis(1);
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).offset(twoHours).build();
+        assertThat(rounding.round(0), equalTo(-oneDay + twoHours));
+        assertThat(rounding.round(twoHours), equalTo(twoHours));
+        assertThat(rounding.nextRoundingValue(-oneDay), equalTo(-oneDay + twoHours));
+        assertThat(rounding.nextRoundingValue(0), equalTo(twoHours));
+        assertThat(rounding.withoutOffset().round(0), equalTo(0L));
+        assertThat(rounding.withoutOffset().nextRoundingValue(0), equalTo(oneDay));
+
+        rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).offset(-twoHours).build();
+        assertThat(rounding.round(0), equalTo(-twoHours));
+        assertThat(rounding.round(oneDay - twoHours), equalTo(oneDay - twoHours));
+        assertThat(rounding.nextRoundingValue(-oneDay), equalTo(-twoHours));
+        assertThat(rounding.nextRoundingValue(0), equalTo(oneDay - twoHours));
+        assertThat(rounding.withoutOffset().round(0), equalTo(0L));
+        assertThat(rounding.withoutOffset().nextRoundingValue(0), equalTo(oneDay));
+
+        rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).timeZone(ZoneId.of("America/New_York")).offset(-twoHours).build();
+        assertThat(rounding.round(time("2020-11-01T09:00:00")), equalTo(time("2020-11-01T02:00:00")));
+    }
+
     /**
      * Randomized test on TimeUnitRounding. Test uses random
      * {@link DateTimeUnit} and {@link ZoneId} and often (50% of the time)
@@ -181,31 +223,59 @@ public class RoundingTests extends ESTestCase {
      * described in
      * {@link #assertInterval(long, long, long, Rounding, ZoneId)}
      */
-    public void testRoundingRandom() {
+    public void testRandomTimeUnitRounding() {
         for (int i = 0; i < 1000; ++i) {
             Rounding.DateTimeUnit unit = randomFrom(Rounding.DateTimeUnit.values());
             ZoneId tz = randomZone();
-            Rounding rounding = new Rounding.TimeUnitRounding(unit, tz);
-            long date = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
-            long unitMillis = unit.getField().getBaseUnit().getDuration().toMillis();
-            // FIXME this was copy pasted from the other impl and not used. breaks the nasty date actually gets assigned
-            if (randomBoolean()) {
-                nastyDate(date, tz, unitMillis);
+            long[] bounds = randomDateBounds(unit);
+            assertUnitRoundingSameAsJavaUtilTimeImplementation(unit, tz, bounds[0], bounds[1]);
+        }
+    }
+
+    private void assertUnitRoundingSameAsJavaUtilTimeImplementation(Rounding.DateTimeUnit unit, ZoneId tz, long start, long end) {
+        Rounding rounding = new Rounding.TimeUnitRounding(unit, tz);
+        Rounding.Prepared prepared = rounding.prepare(start, end);
+
+        // Check that rounding is internally consistent and consistent with nextRoundingValue
+        long date = dateBetween(start, end);
+        long unitMillis = unit.getField().getBaseUnit().getDuration().toMillis();
+        // FIXME this was copy pasted from the other impl and not used. breaks the nasty date actually gets assigned
+        if (randomBoolean()) {
+            nastyDate(date, tz, unitMillis);
+        }
+        final long roundedDate = prepared.round(date);
+        final long nextRoundingValue = prepared.nextRoundingValue(roundedDate);
+
+        assertInterval(roundedDate, date, nextRoundingValue, rounding, tz);
+
+        // check correct unit interval width for units smaller than a day, they should be fixed size except for transitions
+        if (unitMillis <= 86400 * 1000) {
+            // if the interval defined didn't cross timezone offset transition, it should cover unitMillis width
+            int offsetRounded = tz.getRules().getOffset(Instant.ofEpochMilli(roundedDate - 1)).getTotalSeconds();
+            int offsetNextValue = tz.getRules().getOffset(Instant.ofEpochMilli(nextRoundingValue + 1)).getTotalSeconds();
+            if (offsetRounded == offsetNextValue) {
+                assertThat("unit interval width not as expected for [" + unit + "], [" + tz + "] at "
+                    + Instant.ofEpochMilli(roundedDate), nextRoundingValue - roundedDate, equalTo(unitMillis));
             }
-            final long roundedDate = rounding.round(date);
-            final long nextRoundingValue = rounding.nextRoundingValue(roundedDate);
+        }
 
-            assertInterval(roundedDate, date, nextRoundingValue, rounding, tz);
-
-            // check correct unit interval width for units smaller than a day, they should be fixed size except for transitions
-            if (unitMillis <= 86400 * 1000) {
-                // if the interval defined didn't cross timezone offset transition, it should cover unitMillis width
-                int offsetRounded = tz.getRules().getOffset(Instant.ofEpochMilli(roundedDate - 1)).getTotalSeconds();
-                int offsetNextValue = tz.getRules().getOffset(Instant.ofEpochMilli(nextRoundingValue + 1)).getTotalSeconds();
-                if (offsetRounded == offsetNextValue) {
-                    assertThat("unit interval width not as expected for [" + unit + "], [" + tz + "] at "
-                        + Instant.ofEpochMilli(roundedDate), nextRoundingValue - roundedDate, equalTo(unitMillis));
-                }
+        // Round a whole bunch of dates and make sure they line up with the known good java time implementation
+        Rounding.Prepared javaTimeRounding = rounding.prepareJavaTime();
+        for (int d = 0; d < 1000; d++) {
+            date = dateBetween(start, end);
+            long javaRounded = javaTimeRounding.round(date);
+            long esRounded = prepared.round(date);
+            if (javaRounded != esRounded) {
+                fail("Expected [" + rounding + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
+                        + Instant.ofEpochMilli(javaRounded) + "] but instead rounded to [" + Instant.ofEpochMilli(esRounded) + "]");
+            }
+            long javaNextRoundingValue = javaTimeRounding.nextRoundingValue(date);
+            long esNextRoundingValue = prepared.nextRoundingValue(date);
+            if (javaNextRoundingValue != esNextRoundingValue) {
+                fail("Expected [" + rounding + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
+                        + Instant.ofEpochMilli(esRounded) + "] and nextRoundingValue to be ["
+                        + Instant.ofEpochMilli(javaNextRoundingValue) + "] but instead was to ["
+                        + Instant.ofEpochMilli(esNextRoundingValue) + "]");
             }
         }
     }
@@ -316,37 +386,67 @@ public class RoundingTests extends ESTestCase {
         assertThat(rounding.round(time("2016-03-28T13:00:00+02:00")), isDate(time("2016-03-28T12:00:00+02:00"), tz));
     }
 
-    /**
-     * randomized test on {@link org.elasticsearch.common.rounding.Rounding.TimeIntervalRounding} with random interval and time zone offsets
-     */
-    public void testIntervalRoundingRandom() {
+    public void testRandomTimeIntervalRounding() {
         for (int i = 0; i < 1000; i++) {
+            int unitCount = randomIntBetween(1, 365);
             TimeUnit unit = randomFrom(TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
-            long interval = unit.toMillis(randomIntBetween(1, 365));
+            long interval = unit.toMillis(unitCount);
             ZoneId tz = randomZone();
             Rounding rounding = new Rounding.TimeIntervalRounding(interval, tz);
-            long mainDate = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
+            long mainDate = randomDate();
             if (randomBoolean()) {
                 mainDate = nastyDate(mainDate, tz, interval);
             }
+            long min = mainDate - 2 * interval;
+            long max = mainDate + 2 * interval;
+
+            /*
+             * Prepare a rounding with two extra intervals of range because
+             * in the tests far below we call round(round(min) - 1). The first
+             * round might spit out a time below min - interval if min is near
+             * a daylight savings time transition. So we request an extra big
+             * range just in case.
+             */
+            Rounding.Prepared prepared = rounding.prepare(min - 2 * interval, max);
+
+            // Round a whole bunch of dates and make sure they line up with the known good java time implementation
+            Rounding.Prepared javaTimeRounding = rounding.prepareJavaTime();
+            for (int d = 0; d < 1000; d++) {
+                long date = dateBetween(min, max);
+                long javaRounded = javaTimeRounding.round(date);
+                long esRounded = prepared.round(date);
+                if (javaRounded != esRounded) {
+                    fail("Expected [" + unitCount + " " + unit + " in " + tz + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
+                            + Instant.ofEpochMilli(javaRounded) + "] but instead rounded to [" + Instant.ofEpochMilli(esRounded) + "]");
+                }
+                long javaNextRoundingValue = javaTimeRounding.nextRoundingValue(date);
+                long esNextRoundingValue = prepared.nextRoundingValue(date);
+                if (javaNextRoundingValue != esNextRoundingValue) {
+                    fail("Expected [" + unitCount + " " + unit + " in " + tz + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
+                            + Instant.ofEpochMilli(esRounded) + "] and nextRoundingValue to be ["
+                            + Instant.ofEpochMilli(javaNextRoundingValue) + "] but instead was to ["
+                            + Instant.ofEpochMilli(esNextRoundingValue) + "]");
+                }
+            }
+
             // check two intervals around date
             long previousRoundedValue = Long.MIN_VALUE;
-            for (long date = mainDate - 2 * interval; date < mainDate + 2 * interval; date += interval / 2) {
+            for (long date = min; date < max; date += interval / 2) {
                 try {
                     final long roundedDate = rounding.round(date);
-                    final long nextRoundingValue = rounding.nextRoundingValue(roundedDate);
-                    assertThat("Rounding should be idempotent", roundedDate, equalTo(rounding.round(roundedDate)));
+                    final long nextRoundingValue = prepared.nextRoundingValue(roundedDate);
+                    assertThat("Rounding should be idempotent", roundedDate, equalTo(prepared.round(roundedDate)));
                     assertThat("Rounded value smaller or equal than unrounded", roundedDate, lessThanOrEqualTo(date));
-                    assertThat("Values smaller than rounded value should round further down", rounding.round(roundedDate - 1),
+                    assertThat("Values smaller than rounded value should round further down", prepared.round(roundedDate - 1),
                         lessThan(roundedDate));
                     assertThat("Rounding should be >= previous rounding value", roundedDate, greaterThanOrEqualTo(previousRoundedValue));
+                    assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
+                    assertThat("NextRounding value rounds to itself", nextRoundingValue,
+                        isDate(rounding.round(nextRoundingValue), tz));
 
                     if (tz.getRules().isFixedOffset()) {
-                        assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
                         assertThat("NextRounding value should be interval from rounded value", nextRoundingValue - roundedDate,
                             equalTo(interval));
-                        assertThat("NextRounding value should be a rounded date", nextRoundingValue,
-                            equalTo(rounding.round(nextRoundingValue)));
                     }
                     previousRoundedValue = roundedDate;
                 } catch (AssertionError e) {
@@ -358,6 +458,48 @@ public class RoundingTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Check a {@link Rounding.Prepared#nextRoundingValue} that was difficult
+     * to build well with the java.time APIs.
+     */
+    public void testHardNextRoundingValue() {
+        Rounding rounding = new Rounding.TimeIntervalRounding(960000, ZoneId.of("Europe/Minsk"));
+        long rounded = rounding.prepareForUnknown().round(877824908400L);
+        long next = rounding.prepareForUnknown().nextRoundingValue(rounded);
+        assertThat(next, greaterThan(rounded));
+    }
+
+    /**
+     * Check a {@link Rounding.Prepared#nextRoundingValue} that was difficult
+     * to build well with the java.time APIs.
+     */
+    public void testOtherHardNextRoundingValue() {
+        Rounding rounding = new Rounding.TimeIntervalRounding(480000, ZoneId.of("Portugal"));
+        long rounded = rounding.prepareJavaTime().round(972780720000L);
+        long next = rounding.prepareJavaTime().nextRoundingValue(rounded);
+        assertThat(next, greaterThan(rounded));
+    }
+
+    /**
+     * Check a {@link Rounding.Prepared#nextRoundingValue} that was difficult
+     * to build well our janky Newton's Method/binary search hybrid.
+     */
+    public void testHardNewtonsMethod() {
+        ZoneId tz = ZoneId.of("Asia/Jerusalem");
+        Rounding rounding = new Rounding.TimeIntervalRounding(19800000, tz);
+        assertThat(rounding.prepareJavaTime().nextRoundingValue(1824929914182L), isDate(time("2027-10-31T01:30:00", tz), tz));
+    }
+
+    /**
+     * Check a {@link Rounding.Prepared#nextRoundingValue} that was difficult
+     * to build well with the java.time APIs.
+     */
+    public void testOtherHardNewtonsMethod() {
+        ZoneId tz = ZoneId.of("America/Glace_Bay");
+        Rounding rounding = new Rounding.TimeIntervalRounding(13800000, tz);
+        assertThat(rounding.prepareJavaTime().nextRoundingValue(1383463147373L), isDate(time("2013-11-03T03:40:00", tz), tz));
     }
 
     /**
@@ -616,6 +758,70 @@ public class RoundingTests extends ESTestCase {
     }
 
     /**
+     * Tests for DST transitions that cause the rounding to jump "backwards" because they round
+     * from one back to the previous day. Usually these rounding start before
+     */
+    public void testForwardsBackwardsTimeZones() {
+        for (String zoneId : JAVA_ZONE_IDS) {
+            ZoneId tz = ZoneId.of(zoneId);
+            ZoneRules rules = tz.getRules();
+            for (ZoneOffsetTransition transition : rules.getTransitions()) {
+                checkForForwardsBackwardsTransition(tz, transition);
+            }
+            int firstYear;
+            if (rules.getTransitions().isEmpty()) {
+                // Pick an arbitrary year to start the range
+                firstYear = 1999;
+            } else {
+                ZoneOffsetTransition lastTransition = rules.getTransitions().get(rules.getTransitions().size() - 1);
+                firstYear = lastTransition.getDateTimeAfter().getYear() + 1;
+            }
+            // Pick an arbitrary year to end the range too
+            int lastYear = 2050;
+            int year = randomFrom(firstYear, lastYear);
+            for (ZoneOffsetTransitionRule transitionRule : rules.getTransitionRules()) {
+                ZoneOffsetTransition transition = transitionRule.createTransition(year);
+                checkForForwardsBackwardsTransition(tz, transition);
+            }
+        }
+    }
+
+    private void checkForForwardsBackwardsTransition(ZoneId tz, ZoneOffsetTransition transition) {
+        if (transition.getDateTimeBefore().getYear() < 1950) {
+            // We don't support transitions far in the past at all
+            return;
+        }
+        if (false == transition.isOverlap()) {
+            // Only overlaps cause the array rounding to have trouble
+            return;
+        }
+        if (transition.getDateTimeBefore().getDayOfMonth() == transition.getDateTimeAfter().getDayOfMonth()) {
+            // Only when the rounding changes the day
+            return;
+        }
+        if (transition.getDateTimeBefore().getMinute() == 0) {
+            // But roundings that change *at* midnight are safe because they don't "jump" to the next day.
+            return;
+        }
+        logger.info(
+            "{} from {}{} to {}{}",
+            tz,
+            transition.getDateTimeBefore(),
+            transition.getOffsetBefore(),
+            transition.getDateTimeAfter(),
+            transition.getOffsetAfter()
+        );
+        long millisSinceEpoch = TimeUnit.SECONDS.toMillis(transition.toEpochSecond());
+        long twoHours = TimeUnit.HOURS.toMillis(2);
+        assertUnitRoundingSameAsJavaUtilTimeImplementation(
+            Rounding.DateTimeUnit.DAY_OF_MONTH,
+            tz,
+            millisSinceEpoch - twoHours,
+            millisSinceEpoch + twoHours
+        );
+    }
+
+    /**
      * tests for dst transition with overlaps and day roundings.
      */
     public void testDST_END_Edgecases() {
@@ -658,6 +864,210 @@ public class RoundingTests extends ESTestCase {
         assertInterval(midnightAfterTransition, nextMidnight, rounding, 24 * 60, tz);
     }
 
+    public void testBeforeOverlapLarge() {
+        // Moncton has a perfectly normal hour long Daylight Savings time.
+        ZoneId tz = ZoneId.of("America/Moncton");
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).timeZone(tz).build();
+        assertThat(rounding.round(time("2003-10-26T03:43:35.079Z")), isDate(time("2003-10-26T03:00:00Z"), tz));
+    }
+
+    public void testBeforeOverlapSmall() {
+        /*
+         * Lord Howe is fun because Daylight Savings time is only 30 minutes
+         * so we round HOUR_OF_DAY differently.
+         */
+        ZoneId tz = ZoneId.of("Australia/Lord_Howe");
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).timeZone(tz).build();
+        assertThat(rounding.round(time("2018-03-31T15:25:15.148Z")), isDate(time("2018-03-31T14:00:00Z"), tz));
+    }
+
+    public void testQuarterOfYear() {
+        /*
+         * If we're not careful with how we look up local time offsets we can
+         * end up not loading the offsets far enough back to round this time
+         * to QUARTER_OF_YEAR properly.
+         */
+        ZoneId tz = ZoneId.of("Asia/Baghdad");
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR).timeZone(tz).build();
+        assertThat(rounding.round(time("2006-12-31T13:21:44.308Z")), isDate(time("2006-09-30T20:00:00Z"), tz));
+    }
+
+    public void testPrepareLongRangeRoundsToMidnight() {
+        ZoneId tz = ZoneId.of("America/New_York");
+        long min = time("01980-01-01T00:00:00Z");
+        long max = time("10000-01-01T00:00:00Z");
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR).timeZone(tz).build();
+        assertThat(rounding.round(time("2006-12-31T13:21:44.308Z")), isDate(time("2006-10-01T04:00:00Z"), tz));
+        assertThat(rounding.round(time("9000-12-31T13:21:44.308Z")), isDate(time("9000-10-01T04:00:00Z"), tz));
+
+        Rounding.Prepared prepared = rounding.prepare(min, max);
+        assertThat(prepared.round(time("2006-12-31T13:21:44.308Z")), isDate(time("2006-10-01T04:00:00Z"), tz));
+        assertThat(prepared.round(time("9000-12-31T13:21:44.308Z")), isDate(time("9000-10-01T04:00:00Z"), tz));
+    }
+
+    public void testPrepareLongRangeRoundsNotToMidnight() {
+        ZoneId tz = ZoneId.of("Australia/Lord_Howe");
+        long min = time("01980-01-01T00:00:00Z");
+        long max = time("10000-01-01T00:00:00Z");
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).timeZone(tz).build();
+        assertThat(rounding.round(time("2018-03-31T15:25:15.148Z")), isDate(time("2018-03-31T14:00:00Z"), tz));
+        assertThat(rounding.round(time("9000-03-31T15:25:15.148Z")), isDate(time("9000-03-31T15:00:00Z"), tz));
+
+        Rounding.Prepared prepared = rounding.prepare(min, max);
+        assertThat(prepared.round(time("2018-03-31T15:25:15.148Z")), isDate(time("2018-03-31T14:00:00Z"), tz));
+        assertThat(prepared.round(time("9000-03-31T15:25:15.148Z")), isDate(time("9000-03-31T15:00:00Z"), tz));
+    }
+
+    /**
+     * Example of when we round past when local clocks were wound forward.
+     */
+    public void testIntervalBeforeGap() {
+        ZoneId tz = ZoneId.of("Africa/Cairo");
+        Rounding rounding = Rounding.builder(TimeValue.timeValueDays(257)).timeZone(tz).build();
+        assertThat(rounding.round(time("1969-07-08T09:00:14.599Z")), isDate(time("1969-04-18T22:00:00Z"), tz));
+    }
+
+    /**
+     * Example of when we round past when local clocks were wound backwards,
+     * <strong>and</strong> then past the time they were wound forwards before
+     * that. So, we jumped back a long, long way.
+     */
+    public void testIntervalTwoTransitions() {
+        ZoneId tz = ZoneId.of("America/Detroit");
+        Rounding rounding = Rounding.builder(TimeValue.timeValueDays(279)).timeZone(tz).build();
+        assertThat(rounding.round(time("1982-11-10T02:51:22.662Z")), isDate(time("1982-03-23T05:00:00Z"), tz));
+    }
+
+    public void testFixedIntervalRoundingSize() {
+        Rounding unitRounding = Rounding.builder(TimeValue.timeValueHours(10)).build();
+        Rounding.Prepared prepared = unitRounding.prepare(time("2010-01-01T00:00:00.000Z"), time("2020-01-01T00:00:00.000Z"));
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.SECOND_OF_MINUTE),
+            closeTo(36000.0, 0.000001));
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MINUTES_OF_HOUR),
+            closeTo(600.0, 0.000001));
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.HOUR_OF_DAY),
+            closeTo(10.0, 0.000001));
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.DAY_OF_MONTH),
+            closeTo(10.0 / 24.0, 0.000001));
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR),
+            closeTo(10.0 / 168.0, 0.000001));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MONTH_OF_YEAR));
+        assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [month] with fixed interval based histogram, " +
+            "only week, day, hour, minute and second are supported for this histogram"));
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.QUARTER_OF_YEAR));
+        assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [quarter] with fixed interval based histogram, " +
+            "only week, day, hour, minute and second are supported for this histogram"));
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.YEAR_OF_CENTURY));
+        assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [year] with fixed interval based histogram, " +
+            "only week, day, hour, minute and second are supported for this histogram"));
+    }
+
+    public void testMillisecondsBasedUnitCalendarRoundingSize() {
+        Rounding unitRounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build();
+        Rounding.Prepared prepared = unitRounding.prepare(time("2010-01-01T00:00:00.000Z"), time("2020-01-01T00:00:00.000Z"));
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.SECOND_OF_MINUTE),
+            closeTo(3600.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.SECOND_OF_MINUTE),
+            closeTo(3600.0, 0.000001));
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MINUTES_OF_HOUR),
+            closeTo(60.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.MINUTES_OF_HOUR),
+            closeTo(60.0, 0.000001));
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.HOUR_OF_DAY),
+            closeTo(1.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.HOUR_OF_DAY),
+            closeTo(1.0, 0.000001));
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.DAY_OF_MONTH),
+            closeTo(1 / 24.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.DAY_OF_MONTH),
+            closeTo(1 / 24.0, 0.000001));
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR),
+            closeTo(1 / 168.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR),
+            closeTo(1 / 168.0, 0.000001));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MONTH_OF_YEAR));
+        assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [month] with non-month based calendar interval " +
+            "histogram [hour] only week, day, hour, minute and second are supported for this histogram"));
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> prepared.roundingSize(Rounding.DateTimeUnit.MONTH_OF_YEAR));
+        assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [month] with non-month based calendar interval " +
+            "histogram [hour] only week, day, hour, minute and second are supported for this histogram"));
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.QUARTER_OF_YEAR));
+        assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [quarter] with non-month based calendar interval " +
+            "histogram [hour] only week, day, hour, minute and second are supported for this histogram"));
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> prepared.roundingSize(Rounding.DateTimeUnit.QUARTER_OF_YEAR));
+        assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [quarter] with non-month based calendar interval " +
+            "histogram [hour] only week, day, hour, minute and second are supported for this histogram"));
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.YEAR_OF_CENTURY));
+        assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [year] with non-month based calendar interval " +
+            "histogram [hour] only week, day, hour, minute and second are supported for this histogram"));
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> prepared.roundingSize(Rounding.DateTimeUnit.YEAR_OF_CENTURY));
+        assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [year] with non-month based calendar interval " +
+            "histogram [hour] only week, day, hour, minute and second are supported for this histogram"));
+    }
+
+    public void testNonMillisecondsBasedUnitCalendarRoundingSize() {
+        Rounding unitRounding = Rounding.builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR).build();
+        Rounding.Prepared prepared = unitRounding.prepare(time("2010-01-01T00:00:00.000Z"), time("2020-01-01T00:00:00.000Z"));
+        long firstQuarter = prepared.round(time("2015-01-01T00:00:00.000Z"));
+        // Ratio based
+        assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.MONTH_OF_YEAR), closeTo(3.0, 0.000001));
+        assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.QUARTER_OF_YEAR), closeTo(1.0, 0.000001));
+        assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.YEAR_OF_CENTURY), closeTo(0.25, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.MONTH_OF_YEAR), closeTo(3.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.QUARTER_OF_YEAR), closeTo(1.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.YEAR_OF_CENTURY), closeTo(0.25, 0.000001));
+        // Real interval based
+        assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.SECOND_OF_MINUTE), closeTo(7776000.0, 0.000001));
+        assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.MINUTES_OF_HOUR), closeTo(129600.0, 0.000001));
+        assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(2160.0, 0.000001));
+        assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.DAY_OF_MONTH), closeTo(90.0, 0.000001));
+        long thirdQuarter = prepared.round(time("2015-07-01T00:00:00.000Z"));
+        assertThat(prepared.roundingSize(thirdQuarter, Rounding.DateTimeUnit.DAY_OF_MONTH), closeTo(92.0, 0.000001));
+        assertThat(prepared.roundingSize(thirdQuarter, Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(2208.0, 0.000001));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> prepared.roundingSize(Rounding.DateTimeUnit.SECOND_OF_MINUTE));
+        assertThat(ex.getMessage(), equalTo("Cannot use non month-based rate unit [second] with calendar interval histogram " +
+            "[quarter] only month, quarter and year are supported for this histogram"));
+    }
+
+    public void testFixedRoundingPoints() {
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR).build();
+        assertFixedRoundingPoints(
+            rounding.prepare(time("2020-01-01T00:00:00"), time("2021-01-01T00:00:00")),
+            "2020-01-01T00:00:00",
+            "2020-04-01T00:00:00",
+            "2020-07-01T00:00:00",
+            "2020-10-01T00:00:00",
+            "2021-01-01T00:00:00"
+        );
+        rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build();
+        assertFixedRoundingPoints(
+            rounding.prepare(time("2020-01-01T00:00:00"), time("2020-01-06T00:00:00")),
+            "2020-01-01T00:00:00",
+            "2020-01-02T00:00:00",
+            "2020-01-03T00:00:00",
+            "2020-01-04T00:00:00",
+            "2020-01-05T00:00:00",
+            "2020-01-06T00:00:00"
+        );
+    }
+
+    private void assertFixedRoundingPoints(Rounding.Prepared prepared, String... expected) {
+        assertThat(
+            Arrays.stream(prepared.fixedRoundingPoints()).mapToObj(Instant::ofEpochMilli).collect(toList()),
+            equalTo(Arrays.stream(expected).map(RoundingTests::time).map(Instant::ofEpochMilli).collect(toList()))
+        );
+    }
+
     private void assertInterval(long rounded, long nextRoundingValue, Rounding rounding, int minutes,
                                 ZoneId tz) {
         assertInterval(rounded, dateBetween(rounded, nextRoundingValue), nextRoundingValue, rounding, tz);
@@ -666,16 +1076,16 @@ public class RoundingTests extends ESTestCase {
     }
 
     /**
-     * perform a number on assertions and checks on {@link org.elasticsearch.common.rounding.Rounding.TimeUnitRounding} intervals
+     * perform a number on assertions and checks on {@link org.elasticsearch.common.Rounding.TimeUnitRounding} intervals
      * @param rounded the expected low end of the rounding interval
      * @param unrounded a date in the interval to be checked for rounding
      * @param nextRoundingValue the expected upper end of the rounding interval
      * @param rounding the rounding instance
      */
     private void assertInterval(long rounded, long unrounded, long nextRoundingValue, Rounding rounding, ZoneId tz) {
-        assertThat("rounding should be idempotent ", rounding.round(rounded), isDate(rounded, tz));
-        assertThat("rounded value smaller or equal than unrounded" + rounding, rounded, lessThanOrEqualTo(unrounded));
-        assertThat("values less than rounded should round further down" + rounding, rounding.round(rounded - 1), lessThan(rounded));
+        assertThat("rounding should be idempotent", rounding.round(rounded), isDate(rounded, tz));
+        assertThat("rounded value smaller or equal than unrounded", rounded, lessThanOrEqualTo(unrounded));
+        assertThat("values less than rounded should round further down", rounding.round(rounded - 1), lessThan(rounded));
         assertThat("nextRounding value should be a rounded date", rounding.round(nextRoundingValue), isDate(nextRoundingValue, tz));
         assertThat("values above nextRounding should round down there", rounding.round(nextRoundingValue + 1),
             isDate(nextRoundingValue, tz));
@@ -713,10 +1123,32 @@ public class RoundingTests extends ESTestCase {
             return t <= time("2010-03-03T00:00:00Z")
                 || t >= time("2010-03-07T00:00:00Z");
         }
+        if (tz.getId().equals("Pacific/Guam") || tz.getId().equals("Pacific/Saipan")) {
+            // Clocks went back at 00:01 in 1969, causing overlapping days.
+            return t <= time("1969-01-25T00:00:00Z")
+                || t >= time("1969-01-26T00:00:00Z");
+        }
 
         return true;
     }
 
+    private static long randomDate() {
+        return Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
+    }
+
+    private static long[] randomDateBounds(Rounding.DateTimeUnit unit) {
+        long b1 = randomDate();
+        if (randomBoolean()) {
+            // Sometimes use a fairly close date
+            return new long[] {b1, b1 + unit.extraLocalOffsetLookup() * between(1, 40)};
+        }
+        // Otherwise use a totally random date
+        long b2 = randomValueOtherThan(b1, RoundingTests::randomDate);
+        if (b1 < b2) {
+            return new long[] {b1, b2};
+        }
+        return new long[] {b2, b1};
+    }
     private static long dateBetween(long lower, long upper) {
         long dateBetween = randomLongBetween(lower, upper - 1);
         assert lower <= dateBetween && dateBetween < upper;
@@ -728,8 +1160,8 @@ public class RoundingTests extends ESTestCase {
     }
 
     private static long time(String time, ZoneId zone) {
-        TemporalAccessor accessor = DateFormatters.forPattern("date_optional_time").withZone(zone).parse(time);
-        return DateFormatters.toZonedDateTime(accessor).toInstant().toEpochMilli();
+        TemporalAccessor accessor = DateFormatter.forPattern("date_optional_time").withZone(zone).parse(time);
+        return DateFormatters.from(accessor).toInstant().toEpochMilli();
     }
 
     private static Matcher<Long> isDate(final long expected, ZoneId tz) {

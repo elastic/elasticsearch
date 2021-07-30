@@ -1,0 +1,55 @@
+[[index-rollover]]
+=== Rollover
+
+When indexing time series data like logs or metrics, you can't write to a single index indefinitely. 
+To meet your indexing and search performance requirements and manage resource usage, 
+you write to an index until some threshold is met and 
+then create a new index and start writing to it instead. 
+Using rolling indices enables you to:
+
+* Optimize the active index for high ingest rates on high-performance _hot_ nodes.
+* Optimize for search performance on _warm_ nodes.
+* Shift older, less frequently accessed data to less expensive _cold_ nodes,
+* Delete data according to your retention policies by removing entire indices.
+
+We recommend using <<indices-create-data-stream, data streams>> to manage time series
+data. Data streams automatically track the write index while keeping configuration to a minimum.
+
+Each data stream requires an <<index-templates,index template>> that contains:
+
+* A name or wildcard (`*`) pattern for the data stream.
+
+* The data stream's timestamp field. This field must be mapped as a
+  <<date,`date`>> or <<date_nanos,`date_nanos`>> field data type and must be
+  included in every document indexed to the data stream.
+  
+  * The mappings and settings applied to each backing index when it's created.
+
+Data streams are designed for append-only data, where the data stream name
+can be used as the operations (read, write, rollover, shrink etc.) target.
+If your use case requires data to be updated in place, you can instead manage
+your time series data using <<alias,index aliases>>. However, there are a few
+more configuration steps and concepts:
+
+* An _index template_ that specifies the settings for each new index in the series.
+You optimize this configuration for ingestion, typically using as many shards as you have hot nodes.
+* An _index alias_ that references the entire set of indices. 
+* A single index designated as the _write index_.
+This is the active index that handles all write requests.
+On each rollover, the new index becomes the write index.
+
+[discrete]
+[role="xpack"]
+[testenv="basic"]
+[[ilm-automatic-rollover]]
+=== Automatic rollover
+
+{ilm-init} enables you to automatically roll over to a new index based
+on the index size, document count, or age. When a rollover is triggered, a new
+index is created, the write alias is updated to point to the new index, and all
+subsequent updates are written to the new index.
+
+TIP: Rolling over to a new index based on size, document count, or age is preferable
+to time-based rollovers. Rolling over at an arbitrary time often results in
+many small indices, which can have a negative impact on performance and
+resource usage.

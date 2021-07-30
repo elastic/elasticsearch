@@ -1,60 +1,58 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.client.googleapis.GoogleUtils;
+import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
-import com.google.api.client.http.javanet.DefaultConnectionFactory;
 import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.util.SecurityUtils;
+import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
+import com.google.cloud.ServiceOptions;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.Maps;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
+import java.security.KeyStore;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.emptyMap;
 
 public class GoogleCloudStorageService {
-    
+
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageService.class);
+
+    private volatile Map<String, GoogleCloudStorageClientSettings> clientSettings = emptyMap();
 
     /**
      * Dictionary of client instances. Client instances are built lazily from the
-     * latest settings.
+     * latest settings. Each repository has its own client instance identified by
+     * the repository name.
      */
-    private final AtomicReference<Map<String, LazyInitializable<Storage, IOException>>> clientsCache = new AtomicReference<>(emptyMap());
+    private volatile Map<String, Storage> clientCache = emptyMap();
 
     /**
      * Refreshes the client settings and clears the client cache. Subsequent calls to
@@ -64,16 +62,8 @@ public class GoogleCloudStorageService {
      * @param clientsSettings the new settings used for building clients for subsequent requests
      */
     public synchronized void refreshAndClearCache(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
-        // build the new lazy clients
-        final MapBuilder<String, LazyInitializable<Storage, IOException>> newClientsCache = MapBuilder.newMapBuilder();
-        for (final Map.Entry<String, GoogleCloudStorageClientSettings> entry : clientsSettings.entrySet()) {
-            newClientsCache.put(entry.getKey(),
-                    new LazyInitializable<Storage, IOException>(() -> createClient(entry.getKey(), entry.getValue())));
-        }
-        // make the new clients available
-        final Map<String, LazyInitializable<Storage, IOException>> oldClientCache = clientsCache.getAndSet(newClientsCache.immutableMap());
-        // release old clients
-        oldClientCache.values().forEach(LazyInitializable::reset);
+        this.clientCache = emptyMap();
+        this.clientSettings = Maps.ofEntries(clientsSettings.entrySet());
     }
 
     /**
@@ -84,35 +74,96 @@ public class GoogleCloudStorageService {
      * method.
      *
      * @param clientName name of the client settings used to create the client
+     * @param repositoryName name of the repository that would use the client
+     * @param stats the stats collector used to gather information about the underlying SKD API calls.
      * @return a cached client storage instance that can be used to manage objects
      *         (blobs)
      */
-    public Storage client(final String clientName) throws IOException {
-        final LazyInitializable<Storage, IOException> lazyClient = clientsCache.get().get(clientName);
-        if (lazyClient == null) {
-            throw new IllegalArgumentException("Unknown client name [" + clientName + "]. Existing client configs: "
-                    + Strings.collectionToDelimitedString(clientsCache.get().keySet(), ","));
+    public Storage client(final String clientName,
+                          final String repositoryName,
+                          final GoogleCloudStorageOperationsStats stats) throws IOException {
+        {
+            final Storage storage = clientCache.get(repositoryName);
+            if (storage != null) {
+                return storage;
+            }
         }
-        return lazyClient.getOrCompute();
+        synchronized (this) {
+            final Storage existing = clientCache.get(repositoryName);
+
+            if (existing != null) {
+                return existing;
+            }
+
+            final GoogleCloudStorageClientSettings settings = clientSettings.get(clientName);
+
+            if (settings == null) {
+                throw new IllegalArgumentException("Unknown client name [" + clientName + "]. Existing client configs: "
+                    + Strings.collectionToDelimitedString(clientSettings.keySet(), ","));
+            }
+
+            logger.debug(() -> new ParameterizedMessage("creating GCS client with client_name [{}], endpoint [{}]", clientName,
+                settings.getHost()));
+            final Storage storage = createClient(settings, stats);
+            clientCache = Maps.copyMapWithAddedEntry(clientCache, repositoryName, storage);
+            return storage;
+        }
+    }
+
+    synchronized void closeRepositoryClient(String repositoryName) {
+        clientCache = Maps.copyMapWithRemovedEntry(clientCache, repositoryName);
     }
 
     /**
      * Creates a client that can be used to manage Google Cloud Storage objects. The client is thread-safe.
      *
-     * @param clientName name of client settings to use, including secure settings
-     * @param clientSettings name of client settings to use, including secure settings
+     * @param clientSettings client settings to use, including secure settings
+     * @param stats the stats collector to use by the underlying SDK
      * @return a new client storage instance that can be used to manage objects
      *         (blobs)
      */
-    private Storage createClient(final String clientName, final GoogleCloudStorageClientSettings clientSettings) throws IOException {
-        logger.debug(() -> new ParameterizedMessage("creating GCS client with client_name [{}], endpoint [{}]", clientName,
-                clientSettings.getHost()));
-        final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> createHttpTransport(clientSettings.getHost()));
-        final HttpTransportOptions httpTransportOptions = HttpTransportOptions.newBuilder()
-                .setConnectTimeout(toTimeout(clientSettings.getConnectTimeout()))
-                .setReadTimeout(toTimeout(clientSettings.getReadTimeout()))
-                .setHttpTransportFactory(() -> httpTransport)
-                .build();
+    private Storage createClient(GoogleCloudStorageClientSettings clientSettings,
+                                 GoogleCloudStorageOperationsStats stats) throws IOException {
+        final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> {
+            final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
+            // requires java.lang.RuntimePermission "setFactory"
+            // Pin the TLS trust certificates.
+            // We manually load the key store from jks instead of using GoogleUtils.getCertificateTrustStore() because that uses a .p12
+            // store format not compatible with FIPS mode.
+            final KeyStore certTrustStore = SecurityUtils.getJavaKeyStore();
+            try (InputStream keyStoreStream = GoogleUtils.class.getResourceAsStream("google.jks")) {
+                SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");
+            }
+            builder.trustCertificates(certTrustStore);
+            return builder.build();
+        });
+
+        final GoogleCloudStorageHttpStatsCollector httpStatsCollector = new GoogleCloudStorageHttpStatsCollector(stats);
+
+        final HttpTransportOptions httpTransportOptions = new HttpTransportOptions(HttpTransportOptions.newBuilder()
+            .setConnectTimeout(toTimeout(clientSettings.getConnectTimeout()))
+            .setReadTimeout(toTimeout(clientSettings.getReadTimeout()))
+            .setHttpTransportFactory(() -> httpTransport)) {
+
+            @Override
+            public HttpRequestInitializer getHttpRequestInitializer(ServiceOptions<?, ?> serviceOptions) {
+                HttpRequestInitializer requestInitializer = super.getHttpRequestInitializer(serviceOptions);
+
+                return (httpRequest) -> {
+                    if (requestInitializer != null)
+                        requestInitializer.initialize(httpRequest);
+
+                    httpRequest.setResponseInterceptor(httpStatsCollector);
+                };
+            }
+        };
+
+        final StorageOptions storageOptions = createStorageOptions(clientSettings, httpTransportOptions);
+        return storageOptions.getService();
+    }
+
+    StorageOptions createStorageOptions(final GoogleCloudStorageClientSettings clientSettings,
+                                        final HttpTransportOptions httpTransportOptions) {
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
                 .setTransportOptions(httpTransportOptions)
                 .setHeaderProvider(() -> {
@@ -127,10 +178,37 @@ public class GoogleCloudStorageService {
         }
         if (Strings.hasLength(clientSettings.getProjectId())) {
             storageOptionsBuilder.setProjectId(clientSettings.getProjectId());
+        } else {
+            String defaultProjectId = null;
+            try {
+                defaultProjectId = ServiceOptions.getDefaultProjectId();
+                if (defaultProjectId != null) {
+                    storageOptionsBuilder.setProjectId(defaultProjectId);
+                }
+            } catch (Exception e) {
+                logger.warn("failed to load default project id", e);
+            }
+            if (defaultProjectId == null) {
+                try {
+                    // fallback to manually load project ID here as the above ServiceOptions method has the metadata endpoint hardcoded,
+                    // which makes it impossible to test
+                    SocketAccess.doPrivilegedVoidIOException(() -> {
+                        final String projectId = getDefaultProjectId();
+                        if (projectId != null) {
+                            storageOptionsBuilder.setProjectId(projectId);
+                        }
+                    });
+                } catch (Exception e) {
+                    logger.warn("failed to load default project id fallback", e);
+                }
+            }
         }
         if (clientSettings.getCredential() == null) {
-            logger.warn("\"Application Default Credentials\" are not supported out of the box."
-                    + " Additional file system permissions have to be granted to the plugin.");
+            try {
+                storageOptionsBuilder.setCredentials(GoogleCredentials.getApplicationDefault());
+            } catch (Exception e) {
+                logger.warn("failed to load Application Default Credentials", e);
+            }
         } else {
             ServiceAccountCredentials serviceAccountCredentials = clientSettings.getCredential();
             // override token server URI
@@ -142,55 +220,31 @@ public class GoogleCloudStorageService {
             }
             storageOptionsBuilder.setCredentials(serviceAccountCredentials);
         }
-        return storageOptionsBuilder.build().getService();
+        return storageOptionsBuilder.build();
     }
 
     /**
-     * Pins the TLS trust certificates and, more importantly, overrides connection
-     * URLs in the case of a custom endpoint setting because some connections don't
-     * fully honor this setting (bugs in the SDK). The default connection factory
-     * opens a new connection for each request. This is required for the storage
-     * instance to be thread-safe.
-     **/
-    private static HttpTransport createHttpTransport(final String endpoint) throws Exception {
-        final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
-        // requires java.lang.RuntimePermission "setFactory"
-        builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
-        if (Strings.hasLength(endpoint)) {
-            final URL endpointUrl = URI.create(endpoint).toURL();
-            // it is crucial to open a connection for each URL (see {@code
-            // DefaultConnectionFactory#openConnection}) instead of reusing connections,
-            // because the storage instance has to be thread-safe as it is cached.
-            builder.setConnectionFactory(new DefaultConnectionFactory() {
-                @Override
-                public HttpURLConnection openConnection(final URL originalUrl) throws IOException {
-                    // test if the URL is built correctly, ie following the `host` setting
-                    if (originalUrl.getHost().equals(endpointUrl.getHost()) && originalUrl.getPort() == endpointUrl.getPort()
-                            && originalUrl.getProtocol().equals(endpointUrl.getProtocol())) {
-                        return super.openConnection(originalUrl);
-                    }
-                    // override connection URLs because some don't follow the config. See
-                    // https://github.com/GoogleCloudPlatform/google-cloud-java/issues/3254 and
-                    // https://github.com/GoogleCloudPlatform/google-cloud-java/issues/3255
-                    URI originalUri;
-                    try {
-                        originalUri = originalUrl.toURI();
-                    } catch (final URISyntaxException e) {
-                        throw new RuntimeException(e);
-                    }
-                    String overridePath = "/";
-                    if (originalUri.getRawPath() != null) {
-                        overridePath = originalUri.getRawPath();
-                    }
-                    if (originalUri.getRawQuery() != null) {
-                        overridePath += "?" + originalUri.getRawQuery();
-                    }
-                    return super.openConnection(
-                            new URL(endpointUrl.getProtocol(), endpointUrl.getHost(), endpointUrl.getPort(), overridePath));
-                }
-            });
+     * This method imitates what MetadataConfig.getProjectId() does, but does not have the endpoint hardcoded.
+     */
+    @SuppressForbidden(reason = "ok to open connection here")
+    private static String getDefaultProjectId() throws IOException {
+        String metaHost = System.getenv("GCE_METADATA_HOST");
+        if (metaHost == null) {
+            metaHost = "metadata.google.internal";
         }
-        return builder.build();
+        URL url = new URL("http://" + metaHost + "/computeMetadata/v1/project/project-id");
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setConnectTimeout(5000);
+        connection.setReadTimeout(5000);
+        connection.setRequestProperty("Metadata-Flavor", "Google");
+        try (InputStream input = connection.getInputStream()) {
+            if (connection.getResponseCode() == 200) {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, UTF_8))) {
+                    return reader.readLine();
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -210,5 +264,4 @@ public class GoogleCloudStorageService {
         }
         return Math.toIntExact(timeout.getMillis());
     }
-
 }

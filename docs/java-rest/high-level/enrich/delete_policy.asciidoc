@@ -1,0 +1,31 @@
+--
+:api: enrich-delete-policy
+:request: DeletePolicyRequest
+:response: AcknowledgedResponse
+--
+
+[id="{upid}-{api}"]
+=== Delete Policy API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Delete Policy API deletes an enrich policy from Elasticsearch.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the delete policy request was acknowledged.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether delete policy request was acknowledged.
+
+include::../execution.asciidoc[]

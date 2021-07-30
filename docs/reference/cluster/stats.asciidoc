@@ -1,19 +1,1252 @@
 [[cluster-stats]]
-== Cluster Stats
+=== Cluster stats API
+++++
+<titleabbrev>Cluster stats</titleabbrev>
+++++
 
-The Cluster Stats API allows to retrieve statistics from a cluster wide perspective.
-The API returns basic index metrics (shard numbers, store size, memory usage) and
-information about the current nodes that form the cluster (number, roles, os, jvm
-versions, memory usage, cpu and installed plugins).
+Returns cluster statistics.
 
-[source,js]
+
+[[cluster-stats-api-request]]
+==== {api-request-title}
+
+`GET /_cluster/stats` +
+
+`GET /_cluster/stats/nodes/<node_filter>`
+
+[[cluster-stats-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cluster-stats-api-desc]]
+==== {api-description-title}
+
+The Cluster Stats API allows to retrieve statistics from a cluster wide
+perspective. The API returns basic index metrics (shard numbers, store size,
+memory usage) and information about the current nodes that form the cluster
+(number, roles, os, jvm versions, memory usage, cpu and installed plugins).
+
+
+[[cluster-stats-api-path-params]]
+==== {api-path-parms-title}
+
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-filter]
+
+
+[[cluster-stats-api-query-params]]
+==== {api-query-parms-title}
+
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period to wait for each node to respond. If a node does not respond before its
+timeout expires, the response does not include its stats. However, timed out
+nodes are included in the response's `_nodes.failed` property. Defaults to no
+timeout.
+
+[role="child_attributes"]
+[[cluster-stats-api-response-body]]
+==== {api-response-body-title}
+
+`_nodes`::
+(object)
+Contains statistics about the number of nodes selected by the request's
+<<cluster-nodes,node filters>>.
++
+.Properties of `_nodes`
+[%collapsible%open]
+====
+`total`::
+(integer)
+Total number of nodes selected by the request.
+
+`successful`::
+(integer)
+Number of nodes that responded successfully to the request.
+
+`failed`::
+(integer)
+Number of nodes that rejected the request or failed to respond. If this value
+is not `0`, a reason for the rejection or failure is included in the response.
+====
+
+`cluster_name`::
+(string)
+Name of the cluster, based on the <<cluster-name>> setting.
+
+`cluster_uuid`::
+(string)
+Unique identifier for the cluster.
+
+`timestamp`::
+(integer)
+{wikipedia}/Unix_time[Unix timestamp], in milliseconds, of
+the last time the cluster statistics were refreshed.
+
+`status`::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
++
+See <<cluster-health>>.
+
+[[cluster-stats-api-response-body-indices]]
+`indices`::
+(object)
+Contains statistics about indices with shards assigned to selected nodes.
++
+.Properties of `indices`
+[%collapsible%open]
+====
+`count`::
+(integer)
+Total number of indices with shards assigned to selected nodes.
+
+`shards`::
+(object)
+Contains statistics about shards assigned to selected nodes.
++
+.Properties of `shards`
+[%collapsible%open]
+=====
+`total`::
+(integer)
+Total number of shards assigned to selected nodes.
+
+`primaries`::
+(integer)
+Number of primary shards assigned to selected nodes.
+
+`replication`::
+(float)
+Ratio of replica shards to primary shards across all selected nodes.
+
+`index`::
+(object)
+Contains statistics about shards assigned to selected nodes.
++
+.Properties of `index`
+[%collapsible%open]
+======
+`shards`::
+(object)
+Contains statistics about the number of shards assigned to selected nodes.
++
+.Properties of `shards`
+[%collapsible%open]
+=======
+`min`::
+(integer)
+Minimum number of shards in an index, counting only shards assigned to
+selected nodes.
+
+`max`::
+(integer)
+Maximum number of shards in an index, counting only shards assigned to
+selected nodes.
+
+`avg`::
+(float)
+Mean number of shards in an index, counting only shards assigned to
+selected nodes.
+=======
+
+`primaries`::
+(object)
+Contains statistics about the number of primary shards assigned to selected
+nodes.
++
+.Properties of `primaries`
+[%collapsible%open]
+=======
+`min`::
+(integer)
+Minimum number of primary shards in an index, counting only shards assigned
+to selected nodes.
+
+`max`::
+(integer)
+Maximum number of primary shards in an index, counting only shards assigned
+to selected nodes.
+
+`avg`::
+(float)
+Mean number of primary shards in an index, counting only shards assigned to
+selected nodes.
+=======
+
+`replication`::
+(object)
+Contains statistics about the number of replication shards assigned to selected
+nodes.
++
+.Properties of `replication`
+[%collapsible%open]
+=======
+`min`::
+(float)
+Minimum replication factor in an index, counting only shards assigned to
+selected nodes.
+
+`max`::
+(float)
+Maximum replication factor in an index, counting only shards assigned to
+selected nodes.
+
+`avg`::
+(float)
+Mean replication factor in an index, counting only shards assigned to selected
+nodes.
+=======
+======
+=====
+
+`docs`::
+(object)
+Contains counts for documents in selected nodes.
++
+.Properties of `docs`
+[%collapsible%open]
+=====
+`count`::
+(integer)
+Total number of non-deleted documents across all primary shards assigned to
+selected nodes.
++
+This number is based on documents in Lucene segments and may include documents
+from nested fields.
+
+`deleted`::
+(integer)
+Total number of deleted documents across all primary shards assigned to
+selected nodes.
++
+This number is based on documents in Lucene segments. {es} reclaims the disk
+space of deleted Lucene documents when a segment is merged.
+=====
+
+`store`::
+(object)
+Contains statistics about the size of shards assigned to selected nodes.
++
+.Properties of `store`
+[%collapsible%open]
+=====
+`size`::
+(<<byte-units, byte units>>)
+Total size of all shards assigned to selected nodes.
+
+`size_in_bytes`::
+(integer)
+Total size, in bytes, of all shards assigned to selected nodes.
+
+`total_data_set_size`::
+(<<byte-units, byte units>>)
+Total data set size of all shards assigned to selected nodes.
+This includes the size of shards not stored fully on the nodes, such as the
+cache for <<partially-mounted,partially mounted indices>>.
+
+`total_data_set_size_in_bytes`::
+(integer)
+Total data set size, in bytes, of all shards assigned to selected nodes.
+This includes the size of shards not stored fully on the nodes, such as the
+cache for <<partially-mounted,partially mounted indices>>.
+
+`reserved`::
+(<<byte-units,byte value>>)
+A prediction of how much larger the shard stores will eventually grow due to
+ongoing peer recoveries, restoring snapshots, and similar activities.
+
+`reserved_in_bytes`::
+(integer)
+A prediction, in bytes, of how much larger the shard stores will eventually
+grow due to ongoing peer recoveries, restoring snapshots, and similar
+activities.
+=====
+
+`fielddata`::
+(object)
+Contains statistics about the <<modules-fielddata, field data cache>> of selected nodes.
++
+.Properties of `fielddata`
+[%collapsible%open]
+=====
+`memory_size`::
+(<<byte-units, byte units>>)
+Total amount of memory used for the field data cache across all shards
+assigned to selected nodes.
+
+`memory_size_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for the field data cache across all
+shards assigned to selected nodes.
+
+`evictions`::
+(integer)
+Total number of evictions from the field data cache across all shards assigned
+to selected nodes.
+=====
+
+`query_cache`::
+(object)
+Contains statistics about the query cache of selected nodes.
++
+.Properties of `query_cache`
+[%collapsible%open]
+=====
+`memory_size`::
+(<<byte-units, byte units>>)
+Total amount of memory used for the query cache across all shards assigned to
+selected nodes.
+
+`memory_size_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for the query cache across all shards
+assigned to selected nodes.
+
+`total_count`::
+(integer)
+Total count of hits and misses in the query cache across all shards assigned to
+selected nodes.
+
+`hit_count`::
+(integer)
+Total count of query cache hits across all shards assigned to selected nodes.
+
+`miss_count`::
+(integer)
+Total count of query cache misses across all shards assigned to selected nodes.
+
+`cache_size`::
+(integer)
+Total number of entries currently in the query cache across all shards assigned
+to selected nodes.
+
+`cache_count`::
+(integer)
+Total number of entries added to the query cache across all shards assigned
+to selected nodes. This number includes current and evicted entries.
+
+`evictions`::
+(integer)
+Total number of query cache evictions across all shards assigned to selected
+nodes.
+=====
+
+`completion`::
+(object)
+Contains statistics about memory used for completion in selected nodes.
++
+.Properties of `completion`
+[%collapsible%open]
+=====
+`size`::
+(<<byte-units, byte units>>)
+Total amount of memory used for completion across all shards assigned to
+selected nodes.
+
+`size_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for completion across all shards assigned
+to selected nodes.
+=====
+
+`segments`::
+(object)
+Contains statistics about segments in selected nodes.
++
+.Properties of `segments`
+[%collapsible%open]
+=====
+`count`::
+(integer)
+Total number of segments across all shards assigned to selected nodes.
+
+`memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for segments across all shards assigned to selected
+nodes.
+
+`memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for segments across all shards assigned to
+selected nodes.
+
+`terms_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for terms across all shards assigned to selected
+nodes.
+
+`terms_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for terms across all shards assigned to
+selected nodes.
+
+`stored_fields_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for stored fields across all shards assigned to
+selected nodes.
+
+`stored_fields_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for stored fields across all shards
+assigned to selected nodes.
+
+`term_vectors_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for term vectors across all shards assigned to
+selected nodes.
+
+`term_vectors_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for term vectors across all shards
+assigned to selected nodes.
+
+`norms_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for normalization factors across all shards assigned
+to selected nodes.
+
+`norms_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for normalization factors across all
+shards assigned to selected nodes.
+
+`points_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for points across all shards assigned to selected
+nodes.
+
+`points_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for points across all shards assigned to
+selected nodes.
+
+`doc_values_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used for doc values across all shards assigned to
+selected nodes.
+
+`doc_values_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used for doc values across all shards assigned
+to selected nodes.
+
+`index_writer_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used by all index writers across all shards assigned to
+selected nodes.
+
+`index_writer_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used by all index writers across all shards
+assigned to selected nodes.
+
+`version_map_memory`::
+(<<byte-units, byte units>>)
+Total amount of memory used by all version maps across all shards assigned to
+selected nodes.
+
+`version_map_memory_in_bytes`::
+(integer)
+Total amount, in bytes, of memory used by all version maps across all shards
+assigned to selected nodes.
+
+`fixed_bit_set`::
+(<<byte-units, byte units>>)
+Total amount of memory used by fixed bit sets across all shards assigned to
+selected nodes.
++
+Fixed bit sets are used for nested object field types and
+type filters for <<parent-join,join>> fields.
+
+`fixed_bit_set_memory_in_bytes`::
+(integer)
+Total amount of memory, in bytes, used by fixed bit sets across all shards
+assigned to selected nodes.
+
+`max_unsafe_auto_id_timestamp`::
+(integer)
+{wikipedia}/Unix_time[Unix timestamp], in milliseconds, of
+the most recently retried indexing request.
+
+`file_sizes`::
+(object)
+This object is not populated by the cluster stats API.
++
+To get information on segment files, use the <<cluster-nodes-stats,node stats
+API>>.
+=====
+
+`mappings`::
+(object)
+Contains statistics about <<mapping,field mappings>> in selected nodes.
++
+.Properties of `mappings`
+[%collapsible%open]
+=====
+`field_types`::
+(array of objects)
+Contains statistics about <<mapping-types,field data types>> used in selected
+nodes.
++
+.Properties of `field_types` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Field data type used in selected nodes.
+
+`count`::
+(integer)
+Number of fields mapped to the field data type in selected nodes.
+
+`index_count`::
+(integer)
+Number of indices containing a mapping of the field data type in selected nodes.
+
+`script_count`::
+(integer)
+Number of fields that declare a script.
+
+`lang`::
+(array of strings)
+Script languages used for the optional scripts
+
+`lines_max`::
+(integer)
+Maximum number of lines for a single field script
+
+`lines_total`::
+(integer)
+Total number of lines for the scripts
+
+`chars_max`::
+(integer)
+Maximum number of characters for a single field script
+
+`chars_total`::
+(integer)
+Total number of characters for the scripts
+
+`source_max`::
+(integer)
+Maximum number of accesses to _source for a single field script
+
+`source_total`::
+(integer)
+Total number of accesses to _source for the scripts
+
+`doc_max`::
+(integer)
+Maximum number of accesses to doc_values for a single field script
+
+`doc_total`::
+(integer)
+Total number of accesses to doc_values for the scripts
+======
+
+`runtime_field_types`::
+(array of objects)
+Contains statistics about <<runtime-mapping-fields, runtime field data types>> used in selected
+nodes.
++
+.Properties of `runtime_field_types` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Field data type used in selected nodes.
+
+`count`::
+(integer)
+Number of runtime fields mapped to the field data type in selected nodes.
+
+`index_count`::
+(integer)
+Number of indices containing a mapping of the runtime field data type in selected nodes.
+
+`scriptless_count`::
+(integer)
+Number of runtime fields that don't declare a script.
+
+`shadowed_count`::
+(integer)
+Number of runtime fields that shadow an indexed field.
+
+`lang`::
+(array of strings)
+Script languages used for the runtime fields scripts
+
+`lines_max`::
+(integer)
+Maximum number of lines for a single runtime field script
+
+`lines_total`::
+(integer)
+Total number of lines for the scripts that define the current runtime field data type
+
+`chars_max`::
+(integer)
+Maximum number of characters for a single runtime field script
+
+`chars_total`::
+(integer)
+Total number of characters for the scripts that define the current runtime field data type
+
+`source_max`::
+(integer)
+Maximum number of accesses to _source for a single runtime field script
+
+`source_total`::
+(integer)
+Total number of accesses to _source for the scripts that define the current runtime field data type
+
+`doc_max`::
+(integer)
+Maximum number of accesses to doc_values for a single runtime field script
+
+`doc_total`::
+(integer)
+Total number of accesses to doc_values for the scripts that define the current runtime field data type
+
+======
+=====
+
+`analysis`::
+(object)
+Contains statistics about <<analyzer-anatomy,analyzers and analyzer components>>
+used in selected nodes.
++
+.Properties of `analysis`
+[%collapsible%open]
+=====
+`char_filter_types`::
+(array of objects)
+Contains statistics about <<analysis-charfilters,character filter>> types used
+in selected nodes.
++
+.Properties of `char_filter_types` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Character filter type used in selected nodes.
+
+`count`::
+(integer)
+Number of analyzers or normalizers using the character filter type in selected
+nodes.
+
+`index_count`::
+(integer)
+Number of indices the character filter type in selected nodes.
+======
+
+`tokenizer_types`::
+(array of objects)
+Contains statistics about <<analysis-tokenizers,tokenizer>> types used in
+selected nodes.
++
+.Properties of `tokenizer_types` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Tokenizer type used in selected nodes.
+
+`count`::
+(integer)
+Number of analyzers or normalizers using the tokenizer type in selected nodes.
+
+`index_count`::
+(integer)
+Number of indices using the tokenizer type in selected nodes.
+======
+
+`filter_types`::
+(array of objects)
+Contains statistics about <<analysis-tokenfilters,token filter>> types used in
+selected nodes.
++
+.Properties of `filter_types` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Token filter type used in selected nodes.
+
+`count`::
+(integer)
+Number of analyzers or normalizers using the token filter type in selected
+nodes.
+
+`index_count`::
+(integer)
+Number of indices using the token filter type in selected nodes.
+======
+
+`analyzer_types`::
+(array of objects)
+Contains statistics about <<analyzer-anatomy,analyzer>> types used in selected
+nodes.
++
+.Properties of `analyzer_types` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Analyzer type used in selected nodes.
+
+`count`::
+(integer)
+Occurrences of the analyzer type in selected nodes.
+
+`index_count`::
+(integer)
+Number of indices using the analyzer type in selected nodes.
+======
+
+`built_in_char_filters`::
+(array of objects)
+Contains statistics about built-in <<analysis-charfilters,character filters>>
+used in selected nodes.
++
+.Properties of `built_in_char_filters` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Built-in character filter used in selected nodes.
+
+`count`::
+(integer)
+Number of analyzers or normalizers using the built-in character filter in
+selected nodes.
+
+`index_count`::
+(integer)
+Number of indices using the built-in character filter in selected nodes.
+======
+
+`built_in_tokenizers`::
+(array of objects)
+Contains statistics about built-in <<analysis-tokenizers,tokenizers>> used in
+selected nodes.
++
+.Properties of `built_in_tokenizers` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Built-in tokenizer used in selected nodes.
+
+`count`::
+(integer)
+Number of analyzers or normalizers using the built-in tokenizer in selected
+nodes.
+
+`index_count`::
+(integer)
+Number of indices using the built-in tokenizer in selected nodes.
+======
+
+`built_in_filters`::
+(array of objects)
+Contains statistics about built-in <<analysis-tokenfilters,token filters>> used
+in selected nodes.
++
+.Properties of `built_in_filters` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Built-in token filter used in selected nodes.
+
+`count`::
+(integer)
+Number of analyzers or normalizers using the built-in token filter in selected
+nodes.
+
+`index_count`::
+(integer)
+Number of indices using the built-in token filter in selected nodes.
+======
+
+`built_in_analyzers`::
+(array of objects)
+Contains statistics about built-in <<analysis-analyzers,analyzers>> used in
+selected nodes.
++
+.Properties of `built_in_analyzers` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Built-in analyzer used in selected nodes.
+
+`count`::
+(integer)
+Occurrences of the built-in analyzer in selected nodes.
+
+`index_count`::
+(integer)
+Number of indices using the built-in analyzer in selected nodes.
+======
+=====
+====
+
+[[cluster-stats-api-response-body-nodes]]
+`nodes`::
+(object)
+Contains statistics about nodes selected by the request's <<cluster-nodes,node
+filters>>.
++
+.Properties of `nodes`
+[%collapsible%open]
+====
+`count`::
+(object)
+Contains counts for nodes selected by the request's <<cluster-nodes,node
+filters>>.
++
+.Properties of `count`
+[%collapsible%open]
+=====
+`total`::
+(integer)
+Total number of selected nodes.
+
+`coordinating_only`::
+(integer)
+Number of selected nodes without a <<modules-node,role>>. These nodes are
+considered <<coordinating-only-node,coordinating only>> nodes.
+
+`<role>`::
+(integer)
+Number of selected nodes with the role. For a list of roles, see
+<<modules-node>>.
+=====
+
+`versions`::
+(array of strings)
+Array of {es} versions used on selected nodes.
+
+`os`::
+(object)
+Contains statistics about the operating systems used by selected nodes.
++
+.Properties of `os`
+[%collapsible%open]
+=====
+`available_processors`::
+(integer)
+Number of processors available to JVM across all selected nodes.
+
+`allocated_processors`::
+(integer)
+Number of processors used to calculate thread pool size across all selected
+nodes.
++
+This number can be set with the `processors` setting of a node and defaults to
+the number of processors reported by the OS. In both cases, this number will
+never be larger than `32`.
+
+`names`::
+(array of objects)
+Contains statistics about operating systems used by selected nodes.
++
+.Properties of `names`
+[%collapsible%open]
+======
+`name`:::
+(string)
+Name of an operating system used by one or more selected nodes.
+
+`count`:::
+(string)
+Number of selected nodes using the operating system.
+======
+
+`pretty_names`::
+(array of objects)
+Contains statistics about operating systems used by selected nodes.
++
+.Properties of `pretty_names`
+[%collapsible%open]
+======
+`pretty_name`:::
+(string)
+Human-readable name of an operating system used by one or more selected nodes.
+
+`count`:::
+(string)
+Number of selected nodes using the operating system.
+======
+
+`architectures`::
+(array of objects)
+Contains statistics about processor architectures (for example, x86_64 or
+aarch64) used by selected nodes.
++
+.Properties of `architectures`
+[%collapsible%open]
+======
+`arch`:::
+(string)
+Name of an architecture used by one or more selected nodes.
+
+`count`:::
+(string)
+Number of selected nodes using the architecture.
+======
+
+`mem`::
+(object)
+Contains statistics about memory used by selected nodes.
++
+.Properties of `mem`
+[%collapsible%open]
+======
+`total`::
+(<<byte-units, byte units>>)
+Total amount of physical memory across all selected nodes.
+
+`total_in_bytes`::
+(integer)
+Total amount, in bytes, of physical memory across all selected nodes.
+
+`free`::
+(<<byte-units, byte units>>)
+Amount of free physical memory across all selected nodes.
+
+`free_in_bytes`::
+(integer)
+Amount, in bytes, of free physical memory across all selected nodes.
+
+`used`::
+(<<byte-units, byte units>>)
+Amount of physical memory in use across all selected nodes.
+
+`used_in_bytes`::
+(integer)
+Amount, in bytes, of physical memory in use across all selected nodes.
+
+`free_percent`::
+(integer)
+Percentage of free physical memory across all selected nodes.
+
+`used_percent`::
+(integer)
+Percentage of physical memory in use across all selected nodes.
+======
+=====
+
+`process`::
+(object)
+Contains statistics about processes used by selected nodes.
++
+.Properties of `process`
+[%collapsible%open]
+=====
+`cpu`::
+(object)
+Contains statistics about CPU used by selected nodes.
++
+.Properties of `cpu`
+[%collapsible%open]
+======
+`percent`::
+(integer)
+Percentage of CPU used across all selected nodes. Returns `-1` if
+not supported.
+======
+
+`open_file_descriptors`::
+(object)
+Contains statistics about open file descriptors in selected nodes.
++
+.Properties of `open_file_descriptors`
+[%collapsible%open]
+======
+`min`::
+(integer)
+Minimum number of concurrently open file descriptors across all selected nodes.
+Returns `-1` if not supported.
+
+`max`::
+(integer)
+Maximum number of concurrently open file descriptors allowed across all selected
+nodes. Returns `-1` if not supported.
+
+`avg`::
+(integer)
+Average number of concurrently open file descriptors. Returns `-1` if not
+supported.
+======
+=====
+
+`jvm`::
+(object)
+Contains statistics about the Java Virtual Machines (JVMs) used by selected
+nodes.
++
+.Properties of `jvm`
+[%collapsible%open]
+=====
+`max_uptime`::
+(<<time-units,time unit>>)
+Uptime duration since JVM last started.
+
+`max_uptime_in_millis`::
+(integer)
+Uptime duration, in milliseconds, since JVM last started.
+
+`versions`::
+(array of objects)
+Contains statistics about the JVM versions used by selected nodes.
++
+.Properties of `versions`
+[%collapsible%open]
+======
+`version`::
+(string)
+Version of JVM used by one or more selected nodes.
+
+`vm_name`::
+(string)
+Name of the JVM.
+
+`vm_version`::
+(string)
+Full version number of JVM.
++
+The full version number includes a plus sign (`+`) followed by the build number.
+
+`vm_vendor`::
+(string)
+Vendor of the JVM.
+
+`bundled_jdk`::
+(Boolean)
+If `true`, the JVM includes a bundled Java Development Kit (JDK).
+
+`using_bundled_jdk`::
+(Boolean)
+If `true`, a bundled JDK is in use by JVM.
+
+`count`::
+(integer)
+Total number of selected nodes using JVM.
+======
+
+`mem`::
+(object)
+Contains statistics about memory used by selected nodes.
++
+.Properties of `mem`
+[%collapsible%open]
+======
+`heap_used`::
+(<<byte-units, byte units>>)
+Memory currently in use by the heap across all selected nodes.
+
+`heap_used_in_bytes`::
+(integer)
+Memory, in bytes, currently in use by the heap across all selected nodes.
+
+`heap_max`::
+(<<byte-units, byte units>>)
+Maximum amount of memory, in bytes, available for use by the heap across all
+selected nodes.
+
+`heap_max_in_bytes`::
+(integer)
+Maximum amount of memory, in bytes, available for use by the heap across all
+selected nodes.
+======
+
+`threads`::
+(integer)
+Number of active threads in use by JVM across all selected nodes.
+=====
+
+`fs`::
+(object)
+Contains statistics about file stores by selected nodes.
++
+.Properties of `fs`
+[%collapsible%open]
+=====
+`total`::
+(<<byte-units, byte units>>)
+Total size of all file stores across all selected nodes.
+
+`total_in_bytes`::
+(integer)
+Total size, in bytes, of all file stores across all seleced nodes.
+
+`free`::
+(<<byte-units, byte units>>)
+Amount of unallocated disk space in file stores across all selected nodes.
+
+`free_in_bytes`::
+(integer)
+Total number of unallocated bytes in file stores across all selected nodes.
+
+`available`::
+(<<byte-units, byte units>>)
+Total amount of disk space available to JVM in file
+stores across all selected nodes.
++
+Depending on OS or process-level restrictions, this amount may be less than
+`nodes.fs.free`. This is the actual amount of free disk space the selected {es}
+nodes can use.
+
+`available_in_bytes`::
+(integer)
+Total number of bytes available to JVM in file stores
+across all selected nodes.
++
+Depending on OS or process-level restrictions, this number may be less than
+`nodes.fs.free_in_byes`. This is the actual amount of free disk space the
+selected {es} nodes can use.
+=====
+
+`plugins`::
+(array of objects)
+Contains statistics about installed plugins and modules by selected nodes.
++
+If no plugins or modules are installed, this array is empty.
++
+.Properties of `plugins`
+[%collapsible%open]
+=====
+
+`<plugin>`::
+(object)
+Contains statistics about an installed plugin or module.
++
+.Properties of `<plugin>`
+[%collapsible%open]
+======
+`name`:::
+(string)
+Name of the {es} plugin.
+
+`version`:::
+(string)
+{es} version for which the plugin was built.
+
+`elasticsearch_version`:::
+(string)
+{es} version for which the plugin was built.
+
+`java_version`:::
+(string)
+Java version for which the plugin was built.
+
+`description`:::
+(string)
+Short description of the plugin.
+
+`classname`:::
+(string)
+Class name used as the plugin's entry point.
+
+`extended_plugins`:::
+(array of strings)
+An array of other plugins extended by this plugin through the Java Service
+Provider Interface (SPI).
++
+If this plugin extends no other plugins, this array is empty.
+
+`has_native_controller`:::
+(Boolean)
+If `true`, the plugin has a native controller process.
+======
+=====
+
+`network_types`::
+(object)
+Contains statistics about the transport and HTTP networks used by selected
+nodes.
++
+.Properties of `network_types`
+[%collapsible%open]
+=====
+`transport_types`::
+(object)
+Contains statistics about the transport network types used by selected nodes.
++
+.Properties of `transport_types`
+[%collapsible%open]
+======
+`<transport_type>`::
+(integer)
+Number of selected nodes using the transport type.
+======
+
+`http_types`::
+(object)
+Contains statistics about the HTTP network types used by selected nodes.
++
+.Properties of `http_types`
+[%collapsible%open]
+======
+`<http_type>`::
+(integer)
+Number of selected nodes using the HTTP type.
+======
+=====
+
+`discovery_types`::
+(object)
+Contains statistics about the <<modules-discovery-hosts-providers,discovery
+types>> used by selected nodes.
++
+.Properties of `discovery_types`
+[%collapsible%open]
+=====
+`<discovery_type>`::
+(integer)
+Number of selected nodes using the <<modules-discovery-hosts-providers,discovery
+type>> to find other nodes.
+=====
+
+`packaging_types`::
+(array of objects)
+Contains statistics about {es} distributions installed on selected nodes.
++
+.Properties of `packaging_types`
+[%collapsible%open]
+=====
+`flavor`:::
+(string)
+Type of {es} distribution, such as `default` or `OSS`, used by one or more
+selected nodes.
+
+`type`:::
+(string)
+File type, such as `tar` or `zip`, used for the distribution package.
+
+`count`:::
+(integer)
+Number of selected nodes using the distribution flavor and file type.
+=====
+====
+
+[[cluster-stats-api-example]]
+==== {api-examples-title}
+
+[source,console]
 --------------------------------------------------
 GET /_cluster/stats?human&pretty
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-Will return, for example:
+The API returns the following response:
+
 ["source","js",subs="attributes,callouts"]
 --------------------------------------------------
 {
@@ -56,7 +1289,11 @@ Will return, for example:
       },
       "store": {
          "size": "16.2kb",
-         "size_in_bytes": 16684
+         "size_in_bytes": 16684,
+         "total_data_set_size": "16.2kb",
+         "total_data_set_size_in_bytes": 16684,
+         "reserved": "0b",
+         "reserved_in_bytes": 0
       },
       "fielddata": {
          "memory_size": "0b",
@@ -80,19 +1317,19 @@ Will return, for example:
       "segments": {
          "count": 4,
          "memory": "8.6kb",
-         "memory_in_bytes": 8898,
-         "terms_memory": "6.3kb",
-         "terms_memory_in_bytes": 6522,
-         "stored_fields_memory": "1.2kb",
-         "stored_fields_memory_in_bytes": 1248,
+         "memory_in_bytes": 0,
+         "terms_memory": "0b",
+         "terms_memory_in_bytes": 0,
+         "stored_fields_memory": "0b",
+         "stored_fields_memory_in_bytes": 0,
          "term_vectors_memory": "0b",
          "term_vectors_memory_in_bytes": 0,
-         "norms_memory": "384b",
-         "norms_memory_in_bytes": 384,
+         "norms_memory": "0b",
+         "norms_memory_in_bytes": 0,
          "points_memory" : "0b",
          "points_memory_in_bytes" : 0,
-         "doc_values_memory": "744b",
-         "doc_values_memory_in_bytes": 744,
+         "doc_values_memory": "0b",
+         "doc_values_memory_in_bytes": 0,
          "index_writer_memory": "0b",
          "index_writer_memory_in_bytes": 0,
          "version_map_memory": "0b",
@@ -101,7 +1338,30 @@ Will return, for example:
          "fixed_bit_set_memory_in_bytes": 0,
          "max_unsafe_auto_id_timestamp" : -9223372036854775808,
          "file_sizes": {}
-      }
+      },
+      "mappings": {
+        "field_types": [],
+        "runtime_field_types": []
+      },
+      "analysis": {
+        "char_filter_types": [],
+        "tokenizer_types": [],
+        "filter_types": [],
+        "analyzer_types": [],
+        "built_in_char_filters": [],
+        "built_in_tokenizers": [],
+        "built_in_filters": [],
+        "built_in_analyzers": []
+      },
+      "versions": [
+        {
+          "version": "8.0.0",
+          "index_count": 1,
+          "primary_shard_count": 1,
+          "total_primary_size": "7.4kb",
+          "total_primary_bytes": 7632
+        }
+      ]
    },
    "nodes": {
       "count": {
@@ -109,7 +1369,8 @@ Will return, for example:
          "data": 1,
          "coordinating_only": 0,
          "master": 1,
-         "ingest": 1
+         "ingest": 1,
+         "voting_only": 0
       },
       "versions": [
          "{version}"
@@ -126,6 +1387,12 @@ Will return, for example:
          "pretty_names": [
             {
                "pretty_name": "Mac OS X",
+               "count": 1
+            }
+         ],
+         "architectures": [
+            {
+               "arch": "x86_64",
                "count": 1
             }
          ],
@@ -155,10 +1422,12 @@ Will return, for example:
          "max_uptime_in_millis": 13737,
          "versions": [
             {
-               "version": "1.8.0_74",
-               "vm_name": "Java HotSpot(TM) 64-Bit Server VM",
-               "vm_version": "25.74-b02",
+               "version": "12",
+               "vm_name": "OpenJDK 64-Bit Server VM",
+               "vm_version": "12+33",
                "vm_vendor": "Oracle Corporation",
+               "bundled_jdk": true,
+               "using_bundled_jdk": true,
                "count": 1
             }
          ],
@@ -186,50 +1455,56 @@ Will return, for example:
           "classname": "org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin",
           "has_native_controller": false
         },
-        {
-          "name": "ingest-geoip",
-          "version": "{version}",
-          "description": "Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database",
-          "classname": "org.elasticsearch.ingest.geoip.IngestGeoIpPlugin",
-          "has_native_controller": false
-        },
-        {
-          "name": "ingest-user-agent",
-          "version": "{version}",
-          "description": "Ingest processor that extracts information from a user agent",
-          "classname": "org.elasticsearch.ingest.useragent.IngestUserAgentPlugin",
-          "has_native_controller": false
-        },
         ...
       ],
+      "ingest": {
+        "number_of_pipelines" : 1,
+        "processor_stats": {
+          ...
+        }
+      },
       "network_types": {
         ...
       },
       "discovery_types": {
         ...
-      }
+      },
+      "packaging_types": [
+        {
+          ...
+        }
+      ]
    }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"plugins": \[[^\]]*\]/"plugins": $body.$_path/]
 // TESTRESPONSE[s/"network_types": \{[^\}]*\}/"network_types": $body.$_path/]
 // TESTRESPONSE[s/"discovery_types": \{[^\}]*\}/"discovery_types": $body.$_path/]
+// TESTRESPONSE[s/"processor_stats": \{[^\}]*\}/"processor_stats": $body.$_path/]
+// TESTRESPONSE[s/"count": \{[^\}]*\}/"count": $body.$_path/]
+// TESTRESPONSE[s/"packaging_types": \[[^\]]*\]/"packaging_types": $body.$_path/]
+// TESTRESPONSE[s/"field_types": \[[^\]]*\]/"field_types": $body.$_path/]
+// TESTRESPONSE[s/"runtime_field_types": \[[^\]]*\]/"runtime_field_types": $body.$_path/]
+// TESTRESPONSE[s/: true|false/: $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 // These replacements do a few things:
 // 1. Ignore the contents of the `plugins` object because we don't know all of
 //    the plugins that will be in it. And because we figure folks don't need to
 //    see an exhaustive list anyway.
-// 2. Similarly, ignore the contents of `network_types` and `discovery_types`.
-// 3. All of the numbers and strings on the right hand side of *every* field in
+// 2. Similarly, ignore the contents of `network_types`, `discovery_types`, and
+//    `packaging_types`.
+// 3. Ignore the contents of the (nodes) count object, as what's shown here
+//    depends on the license. Voting-only nodes are e.g. only shown when this
+//    test runs with a basic license.
+// 4. All of the numbers and strings on the right hand side of *every* field in
 //    the response are ignored. So we're really only asserting things about the
 //    the shape of this response, not the values in it.
 
-This API can be restricted to a subset of the nodes using the `?nodeId`
-parameter, which accepts <<cluster-nodes,node filters>>:
+This API can be restricted to a subset of the nodes using <<cluster-nodes,node
+filters>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /_cluster/stats?nodeId=node1,node*,master:false
+GET /_cluster/stats/nodes/node1,node*,master:false
 --------------------------------------------------
-// CONSOLE

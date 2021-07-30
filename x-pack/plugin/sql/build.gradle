@@ -1,131 +1,140 @@
-evaluationDependsOn(xpackModule('core'))
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
-apply plugin: 'elasticsearch.esplugin'
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 esplugin {
-    name 'x-pack-sql'
-    description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
-    classname 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
-    extendedPlugins = ['x-pack-core', 'lang-painless']
+  name 'x-pack-sql'
+  description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
+  classname 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
+  extendedPlugins = ['x-pack-ql', 'lang-painless']
+}
+
+ext {
+  // SQL dependency versions
+  jlineVersion = "3.14.1"
+  antlrVersion = "4.5.3"
+
+  // SQL test dependency versions
+  csvjdbcVersion = "1.0.34"
+  h2Version = "1.4.197"
+  h2gisVersion = "1.5.0"
 }
 
 configurations {
-    // Bundles the sql-cli.jar into the distribution
-    bin
+  // Bundles the sql-cli.jar into the distribution
+  bin
 }
 
 archivesBaseName = 'x-pack-sql'
 
-// All integration tests live in qa modules
-integTest.enabled = false
-
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    compileOnly project(path: xpackModule('core'), configuration: 'default')
-    compileOnly(project(':modules:lang-painless')) {
-        // exclude ASM to not affect featureAware task on Java 10+
-        exclude group: "org.ow2.asm"
-    }
-    compile project('sql-action')
-    compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
-    compile "org.antlr:antlr4-runtime:4.5.3"
-    testCompile "org.elasticsearch.test:framework:${version}"
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
-    testCompile project(path: ':modules:reindex', configuration: 'runtime')
-    testCompile project(path: ':modules:parent-join', configuration: 'runtime')
-    testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
-
-    bin(project(path: xpackModule('sql:sql-cli'))) {
-        // sql-cli bundles all of its dependencies into a single executable jar
-        transitive = false
-    }
+  compileOnly project(path: xpackModule('core'))
+  compileOnly(project(':modules:lang-painless')) {
+    exclude group: "org.ow2.asm"
+  }
+  api project('sql-action')
+  api project(':modules:aggs-matrix-stats')
+  api "org.antlr:antlr4-runtime:${antlrVersion}"
+  compileOnly project(path: xpackModule('ql'))
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation(testArtifact(project(xpackModule('ql'))))
+  testImplementation project(path: ':modules:reindex')
+  testImplementation project(path: ':modules:parent-join')
+  testImplementation project(path: ':modules:analysis-common')
+  bin(project(path: xpackModule('sql:sql-cli'), configuration: 'shadow'))
 }
 
 /* Bundle the sql-cli into the binary files. It should end up
  * in $ES_HOME/bin/x-pack/. This is useful because it is an
  * executable jar that can be moved wherever it is needed.
  */
-bundlePlugin {
-    from (configurations.bin) {
-        into 'bin'
-    }
+tasks.named("bundlePlugin").configure {
+  from(configurations.bin) {
+    into 'bin'
+  }
 }
 
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-    project.subprojects
-            .find { it.path == project.path + ":qa" }
-            .subprojects
-            .findAll { it.path.startsWith(project.path + ":qa") }
-            .each { check.dependsOn it.check }
-}
-
+addQaCheckDependencies()
 
 /**********************************************
  *          SQL Parser regeneration           *
  **********************************************/
 
 configurations {
-    regenerate
+  regenerate
 }
 
 dependencies {
-    regenerate 'org.antlr:antlr4:4.5.3'
+  regenerate "org.antlr:antlr4:${antlrVersion}"
 }
 
 String grammarPath = 'src/main/antlr'
 String outputPath = 'src/main/java/org/elasticsearch/xpack/sql/parser'
 
-task cleanGenerated(type: Delete) {
-    delete fileTree(grammarPath) {
-        include '*.tokens'
-    }
-    delete fileTree(outputPath) {
-        include 'SqlBase*.java'
-    }
+tasks.register("cleanGenerated", Delete) {
+  delete fileTree(grammarPath) {
+    include '*.tokens'
+  }
+  delete fileTree(outputPath) {
+    include 'SqlBase*.java'
+  }
 }
 
-task regenParser(type: JavaExec) {
-    dependsOn cleanGenerated
-    main = 'org.antlr.v4.Tool'
-    classpath = configurations.regenerate
-    systemProperty 'file.encoding', 'UTF-8'
-    systemProperty 'user.language', 'en'
-    systemProperty 'user.country', 'US'
-    systemProperty 'user.variant', ''
-    args '-Werror',
-         '-package', 'org.elasticsearch.xpack.sql.parser',
-         '-listener',
-         '-visitor',
-         '-o', outputPath,
-         "${file(grammarPath)}/SqlBase.g4"
+tasks.register("regenParser", JavaExec) {
+  dependsOn "cleanGenerated"
+  mainClass = 'org.antlr.v4.Tool'
+  classpath = configurations.regenerate
+  systemProperty 'file.encoding', 'UTF-8'
+  systemProperty 'user.language', 'en'
+  systemProperty 'user.country', 'US'
+  systemProperty 'user.variant', ''
+  args '-Werror',
+    '-package', 'org.elasticsearch.xpack.sql.parser',
+    '-listener',
+    '-visitor',
+    '-o', outputPath,
+    "${file(grammarPath)}/SqlBase.g4"
 }
 
-task regen {
-    dependsOn regenParser
-    doLast {
-        // moves token files to grammar directory for use with IDE's
-        ant.move(file: "${outputPath}/SqlBase.tokens", toDir: grammarPath)
-        ant.move(file: "${outputPath}/SqlBaseLexer.tokens", toDir: grammarPath)
-        // make the generated classes package private
-        ant.replaceregexp(match: 'public ((interface|class) \\QSqlBase\\E\\w+)',
-                          replace: '\\1',
-                          encoding: 'UTF-8') {
-            fileset(dir: outputPath, includes: 'SqlBase*.java')
-        }
-        // nuke timestamps/filenames in generated files
-        ant.replaceregexp(match: '\\Q// Generated from \\E.*',
-                          replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
-                          encoding: 'UTF-8') {
-            fileset(dir: outputPath, includes: 'SqlBase*.java')
-        }
-        // remove tabs in antlr generated files
-        ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
-            fileset(dir: outputPath, includes: 'SqlBase*.java')
-        }
-        // fix line endings
-        ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
-            patternset(includes: 'SqlBase*.java')
-        }
+tasks.register("regen") {
+  dependsOn "regenParser"
+  doLast {
+    // moves token files to grammar directory for use with IDE's
+    ant.move(file: "${outputPath}/SqlBase.tokens", toDir: grammarPath)
+    ant.move(file: "${outputPath}/SqlBaseLexer.tokens", toDir: grammarPath)
+    // make the generated classes package private
+    ant.replaceregexp(match: 'public ((interface|class) \\QSqlBase\\E\\w+)',
+      replace: '\\1',
+      encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'SqlBase*.java')
     }
+    // nuke timestamps/filenames in generated files
+    ant.replaceregexp(match: '\\Q// Generated from \\E.*',
+      replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
+      encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'SqlBase*.java')
+    }
+    // remove tabs in antlr generated files
+    ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'SqlBase*.java')
+    }
+    // fix line endings
+    ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
+      patternset(includes: 'SqlBase*.java')
+    }
+  }
+}
+
+allprojects {
+  tasks.register("checkNoBwc") {
+    dependsOn tasks.withType(Test).matching { it.name.contains('bwc') == false }
+  }
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("internalClusterTest").configure{enabled = false }
 }

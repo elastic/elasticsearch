@@ -1,29 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.support;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.stream.Collectors;
-
 import com.unboundid.ldap.sdk.DN;
 import com.unboundid.ldap.sdk.LDAPException;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
@@ -35,7 +21,23 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -153,7 +155,7 @@ public class DnRoleMapper implements UserRoleMapper {
                     realmName);
             Map<String, List<String>> normalizedMap = dnToRoles.entrySet().stream().collect(Collectors.toMap(
                 entry -> entry.getKey().toNormalizedString(),
-                entry -> Collections.unmodifiableList(new ArrayList<>(entry.getValue()))));
+                entry -> List.copyOf(entry.getValue())));
             return unmodifiableMap(normalizedMap);
         } catch (IOException | SettingsException e) {
             throw new ElasticsearchException("could not read realm [" + realmType + "/" + realmName + "] role mappings file [" +
@@ -224,10 +226,14 @@ public class DnRoleMapper implements UserRoleMapper {
         @Override
         public void onFileChanged(Path file) {
             if (file.equals(DnRoleMapper.this.file)) {
-                logger.info("role mappings file [{}] changed for realm [{}/{}]. updating mappings...", file.toAbsolutePath(),
-                        config.type(), config.name());
+                final Map<String, List<String>> previousDnRoles = dnRoles;
                 dnRoles = parseFileLenient(file, logger, config.type(), config.name());
-                notifyRefresh();
+
+                if (previousDnRoles.equals(dnRoles) == false) {
+                    logger.info("role mappings file [{}] changed for realm [{}/{}]. updating mappings...", file.toAbsolutePath(),
+                            config.type(), config.name());
+                    notifyRefresh();
+                }
             }
         }
     }

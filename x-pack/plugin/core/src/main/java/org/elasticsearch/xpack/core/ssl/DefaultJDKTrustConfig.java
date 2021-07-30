@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -25,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * This class represents a trust configuration that corresponds to the default trusted certificates of the JDK
@@ -71,12 +73,15 @@ class DefaultJDKTrustConfig extends TrustConfig {
 
     @Override
     public boolean equals(Object o) {
-        return o == this;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DefaultJDKTrustConfig that = (DefaultJDKTrustConfig) o;
+        return Objects.equals(trustStorePassword, that.trustStorePassword);
     }
 
     @Override
     public int hashCode() {
-        return System.identityHashCode(this);
+        return Objects.hash(trustStorePassword);
     }
 
     /**

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -26,6 +15,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -68,16 +58,18 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         Setting.intSetting("cluster.routing.allocation.node_initial_primaries_recoveries",
             DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES, 0,
             Property.Dynamic, Property.NodeScope);
-    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING =
-        new Setting<>("cluster.routing.allocation.node_concurrent_incoming_recoveries",
-            CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING::getRaw,
-            (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_incoming_recoveries"),
-            Property.Dynamic, Property.NodeScope);
-    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING =
-        new Setting<>("cluster.routing.allocation.node_concurrent_outgoing_recoveries",
-            CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING::getRaw,
-            (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_outgoing_recoveries"),
-            Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING = new Setting<>(
+        "cluster.routing.allocation.node_concurrent_incoming_recoveries",
+        CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING,
+        (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_incoming_recoveries"),
+        Property.Dynamic,
+        Property.NodeScope);
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING = new Setting<>(
+        "cluster.routing.allocation.node_concurrent_outgoing_recoveries",
+        CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING,
+        (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_outgoing_recoveries"),
+        Property.Dynamic,
+        Property.NodeScope);
 
 
     private volatile int primariesInitialRecoveries;
@@ -120,10 +112,10 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             // count *just the primaries* currently doing recovery on the node and check against primariesInitialRecoveries
 
             int primariesInRecovery = 0;
-            for (ShardRouting shard : node) {
+            for (ShardRouting shard : node.shardsWithState(ShardRoutingState.INITIALIZING)) {
                 // when a primary shard is INITIALIZING, it can be because of *initial recovery* or *relocation from another node*
                 // we only count initial recoveries here, so we need to make sure that relocating node is null
-                if (shard.initializing() && shard.primary() && shard.relocatingNodeId() == null) {
+                if (shard.primary() && shard.relocatingNodeId() == null) {
                     primariesInRecovery++;
                 }
             }

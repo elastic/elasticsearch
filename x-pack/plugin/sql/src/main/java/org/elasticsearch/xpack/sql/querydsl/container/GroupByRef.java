@@ -1,13 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.xpack.sql.execution.search.AggRef;
-
-import java.util.TimeZone;
+import org.elasticsearch.xpack.ql.execution.search.AggRef;
 
 /**
  * Reference to a GROUP BY agg (typically this gets translated to a composite key).
@@ -17,15 +16,15 @@ public class GroupByRef extends AggRef {
     public enum Property {
         VALUE, COUNT;
     }
-    
+
     private final String key;
     private final Property property;
-    private final TimeZone timeZone;
+    private final boolean isDateTimeBased;
 
-    public GroupByRef(String key, Property property, TimeZone timeZone) {
+    public GroupByRef(String key, Property property, boolean isDateTimeBased) {
         this.key = key;
         this.property = property == null ? Property.VALUE : property;
-        this.timeZone = timeZone;
+        this.isDateTimeBased = isDateTimeBased;
     }
 
     public String key() {
@@ -36,8 +35,8 @@ public class GroupByRef extends AggRef {
         return property;
     }
 
-    public TimeZone timeZone() {
-        return timeZone;
+    public boolean isDateTimeBased() {
+        return isDateTimeBased;
     }
 
     @Override

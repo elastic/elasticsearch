@@ -5,7 +5,7 @@
 A role mapping resource has the following properties: 
 
 `enabled`::
-(boolean)  Mappings that have `enabled` set to `false` are ignored when role
+(Boolean)  Mappings that have `enabled` set to `false` are ignored when role
 mapping is performed.
 
 `metadata`::
@@ -26,12 +26,12 @@ A rule is a logical condition that is expressed by using a JSON DSL. The DSL sup
 (array of rules) If *all* of its children are true, it evaluates to `true`.
 `field`::: 
 (object) See <<mapping-roles-rule-field>>. 
-`except`::
+`except`:::
 (object) A single rule as an object. Only valid as a child of an `all` rule. If 
 its child is `false`, the `except` is `true`.
 
 
-[float]
+[discrete]
 [[mapping-roles-rule-field]]
 ==== Field rules
 
@@ -49,7 +49,7 @@ The value specified in the field rule can be one of the following types:
 | Simple String      | Exactly matches the provided value.                             | "esadmin"
 | Wildcard String    | Matches the provided value using a wildcard.                    | "*,dc=example,dc=com"
 | Regular Expression | Matches the provided value using a
-                       {ref}/query-dsl-regexp-query.html#regexp-syntax[Lucene regexp]. | "/.\*-admin[0-9]*/"
+                       <<regexp-syntax,Lucene regexp>>. | "/.\*-admin[0-9]*/"
 | Number             | Matches an equivalent numerical value.                          | 7
 | Null               | Matches a null or missing value.                                | null
 | Array              | Tests each element in the array in
@@ -57,13 +57,14 @@ The value specified in the field rule can be one of the following types:
                       If _any_ of elements match, the match is successful.             | ["admin", "operator"]
 |=======================
 
-[float]
+[discrete]
 ===== User fields
 
 The _user object_ against which rules are evaluated has the following fields:
 
 `username`::
-(string) The username by which {security} knows this user. For example, `"username": "jsmith"`.
+(string) The username by which the {es} {security-features} knows this user. For
+example, `"username": "jsmith"`.
 `dn`::
 (string) The _Distinguished Name_ of the user. For example, `"dn": "cn=jsmith,ou=users,dc=example,dc=com",`.
 `groups`::
@@ -79,11 +80,11 @@ if _at least one_ of the member values matches. For example, the following rule
 matches any user who is a member of the `admin` group, regardless of any
 other groups they belong to:
 
-[source, js]
+[source,js]
 ------------------------------------------------------------
 { "field" : { "groups" : "admin" } }
 ------------------------------------------------------------
 // NOTCONSOLE
 
 For additional realm-specific details, see
-{stack-ov}/mapping-roles.html#ldap-role-mapping[Mapping Users and Groups to Roles].
+<<ldap-role-mapping>>.

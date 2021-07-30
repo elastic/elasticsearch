@@ -1,0 +1,24 @@
+{
+  "get_script_languages":{
+    "documentation":{
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
+      "description":"Returns available script types, languages and contexts"
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_script_language",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{}
+  }
+}

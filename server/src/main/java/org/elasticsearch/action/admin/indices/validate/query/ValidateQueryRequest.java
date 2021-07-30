@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -47,12 +37,26 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     private boolean rewrite;
     private boolean allShards;
 
-    private String[] types = Strings.EMPTY_ARRAY;
-
     long nowInMillis;
 
     public ValidateQueryRequest() {
         this(Strings.EMPTY_ARRAY);
+    }
+
+    public ValidateQueryRequest(StreamInput in) throws IOException {
+        super(in);
+        query = in.readNamedWriteable(QueryBuilder.class);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            int typesSize = in.readVInt();
+            if (typesSize > 0) {
+                for (int i = 0; i < typesSize; i++) {
+                    in.readString();
+                }
+            }
+        }
+        explain = in.readBoolean();
+        rewrite = in.readBoolean();
+        allShards = in.readBoolean();
     }
 
     /**
@@ -82,29 +86,6 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
 
     public ValidateQueryRequest query(QueryBuilder query) {
         this.query = query;
-        return this;
-    }
-
-    /**
-     * The types of documents the query will run against. Defaults to all types.
-     *
-     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
-     * filter on a field on the document.
-     */
-    @Deprecated
-    public String[] types() {
-        return this.types;
-    }
-
-    /**
-     * The types of documents the query will run against. Defaults to all types.
-     *
-     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
-     * filter on a field on the document.
-     */
-    @Deprecated
-    public ValidateQueryRequest types(String... types) {
-        this.types = types;
         return this;
     }
 
@@ -151,28 +132,11 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        query = in.readNamedWriteable(QueryBuilder.class);
-        int typesSize = in.readVInt();
-        if (typesSize > 0) {
-            types = new String[typesSize];
-            for (int i = 0; i < typesSize; i++) {
-                types[i] = in.readString();
-            }
-        }
-        explain = in.readBoolean();
-        rewrite = in.readBoolean();
-        allShards = in.readBoolean();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeNamedWriteable(query);
-        out.writeVInt(types.length);
-        for (String type : types) {
-            out.writeString(type);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeVInt(0);   // no types to filter
         }
         out.writeBoolean(explain);
         out.writeBoolean(rewrite);
@@ -181,7 +145,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
 
     @Override
     public String toString() {
-        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", query[" + query + "], explain:" + explain +
+        return "[" + Arrays.toString(indices) + "] query[" + query + "], explain:" + explain +
                 ", rewrite:" + rewrite + ", all_shards:" + allShards;
     }
 

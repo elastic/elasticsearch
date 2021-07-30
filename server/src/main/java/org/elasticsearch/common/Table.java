@@ -1,26 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common;
 
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -85,7 +73,7 @@ public class Table {
         return this;
     }
 
-    private static final DateFormatter FORMATTER = DateFormatters.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
+    private static final DateFormatter FORMATTER = DateFormatter.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
 
     public Table startRow() {
         if (headers.isEmpty()) {
@@ -130,7 +118,7 @@ public class Table {
         if (currentCells == null) {
             throw new IllegalStateException("no block started...");
         }
-        if (!inHeaders) {
+        if (inHeaders == false) {
             if (currentCells.size() == headers.size()) {
                 throw new IllegalStateException("can't add more cells to a row than the header");
             }
@@ -145,7 +133,7 @@ public class Table {
             }
         } else {
             mAttr = new HashMap<>();
-            if (!inHeaders) {
+            if (inHeaders == false) {
                 // get the attributes of the header cell we are going to add
                 mAttr.putAll(headers.get(currentCells.size()).attr);
             }
@@ -164,7 +152,7 @@ public class Table {
         currentCells.add(cell);
 
         // If we're in a value row, also populate the named column.
-        if (!inHeaders) {
+        if (inHeaders == false) {
             String hdr = (String) headers.get(cellIndex).value;
             map.get(hdr).add(cell);
         }

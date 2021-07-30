@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
@@ -15,18 +16,16 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.job.process.normalizer.BucketNormalizable;
-import org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
+import org.elasticsearch.xpack.ml.job.process.normalizer.BucketNormalizable;
+import org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
-import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
 
 
 /**
@@ -78,7 +77,7 @@ public class JobRenormalizedResultsPersister {
 
     public void updateResult(String id, String index, ToXContent resultDoc) {
         try (XContentBuilder content = toXContentBuilder(resultDoc)) {
-            bulkRequest.add(new IndexRequest(index, DOC_TYPE, id).source(content));
+            bulkRequest.add(new IndexRequest(index).id(id).source(content));
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] Error serialising result", jobId), e);
         }
@@ -102,7 +101,7 @@ public class JobRenormalizedResultsPersister {
         }
         logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, bulkRequest.numberOfActions());
 
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             BulkResponse addRecordsResponse = client.bulk(bulkRequest).actionGet();
             if (addRecordsResponse.hasFailures()) {
                 logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());

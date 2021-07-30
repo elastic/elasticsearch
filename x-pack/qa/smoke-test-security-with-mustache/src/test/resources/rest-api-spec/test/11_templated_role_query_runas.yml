@@ -110,7 +110,6 @@ setup:
   - do:
       index:
         index: foobar
-        type: type
         id: 1
         body:  >
           {
@@ -119,7 +118,6 @@ setup:
   - do:
       index:
         index: foobar
-        type: type
         id: 2
         body:  >
           {
@@ -127,7 +125,8 @@ setup:
           }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: foobar
 
 ---
 teardown:

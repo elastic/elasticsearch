@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -32,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,15 +30,16 @@ import java.util.Map;
 /**
  * Results of the {@link TopHitsAggregator}.
  */
-public class InternalTopHits extends InternalAggregation implements TopHits {
+public class
+InternalTopHits extends InternalAggregation implements TopHits {
     private int from;
     private int size;
     private TopDocsAndMaxScore topDocs;
     private SearchHits searchHits;
 
     public InternalTopHits(String name, int from, int size, TopDocsAndMaxScore topDocs, SearchHits searchHits,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, metadata);
         this.from = from;
         this.size = size;
         this.topDocs = topDocs;
@@ -65,7 +54,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         from = in.readVInt();
         size = in.readVInt();
         topDocs = Lucene.readTopDocs(in);
-        searchHits = SearchHits.readSearchHits(in);
+        searchHits = new SearchHits(in);
     }
 
     @Override
@@ -99,7 +88,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         final SearchHits[] shardHits = new SearchHits[aggregations.size()];
         final int from;
         final int size;
@@ -160,7 +149,12 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         assert reducedTopDocs.totalHits.relation == Relation.EQUAL_TO;
         return new InternalTopHits(name, this.from, this.size,
             new TopDocsAndMaxScore(reducedTopDocs, maxScore),
-            new SearchHits(hits, reducedTopDocs.totalHits, maxScore), pipelineAggregators(), getMetaData());
+            new SearchHits(hits, reducedTopDocs.totalHits, maxScore), getMetadata());
+    }
+
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return true;
     }
 
     @Override
@@ -180,7 +174,11 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
 
     // Equals and hashcode implemented for testing round trips
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalTopHits other = (InternalTopHits) obj;
         if (from != other.from) return false;
         if (size != other.size) return false;
@@ -207,9 +205,10 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     }
 
     @Override
-    protected int doHashCode() {
-        int hashCode = from;
-        hashCode = 31 * hashCode + size;
+    public int hashCode() {
+        int hashCode = super.hashCode();
+        hashCode = 31 * hashCode + Integer.hashCode(from);
+        hashCode = 31 * hashCode + Integer.hashCode(size);
         hashCode = 31 * hashCode + Long.hashCode(topDocs.topDocs.totalHits.value);
         hashCode = 31 * hashCode + topDocs.topDocs.totalHits.relation.hashCode();
         for (int d = 0; d < topDocs.topDocs.scoreDocs.length; d++) {

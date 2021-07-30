@@ -1,0 +1,94 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-forecast]]
+= Forecast jobs API
+++++
+<titleabbrev>Forecast jobs</titleabbrev>
+++++
+
+Predicts the future behavior of a time series by using its historical behavior. 
+
+[[ml-forecast-request]]
+== {api-request-title}
+
+`POST _ml/anomaly_detectors/<job_id>/_forecast`
+
+[[ml-forecast-prereqs]]
+== {api-prereq-title}
+
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
+
+[[ml-forecast-desc]]
+== {api-description-title}
+
+You can create a forecast job based on an {anomaly-job} to extrapolate future 
+behavior. Refer to
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-forecast[Forecasting the future]
+and 
+{ml-docs}/ml-limitations.html#ml-forecast-limitations[Forecast limitations] to 
+learn more.
+
+You can delete a forecast by using the 
+<<ml-delete-forecast,Delete forecast API>>.
+
+[NOTE]
+===============================
+
+* If you use an `over_field_name` property in your job, you cannot create a
+forecast. For more information about this property, see <<ml-put-job>>.
+* The job must be open when you create a forecast. Otherwise, an error occurs.
+===============================
+
+[[ml-forecast-path-parms]]
+== {api-path-parms-title}
+
+`<job_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+[[ml-forecast-request-body]]
+== {api-request-body-title}
+
+`duration`::
+  (Optional, <<time-units, time units>>) A period of time that indicates how far 
+  into the future to forecast. For example, `30d` corresponds to 30 days. The 
+  default value is 1 day. The forecast starts at the last record that was 
+  processed.
+
+`expires_in`::
+  (Optional, <<time-units, time units>>) The period of time that forecast 
+  results are retained. After a forecast expires, the results are deleted. The 
+  default value is 14 days. If set to a value of `0`, the forecast is never 
+  automatically deleted.
+
+`max_model_memory`::
+  (Optional, <<byte-units,byte value>>) The maximum memory the forecast can use.
+  If the forecast needs to use more than the provided amount, it will spool to
+  disk. Default is 20mb, maximum is 500mb and minimum is 1mb. If set to 40% or
+  more of the job's configured memory limit, it is automatically reduced to
+  below that amount.
+
+[[ml-forecast-example]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _ml/anomaly_detectors/low_request_rate/_forecast
+{
+  "duration": "10d"
+}
+--------------------------------------------------
+// TEST[skip:requires delay]
+
+When the forecast is created, you receive the following results:
+[source,js]
+----
+{
+  "acknowledged": true,
+  "forecast_id": "wkCWa2IB2lF8nSE_TzZo"
+}
+----
+// NOTCONSOLE
+
+You can subsequently see the forecast in the *Single Metric Viewer* in {kib}.

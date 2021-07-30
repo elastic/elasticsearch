@@ -1,16 +1,25 @@
 [role="xpack"]
 [[watcher-api-delete-watch]]
-=== Delete Watch API
+=== Delete watch API
+++++
+<titleabbrev>Delete watch</titleabbrev>
+++++
 
-The DELETE watch API removes a watch from {watcher}.
+Removes a watch from {watcher}.
 
-[float]
-==== Request
+[[watcher-api-delete-watch-request]]
+==== {api-request-title}
 
 `DELETE _watcher/watch/<watch_id>`
 
-[float]
-==== Description
+[[watcher-api-delete-watch-prereqs]]
+==== {api-prereq-title}
+
+* You must have `manage_watcher` cluster privileges to use this API. For more
+information, see <<security-privileges>>.
+
+[[watcher-api-delete-watch-desc]]
+==== {api-description-title}
 
 When the watch is removed, the document representing the watch in the `.watches`
 index is gone and it will never be run again.
@@ -20,36 +29,42 @@ related to this watch from the watch history.
 
 IMPORTANT:  Deleting a watch must be done via this API only. Do not delete the
             watch directly from the `.watches` index using the Elasticsearch
-            DELETE Document API. When {security} is enabled, make sure no `write`
-            privileges are granted to anyone over the `.watches` index.
+            DELETE Document API. When {es} {security-features} are enabled, make
+            sure no `write` privileges are granted to anyone over the `.watches`
+            index.
 
-[float]
-==== Path Parameters
+[[watcher-api-delete-watch-path-params]]
+==== {api-path-parms-title}
 
-`watch_id` (required)::
-  (string) Identifier for the watch.
+`<watch_id>`::
+  (Required, string) Identifier for the watch.
 
-[float]
-==== Authorization
+//[[watcher-api-delete-watch-query-params]]
+//==== {api-query-parms-title}
 
-You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {xpack-ref}/security-privileges.html[Security Privileges].
+//[[watcher-api-delete-watch-request-body]]
+//==== {api-request-body-title}
 
-[float]
-==== Examples
+//[[watcher-api-delete-watch-response-body]]
+//==== {api-response-body-title}
+
+//[[watcher-api-delete-watch-response-codes]]
+//==== {api-response-codes-title}
+
+[[watcher-api-delete-watch-example]]
+==== {api-examples-title}
 
 The following example deletes a watch with the `my-watch` id:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _watcher/watch/my_watch
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "found": true,
@@ -57,4 +72,3 @@ Response:
    "_version": 2
 }
 --------------------------------------------------
-// TESTRESPONSE

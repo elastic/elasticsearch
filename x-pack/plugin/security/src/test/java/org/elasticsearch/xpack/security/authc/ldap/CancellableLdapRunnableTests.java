@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -24,8 +25,8 @@ public class CancellableLdapRunnableTests extends ESTestCase {
 
     public void testTimingOutARunnable() {
         AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
-        final CancellableLdapRunnable runnable =
-                new CancellableLdapRunnable(ActionListener.wrap(user -> {
+        final CancellableLdapRunnable<Object> runnable =
+                new CancellableLdapRunnable<>(ActionListener.wrap(user -> {
                     throw new AssertionError("onResponse should not be called");
                 }, exceptionAtomicReference::set), e -> null, () -> {
                     throw new AssertionError("runnable should not be executed");
@@ -42,8 +43,8 @@ public class CancellableLdapRunnableTests extends ESTestCase {
     public void testCallTimeOutAfterRunning() {
         final AtomicBoolean ran = new AtomicBoolean(false);
         final AtomicBoolean listenerCalled = new AtomicBoolean(false);
-        final CancellableLdapRunnable runnable =
-                new CancellableLdapRunnable(ActionListener.wrap(user -> {
+        final CancellableLdapRunnable<Object> runnable =
+                new CancellableLdapRunnable<>(ActionListener.wrap(user -> {
                     listenerCalled.set(true);
                     throw new AssertionError("onResponse should not be called");
                 }, e -> {
@@ -62,8 +63,8 @@ public class CancellableLdapRunnableTests extends ESTestCase {
 
     public void testRejectingExecution() {
         AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
-        final CancellableLdapRunnable runnable =
-                new CancellableLdapRunnable(ActionListener.wrap(user -> {
+        final CancellableLdapRunnable<Object> runnable =
+                new CancellableLdapRunnable<>(ActionListener.wrap(user -> {
                     throw new AssertionError("onResponse should not be called");
                 }, exceptionAtomicReference::set), e -> null, () -> {
                     throw new AssertionError("runnable should not be executed");
@@ -85,7 +86,7 @@ public class CancellableLdapRunnableTests extends ESTestCase {
         }, e -> {
             throw new AssertionError("onFailure should not be executed");
         });
-        final CancellableLdapRunnable runnable = new CancellableLdapRunnable(listener, e -> null, () -> {
+        final CancellableLdapRunnable<User> runnable = new CancellableLdapRunnable<>(listener, e -> null, () -> {
             runningLatch.countDown();
             try {
                 timeoutCalledLatch.await();

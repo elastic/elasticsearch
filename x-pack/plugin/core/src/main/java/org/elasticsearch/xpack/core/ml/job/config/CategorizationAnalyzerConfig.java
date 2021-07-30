@@ -1,21 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 
 import java.io.IOException;
@@ -53,9 +56,9 @@ import java.util.Objects;
 public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeable {
 
     public static final ParseField CATEGORIZATION_ANALYZER = new ParseField("categorization_analyzer");
-    private static final ParseField TOKENIZER = RestAnalyzeAction.Fields.TOKENIZER;
-    private static final ParseField TOKEN_FILTERS = RestAnalyzeAction.Fields.TOKEN_FILTERS;
-    private static final ParseField CHAR_FILTERS = RestAnalyzeAction.Fields.CHAR_FILTERS;
+    public static final ParseField TOKENIZER = AnalyzeAction.Fields.TOKENIZER;
+    public static final ParseField TOKEN_FILTERS = AnalyzeAction.Fields.TOKEN_FILTERS;
+    public static final ParseField CHAR_FILTERS = AnalyzeAction.Fields.CHAR_FILTERS;
 
     /**
      * This method is only used in the unit tests - in production code this config is always parsed as a fragment.
@@ -142,119 +145,39 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
     }
 
     /**
-     * Create a <code>categorization_analyzer</code> that mimics what the tokenizer and filters built into the ML C++
-     * code do.  This is the default analyzer for categorization to ensure that people upgrading from previous versions
+     * Create a <code>categorization_analyzer</code> that mimics what the tokenizer and filters built into the original ML
+     * C++ code do.  This is the default analyzer for categorization to ensure that people upgrading from old versions
      * get the same behaviour from their categorization jobs before and after upgrade.
      * @param categorizationFilters Categorization filters (if any) from the <code>analysis_config</code>.
      * @return The default categorization analyzer.
      */
     public static CategorizationAnalyzerConfig buildDefaultCategorizationAnalyzer(List<String> categorizationFilters) {
 
-        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder();
-
-        if (categorizationFilters != null) {
-            for (String categorizationFilter : categorizationFilters) {
-                Map<String, Object> charFilter = new HashMap<>();
-                charFilter.put("type", "pattern_replace");
-                charFilter.put("pattern", categorizationFilter);
-                builder.addCharFilter(charFilter);
-            }
-        }
-
-        builder.setTokenizer("ml_classic");
-
-        Map<String, Object> tokenFilter = new HashMap<>();
-        tokenFilter.put("type", "stop");
-        tokenFilter.put("stopwords", Arrays.asList(
-                "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
-                "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
-                "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
-                "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-                "GMT", "UTC"));
-        builder.addTokenFilter(tokenFilter);
-
-        return builder.build();
+        return new CategorizationAnalyzerConfig.Builder()
+            .addCategorizationFilters(categorizationFilters)
+            .setTokenizer("ml_classic")
+            .addDateWordsTokenFilter()
+            .build();
     }
 
     /**
-     * Simple store of either a name of a built-in analyzer element or a custom definition.
+     * Create a <code>categorization_analyzer</code> that will be used for newly created jobs where no categorization
+     * analyzer is explicitly provided.  This analyzer differs from the default one in that it uses the <code>ml_standard</code>
+     * tokenizer instead of the <code>ml_classic</code> tokenizer, and it only considers the first non-blank line of each message.
+     * This analyzer is <em>not</em> used for jobs that specify no categorization analyzer, as that would break jobs that were
+     * originally run in older versions.  Instead, this analyzer is explicitly added to newly created jobs once the entire cluster
+     * is upgraded to version 7.14 or above.
+     * @param categorizationFilters Categorization filters (if any) from the <code>analysis_config</code>.
+     * @return The standard categorization analyzer.
      */
-    public static class NameOrDefinition implements ToXContentFragment, Writeable {
+    public static CategorizationAnalyzerConfig buildStandardCategorizationAnalyzer(List<String> categorizationFilters) {
 
-        // Exactly one of these two members is not null
-        public final String name;
-        public final Settings definition;
-
-        NameOrDefinition(String name) {
-            this.name = Objects.requireNonNull(name);
-            this.definition = null;
-        }
-
-        NameOrDefinition(ParseField field, Map<String, Object> definition) {
-            this.name = null;
-            Objects.requireNonNull(definition);
-            try {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                builder.map(definition);
-                this.definition = Settings.builder().loadFromSource(Strings.toString(builder), builder.contentType()).build();
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to parse [" + definition + "] in [" + field.getPreferredName() + "]", e);
-            }
-        }
-
-        NameOrDefinition(StreamInput in) throws IOException {
-            name = in.readOptionalString();
-            if (in.readBoolean()) {
-                definition = Settings.readSettingsFromStream(in);
-            } else {
-                definition = null;
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(name);
-            boolean isNotNullDefinition = this.definition != null;
-            out.writeBoolean(isNotNullDefinition);
-            if (isNotNullDefinition) {
-                Settings.writeSettingsToStream(definition, out);
-            }
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (definition == null) {
-                builder.value(name);
-            } else {
-                builder.startObject();
-                definition.toXContent(builder, params);
-                builder.endObject();
-            }
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            NameOrDefinition that = (NameOrDefinition) o;
-            return Objects.equals(name, that.name) &&
-                    Objects.equals(definition, that.definition);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, definition);
-        }
-
-        @Override
-        public String toString() {
-            if (definition == null) {
-                return name;
-            } else {
-                return definition.toDelimitedString(';');
-            }
-        }
+        return new CategorizationAnalyzerConfig.Builder()
+            .addCharFilter("first_non_blank_line")
+            .addCategorizationFilters(categorizationFilters)
+            .setTokenizer("ml_standard")
+            .addDateWordsTokenFilter()
+            .build();
     }
 
     private final String analyzer;
@@ -329,6 +252,18 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
         return builder;
     }
 
+    /**
+     * Get the categorization analyzer structured as a generic map.
+     * This can be used to provide the structure that the XContent serialization but as a Java map rather than text.
+     * Since it is created by round-tripping through text it is not particularly efficient and is expected to be
+     * used only rarely.
+     */
+    public Map<String, Object> asMap(NamedXContentRegistry xContentRegistry) throws IOException {
+        String strRep = Strings.toString(this);
+        XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, strRep);
+        return parser.mapOrdered();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -373,7 +308,19 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
         }
 
         public Builder addCharFilter(Map<String, Object> charFilter) {
-            this.charFilters.add(new NameOrDefinition(CHAR_FILTERS, charFilter));
+            this.charFilters.add(new NameOrDefinition(charFilter));
+            return this;
+        }
+
+        public Builder addCategorizationFilters(List<String> categorizationFilters) {
+            if (categorizationFilters != null) {
+                for (String categorizationFilter : categorizationFilters) {
+                    Map<String, Object> charFilter = new HashMap<>();
+                    charFilter.put("type", "pattern_replace");
+                    charFilter.put("pattern", categorizationFilter);
+                    addCharFilter(charFilter);
+                }
+            }
             return this;
         }
 
@@ -383,7 +330,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
         }
 
         public Builder setTokenizer(Map<String, Object> tokenizer) {
-            this.tokenizer = new NameOrDefinition(TOKENIZER, tokenizer);
+            this.tokenizer = new NameOrDefinition(tokenizer);
             return this;
         }
 
@@ -393,7 +340,20 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
         }
 
         public Builder addTokenFilter(Map<String, Object> tokenFilter) {
-            this.tokenFilters.add(new NameOrDefinition(TOKEN_FILTERS, tokenFilter));
+            this.tokenFilters.add(new NameOrDefinition(tokenFilter));
+            return this;
+        }
+
+        Builder addDateWordsTokenFilter() {
+            Map<String, Object> tokenFilter = new HashMap<>();
+            tokenFilter.put("type", "stop");
+            tokenFilter.put("stopwords", Arrays.asList(
+                "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+                "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+                "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+                "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+                "GMT", "UTC"));
+            addTokenFilter(tokenFilter);
             return this;
         }
 

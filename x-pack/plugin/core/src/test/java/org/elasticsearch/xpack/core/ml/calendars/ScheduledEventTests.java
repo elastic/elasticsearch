@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.calendars;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -15,12 +16,9 @@ import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -29,7 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEvent> {
 
     public static ScheduledEvent createScheduledEvent(String calendarId) {
-        ZonedDateTime start = ZonedDateTime.ofInstant(Instant.ofEpochMilli(new DateTime(randomDateTimeZone()).getMillis()), ZoneOffset.UTC);
+        Instant start = Instant.now();
         return new ScheduledEvent(randomAlphaOfLength(10), start, start.plusSeconds(randomIntBetween(1, 10000)),
                 calendarId, null);
     }
@@ -72,7 +70,7 @@ public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEv
         long conditionEndTime = (long) conditions.get(1).getValue();
         assertEquals(0, conditionEndTime % bucketSpanSecs);
 
-        long eventTime = event.getEndTime().toEpochSecond() - conditionStartTime;
+        long eventTime = event.getEndTime().getEpochSecond() - conditionStartTime;
         long numbBucketsInEvent = (eventTime + bucketSpanSecs -1) / bucketSpanSecs;
         assertEquals(bucketSpanSecs * (bucketCount + numbBucketsInEvent), conditionEndTime);
     }
@@ -85,11 +83,11 @@ public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEv
         builder.description("foo");
         e = expectThrows(ElasticsearchStatusException.class, builder::build);
         assertEquals("Field [start_time] cannot be null", e.getMessage());
-        ZonedDateTime now = ZonedDateTime.now();
+        Instant now = Instant.now();
         builder.startTime(now);
         e = expectThrows(ElasticsearchStatusException.class, builder::build);
         assertEquals("Field [end_time] cannot be null", e.getMessage());
-        builder.endTime(now.plusHours(1));
+        builder.endTime(now.plusSeconds(1*60*60));
         e = expectThrows(ElasticsearchStatusException.class, builder::build);
         assertEquals("Field [calendar_id] cannot be null", e.getMessage());
         builder.calendarId("foo");
@@ -98,7 +96,7 @@ public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEv
 
         builder = new ScheduledEvent.Builder().description("f").calendarId("c");
         builder.startTime(now);
-        builder.endTime(now.minusHours(2));
+        builder.endTime(now.minusSeconds(2*60*60));
 
         e = expectThrows(ElasticsearchStatusException.class, builder::build);
         assertThat(e.getMessage(), containsString("must come before end time"));

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.s3;
@@ -35,10 +24,10 @@ import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;
@@ -49,7 +38,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.repositories.s3.S3BlobStoreTests.randomMockS3BlobStore;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doNothing;
@@ -59,16 +48,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doAnswer;
 
-public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
-
-    protected BlobStore newBlobStore() {
-        return randomMockS3BlobStore();
-    }
-
-    @Override
-    public void testVerifyOverwriteFails() {
-        assumeFalse("not implemented because of S3's weak consistency model", true);
-    }
+public class S3BlobStoreContainerTests extends ESTestCase {
 
     public void testExecuteSingleUploadBlobSizeTooLarge() {
         final long blobSize = ByteSizeUnit.GB.toBytes(randomIntBetween(6, 10));
@@ -96,7 +76,7 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
 
-        final BlobPath blobPath = new BlobPath();
+        final BlobPath blobPath = BlobPath.EMPTY;
         if (randomBoolean()) {
             IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
         }
@@ -169,9 +149,9 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
 
-        final BlobPath blobPath = new BlobPath();
+        final BlobPath blobPath = BlobPath.EMPTY;
         if (randomBoolean()) {
-            IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
+            IntStream.of(randomIntBetween(1, 5)).forEach(value -> BlobPath.EMPTY.add("path_" + value));
         }
 
         final long blobSize = ByteSizeUnit.GB.toBytes(randomIntBetween(1, 128));
@@ -270,7 +250,7 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
     public void testExecuteMultipartUploadAborted() {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
-        final BlobPath blobPath = new BlobPath();
+        final BlobPath blobPath = BlobPath.EMPTY;
 
         final long blobSize = ByteSizeUnit.MB.toBytes(765);
         final long bufferSize =  ByteSizeUnit.MB.toBytes(150);
@@ -332,7 +312,7 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         doNothing().when(client).abortMultipartUpload(argumentCaptor.capture());
 
         final IOException e = expectThrows(IOException.class, () -> {
-            final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+            final S3BlobContainer blobContainer = new S3BlobContainer(BlobPath.EMPTY, blobStore);
             blobContainer.executeMultipartUpload(blobStore, blobName, new ByteArrayInputStream(new byte[0]), blobSize);
         });
 
@@ -390,6 +370,64 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         // Fits in N parts plus a bit more
         final long remaining = randomIntBetween(1, (size > Integer.MAX_VALUE) ? Integer.MAX_VALUE : (int) size - 1);
         assertNumberOfMultiparts(factor + 1, remaining, (size * factor) + remaining, size);
+    }
+
+    public void testInitCannedACL() {
+        String[] aclList = new String[]{
+            "private", "public-read", "public-read-write", "authenticated-read",
+            "log-delivery-write", "bucket-owner-read", "bucket-owner-full-control"};
+
+        //empty acl
+        assertThat(S3BlobStore.initCannedACL(null), equalTo(CannedAccessControlList.Private));
+        assertThat(S3BlobStore.initCannedACL(""), equalTo(CannedAccessControlList.Private));
+
+        // it should init cannedACL correctly
+        for (String aclString : aclList) {
+            CannedAccessControlList acl = S3BlobStore.initCannedACL(aclString);
+            assertThat(acl.toString(), equalTo(aclString));
+        }
+
+        // it should accept all aws cannedACLs
+        for (CannedAccessControlList awsList : CannedAccessControlList.values()) {
+            CannedAccessControlList acl = S3BlobStore.initCannedACL(awsList.toString());
+            assertThat(acl, equalTo(awsList));
+        }
+    }
+
+    public void testInvalidCannedACL() {
+        BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initCannedACL("test_invalid"));
+        assertThat(ex.getMessage(), equalTo("cannedACL is not valid: [test_invalid]"));
+    }
+
+    public void testInitStorageClass() {
+        // it should default to `standard`
+        assertThat(S3BlobStore.initStorageClass(null), equalTo(StorageClass.Standard));
+        assertThat(S3BlobStore.initStorageClass(""), equalTo(StorageClass.Standard));
+
+        // it should accept [standard, standard_ia, onezone_ia, reduced_redundancy, intelligent_tiering]
+        assertThat(S3BlobStore.initStorageClass("standard"), equalTo(StorageClass.Standard));
+        assertThat(S3BlobStore.initStorageClass("standard_ia"), equalTo(StorageClass.StandardInfrequentAccess));
+        assertThat(S3BlobStore.initStorageClass("onezone_ia"), equalTo(StorageClass.OneZoneInfrequentAccess));
+        assertThat(S3BlobStore.initStorageClass("reduced_redundancy"), equalTo(StorageClass.ReducedRedundancy));
+        assertThat(S3BlobStore.initStorageClass("intelligent_tiering"), equalTo(StorageClass.IntelligentTiering));
+    }
+
+    public void testCaseInsensitiveStorageClass() {
+        assertThat(S3BlobStore.initStorageClass("sTandaRd"), equalTo(StorageClass.Standard));
+        assertThat(S3BlobStore.initStorageClass("sTandaRd_Ia"), equalTo(StorageClass.StandardInfrequentAccess));
+        assertThat(S3BlobStore.initStorageClass("oNeZoNe_iA"), equalTo(StorageClass.OneZoneInfrequentAccess));
+        assertThat(S3BlobStore.initStorageClass("reduCED_redundancy"), equalTo(StorageClass.ReducedRedundancy));
+        assertThat(S3BlobStore.initStorageClass("intelLigeNt_tieriNG"), equalTo(StorageClass.IntelligentTiering));
+    }
+
+    public void testInvalidStorageClass() {
+        BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass("whatever"));
+        assertThat(ex.getMessage(), equalTo("`whatever` is not a valid S3 Storage Class."));
+    }
+
+    public void testRejectGlacierStorageClass() {
+        BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass("glacier"));
+        assertThat(ex.getMessage(), equalTo("Glacier storage class is not supported"));
     }
 
     private static void assertNumberOfMultiparts(final int expectedParts, final long expectedRemaining, long totalSize, long partSize) {

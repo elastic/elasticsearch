@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -30,15 +19,14 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.TestAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -47,13 +35,11 @@ import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -82,7 +68,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
-        aggBuilder.dateHistogramInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
+        aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
         aggBuilder.subAggregation(new AvgAggregationBuilder("the_avg").field(VALUE_FIELD));
         aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "the_avg"));
 
@@ -93,6 +79,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             for (Histogram.Bucket bucket : buckets) {
                 sum += ((InternalAvg) (bucket.getAggregations().get("the_avg"))).value();
                 assertThat(((InternalSimpleValue) (bucket.getAggregations().get("cusum"))).value(), equalTo(sum));
+                assertTrue(AggregationInspectionHelper.hasValue(((InternalAvg) (bucket.getAggregations().get("the_avg")))));
             }
         });
     }
@@ -104,7 +91,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
-        aggBuilder.dateHistogramInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
+        aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
         aggBuilder.subAggregation(new AvgAggregationBuilder("the_avg").field(VALUE_FIELD));
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("the_deriv", "the_avg"));
         aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "the_deriv"));
@@ -116,10 +103,33 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < buckets.size(); i++) {
                 if (i == 0) {
                     assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("cusum"))).value(), equalTo(0.0));
+                    assertTrue(AggregationInspectionHelper.hasValue(((InternalSimpleValue) (buckets.get(i)
+                        .getAggregations().get("cusum")))));
                 } else {
                     sum += 1.0;
                     assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("cusum"))).value(), equalTo(sum));
+                    assertTrue(AggregationInspectionHelper.hasValue(((InternalSimpleValue) (buckets.get(i)
+                        .getAggregations().get("cusum")))));
                 }
+            }
+        });
+    }
+
+    public void testCount() throws IOException {
+        Query query = new MatchAllDocsQuery();
+
+        DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
+        aggBuilder.fixedInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
+        aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "_count"));
+
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertEquals(10, ((Histogram)histogram).getBuckets().size());
+            List<? extends Histogram.Bucket> buckets = ((Histogram)histogram).getBuckets();
+            double sum = 1.0;
+            for (Histogram.Bucket bucket : buckets) {
+                assertThat(((InternalSimpleValue) (bucket.getAggregations().get("cusum"))).value(), equalTo(sum));
+                assertTrue(AggregationInspectionHelper.hasValue(((InternalSimpleValue) (bucket.getAggregations().get("cusum")))));
+                sum += 1.0;
             }
         });
     }
@@ -264,34 +274,6 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             }
         });
     }
-    
-    /**
-     * The validation should verify the parent aggregation is allowed.
-     */
-    public void testValidate() throws IOException {
-        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
-        aggBuilders.add(new CumulativeSumPipelineAggregationBuilder("cusum", "sum"));
-
-        final CumulativeSumPipelineAggregationBuilder builder = new CumulativeSumPipelineAggregationBuilder("name", "valid");
-        builder.validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
-    }
-
-    /**
-     * The validation should throw an IllegalArgumentException, since parent
-     * aggregation is not a type of HistogramAggregatorFactory,
-     * DateHistogramAggregatorFactory or AutoDateHistogramAggregatorFactory.
-     */
-    public void testValidateException() throws IOException {
-        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
-        aggBuilders.add(new CumulativeSumPipelineAggregationBuilder("cusum", "sum"));
-        TestAggregatorFactory parentFactory = TestAggregatorFactory.createInstance();
-
-        final CumulativeSumPipelineAggregationBuilder builder = new CumulativeSumPipelineAggregationBuilder("name", "invalid_agg>metric");
-        IllegalStateException ex = expectThrows(IllegalStateException.class,
-                () -> builder.validate(parentFactory, Collections.emptySet(), aggBuilders));
-        assertEquals("cumulative_sum aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent",
-                ex.getMessage());
-    }
 
     private void executeTestCase(Query query, AggregationBuilder aggBuilder, Consumer<InternalAggregation> verify) throws IOException {
         executeTestCase(query, aggBuilder, verify, indexWriter -> {
@@ -323,14 +305,9 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
-                DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-                fieldType.setHasDocValues(true);
-                fieldType.setName(HISTO_FIELD);
-
-                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                valueFieldType.setHasDocValues(true);
-                valueFieldType.setName("value_field");
+                DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(HISTO_FIELD);
+                MappedFieldType valueFieldType
+                    = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
                 InternalAggregation histogram;
                 histogram = searchAndReduce(indexSearcher, query, aggBuilder, new MappedFieldType[]{fieldType, valueFieldType});
@@ -340,6 +317,6 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
     }
 
     private static long asLong(String dateTime) {
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda(dateTime).getMillis();
+        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
     }
 }

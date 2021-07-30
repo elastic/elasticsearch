@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-global-aggregation]]
-=== Global Aggregation
+=== Global aggregation
+++++
+<titleabbrev>Global</titleabbrev>
+++++
 
 Defines a single bucket of all the documents within the search execution
 context. This context is defined by the indices and the document types you're
@@ -11,25 +14,24 @@ NOTE:   Global aggregators can only be placed as top level aggregators because
 
 Example:
 
-[source,js]
+[source,console,id=global-aggregation-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "query" : {
-        "match" : { "type" : "t-shirt" }
+  "query": {
+    "match": { "type": "t-shirt" }
+  },
+  "aggs": {
+    "all_products": {
+      "global": {}, <1>
+      "aggs": {     <2>
+      "avg_price": { "avg": { "field": "price" } }
+      }
     },
-    "aggs" : {
-        "all_products" : {
-            "global" : {}, <1>
-            "aggs" : { <2>
-                "avg_price" : { "avg" : { "field" : "price" } }
-            }
-        },
-        "t_shirts": { "avg" : { "field" : "price" } }
-    }
+    "t_shirts": { "avg": { "field": "price" } }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> The `global` aggregation has an empty body
@@ -42,21 +44,21 @@ all products in our catalog, not just on the "shirts").
 
 The response for the above aggregation:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations" : {
-        "all_products" : {
-            "doc_count" : 7, <1>
-            "avg_price" : {
-                "value" : 140.71428571428572 <2>
-            }
-        },
-        "t_shirts": {
-            "value" : 128.33333333333334 <3>
-        }
+  ...
+  "aggregations": {
+    "all_products": {
+      "doc_count": 7, <1>
+      "avg_price": {
+        "value": 140.71428571428572 <2>
+      }
+    },
+    "t_shirts": {
+      "value": 128.33333333333334 <3>
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]

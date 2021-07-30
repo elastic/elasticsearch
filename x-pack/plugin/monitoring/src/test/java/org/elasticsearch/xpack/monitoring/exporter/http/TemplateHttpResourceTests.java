@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.is;
@@ -23,14 +25,20 @@ import static org.hamcrest.Matchers.is;
 public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTestCase {
 
     private final String templateName = ".my_template";
-    private final String templateValue = "{\"template\":\".xyz-*\",\"mappings\":{}}";
-    private final Supplier<String> template = () -> templateValue;
+
+    //the internal representation has the type, the external representation should not
+    private final String templateValueInternal = "{\"order\":0,\"index_patterns\":[\".xyz-*\"],\"settings\":{},\"mappings\":{\"_doc\"" +
+        ":{\"properties\":{\"one\":{\"properties\":{\"two\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}}}}}},\"aliases\":{}}";
+    private final String templateValueExternal = "{\"order\":0,\"index_patterns\":[\".xyz-*\"],\"settings\":{},\"mappings\"" +
+        ":{\"properties\":{\"one\":{\"properties\":{\"two\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}}}}},\"aliases\":{}}";
+    private final Supplier<String> template = () -> templateValueInternal;
     private final int minimumVersion = Math.min(MonitoringTemplateUtils.LAST_UPDATED_VERSION, Version.CURRENT.id);
 
     private final TemplateHttpResource resource = new TemplateHttpResource(owner, masterTimeout, templateName, template);
 
     public void testTemplateToHttpEntity() throws IOException {
-        final byte[] templateValueBytes = templateValue.getBytes(ContentType.APPLICATION_JSON.getCharset());
+        //the internal representation is converted to the external representation for the resource
+        final byte[] templateValueBytes = templateValueExternal.getBytes(ContentType.APPLICATION_JSON.getCharset());
         final HttpEntity entity = resource.templateToHttpEntity();
 
         assertThat(entity.getContentType().getValue(), is(ContentType.APPLICATION_JSON.toString()));
@@ -77,11 +85,11 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void testDoPublishTrue() {
-        assertPublishSucceeds(resource, "/_template", templateName, StringEntity.class);
+        assertPublishSucceeds(resource, "/_template", templateName, Collections.emptyMap(), StringEntity.class);
     }
 
     public void testDoPublishFalseWithException() {
-        assertPublishWithException(resource, "/_template", templateName, StringEntity.class);
+        assertPublishWithException(resource, "/_template", templateName, Collections.emptyMap(), StringEntity.class);
     }
 
     public void testParameters() {

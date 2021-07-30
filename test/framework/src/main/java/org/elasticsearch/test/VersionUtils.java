@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,7 +41,7 @@ public class VersionUtils {
         // this breaks b/c 5.x is still in version list but master doesn't care about it!
         //assert majorVersions.size() == 2;
         // TODO: remove oldVersions, we should only ever have 2 majors in Version
-        List<Version> oldVersions = majorVersions.getOrDefault((int)current.major - 2, Collections.emptyList());
+        List<List<Version>> oldVersions = splitByMinor(majorVersions.getOrDefault((int)current.major - 2, Collections.emptyList()));
         List<List<Version>> previousMajor = splitByMinor(majorVersions.get((int)current.major - 1));
         List<List<Version>> currentMajor = splitByMinor(majorVersions.get((int)current.major));
 
@@ -78,12 +67,21 @@ public class VersionUtils {
                 moveLastToUnreleased(stableVersions, unreleasedVersions);
             }
             // remove the next bugfix
-            moveLastToUnreleased(stableVersions, unreleasedVersions);
+            if (stableVersions.isEmpty() == false) {
+                moveLastToUnreleased(stableVersions, unreleasedVersions);
+            }
         }
 
-        List<Version> releasedVersions = Stream.concat(oldVersions.stream(),
-            Stream.concat(previousMajor.stream(), currentMajor.stream()).flatMap(List::stream))
-            .collect(Collectors.toList());
+        // If none of the previous major was released, then the last minor and bugfix of the old version was not released either.
+        if (previousMajor.isEmpty()) {
+            assert currentMajor.isEmpty() : currentMajor;
+            // minor of the old version is being staged
+            moveLastToUnreleased(oldVersions, unreleasedVersions);
+            // bugix of the old version is also being staged
+            moveLastToUnreleased(oldVersions, unreleasedVersions);
+        }
+        List<Version> releasedVersions = Stream.of(oldVersions, previousMajor, currentMajor)
+            .flatMap(List::stream).flatMap(List::stream).collect(Collectors.toList());
         Collections.sort(unreleasedVersions); // we add unreleased out of order, so need to sort here
         return new Tuple<>(Collections.unmodifiableList(releasedVersions), Collections.unmodifiableList(unreleasedVersions));
     }
@@ -218,13 +216,6 @@ public class VersionUtils {
         }
     }
 
-    /** returns the first future incompatible version */
-    public static Version incompatibleFutureVersion(Version version) {
-        final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version) == false).findAny();
-        assert opt.isPresent() : "no future incompatible version for " + version;
-        return opt.get();
-    }
-
     /** returns the first future compatible version */
     public static Version compatibleFutureVersion(Version version) {
         final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version)).findAny();
@@ -238,5 +229,22 @@ public class VersionUtils {
             .collect(Collectors.toList());
         assert compatible.size() > 0;
         return compatible.get(compatible.size() - 1);
+    }
+
+    /**
+     * Returns a random version index compatible with the current version.
+     */
+    public static Version randomIndexCompatibleVersion(Random random) {
+        return randomVersionBetween(random, Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);
+    }
+
+    /**
+     * Returns a random version index compatible with the given version, but not the given version.
+     */
+    public static Version randomPreviousCompatibleVersion(Random random, Version version) {
+        // TODO: change this to minimumCompatibilityVersion(), but first need to remove released/unreleased
+        // versions so getPreviousVerison returns the *actual* previous version. Otherwise eg 8.0.0 returns say 7.0.2 for previous,
+        // but 7.2.0 for minimum compat
+        return randomVersionBetween(random, version.minimumIndexCompatibilityVersion(), getPreviousVersion(version));
     }
 }

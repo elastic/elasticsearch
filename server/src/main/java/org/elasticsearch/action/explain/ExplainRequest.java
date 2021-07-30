@@ -1,28 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.explain;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,7 +34,6 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
 
-    private String type = MapperService.SINGLE_MAPPING_NAME;
     private String id;
     private String routing;
     private String preference;
@@ -59,40 +48,25 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     public ExplainRequest() {
     }
 
-    /**
-     * @deprecated Types are in the process of being removed. Use {@link ExplainRequest(String, String) instead.}
-     */
-    @Deprecated
-    public ExplainRequest(String index, String type, String id) {
-        this.index = index;
-        this.type = type;
-        this.id = id;
-    }
-
     public ExplainRequest(String index, String id) {
         this.index = index;
         this.id = id;
     }
 
-    /**
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    public String type() {
-        return type;
-    }
-
-    /**
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    public ExplainRequest type(String type) {
-        this.type = type;
-        return this;
-    }
-
-    public boolean isTypeless() {
-        return type == null || type.equals(MapperService.SINGLE_MAPPING_NAME);
+    ExplainRequest(StreamInput in) throws IOException {
+        super(in);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String type = in.readString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type);
+        }
+        id = in.readString();
+        routing = in.readOptionalString();
+        preference = in.readOptionalString();
+        query = in.readNamedWriteable(QueryBuilder.class);
+        filteringAlias = new AliasFilter(in);
+        storedFields = in.readOptionalStringArray();
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        nowInMillis = in.readVLong();
     }
 
     public String id() {
@@ -176,9 +150,6 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
-        if (Strings.isEmpty(type)) {
-            validationException = addValidationError("type is missing", validationException);
-        }
         if (Strings.isEmpty(id)) {
             validationException = addValidationError("id is missing", validationException);
         }
@@ -189,23 +160,11 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        type = in.readString();
-        id = in.readString();
-        routing = in.readOptionalString();
-        preference = in.readOptionalString();
-        query = in.readNamedWriteable(QueryBuilder.class);
-        filteringAlias = new AliasFilter(in);
-        storedFields = in.readOptionalStringArray();
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        nowInMillis = in.readVLong();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(type);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);

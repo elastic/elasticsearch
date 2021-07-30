@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
@@ -22,6 +23,12 @@ public class DeleteRoleRequest extends ActionRequest implements WriteRequest<Del
 
     private String name;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
+
+    public DeleteRoleRequest(StreamInput in) throws IOException {
+        super(in);
+        name = in.readString();
+        refreshPolicy = RefreshPolicy.readFrom(in);
+    }
 
     public DeleteRoleRequest() {
     }
@@ -52,13 +59,6 @@ public class DeleteRoleRequest extends ActionRequest implements WriteRequest<Del
 
     public String name() {
         return name;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        name = in.readString();
-        refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override

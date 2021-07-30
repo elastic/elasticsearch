@@ -1,35 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.rest.action.document.RestMultiGetAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,6 +32,7 @@ import java.util.Iterator;
 import java.util.List;
 
 public class MultiGetResponse extends ActionResponse implements Iterable<MultiGetItemResponse>, ToXContentObject {
+    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(MultiGetResponse.class);
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
@@ -48,21 +43,25 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
     /**
      * Represents a failure.
      */
-    public static class Failure implements Streamable, ToXContentObject {
+    public static class Failure implements Writeable, ToXContentObject {
 
-        private String index;
-        private String type;
-        private String id;
-        private Exception exception;
+        private final String index;
+        private final String id;
+        private final Exception exception;
 
-        Failure() {
-        }
-
-        public Failure(String index, String type, String id, Exception exception) {
+        public Failure(String index, String id, Exception exception) {
             this.index = index;
-            this.type = type;
             this.id = id;
             this.exception = exception;
+        }
+
+        Failure(StreamInput in) throws IOException {
+            index = in.readString();
+            if (in.getVersion().before(Version.V_8_0_0)) {
+                in.readOptionalString();
+            }
+            id = in.readString();
+            exception = in.readException();
         }
 
         /**
@@ -70,13 +69,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
          */
         public String getIndex() {
             return this.index;
-        }
-
-        /**
-         * The type of the action.
-         */
-        public String getType() {
-            return type;
         }
 
         /**
@@ -93,24 +85,12 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
             return exception != null ? exception.getMessage() : null;
         }
 
-        public static Failure readFailure(StreamInput in) throws IOException {
-            Failure failure = new Failure();
-            failure.readFrom(in);
-            return failure;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            index = in.readString();
-            type = in.readOptionalString();
-            id = in.readString();
-            exception = in.readException();
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            out.writeOptionalString(type);
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
+            }
             out.writeString(id);
             out.writeException(exception);
         }
@@ -119,7 +99,9 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(INDEX.getPreferredName(), index);
-            builder.field(TYPE.getPreferredName(), type);
+            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+                builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+            }
             builder.field(ID.getPreferredName(), id);
             ElasticsearchException.generateFailureXContent(builder, params, exception, true);
             builder.endObject();
@@ -131,13 +113,15 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         }
     }
 
-    private MultiGetItemResponse[] responses;
-
-    MultiGetResponse() {
-    }
+    private final MultiGetItemResponse[] responses;
 
     public MultiGetResponse(MultiGetItemResponse[] responses) {
         this.responses = responses;
+    }
+
+    MultiGetResponse(StreamInput in) throws IOException {
+        super(in);
+        responses = in.readArray(MultiGetItemResponse::new, MultiGetItemResponse[]::new);
     }
 
     public MultiGetItemResponse[] getResponses() {
@@ -196,7 +180,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
     private static MultiGetItemResponse parseItem(XContentParser parser) throws IOException {
         String currentFieldName = null;
         String index = null;
-        String type = null;
         String id = null;
         ElasticsearchException exception = null;
         GetResult getResult = null;
@@ -205,17 +188,16 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
                 case FIELD_NAME:
                     currentFieldName = parser.currentName();
                     if (INDEX.match(currentFieldName, parser.getDeprecationHandler()) == false
-                            && TYPE.match(currentFieldName, parser.getDeprecationHandler()) == false
                             && ID.match(currentFieldName, parser.getDeprecationHandler()) == false
                             && ERROR.match(currentFieldName, parser.getDeprecationHandler()) == false) {
-                        getResult = GetResult.fromXContentEmbedded(parser, index, type, id);
+                        getResult = GetResult.fromXContentEmbedded(parser, index, id);
                     }
                     break;
                 case VALUE_STRING:
                     if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                         index = parser.text();
                     } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        type = parser.text();
+                        deprecationLogger.compatibleApiWarning("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
                     } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         id = parser.text();
                     }
@@ -236,7 +218,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         }
 
         if (exception != null) {
-            return new MultiGetItemResponse(null, new Failure(index, type, id, exception));
+            return new MultiGetItemResponse(null, new Failure(index, id, exception));
         } else {
             GetResponse getResponse = new GetResponse(getResult);
             return new MultiGetItemResponse(getResponse, null);
@@ -244,20 +226,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        responses = new MultiGetItemResponse[in.readVInt()];
-        for (int i = 0; i < responses.length; i++) {
-            responses[i] = MultiGetItemResponse.readItemResponse(in);
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(responses.length);
-        for (MultiGetItemResponse response : responses) {
-            response.writeTo(out);
-        }
+        out.writeArray(responses);
     }
 }

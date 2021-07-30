@@ -1,31 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.support;
 
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static org.apache.lucene.util.automaton.MinimizationOperations.minimize;
 import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 import static org.apache.lucene.util.automaton.Operations.concatenate;
+import static org.apache.lucene.util.automaton.Operations.intersection;
 import static org.apache.lucene.util.automaton.Operations.minus;
 import static org.apache.lucene.util.automaton.Operations.union;
 import static org.elasticsearch.common.Strings.collectionToDelimitedString;
@@ -83,10 +89,82 @@ public final class Automatons {
     }
 
     private static Automaton buildAutomaton(Collection<String> patterns) {
-        List<Automaton> automata = new ArrayList<>(patterns.size());
-        for (String pattern : patterns) {
-            final Automaton patternAutomaton = pattern(pattern);
-            automata.add(patternAutomaton);
+        if (patterns.size() == 1) {
+            return minimize(pattern(patterns.iterator().next()));
+        }
+
+        final Function<Collection<String>, Automaton> build = strings -> {
+            List<Automaton> automata = new ArrayList<>(strings.size());
+            for (String pattern : strings) {
+                final Automaton patternAutomaton = pattern(pattern);
+                automata.add(patternAutomaton);
+            }
+            return unionAndMinimize(automata);
+        };
+
+        // We originally just compiled each automaton separately and then unioned them all.
+        // However, that approach can be quite slow, and very memory intensive.
+        // It is far more efficient if
+        //   1. we strip leading/trailing "*"
+        //   2. union the automaton produced from the remaining text
+        //   3. append/prepend MatchAnyString automatons as appropriate
+        // That is:
+        //  - `MATCH_ALL + (bullseye|daredevil) + MATCH_ALL`
+        //  can be determinized more efficiently than
+        //  - `(MATCH_ALL + bullseye + MATCH_ALL)|(MATCH_ALL + daredevil + MATCH_ALL)`
+
+        final Set<String> prefix = new HashSet<>();
+        final Set<String> infix = new HashSet<>();
+        final Set<String> suffix = new HashSet<>();
+        final Set<String> misc = new HashSet<>();
+
+        for (String p : patterns) {
+            if (p.length() <= 1) {
+                // Single character strings (like "x" or "*"), or stray empty strings
+                misc.add(p);
+                continue;
+            }
+
+            final char first = p.charAt(0);
+            final char last = p.charAt(p.length() - 1);
+            if (first == '/') {
+                // regex ("/something/")
+                misc.add(p);
+            } else if (first == '*') {
+                if (last == '*') {
+                    // *something*
+                    infix.add(p.substring(1, p.length() - 1));
+                } else {
+                    // *something
+                    suffix.add(p.substring(1));
+                }
+            } else if (last == '*' && p.indexOf('*') != p.length() - 1) {
+                // some*thing*
+                // For simple prefix patterns ("something*") it's more efficient to do a single pass
+                // Lucene can efficiently determinize automata that share a trailing MATCH_ANY accept state,
+                // If we were to handle them here, we would run 2 minimize operations (one for the union of strings,
+                // then another after concatenating MATCH_ANY), which is substantially slower.
+                // However, that's not true if the string has an embedded '*' in it - in that case it is more efficient to determinize
+                //   the set of prefixes (with the embedded MATCH_ANY) and then concatenate another MATCH_ANY and minimize.
+                prefix.add(p.substring(0, p.length() - 1));
+            } else {
+                // something* / some*thing / some?thing / etc
+                misc.add(p);
+            }
+        }
+
+        final List<Automaton> automata = new ArrayList<>();
+        if (prefix.isEmpty() == false) {
+            automata.add(Operations.concatenate(build.apply(prefix), Automata.makeAnyString()));
+        }
+        if (suffix.isEmpty() == false) {
+            automata.add(Operations.concatenate(Automata.makeAnyString(), build.apply(suffix)));
+        }
+        if (infix.isEmpty() == false) {
+            automata.add(Operations.concatenate(List.of(Automata.makeAnyString(), build.apply(infix), Automata.makeAnyString())));
+        }
+        if (misc.isEmpty() == false) {
+            automata.add(build.apply(misc));
         }
         return unionAndMinimize(automata);
     }
@@ -106,9 +184,16 @@ public final class Automatons {
         }
     }
 
+    /**
+     * Is the str a lucene type of pattern
+     */
+    public static boolean isLuceneRegex(String str) {
+        return str.length() > 1 && str.charAt(0) == '/' && str.charAt(str.length() - 1) == '/';
+    }
+
     private static Automaton buildAutomaton(String pattern) {
         if (pattern.startsWith("/")) { // it's a lucene regexp
-            if (pattern.length() == 1 || !pattern.endsWith("/")) {
+            if (pattern.length() == 1 || pattern.endsWith("/") == false) {
                 throw new IllegalArgumentException("invalid pattern [" + pattern + "]. patterns starting with '/' " +
                     "indicate regular expression pattern and therefore must also end with '/'." +
                     " other patterns (those that do not start with '/') will be treated as simple wildcard patterns");
@@ -164,13 +249,22 @@ public final class Automatons {
     }
 
     public static Automaton unionAndMinimize(Collection<Automaton> automata) {
-        Automaton res = union(automata);
-        return minimize(res, maxDeterminizedStates);
+        Automaton res = automata.size() == 1 ? automata.iterator().next() : union(automata);
+        return minimize(res);
     }
 
     public static Automaton minusAndMinimize(Automaton a1, Automaton a2) {
         Automaton res = minus(a1, a2, maxDeterminizedStates);
-        return minimize(res, maxDeterminizedStates);
+        return minimize(res);
+    }
+
+    public static Automaton intersectAndMinimize(Automaton a1, Automaton a2) {
+        Automaton res = intersection(a1, a2);
+        return minimize(res);
+    }
+
+    private static Automaton minimize(Automaton automaton) {
+        return MinimizationOperations.minimize(automaton, maxDeterminizedStates);
     }
 
     public static Predicate<String> predicate(String... patterns) {

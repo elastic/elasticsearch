@@ -1,0 +1,14 @@
+{
+  "phases": {
+    "delete": {
+      "min_age": "7d",
+      "actions": {
+        "delete": {}
+      }
+    }
+  },
+  "_meta": {
+    "description": "default policy for the watcher history indices",
+    "managed": true
+  }
+}

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 // Default security policy file.
@@ -26,6 +15,13 @@
 
 grant codeBase "${codebase.elasticsearch-secure-sm}" {
   permission java.security.AllPermission;
+};
+
+//// Elasticsearch core:
+//// These are only allowed inside the server jar, not in plugins
+grant codeBase "${codebase.elasticsearch}" {
+  // needed for loading plugins which may expect the context class loader to be set
+  permission java.lang.RuntimePermission "setContextClassLoader";
 };
 
 //// Very special jar permissions:
@@ -47,14 +43,21 @@ grant codeBase "${codebase.lucene-misc}" {
   permission java.nio.file.LinkPermission "hard";
 };
 
-grant codeBase "${codebase.plugin-classloader}" {
+grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
   // needed to create the classloader which allows plugins to extend other plugins
   permission java.lang.RuntimePermission "createClassLoader";
+};
+
+grant codeBase "${codebase.jna}" {
+  // for registering native methods
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
 //// Everything else:
 
 grant {
+  // needed by vendored Guice
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.vm.annotation";
 
   // checked by scripting engines, and before hacks and other issues in
   // third party code, to safeguard these against unprivileged code like scripts.
@@ -62,6 +65,14 @@ grant {
 
   // Allow host/ip name service lookups
   permission java.net.SocketPermission "*", "resolve";
+
+  // Allow reading and setting socket keepalive options
+  permission jdk.net.NetworkPermission "getOption.TCP_KEEPIDLE";
+  permission jdk.net.NetworkPermission "setOption.TCP_KEEPIDLE";
+  permission jdk.net.NetworkPermission "getOption.TCP_KEEPINTERVAL";
+  permission jdk.net.NetworkPermission "setOption.TCP_KEEPINTERVAL";
+  permission jdk.net.NetworkPermission "getOption.TCP_KEEPCOUNT";
+  permission jdk.net.NetworkPermission "setOption.TCP_KEEPCOUNT";
 
   // Allow read access to all system properties
   permission java.util.PropertyPermission "*", "read";
@@ -141,4 +152,7 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
+
+  // system memory on Linux systems affected by JDK bug (#66629)
+  permission java.io.FilePermission "/proc/meminfo", "read";
 };

@@ -1,119 +1,44 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 apply plugin: 'nebula.optional-base'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
-
-archivesBaseName = 'elasticsearch-core'
-
-// we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 9 so we do not include this source set in our IDEs
-if (!isEclipse && !isIdea) {
-    sourceSets {
-        java9 {
-            java {
-                srcDirs = ['src/main/java9']
-            }
-        }
-    }
-
-    configurations {
-        java9Compile.extendsFrom(compile)
-    }
-
-    dependencies {
-        java9Compile sourceSets.main.output
-    }
-
-    compileJava9Java {
-        sourceCompatibility = 9
-        targetCompatibility = 9
-    }
-
-    forbiddenApisJava9 {
-        if (project.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
-            targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
-        }
-        replaceSignatureFiles 'jdk-signatures'
-    }
-
-    jar {
-        metaInf {
-            into 'versions/9'
-            from sourceSets.java9.output
-        }
-        manifest.attributes('Multi-Release': 'true')
-    }
-}
-
-publishing {
-    publications {
-        nebula {
-            artifactId = archivesBaseName
-        }
-    }
-}
+apply plugin: 'elasticsearch.publish'
 
 dependencies {
-    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-    testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  // This dependency is used only by :libs:core for null-checking interop with other tools
+  compileOnly "com.google.code.findbugs:jsr305:3.0.2"
 
-    if (!isEclipse && !isIdea) {
-        java9Compile sourceSets.main.output
-    }
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 
-    if (isEclipse == false || project.path == ":libs:core-tests") {
-        testCompile("org.elasticsearch.test:framework:${version}") {
-            exclude group: 'org.elasticsearch', module: 'elasticsearch-core'
-        }
-    }
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-core'
+  }
 }
 
-forbiddenApisMain {
-    // :libs:core does not depend on server
-    // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server
-    replaceSignatureFiles 'jdk-signatures'
+tasks.named('forbiddenApisMain').configure {
+  // :libs:elasticsearch-core does not depend on server
+  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server
+  replaceSignatureFiles 'jdk-signatures'
 }
 
-if (isEclipse) {
-    // in eclipse the project is under a fake root, we need to change around the source sets
-    sourceSets {
-        if (project.path == ":libs:core") {
-            main.java.srcDirs = ['java']
-            main.resources.srcDirs = ['resources']
-        } else {
-            test.java.srcDirs = ['java']
-            test.resources.srcDirs = ['resources']
-        }
-    }
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // from log4j
+          'org/osgi/framework/AdaptPermission',
+          'org/osgi/framework/AdminPermission',
+          'org/osgi/framework/Bundle',
+          'org/osgi/framework/BundleActivator',
+          'org/osgi/framework/BundleContext',
+          'org/osgi/framework/BundleEvent',
+          'org/osgi/framework/SynchronousBundleListener',
+          'org/osgi/framework/wiring/BundleWire',
+          'org/osgi/framework/wiring/BundleWiring'
+  )
 }
-
-thirdPartyAudit.excludes = [
-    // from log4j
-    'org/osgi/framework/AdaptPermission',
-    'org/osgi/framework/AdminPermission',
-    'org/osgi/framework/Bundle',
-    'org/osgi/framework/BundleActivator',
-    'org/osgi/framework/BundleContext',
-    'org/osgi/framework/BundleEvent',
-    'org/osgi/framework/SynchronousBundleListener',
-    'org/osgi/framework/wiring/BundleWire',
-    'org/osgi/framework/wiring/BundleWiring'
-]

@@ -1,0 +1,53 @@
+[discrete]
+[[breaking_80_reindex_changes]]
+==== Reindex changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+.Reindex from remote now re-encodes URL-encoded index names.
+[%collapsible]
+====
+*Details* +
+Reindex from remote would previously allow URL-encoded index names and not
+re-encode them when generating the search request for the remote host. This
+leniency has been removed such that all index names are correctly encoded when
+reindex generates remote search requests.
+
+*Impact* +
+Specify unencoded index names for reindex from remote requests.
+====
+
+.Reindex-related REST API endpoints containing mapping types have been removed.
+[%collapsible]
+====
+*Details* +
+The `/{index}/{type}/_delete_by_query` and `/{index}/{type}/_update_by_query` REST endpoints have been removed in favour of `/{index}/_delete_by_query` and `/{index}/_update_by_query`, since indexes no longer contain types, these typed endpoints are obsolete.
+
+*Impact* +
+Use the replacement REST API endpoints. Requests submitted to API endpoints
+that contain a mapping type will return an error.
+====
+
+
+.In the reindex, delete by query, and update by query APIs, the `size` parameter has been renamed.
+[%collapsible]
+====
+*Details* +
+Previously, a `_reindex` request had two different size specifications in the body:
+
+- Outer level, determining the maximum number of documents to process
+- Inside the `source` element, determining the scroll/batch size.
+
+The outer level `size` parameter has now been renamed to `max_docs` to
+avoid confusion and clarify its semantics.
+
+Similarly, the `size` parameter has been renamed to `max_docs` for
+`_delete_by_query` and `_update_by_query` to keep the 3 interfaces consistent.
+
+*Impact* +
+Use the replacement parameters. Requests containing the `size` parameter will
+return an error.
+====
+//end::notable-breaking-changes[]

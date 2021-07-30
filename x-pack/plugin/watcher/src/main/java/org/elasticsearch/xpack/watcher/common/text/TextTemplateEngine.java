@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.common.text;
 
@@ -32,7 +33,7 @@ public class TextTemplateEngine {
         String mediaType = compileParams(detectContentType(template));
         template = trimContentType(textTemplate);
 
-        if (textTemplate.isUsingMustache() == false) {
+        if (textTemplate.mayRequireCompilation() == false) {
             return template;
         }
 
@@ -55,12 +56,12 @@ public class TextTemplateEngine {
         Script script = new Script(textTemplate.getType(),
                 textTemplate.getType() == ScriptType.STORED ? null : "mustache", template, options, mergedModel);
         TemplateScript.Factory compiledTemplate = service.compile(script, Watcher.SCRIPT_TEMPLATE_CONTEXT);
-        return compiledTemplate.newInstance(model).execute();
+        return compiledTemplate.newInstance(mergedModel).execute();
     }
 
     private String trimContentType(TextTemplate textTemplate) {
         String template = textTemplate.getTemplate();
-        if (!template.startsWith("__")){
+        if (template.startsWith("__") == false){
             return template; //Doesn't even start with __ so can't have a content type
         }
         // There must be a __<content_type__:: prefix so the minimum length before detecting '__::' is 3
@@ -82,7 +83,7 @@ public class TextTemplateEngine {
             //There must be a __<content_type__:: prefix so the minimum length before detecting '__::' is 3
             int endOfContentName = content.indexOf("__::", 3);
             if (endOfContentName != -1) {
-                return XContentType.fromMediaTypeOrFormat(content.substring(2, endOfContentName));
+                return XContentType.fromFormat(content.substring(2, endOfContentName));
             }
         }
         return null;

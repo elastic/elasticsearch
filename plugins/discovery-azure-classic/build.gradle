@@ -1,23 +1,15 @@
 import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism'
@@ -25,223 +17,129 @@ esplugin {
 }
 
 versions << [
-  'azure': '0.9.3',
+  'azure' : '0.9.3',
   'jersey': '1.13'
 ]
 
 dependencies {
-  compile "com.microsoft.azure:azure-svc-mgmt-compute:${versions.azure}"
-  compile "com.microsoft.azure:azure-core:${versions.azure}"
-  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "commons-lang:commons-lang:2.6"
-  compile "commons-io:commons-io:2.4"
-  compile 'javax.mail:mail:1.4.5'
-  compile 'javax.inject:javax.inject:1'
-  compile "com.sun.jersey:jersey-client:${versions.jersey}"
-  compile "com.sun.jersey:jersey-core:${versions.jersey}"
-  compile "com.sun.jersey:jersey-json:${versions.jersey}"
-  compile 'org.codehaus.jettison:jettison:1.1' 
-  compile 'com.sun.xml.bind:jaxb-impl:2.2.3-1'
-  compile 'org.codehaus.jackson:jackson-core-asl:1.9.2'
-  compile 'org.codehaus.jackson:jackson-mapper-asl:1.9.2'
-  compile 'org.codehaus.jackson:jackson-jaxrs:1.9.2'
-  compile 'org.codehaus.jackson:jackson-xc:1.9.2'  
+  api "com.microsoft.azure:azure-svc-mgmt-compute:${versions.azure}"
+  api "com.microsoft.azure:azure-core:${versions.azure}"
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "commons-lang:commons-lang:2.6"
+  api "commons-io:commons-io:2.4"
+  api 'javax.mail:mail:1.4.5'
+  api 'javax.inject:javax.inject:1'
+  api "com.sun.jersey:jersey-client:${versions.jersey}"
+  api "com.sun.jersey:jersey-core:${versions.jersey}"
+  api "com.sun.jersey:jersey-json:${versions.jersey}"
+  api 'org.codehaus.jettison:jettison:1.1'
+  api 'com.sun.xml.bind:jaxb-impl:2.2.3-1'
+  api 'org.codehaus.jackson:jackson-core-asl:1.9.2'
+  api 'org.codehaus.jackson:jackson-mapper-asl:1.9.2'
+  api 'org.codehaus.jackson:jackson-jaxrs:1.9.2'
+  api 'org.codehaus.jackson:jackson-xc:1.9.2'
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
-  // and whitelist this hack in JarHell 
-  compile 'javax.xml.bind:jaxb-api:2.2.2'
+  // and whitelist this hack in JarHell
+  api 'javax.xml.bind:jaxb-api:2.2.2'
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'nodes'
+  }
 }
 
 // needed to be consistent with ssl host checking
-String host = InetAddress.getLoopbackAddress().getHostAddress();
+String host = InetAddress.getLoopbackAddress().getHostAddress()
 
 // location of keystore and files to generate it
 File keystore = new File(project.buildDir, 'keystore/test-node.jks')
 
 // generate the keystore
-task createKey(type: LoggedExec) {
+TaskProvider createKey = tasks.register("createKey", LoggedExec) {
   doFirst {
-    project.delete(keystore.parentFile)
+    delete(keystore.parentFile)
     keystore.parentFile.mkdirs()
   }
-  executable = new File(project.runtimeJavaHome, 'bin/keytool')
+  outputs.file(keystore).withPropertyName('keystoreFile')
+  executable = "${BuildParams.runtimeJavaHome}/bin/keytool"
   standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
   args '-genkey',
-          '-alias', 'test-node',
-          '-keystore', keystore,
-          '-keyalg', 'RSA',
-          '-keysize', '2048',
-          '-validity', '712',
-          '-dname', 'CN=' + host,
-          '-keypass', 'keypass',
-          '-storepass', 'keypass'
+    '-alias', 'test-node',
+    '-keystore', keystore,
+    '-keyalg', 'RSA',
+    '-keysize', '2048',
+    '-validity', '712',
+    '-dname', 'CN=' + host,
+    '-keypass', 'keypass',
+    '-storepass', 'keypass'
+}
+//no unit tests
+tasks.named("test").configure { enabled = false }
+// add keystore to test classpath: it expects it there
+tasks.named("processInternalClusterTestResources").configure {
+  from createKey
 }
 
-// add keystore to test classpath: it expects it there
-sourceSets.test.resources.srcDir(keystore.parentFile)
-processTestResources.dependsOn(createKey)
+normalization {
+  runtimeClasspath {
+    ignore 'test-node.jks'
+  }
+}
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /azure-.*/, to: 'azure'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jersey-.*/, to: 'jersey'
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
-thirdPartyAudit.excludes = [
-  // classes are missing
-  'javax.servlet.ServletContextEvent', 
-  'javax.servlet.ServletContextListener', 
-  'org.apache.avalon.framework.logger.Logger', 
-  'org.apache.log.Hierarchy', 
-  'org.apache.log.Logger', 
-  'org.eclipse.persistence.descriptors.ClassDescriptor', 
-  'org.eclipse.persistence.internal.oxm.MappingNodeValue', 
-  'org.eclipse.persistence.internal.oxm.TreeObjectBuilder', 
-  'org.eclipse.persistence.internal.oxm.XPathFragment', 
-  'org.eclipse.persistence.internal.oxm.XPathNode', 
-  'org.eclipse.persistence.internal.queries.ContainerPolicy', 
-  'org.eclipse.persistence.jaxb.JAXBContext', 
-  'org.eclipse.persistence.jaxb.JAXBHelper', 
-  'org.eclipse.persistence.mappings.DatabaseMapping', 
-  'org.eclipse.persistence.mappings.converters.TypeConversionConverter', 
-  'org.eclipse.persistence.mappings.foundation.AbstractCompositeDirectCollectionMapping', 
-  'org.eclipse.persistence.oxm.XMLContext', 
-  'org.eclipse.persistence.oxm.XMLDescriptor', 
-  'org.eclipse.persistence.oxm.XMLField', 
-  'org.eclipse.persistence.oxm.mappings.XMLCompositeCollectionMapping', 
-  'org.eclipse.persistence.sessions.DatabaseSession', 
-  'org.jvnet.fastinfoset.VocabularyApplicationData', 
-  'org.jvnet.staxex.Base64Data', 
-  'org.jvnet.staxex.XMLStreamReaderEx', 
-  'org.jvnet.staxex.XMLStreamWriterEx', 
-  'org.osgi.framework.Bundle', 
-  'org.osgi.framework.BundleActivator', 
-  'org.osgi.framework.BundleContext', 
-  'org.osgi.framework.BundleEvent', 
-  'org.osgi.framework.SynchronousBundleListener',
-  'com.sun.xml.fastinfoset.stax.StAXDocumentParser', 
-  'com.sun.xml.fastinfoset.stax.StAXDocumentSerializer',
-]
-
-// jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)
-if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += [
-    'javax.xml.bind.Binder',
-    'javax.xml.bind.ContextFinder$1',
-    'javax.xml.bind.ContextFinder',
-    'javax.xml.bind.DataBindingException',
-    'javax.xml.bind.DatatypeConverter',
-    'javax.xml.bind.DatatypeConverterImpl$CalendarFormatter',
-    'javax.xml.bind.DatatypeConverterImpl',
-    'javax.xml.bind.DatatypeConverterInterface',
-    'javax.xml.bind.Element',
-    'javax.xml.bind.GetPropertyAction',
-    'javax.xml.bind.JAXB$Cache',
-    'javax.xml.bind.JAXB',
-    'javax.xml.bind.JAXBContext',
-    'javax.xml.bind.JAXBElement$GlobalScope',
-    'javax.xml.bind.JAXBElement',
-    'javax.xml.bind.JAXBException',
-    'javax.xml.bind.JAXBIntrospector',
-    'javax.xml.bind.JAXBPermission',
-    'javax.xml.bind.MarshalException',
-    'javax.xml.bind.Marshaller$Listener',
-    'javax.xml.bind.Marshaller',
-    'javax.xml.bind.Messages',
-    'javax.xml.bind.NotIdentifiableEvent',
-    'javax.xml.bind.ParseConversionEvent',
-    'javax.xml.bind.PrintConversionEvent',
-    'javax.xml.bind.PropertyException',
-    'javax.xml.bind.SchemaOutputResolver',
-    'javax.xml.bind.TypeConstraintException',
-    'javax.xml.bind.UnmarshalException',
-    'javax.xml.bind.Unmarshaller$Listener',
-    'javax.xml.bind.Unmarshaller',
-    'javax.xml.bind.UnmarshallerHandler',
-    'javax.xml.bind.ValidationEvent',
-    'javax.xml.bind.ValidationEventHandler',
-    'javax.xml.bind.ValidationEventLocator',
-    'javax.xml.bind.ValidationException',
-    'javax.xml.bind.Validator',
-    'javax.xml.bind.WhiteSpaceProcessor',
-    'javax.xml.bind.annotation.DomHandler',
-    'javax.xml.bind.annotation.W3CDomHandler',
-    'javax.xml.bind.annotation.XmlAccessOrder',
-    'javax.xml.bind.annotation.XmlAccessType',
-    'javax.xml.bind.annotation.XmlAccessorOrder',
-    'javax.xml.bind.annotation.XmlAccessorType',
-    'javax.xml.bind.annotation.XmlAnyAttribute',
-    'javax.xml.bind.annotation.XmlAnyElement',
-    'javax.xml.bind.annotation.XmlAttachmentRef',
-    'javax.xml.bind.annotation.XmlAttribute',
-    'javax.xml.bind.annotation.XmlElement$DEFAULT',
-    'javax.xml.bind.annotation.XmlElement',
-    'javax.xml.bind.annotation.XmlElementDecl$GLOBAL',
-    'javax.xml.bind.annotation.XmlElementDecl',
-    'javax.xml.bind.annotation.XmlElementRef$DEFAULT',
-    'javax.xml.bind.annotation.XmlElementRef',
-    'javax.xml.bind.annotation.XmlElementRefs',
-    'javax.xml.bind.annotation.XmlElementWrapper',
-    'javax.xml.bind.annotation.XmlElements',
-    'javax.xml.bind.annotation.XmlEnum',
-    'javax.xml.bind.annotation.XmlEnumValue',
-    'javax.xml.bind.annotation.XmlID',
-    'javax.xml.bind.annotation.XmlIDREF',
-    'javax.xml.bind.annotation.XmlInlineBinaryData',
-    'javax.xml.bind.annotation.XmlList',
-    'javax.xml.bind.annotation.XmlMimeType',
-    'javax.xml.bind.annotation.XmlMixed',
-    'javax.xml.bind.annotation.XmlNs',
-    'javax.xml.bind.annotation.XmlNsForm',
-    'javax.xml.bind.annotation.XmlRegistry',
-    'javax.xml.bind.annotation.XmlRootElement',
-    'javax.xml.bind.annotation.XmlSchema',
-    'javax.xml.bind.annotation.XmlSchemaType$DEFAULT',
-    'javax.xml.bind.annotation.XmlSchemaType',
-    'javax.xml.bind.annotation.XmlSchemaTypes',
-    'javax.xml.bind.annotation.XmlSeeAlso',
-    'javax.xml.bind.annotation.XmlTransient',
-    'javax.xml.bind.annotation.XmlType$DEFAULT',
-    'javax.xml.bind.annotation.XmlType',
-    'javax.xml.bind.annotation.XmlValue',
-    'javax.xml.bind.annotation.adapters.CollapsedStringAdapter',
-    'javax.xml.bind.annotation.adapters.HexBinaryAdapter',
-    'javax.xml.bind.annotation.adapters.NormalizedStringAdapter',
-    'javax.xml.bind.annotation.adapters.XmlAdapter',
-    'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter$DEFAULT',
-    'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter',
-    'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapters',
-    'javax.xml.bind.attachment.AttachmentMarshaller',
-    'javax.xml.bind.attachment.AttachmentUnmarshaller',
-    'javax.xml.bind.helpers.AbstractMarshallerImpl',
-    'javax.xml.bind.helpers.AbstractUnmarshallerImpl',
-    'javax.xml.bind.helpers.DefaultValidationEventHandler',
-    'javax.xml.bind.helpers.Messages',
-    'javax.xml.bind.helpers.NotIdentifiableEventImpl',
-    'javax.xml.bind.helpers.ParseConversionEventImpl',
-    'javax.xml.bind.helpers.PrintConversionEventImpl',
-    'javax.xml.bind.helpers.ValidationEventImpl',
-    'javax.xml.bind.helpers.ValidationEventLocatorImpl',
-    'javax.xml.bind.util.JAXBResult',
-    'javax.xml.bind.util.JAXBSource$1',
-    'javax.xml.bind.util.JAXBSource',
-    'javax.xml.bind.util.Messages',
-    'javax.xml.bind.util.ValidationEventCollector'
-  ]
-} else {
-  // jarhell with jdk (intentionally, because we still expect to run again JDK 8)
-  thirdPartyAudit.excludes += [
-    'javax.activation.ActivationDataFlavor',
-    'javax.activation.DataContentHandler',
-    'javax.activation.DataHandler',
-    'javax.activation.DataSource',
-    'javax.activation.FileDataSource',
-    'javax.activation.FileTypeMap',
-    'javax.activation.MimeType',
-    'javax.activation.MimeTypeParseException',
-  ]
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          'javax.activation.ActivationDataFlavor',
+          'javax.activation.DataContentHandler',
+          'javax.activation.DataHandler',
+          'javax.activation.DataSource',
+          'javax.activation.FileDataSource',
+          'javax.activation.FileTypeMap',
+          'javax.activation.MimeType',
+          'javax.activation.MimeTypeParseException',
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener',
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger',
+          'org.eclipse.persistence.descriptors.ClassDescriptor',
+          'org.eclipse.persistence.internal.oxm.MappingNodeValue',
+          'org.eclipse.persistence.internal.oxm.TreeObjectBuilder',
+          'org.eclipse.persistence.internal.oxm.XPathFragment',
+          'org.eclipse.persistence.internal.oxm.XPathNode',
+          'org.eclipse.persistence.internal.queries.ContainerPolicy',
+          'org.eclipse.persistence.jaxb.JAXBContext',
+          'org.eclipse.persistence.jaxb.JAXBHelper',
+          'org.eclipse.persistence.mappings.DatabaseMapping',
+          'org.eclipse.persistence.mappings.converters.TypeConversionConverter',
+          'org.eclipse.persistence.mappings.foundation.AbstractCompositeDirectCollectionMapping',
+          'org.eclipse.persistence.oxm.XMLContext',
+          'org.eclipse.persistence.oxm.XMLDescriptor',
+          'org.eclipse.persistence.oxm.XMLField',
+          'org.eclipse.persistence.oxm.mappings.XMLCompositeCollectionMapping',
+          'org.eclipse.persistence.sessions.DatabaseSession',
+          'org.jvnet.fastinfoset.VocabularyApplicationData',
+          'org.jvnet.staxex.Base64Data',
+          'org.jvnet.staxex.XMLStreamReaderEx',
+          'org.jvnet.staxex.XMLStreamWriterEx',
+          'org.osgi.framework.Bundle',
+          'org.osgi.framework.BundleActivator',
+          'org.osgi.framework.BundleContext',
+          'org.osgi.framework.BundleEvent',
+          'org.osgi.framework.SynchronousBundleListener',
+          'com.sun.xml.fastinfoset.stax.StAXDocumentParser',
+          'com.sun.xml.fastinfoset.stax.StAXDocumentSerializer'
+  )
 }

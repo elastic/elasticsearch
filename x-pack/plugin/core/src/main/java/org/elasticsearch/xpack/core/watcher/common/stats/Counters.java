@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.common.stats;
 
@@ -9,7 +10,7 @@ import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -22,9 +23,16 @@ import java.util.Map;
  * Calling toNestedMap() will create a nested map, where each dot of the key name will nest deeper
  * The main reason for this class is that the stats producer should not be worried about how the map is actually nested
  */
-public class Counters implements Streamable {
+public class Counters implements Writeable {
 
     private ObjectLongHashMap<String> counters = new ObjectLongHashMap<>();
+
+    public Counters(StreamInput in) throws IOException {
+        int counters = in.readVInt();
+        for (int i = 0; i < counters; i++) {
+            inc(in.readString(), in.readVLong());
+        }
+    }
 
     public Counters(String ... names) {
         for (String name : names) {
@@ -103,26 +111,12 @@ public class Counters implements Streamable {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        int counters = in.readVInt();
-        for (int i = 0; i < counters; i++) {
-            inc(in.readString(), in.readVLong());
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(counters.size());
         for (ObjectLongCursor<String> cursor : counters) {
             out.writeString(cursor.key);
             out.writeVLong(cursor.value);
         }
-    }
-
-    public static Counters read(StreamInput in) throws IOException {
-        Counters counters = new Counters();
-        counters.readFrom(in);
-        return counters;
     }
 
     public static Counters merge(List<Counters> counters) {

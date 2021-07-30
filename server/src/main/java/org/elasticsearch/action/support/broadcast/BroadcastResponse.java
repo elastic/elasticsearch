@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -55,6 +44,7 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
     private int failedShards;
     private DefaultShardOperationFailedException[] shardFailures = EMPTY;
 
+    @SuppressWarnings("unchecked")
     protected static <T extends BroadcastResponse> void declareBroadcastFields(ConstructingObjectParser<T, Void> PARSER) {
         ConstructingObjectParser<BroadcastResponse, Void> shardsParser = new ConstructingObjectParser<>("_shards", true,
             arg -> new BroadcastResponse((int) arg[0], (int) arg[1], (int) arg[2], (List<DefaultShardOperationFailedException>) arg[3]));
@@ -66,7 +56,19 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
         PARSER.declareObject(constructorArg(), shardsParser, _SHARDS_FIELD);
     }
 
-    public BroadcastResponse() {
+    public BroadcastResponse() {}
+
+    public BroadcastResponse(StreamInput in) throws IOException {
+        totalShards = in.readVInt();
+        successfulShards = in.readVInt();
+        failedShards = in.readVInt();
+        int size = in.readVInt();
+        if (size > 0) {
+            shardFailures = new DefaultShardOperationFailedException[size];
+            for (int i = 0; i < size; i++) {
+                shardFailures[i] = readShardOperationFailed(in);
+            }
+        }
     }
 
     public BroadcastResponse(int totalShards, int successfulShards, int failedShards,
@@ -121,23 +123,7 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        totalShards = in.readVInt();
-        successfulShards = in.readVInt();
-        failedShards = in.readVInt();
-        int size = in.readVInt();
-        if (size > 0) {
-            shardFailures = new DefaultShardOperationFailedException[size];
-            for (int i = 0; i < size; i++) {
-                shardFailures[i] = readShardOperationFailed(in);
-            }
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
         out.writeVInt(failedShards);

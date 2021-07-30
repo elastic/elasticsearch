@@ -1,45 +1,31 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class NullValueObjectMappingTests extends ESSingleNodeTestCase {
+public class NullValueObjectMappingTests extends MapperServiceTestCase {
+
     public void testNullValueObject() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("obj1").field("type", "object").endObject().endObject()
-                .endObject().endObject());
+        DocumentMapper defaultMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("obj1");
+            b.field("type", "object");
+            b.endObject();
+        }));
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("obj1").endObject()
@@ -49,7 +35,7 @@ public class NullValueObjectMappingTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().get("value1"), equalTo("test1"));
 
-        doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
+        doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .nullField("obj1")
@@ -59,7 +45,7 @@ public class NullValueObjectMappingTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().get("value1"), equalTo("test1"));
 
-        doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
+        doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("obj1").field("field", "value").endObject()

@@ -1,32 +1,28 @@
 [[path-settings]]
-=== `path.data` and `path.logs`
+[discrete]
+==== Path settings
 
-If you are using the `.zip` or `.tar.gz` archives, the `data` and `logs`
-directories are sub-folders of `$ES_HOME`.  If these important folders are left
-in their default locations, there is a high risk of them being deleted while
-upgrading Elasticsearch to a new version.
+{es} writes the data you index to indices and data streams to a `data`
+directory. {es} writes its own application logs, which contain information about
+cluster health and operations, to a `logs` directory.
 
-In production use, you will almost certainly want to change the locations of the
-data and log folder:
+For <<targz,macOS `.tar.gz`>>, <<targz,Linux `.tar.gz`>>, and
+<<zip-windows,Windows `.zip`>> installations, `data` and `logs` are
+subdirectories of `$ES_HOME` by default. However, files in `$ES_HOME` risk
+deletion during an upgrade.
 
-[source,yaml]
---------------------------------------------------
-path:
-  logs: /var/log/elasticsearch
-  data: /var/data/elasticsearch
---------------------------------------------------
+In production, we strongly recommend you set the `path.data` and `path.logs` in
+`elasticsearch.yml` to locations outside of `$ES_HOME`. <<docker,Docker>>,
+<<deb,Debian>>, <<rpm,RPM>>, <<brew,macOS Homebrew>>, and <<windows,Windows
+`.msi`>> installations write data and log to locations outside of `$ES_HOME` by
+default.
 
-The RPM and Debian distributions already use custom paths for `data` and `logs`.
+IMPORTANT: To avoid errors, only {es} should open files in the `path.data`
+directory. Exclude the `path.data` directory from other services that may open
+and lock its files, such as antivirus or backup programs.
 
-The `path.data` settings can be set to multiple paths, in which case all paths
-will be used to store data (although the files belonging to a single shard will
-all be stored on the same data path):
+Supported `path.data` and `path.logs` values vary by platform:
 
-[source,yaml]
---------------------------------------------------
-path:
-  data:
-    - /mnt/elasticsearch_1
-    - /mnt/elasticsearch_2
-    - /mnt/elasticsearch_3
---------------------------------------------------
+include::{es-repo-dir}/tab-widgets/code.asciidoc[]
+
+include::{es-repo-dir}/tab-widgets/customize-data-log-path-widget.asciidoc[]

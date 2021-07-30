@@ -1,14 +1,17 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-getting-started]]
-== Getting Started
+=== Getting started with {rollups}
+++++
+<titleabbrev>Getting started</titleabbrev>
+++++
 
 experimental[]
 
-To use the Rollup feature, you need to create one or more "Rollup Jobs".  These jobs run continuously in the background
+To use the Rollup feature, you need to create one or more "Rollup Jobs". These jobs run continuously in the background
 and rollup the index or indices that you specify, placing the rolled documents in a secondary index (also of your choosing).
 
-Imagine you have a series of daily indices that hold sensor data (`sensor-2017-01-01`, `sensor-2017-01-02`, etc).  A sample document might
+Imagine you have a series of daily indices that hold sensor data (`sensor-2017-01-01`, `sensor-2017-01-02`, etc). A sample document might
 look like this:
 
 [source,js]
@@ -22,135 +25,153 @@ look like this:
 --------------------------------------------------
 // NOTCONSOLE
 
-[float]
-=== Creating a Rollup Job
+[discrete]
+==== Creating a rollup job
 
 We'd like to rollup these documents into hourly summaries, which will allow us to generate reports and dashboards with any time interval
-one hour or greater.  A rollup job might look like this:
+one hour or greater. A rollup job might look like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _rollup/job/sensor
 {
-    "index_pattern": "sensor-*",
-    "rollup_index": "sensor_rollup",
-    "cron": "*/30 * * * * ?",
-    "page_size" :1000,
-    "groups" : {
-      "date_histogram": {
-        "field": "timestamp",
-        "interval": "60m"
-      },
-      "terms": {
-        "fields": ["node"]
-      }
+  "index_pattern": "sensor-*",
+  "rollup_index": "sensor_rollup",
+  "cron": "*/30 * * * * ?",
+  "page_size": 1000,
+  "groups": {
+    "date_histogram": {
+      "field": "timestamp",
+      "fixed_interval": "60m"
     },
-    "metrics": [
-        {
-            "field": "temperature",
-            "metrics": ["min", "max", "sum"]
-        },
-        {
-            "field": "voltage",
-            "metrics": ["avg"]
-        }
-    ]
+    "terms": {
+      "fields": [ "node" ]
+    }
+  },
+  "metrics": [
+    {
+      "field": "temperature",
+      "metrics": [ "min", "max", "sum" ]
+    },
+    {
+      "field": "voltage",
+      "metrics": [ "avg" ]
+    }
+  ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_index]
 
 We give the job the ID of "sensor" (in the url: `PUT _rollup/job/sensor`), and tell it to rollup the index pattern `"sensor-*"`.
 This job will find and rollup any index that matches that pattern. Rollup summaries are then stored in the `"sensor_rollup"` index.
 
-The `cron` parameter controls when and how often the job activates.  When a rollup job's cron schedule triggers, it will begin rolling up
-from where it left off after the last activation.  So if you configure the cron to run every 30 seconds, the job will process the last 30
+The `cron` parameter controls when and how often the job activates. When a rollup job's cron schedule triggers, it will begin rolling up
+from where it left off after the last activation. So if you configure the cron to run every 30 seconds, the job will process the last 30
 seconds worth of data that was indexed into the `sensor-*` indices.
 
-If instead the cron was configured to run once a day at midnight, the job would process the last 24 hours worth of data.  The choice is largely
+If instead the cron was configured to run once a day at midnight, the job would process the last 24 hours worth of data. The choice is largely
 preference, based on how "realtime" you want the rollups, and if you wish to process continuously or move it to off-peak hours.
 
-Next, we define a set of `groups` and `metrics`.  The metrics are fairly straightforward: we want to save the min/max/sum of the `temperature`
-field, and the average of the `voltage` field.
-
-The groups are a little more interesting.  Essentially, we are defining the dimensions that we wish to pivot on at a later date when
-querying the data.  The grouping in this job allows us to use date_histograms aggregations on the `timestamp` field, rolled up at hourly intervals.
-It also allows us to run terms aggregations on the `node` field.
+Next, we define a set of `groups`. Essentially, we are defining the dimensions
+that we wish to pivot on at a later date when querying the data. The grouping in
+this job allows us to use `date_histogram` aggregations on the `timestamp` field,
+rolled up at hourly intervals. It also allows us to run terms aggregations on
+the `node` field.
 
 .Date histogram interval vs cron schedule
 **********************************
 You'll note that the job's cron is configured to run every 30 seconds, but the date_histogram is configured to
-rollup at 60 minute intervals.  How do these relate?
+rollup at 60 minute intervals. How do these relate?
 
-The date_histogram controls the granularity of the saved data.  Data will be rolled up into hourly intervals, and you will be unable
-to query with finer granularity.  The cron simply controls when the process looks for new data to rollup.  Every 30 seconds it will see
-if there is a new hour's worth of data and roll it up.  If not, the job goes back to sleep.
+The date_histogram controls the granularity of the saved data. Data will be rolled up into hourly intervals, and you will be unable
+to query with finer granularity. The cron simply controls when the process looks for new data to rollup. Every 30 seconds it will see
+if there is a new hour's worth of data and roll it up. If not, the job goes back to sleep.
 
 Often, it doesn't make sense to define such a small cron (30s) on a large interval (1h), because the majority of the activations will
-simply go back to sleep.  But there's nothing wrong with it either, the job will do the right thing.
+simply go back to sleep. But there's nothing wrong with it either, the job will do the right thing.
 
 **********************************
 
-For more details about the job syntax, see <<rollup-job-config>>.
+After defining which groups should be generated for the data, you next configure
+which metrics should be collected. By default, only the `doc_counts` are
+collected for each group. To make rollup useful, you will often add metrics
+like averages, mins, maxes, etc. In this example, the metrics are fairly
+straightforward: we want to save the min/max/sum of the `temperature`
+field, and the average of the `voltage` field.
 
+.Averages aren't composable?!
+**********************************
+If you've worked with rollups before, you may be cautious around averages. If an
+average is saved for a 10 minute interval, it usually isn't useful for larger
+intervals. You cannot average six 10-minute averages to find a hourly average;
+the average of averages is not equal to the total average.
+
+For this reason, other systems tend to either omit the ability to average or
+store the average at multiple intervals to support more flexible querying.
+
+Instead, the {rollup-features} save the `count` and `sum` for the defined time
+interval. This allows us to reconstruct the average at any interval greater-than
+or equal to the defined interval. This gives maximum flexibility for minimal
+storage costs... and you don't have to worry about average accuracies (no
+average of averages here!)
+**********************************
+
+For more details about the job syntax, see <<rollup-put-job>>.
 
 After you execute the above command and create the job, you'll receive the following response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE
 
-[float]
-=== Starting the job
+[discrete]
+==== Starting the job
 
-After the job is created, it will be sitting in an inactive state.  Jobs need to be started before they begin processing data (this allows
+After the job is created, it will be sitting in an inactive state. Jobs need to be started before they begin processing data (this allows
 you to stop them later as a way to temporarily pause, without deleting the configuration).
 
 To start the job, execute this command:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _rollup/job/sensor/_start
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_rollup_job]
 
-[float]
-=== Searching the Rolled results
+[discrete]
+==== Searching the rolled results
 
-After the job has run and processed some data, we can use the <<rollup-search>> endpoint to do some searching.  The Rollup feature is designed
+After the job has run and processed some data, we can use the <<rollup-search>> endpoint to do some searching. The Rollup feature is designed
 so that you can use the same Query DSL syntax that you are accustomed to... it just happens to run on the rolled up data instead.
 
 For example, take this query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /sensor_rollup/_rollup_search
 {
-    "size": 0,
-    "aggregations": {
-        "max_temperature": {
-            "max": {
-                "field": "temperature"
-            }
-        }
+  "size": 0,
+  "aggregations": {
+    "max_temperature": {
+      "max": {
+        "field": "temperature"
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_prefab_data]
 
-It's a simple aggregation that calculates the maximum of the `temperature` field.  But you'll notice that is is being sent to the `sensor_rollup`
-index instead of the raw `sensor-*` indices.  And you'll also notice that it is using the `_rollup_search` endpoint.  Otherwise the syntax
+It's a simple aggregation that calculates the maximum of the `temperature` field. But you'll notice that it is being sent to the `sensor_rollup`
+index instead of the raw `sensor-*` indices. And you'll also notice that it is using the `_rollup_search` endpoint. Otherwise the syntax
 is exactly as you'd expect.
 
 If you were to execute that query, you'd receive a result that looks like a normal aggregation response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "took" : 102,
@@ -176,55 +197,54 @@ If you were to execute that query, you'd receive a result that looks like a norm
 // TESTRESPONSE[s/"_shards" : \.\.\. /"_shards" : $body.$_path/]
 
 The only notable difference is that Rollup search results have zero `hits`, because we aren't really searching the original, live data any
-more.  Otherwise it's identical syntax.
+more. Otherwise it's identical syntax.
 
-There are a few interesting takeaways here.  Firstly, even though the data was rolled up with hourly intervals and partitioned by
-node name, the query we ran is just calculating the max temperature across all documents.  The `groups` that were configured in the job
-are not mandatory elements of a query, they are just extra dimensions you can partition on.  Second, the request and response syntax
+There are a few interesting takeaways here. Firstly, even though the data was rolled up with hourly intervals and partitioned by
+node name, the query we ran is just calculating the max temperature across all documents. The `groups` that were configured in the job
+are not mandatory elements of a query, they are just extra dimensions you can partition on. Second, the request and response syntax
 is nearly identical to normal DSL, making it easy to integrate into dashboards and applications.
 
 Finally, we can use those grouping fields we defined to construct a more complicated query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /sensor_rollup/_rollup_search
 {
-    "size": 0,
-    "aggregations": {
-        "timeline": {
-            "date_histogram": {
-                "field": "timestamp",
-                "interval": "7d"
+  "size": 0,
+  "aggregations": {
+    "timeline": {
+      "date_histogram": {
+        "field": "timestamp",
+        "fixed_interval": "7d"
+      },
+      "aggs": {
+        "nodes": {
+          "terms": {
+            "field": "node"
+          },
+          "aggs": {
+            "max_temperature": {
+              "max": {
+                "field": "temperature"
+              }
             },
-            "aggs": {
-                "nodes": {
-                    "terms": {
-                        "field": "node"
-                    },
-                    "aggs": {
-                        "max_temperature": {
-                            "max": {
-                                "field": "temperature"
-                            }
-                        },
-                        "avg_voltage": {
-                            "avg": {
-                                "field": "voltage"
-                            }
-                        }
-                    }
-                }
+            "avg_voltage": {
+              "avg": {
+                "field": "voltage"
+              }
             }
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_prefab_data]
 
 Which returns a corresponding response:
 
-[source,js]
+[source,console-result]
 ----
 {
    "took" : 93,
@@ -296,9 +316,9 @@ Which returns a corresponding response:
 In addition to being more complicated (date histogram and a terms aggregation, plus an additional average metric), you'll notice
 the date_histogram uses a `7d` interval instead of `60m`.
 
-[float]
-=== Conclusion
+[discrete]
+==== Conclusion
 
-This quickstart should have provided a concise overview of the core functionality that Rollup exposes.  There are more tips and things
-to consider when setting up Rollups, which you can find throughout the rest of this section.  You may also explore the <<rollup-api-quickref,REST API>>
+This quickstart should have provided a concise overview of the core functionality that Rollup exposes. There are more tips and things
+to consider when setting up Rollups, which you can find throughout the rest of this section. You may also explore the <<rollup-api-quickref,REST API>>
 for an overview of what is available.

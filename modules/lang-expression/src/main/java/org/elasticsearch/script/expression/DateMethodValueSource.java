@@ -1,38 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script.expression;
 
-import java.io.IOException;
-import java.util.Calendar;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.TimeZone;
-
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.function.FunctionValues;
-import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.apache.lucene.search.DoubleValues;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
+
+import java.io.IOException;
+import java.util.Calendar;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.TimeZone;
 
 /** Extracts a portion of a date field with {@code Calendar.get()} */
 class DateMethodValueSource extends FieldDataValueSource {
@@ -50,27 +37,26 @@ class DateMethodValueSource extends FieldDataValueSource {
     }
 
     @Override
-    @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
-    public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
+    public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
+        LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(leaf);
         final Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
         NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
-        return new DoubleDocValues(this) {
+        return new DoubleValues() {
             @Override
-            public double doubleVal(int docId) throws IOException {
-                if (docValues.advanceExact(docId)) {
-                    long millis = (long)docValues.doubleValue();
-                    calendar.setTimeInMillis(millis);
-                    return calendar.get(calendarType);
-                } else {
-                    return 0;
-                }
+            public double doubleValue() throws IOException {
+                calendar.setTimeInMillis((long)docValues.doubleValue());
+                return calendar.get(calendarType);
+            }
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return docValues.advanceExact(doc);
             }
         };
     }
 
     @Override
-    public String description() {
+    public String toString() {
         return methodName + ": field(" + fieldData.getFieldName() + ")";
     }
 
@@ -78,7 +64,7 @@ class DateMethodValueSource extends FieldDataValueSource {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
 
         DateMethodValueSource that = (DateMethodValueSource) o;
 

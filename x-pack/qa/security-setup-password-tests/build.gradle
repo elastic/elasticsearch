@@ -1,30 +1,21 @@
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    testCompile project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('security'), configuration: 'runtime')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('security'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-integTestRunner {
-    systemProperty 'tests.security.manager', 'false'
+tasks.named("integTest").configure {
+  nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
+  systemProperty 'tests.security.manager', 'false'
 }
 
-integTestCluster {
-    setupCommand 'setupTestAdmin',
-            'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.license.self_generated.type', 'trial'
-    waitCondition = { node, ant ->
-        File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-                dest: tmpFile.toString(),
-                username: 'test_admin',
-                password: 'x-pack-test-password',
-                ignoreerrors: true,
-                retries: 10)
-        return tmpFile.exists()
-    }
+testClusters.matching { it.name == "integTest" }.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+
+  user username: "test_admin", password: "x-pack-test-password"
 }

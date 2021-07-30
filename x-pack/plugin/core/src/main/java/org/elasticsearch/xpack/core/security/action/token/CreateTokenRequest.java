@@ -1,26 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.CharArrays;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -35,6 +32,7 @@ public final class CreateTokenRequest extends ActionRequest {
 
     public enum GrantType {
         PASSWORD("password"),
+        KERBEROS("_kerberos"),
         REFRESH_TOKEN("refresh_token"),
         AUTHORIZATION_CODE("authorization_code"),
         CLIENT_CREDENTIALS("client_credentials");
@@ -62,21 +60,33 @@ public final class CreateTokenRequest extends ActionRequest {
     }
 
     private static final Set<GrantType> SUPPORTED_GRANT_TYPES = Collections.unmodifiableSet(
-        EnumSet.of(GrantType.PASSWORD, GrantType.REFRESH_TOKEN, GrantType.CLIENT_CREDENTIALS));
+        EnumSet.of(GrantType.PASSWORD, GrantType.KERBEROS, GrantType.REFRESH_TOKEN, GrantType.CLIENT_CREDENTIALS));
 
     private String grantType;
     private String username;
     private SecureString password;
+    private SecureString kerberosTicket;
     private String scope;
     private String refreshToken;
 
+    public CreateTokenRequest(StreamInput in) throws IOException {
+        super(in);
+        grantType = in.readString();
+        username = in.readOptionalString();
+        password = in.readOptionalSecureString();
+        refreshToken = in.readOptionalString();
+        scope = in.readOptionalString();
+        kerberosTicket = in.readOptionalSecureString();
+    }
+
     public CreateTokenRequest() {}
 
-    public CreateTokenRequest(String grantType, @Nullable String username, @Nullable SecureString password, @Nullable String scope,
-                              @Nullable String refreshToken) {
+    public CreateTokenRequest(String grantType, @Nullable String username, @Nullable SecureString password,
+                              @Nullable SecureString kerberosTicket, @Nullable String scope, @Nullable String refreshToken) {
         this.grantType = grantType;
         this.username = username;
         this.password = password;
+        this.kerberosTicket = kerberosTicket;
         this.scope = scope;
         this.refreshToken = refreshToken;
     }
@@ -88,43 +98,28 @@ public final class CreateTokenRequest extends ActionRequest {
         if (type != null) {
             switch (type) {
                 case PASSWORD:
-                    if (Strings.isNullOrEmpty(username)) {
-                        validationException = addValidationError("username is missing", validationException);
-                    }
-                    if (password == null || password.getChars() == null || password.getChars().length == 0) {
-                        validationException = addValidationError("password is missing", validationException);
-                    }
-                    if (refreshToken != null) {
-                        validationException =
-                            addValidationError("refresh_token is not supported with the password grant_type", validationException);
-                    }
+                    validationException = validateUnsupportedField(type, "kerberos_ticket", kerberosTicket, validationException);
+                    validationException = validateUnsupportedField(type, "refresh_token", refreshToken, validationException);
+                    validationException = validateRequiredField("username", username, validationException);
+                    validationException = validateRequiredField("password", password, validationException);
+                    break;
+                case KERBEROS:
+                    validationException = validateUnsupportedField(type, "username", username, validationException);
+                    validationException = validateUnsupportedField(type, "password", password, validationException);
+                    validationException = validateUnsupportedField(type, "refresh_token", refreshToken, validationException);
+                    validationException = validateRequiredField("kerberos_ticket", kerberosTicket, validationException);
                     break;
                 case REFRESH_TOKEN:
-                    if (username != null) {
-                        validationException =
-                            addValidationError("username is not supported with the refresh_token grant_type", validationException);
-                    }
-                    if (password != null) {
-                        validationException =
-                            addValidationError("password is not supported with the refresh_token grant_type", validationException);
-                    }
-                    if (refreshToken == null) {
-                        validationException = addValidationError("refresh_token is missing", validationException);
-                    }
+                    validationException = validateUnsupportedField(type, "username", username, validationException);
+                    validationException = validateUnsupportedField(type, "password", password, validationException);
+                    validationException = validateUnsupportedField(type, "kerberos_ticket", kerberosTicket, validationException);
+                    validationException = validateRequiredField("refresh_token", refreshToken, validationException);
                     break;
                 case CLIENT_CREDENTIALS:
-                    if (username != null) {
-                        validationException =
-                            addValidationError("username is not supported with the client_credentials grant_type", validationException);
-                    }
-                    if (password != null) {
-                        validationException =
-                            addValidationError("password is not supported with the client_credentials grant_type", validationException);
-                    }
-                    if (refreshToken != null) {
-                        validationException = addValidationError("refresh_token is not supported with the client_credentials grant_type",
-                            validationException);
-                    }
+                    validationException = validateUnsupportedField(type, "username", username, validationException);
+                    validationException = validateUnsupportedField(type, "password", password, validationException);
+                    validationException = validateUnsupportedField(type, "kerberos_ticket", kerberosTicket, validationException);
+                    validationException = validateUnsupportedField(type, "refresh_token", refreshToken, validationException);
                     break;
                 default:
                     validationException = addValidationError("grant_type only supports the values: [" +
@@ -139,6 +134,32 @@ public final class CreateTokenRequest extends ActionRequest {
         return validationException;
     }
 
+    private static ActionRequestValidationException validateRequiredField(String field, String fieldValue,
+                                                                          ActionRequestValidationException validationException) {
+        if (Strings.isNullOrEmpty(fieldValue)) {
+            validationException = addValidationError(String.format(Locale.ROOT, "%s is missing", field), validationException);
+        }
+        return validationException;
+    }
+
+    private static ActionRequestValidationException validateRequiredField(String field, SecureString fieldValue,
+                                                                          ActionRequestValidationException validationException) {
+        if (fieldValue == null || fieldValue.getChars() == null || fieldValue.length() == 0) {
+            validationException = addValidationError(String.format(Locale.ROOT, "%s is missing", field), validationException);
+        }
+        return validationException;
+    }
+
+    private static ActionRequestValidationException validateUnsupportedField(GrantType grantType, String field, Object fieldValue,
+                                                                               ActionRequestValidationException validationException) {
+        if (fieldValue != null) {
+            validationException = addValidationError(
+                    String.format(Locale.ROOT, "%s is not supported with the %s grant_type", field, grantType.getValue()),
+                    validationException);
+        }
+        return validationException;
+    }
+
     public void setGrantType(String grantType) {
         this.grantType = grantType;
     }
@@ -149,6 +170,10 @@ public final class CreateTokenRequest extends ActionRequest {
 
     public void setPassword(@Nullable SecureString password) {
         this.password = password;
+    }
+
+    public void setKerberosTicket(@Nullable SecureString kerberosTicket) {
+        this.kerberosTicket = kerberosTicket;
     }
 
     public void setScope(@Nullable String scope) {
@@ -174,6 +199,11 @@ public final class CreateTokenRequest extends ActionRequest {
     }
 
     @Nullable
+    public SecureString getKerberosTicket() {
+        return kerberosTicket;
+    }
+
+    @Nullable
     public String getScope() {
         return scope;
     }
@@ -186,68 +216,11 @@ public final class CreateTokenRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_6_5_0) && GrantType.CLIENT_CREDENTIALS.getValue().equals(grantType)) {
-            throw new IllegalArgumentException("a request with the client_credentials grant_type cannot be sent to version [" +
-                out.getVersion() + "]");
-        }
-
         out.writeString(grantType);
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeOptionalString(username);
-            if (password == null) {
-                out.writeOptionalBytesReference(null);
-            } else {
-                final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
-                try {
-                    out.writeOptionalBytesReference(new BytesArray(passwordBytes));
-                } finally {
-                    Arrays.fill(passwordBytes, (byte) 0);
-                }
-            }
-            out.writeOptionalString(refreshToken);
-        } else {
-            if ("refresh_token".equals(grantType)) {
-                throw new IllegalArgumentException("a refresh request cannot be sent to an older version");
-            } else {
-                out.writeString(username);
-                final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
-                try {
-                    out.writeByteArray(passwordBytes);
-                } finally {
-                    Arrays.fill(passwordBytes, (byte) 0);
-                }
-            }
-        }
+        out.writeOptionalString(username);
+        out.writeOptionalSecureString(password);
+        out.writeOptionalString(refreshToken);
         out.writeOptionalString(scope);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        grantType = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            username = in.readOptionalString();
-            BytesReference bytesRef = in.readOptionalBytesReference();
-            if (bytesRef != null) {
-                byte[] bytes = BytesReference.toBytes(bytesRef);
-                try {
-                    password = new SecureString(CharArrays.utf8BytesToChars(bytes));
-                } finally {
-                    Arrays.fill(bytes, (byte) 0);
-                }
-            } else {
-                password = null;
-            }
-            refreshToken = in.readOptionalString();
-        } else {
-            username = in.readString();
-            final byte[] passwordBytes = in.readByteArray();
-            try {
-                password = new SecureString(CharArrays.utf8BytesToChars(passwordBytes));
-            } finally {
-                Arrays.fill(passwordBytes, (byte) 0);
-            }
-        }
-        scope = in.readOptionalString();
+        out.writeOptionalSecureString(kerberosTicket);
     }
 }

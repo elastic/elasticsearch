@@ -1,25 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent.support;
 
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParseException;
@@ -34,6 +25,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public abstract class AbstractXContentParser implements XContentParser {
 
@@ -46,7 +38,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     public static final boolean DEFAULT_NUMBER_COERCE_POLICY = true;
 
     private static void checkCoerceString(boolean coerce, Class<? extends Number> clazz) {
-        if (!coerce) {
+        if (coerce == false) {
             //Need to throw type IllegalArgumentException as current catch logic in
             //NumberFieldMapper.parseCreateField relies on this for "malformed" value detection
             throw new IllegalArgumentException(clazz.getSimpleName() + " value passed as String");
@@ -55,10 +47,17 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     private final NamedXContentRegistry xContentRegistry;
     private final DeprecationHandler deprecationHandler;
+    private final RestApiVersion restApiVersion;
 
-    public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler) {
+    public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
+                                  RestApiVersion restApiVersion) {
         this.xContentRegistry = xContentRegistry;
         this.deprecationHandler = deprecationHandler;
+        this.restApiVersion = restApiVersion;
+    }
+
+    public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler) {
+        this(xContentRegistry, deprecationHandler, RestApiVersion.current());
     }
 
     // The 3rd party parsers we rely on are known to silently truncate fractions: see
@@ -66,7 +65,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     // If this behaviour is flagged as undesirable and any truncation occurs
     // then this method is called to trigger the"malformed" handling logic
     void ensureNumberConversion(boolean coerce, long result, Class<? extends Number> clazz) throws IOException {
-        if (!coerce) {
+        if (coerce == false) {
             double fullVal = doDoubleValue();
             if (result != fullVal) {
                 // Need to throw type IllegalArgumentException as current catch
@@ -151,6 +150,12 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     protected abstract int doIntValue() throws IOException;
 
+    private static BigInteger LONG_MAX_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MAX_VALUE);
+    private static BigInteger LONG_MIN_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MIN_VALUE);
+    // weak bounds on the BigDecimal representation to allow for coercion
+    private static BigDecimal BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE = BigDecimal.valueOf(Long.MAX_VALUE).add(BigDecimal.ONE);
+    private static BigDecimal BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE = BigDecimal.valueOf(Long.MIN_VALUE).subtract(BigDecimal.ONE);
+
     /** Return the long that {@code stringValue} stores or throws an exception if the
      *  stored value cannot be converted to a long that stores the exact same
      *  value and {@code coerce} is false. */
@@ -163,7 +168,11 @@ public abstract class AbstractXContentParser implements XContentParser {
 
         final BigInteger bigIntegerValue;
         try {
-            BigDecimal bigDecimalValue = new BigDecimal(stringValue);
+            final BigDecimal bigDecimalValue = new BigDecimal(stringValue);
+            if (bigDecimalValue.compareTo(BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE) >= 0 ||
+                bigDecimalValue.compareTo(BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE) <= 0) {
+                throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
+            }
             bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
         } catch (ArithmeticException e) {
             throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
@@ -171,11 +180,11 @@ public abstract class AbstractXContentParser implements XContentParser {
             throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
         }
 
-        if (bigIntegerValue.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0 ||
-                bigIntegerValue.compareTo(BigInteger.valueOf(Long.MIN_VALUE)) < 0) {
+        if (bigIntegerValue.compareTo(LONG_MAX_VALUE_AS_BIGINTEGER) > 0 || bigIntegerValue.compareTo(LONG_MIN_VALUE_AS_BIGINTEGER) < 0) {
             throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
         }
 
+        assert bigIntegerValue.longValueExact() <= Long.MAX_VALUE; // asserting that no ArithmeticException is thrown
         return bigIntegerValue.longValue();
     }
 
@@ -251,153 +260,145 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     @Override
     public Map<String, Object> map() throws IOException {
-        return readMap(this);
+        return readMapSafe(this, SIMPLE_MAP_FACTORY);
     }
 
     @Override
     public Map<String, Object> mapOrdered() throws IOException {
-        return readOrderedMap(this);
+        return readMapSafe(this, ORDERED_MAP_FACTORY);
     }
 
     @Override
     public Map<String, String> mapStrings() throws IOException {
-        return readMapStrings(this);
+        return map(HashMap::new, XContentParser::text);
     }
 
     @Override
-    public Map<String, String> mapStringsOrdered() throws IOException {
-        return readOrderedMapStrings(this);
+    public <T> Map<String, T> map(
+            Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
+        final Map<String, T> map = mapFactory.get();
+        if (findNonEmptyMapStart(this) == false) {
+            return map;
+        }
+        assert currentToken() == Token.FIELD_NAME : "Expected field name but saw [" + currentToken() + "]";
+        do {
+            // Must point to field name
+            String fieldName = currentName();
+            // And then the value...
+            nextToken();
+            T value = mapValueParser.apply(this);
+            map.put(fieldName, value);
+        } while (nextToken() == XContentParser.Token.FIELD_NAME);
+        return map;
     }
 
     @Override
     public List<Object> list() throws IOException {
-        return readList(this);
+        skipToListStart(this);
+        return readListUnsafe(this, SIMPLE_MAP_FACTORY);
     }
 
     @Override
     public List<Object> listOrderedMap() throws IOException {
-        return readListOrderedMap(this);
+        skipToListStart(this);
+        return readListUnsafe(this, ORDERED_MAP_FACTORY);
     }
 
-    interface MapFactory {
-        Map<String, Object> newMap();
+    private static final Supplier<Map<String, Object>> SIMPLE_MAP_FACTORY = HashMap::new;
+
+    private static final Supplier<Map<String, Object>> ORDERED_MAP_FACTORY = LinkedHashMap::new;
+
+    private static Map<String, Object> readMapSafe(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
+        final Map<String, Object> map = mapFactory.get();
+        return findNonEmptyMapStart(parser) ? readMapEntries(parser, mapFactory, map) : map;
     }
 
-    interface MapStringsFactory {
-        Map<String, String> newMap();
+    // Read a map without bounds checks from a parser that is assumed to be at the map's first field's name token
+    private static Map<String, Object> readMapEntries(XContentParser parser, Supplier<Map<String, Object>> mapFactory,
+                                                      Map<String, Object> map) throws IOException {
+        assert parser.currentToken() == Token.FIELD_NAME : "Expected field name but saw [" + parser.currentToken() + "]";
+        do {
+            // Must point to field name
+            String fieldName = parser.currentName();
+            // And then the value...
+            Object value = readValueUnsafe(parser.nextToken(), parser, mapFactory);
+            map.put(fieldName, value);
+        } while (parser.nextToken() == Token.FIELD_NAME);
+        return map;
     }
 
-    static final MapFactory SIMPLE_MAP_FACTORY = HashMap::new;
-
-    static final MapFactory ORDERED_MAP_FACTORY = LinkedHashMap::new;
-
-    static final MapStringsFactory SIMPLE_MAP_STRINGS_FACTORY = HashMap::new;
-
-    static final MapStringsFactory ORDERED_MAP_STRINGS_FACTORY = LinkedHashMap::new;
-
-    static Map<String, Object> readMap(XContentParser parser) throws IOException {
-        return readMap(parser, SIMPLE_MAP_FACTORY);
-    }
-
-    static Map<String, Object> readOrderedMap(XContentParser parser) throws IOException {
-        return readMap(parser, ORDERED_MAP_FACTORY);
-    }
-
-    static Map<String, String> readMapStrings(XContentParser parser) throws IOException {
-        return readMapStrings(parser, SIMPLE_MAP_STRINGS_FACTORY);
-    }
-
-    static Map<String, String> readOrderedMapStrings(XContentParser parser) throws IOException {
-        return readMapStrings(parser, ORDERED_MAP_STRINGS_FACTORY);
-    }
-
-    static List<Object> readList(XContentParser parser) throws IOException {
-        return readList(parser, SIMPLE_MAP_FACTORY);
-    }
-
-    static List<Object> readListOrderedMap(XContentParser parser) throws IOException {
-        return readList(parser, ORDERED_MAP_FACTORY);
-    }
-
-    static Map<String, Object> readMap(XContentParser parser, MapFactory mapFactory) throws IOException {
-        Map<String, Object> map = mapFactory.newMap();
-        XContentParser.Token token = parser.currentToken();
+    /**
+     * Checks if the next current token in the supplied parser is a map start for a non-empty map.
+     * Skips to the next token if the parser does not yet have a current token (i.e. {@link #currentToken()} returns {@code null}) and then
+     * checks it.
+     *
+     * @return true if a map start for a non-empty map is found
+     */
+    private static boolean findNonEmptyMapStart(XContentParser parser) throws IOException {
+        Token token = parser.currentToken();
         if (token == null) {
             token = parser.nextToken();
         }
         if (token == XContentParser.Token.START_OBJECT) {
             token = parser.nextToken();
         }
-        for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
-            // Must point to field name
-            String fieldName = parser.currentName();
-            // And then the value...
-            token = parser.nextToken();
-            Object value = readValue(parser, mapFactory, token);
-            map.put(fieldName, value);
-        }
-        return map;
+        return token == Token.FIELD_NAME;
     }
 
-    static Map<String, String> readMapStrings(XContentParser parser, MapStringsFactory mapStringsFactory) throws IOException {
-        Map<String, String> map = mapStringsFactory.newMap();
-        XContentParser.Token token = parser.currentToken();
-        if (token == null) {
-            token = parser.nextToken();
-        }
-        if (token == XContentParser.Token.START_OBJECT) {
-            token = parser.nextToken();
-        }
-        for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
-            // Must point to field name
-            String fieldName = parser.currentName();
-            // And then the value...
-            parser.nextToken();
-            String value = parser.text();
-            map.put(fieldName, value);
-        }
-        return map;
-    }
-
-    static List<Object> readList(XContentParser parser, MapFactory mapFactory) throws IOException {
-        XContentParser.Token token = parser.currentToken();
+    // Skips the current parser to the next array start. Assumes that the parser is either positioned before an array field's name token or
+    // on the start array token.
+    private static void skipToListStart(XContentParser parser) throws IOException {
+        Token token = parser.currentToken();
         if (token == null) {
             token = parser.nextToken();
         }
         if (token == XContentParser.Token.FIELD_NAME) {
             token = parser.nextToken();
         }
-        if (token == XContentParser.Token.START_ARRAY) {
-            token = parser.nextToken();
-        } else {
+        if (token != XContentParser.Token.START_ARRAY) {
             throw new XContentParseException(parser.getTokenLocation(), "Failed to parse list:  expecting "
                     + XContentParser.Token.START_ARRAY + " but got " + token);
         }
+    }
 
+    // read a list without bounds checks, assuming the the current parser is always on an array start
+    private static List<Object> readListUnsafe(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
+        assert parser.currentToken() == Token.START_ARRAY;
         ArrayList<Object> list = new ArrayList<>();
-        for (; token != null && token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
-            list.add(readValue(parser, mapFactory, token));
+        for (Token token = parser.nextToken(); token != null && token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
+            list.add(readValueUnsafe(token, parser, mapFactory));
         }
         return list;
     }
 
-    static Object readValue(XContentParser parser, MapFactory mapFactory, XContentParser.Token token) throws IOException {
-        if (token == XContentParser.Token.VALUE_NULL) {
-            return null;
-        } else if (token == XContentParser.Token.VALUE_STRING) {
-            return parser.text();
-        } else if (token == XContentParser.Token.VALUE_NUMBER) {
-            return parser.numberValue();
-        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            return parser.booleanValue();
-        } else if (token == XContentParser.Token.START_OBJECT) {
-            return readMap(parser, mapFactory);
-        } else if (token == XContentParser.Token.START_ARRAY) {
-            return readList(parser, mapFactory);
-        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-            return parser.binaryValue();
+    public static Object readValue(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
+        return readValueUnsafe(parser.currentToken(), parser, mapFactory);
+    }
+
+    /**
+     * Reads next value from the parser that is assumed to be at the given current token without any additional checks.
+     *
+     * @param currentToken current token that the parser is at
+     * @param parser       parser to read from
+     * @param mapFactory   map factory to use for reading objects
+     */
+    private static Object readValueUnsafe(Token currentToken, XContentParser parser,
+                                          Supplier<Map<String, Object>> mapFactory) throws IOException {
+        assert currentToken == parser.currentToken() : "Supplied current token [" + currentToken +
+                "] is different from actual parser current token [" + parser.currentToken() + "]";
+        switch (currentToken) {
+            case VALUE_STRING: return parser.text();
+            case VALUE_NUMBER: return parser.numberValue();
+            case VALUE_BOOLEAN: return parser.booleanValue();
+            case START_OBJECT: {
+                final Map<String, Object> map = mapFactory.get();
+                return parser.nextToken() != Token.FIELD_NAME ? map : readMapEntries(parser, mapFactory, map);
+            }
+            case START_ARRAY: return readListUnsafe(parser, mapFactory);
+            case VALUE_EMBEDDED_OBJECT: return parser.binaryValue();
+            case VALUE_NULL:
+            default: return null;
         }
-        return null;
     }
 
     @Override
@@ -412,6 +413,11 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     @Override
     public abstract boolean isClosed();
+
+    @Override
+    public RestApiVersion getRestApiVersion() {
+        return restApiVersion;
+    }
 
     @Override
     public DeprecationHandler getDeprecationHandler() {

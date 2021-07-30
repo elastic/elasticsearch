@@ -1,13 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -16,10 +15,8 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.junit.After;
 import org.junit.Before;
@@ -41,58 +38,50 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
     @Before
     public void init() throws Exception {
         Path certPath = getDataPath("support/smb_ca.crt");
-        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
-         * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
+         * If we re-use an SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
 
         globalSettings = Settings.builder()
             .put("path.home", createTempDir())
-            .put("xpack.ssl.certificate_authorities", certPath)
+            .put("xpack.security.authc.realms.ldap.ad-as-ldap-test.ssl.certificate_authorities", certPath)
             .build();
-        sslService = new SSLService(globalSettings, env);
+        Environment env = TestEnvironment.newEnvironment(globalSettings);
+        sslService = new SSLService(env);
         threadPool = new TestThreadPool("ADLdapUserSearchSessionFactoryTests");
     }
 
     @After
-    public void shutdown() throws InterruptedException {
+    public void shutdown() {
         terminate(threadPool);
     }
 
-    private MockSecureSettings newSecureSettings(String key, String value) {
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(key, value);
-        return secureSettings;
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     public void testUserSearchWithActiveDirectory() throws Exception {
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ad-as-ldap-test");
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(
-                        new String[] { ActiveDirectorySessionFactoryTests.AD_LDAP_URL },
-                        Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE, null,
-                        true))
+                .put("url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
+                .put("group_search.base_dn", groupSearchBase)
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "ironman@ad.test.elasticsearch.com")
                 .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
                 .put("user_search.filter", "(cn={0})")
                 .put("user_search.pool.enabled", randomBoolean())
                 .put("follow_referrals", ActiveDirectorySessionFactoryTests.FOLLOW_REFERRALS)
+                .put("order", 0)
                 .build();
         Settings.Builder builder = Settings.builder()
                 .put(globalSettings);
         settings.keySet().forEach(k -> {
-            builder.copy("xpack.security.authc.realms.ad-as-ldap-test." + k, k, settings);
-
+            builder.copy("xpack.security.authc.realms.ldap.ad-as-ldap-test." + k, k, settings);
         });
         Settings fullSettings = builder.build();
-        sslService = new SSLService(fullSettings, TestEnvironment.newEnvironment(fullSettings));
-        RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("ad", "ad-as-ldap-test"), globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        sslService = new SSLService(TestEnvironment.newEnvironment(fullSettings));
+        RealmConfig config = new RealmConfig(realmIdentifier, fullSettings,
+                TestEnvironment.newEnvironment(fullSettings), new ThreadContext(fullSettings));
         LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "Bruce Banner";

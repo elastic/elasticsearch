@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.resync;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
@@ -28,19 +16,20 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
@@ -48,59 +37,37 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 public class TransportResyncReplicationAction extends TransportWriteAction<ResyncReplicationRequest,
     ResyncReplicationRequest, ResyncReplicationResponse> implements PrimaryReplicaSyncer.SyncAction {
 
-    private static String ACTION_NAME = "internal:index/seq_no/resync";
+    private static final String ACTION_NAME = "internal:index/seq_no/resync";
 
     @Inject
     public TransportResyncReplicationAction(Settings settings, TransportService transportService,
                                             ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                             ShardStateAction shardStateAction, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver) {
+                                            IndexingPressure indexingPressure, SystemIndices systemIndices) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-            indexNameExpressionResolver, ResyncReplicationRequest::new, ResyncReplicationRequest::new, ThreadPool.Names.WRITE);
+            ResyncReplicationRequest::new, ResyncReplicationRequest::new, ExecutorSelector::getWriteExecutorForShard,
+            true, /* we should never reject resync because of thread pool capacity on primary */
+            indexingPressure, systemIndices);
     }
 
     @Override
-    protected void registerRequestHandlers(String actionName, TransportService transportService, Supplier<ResyncReplicationRequest> request,
-                                           Supplier<ResyncReplicationRequest> replicaRequest, String executor) {
-        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new OperationTransportHandler());
-        // we should never reject resync because of thread pool capacity on primary
-        transportService.registerRequestHandler(transportPrimaryAction,
-            () -> new ConcreteShardRequest<>(request),
-            executor, true, true,
-            new PrimaryOperationTransportHandler());
-        transportService.registerRequestHandler(transportReplicaAction,
-            () -> new ConcreteReplicaRequest<>(replicaRequest),
-            executor, true, true,
-            new ReplicaOperationTransportHandler());
+    protected void doExecute(Task parentTask, ResyncReplicationRequest request, ActionListener<ResyncReplicationResponse> listener) {
+        assert false : "use TransportResyncReplicationAction#sync";
     }
 
     @Override
-    protected ResyncReplicationResponse newResponseInstance() {
-        return new ResyncReplicationResponse();
+    protected ResyncReplicationResponse newResponseInstance(StreamInput in) throws IOException {
+        return new ResyncReplicationResponse(in);
     }
 
     @Override
-    protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
-        return new ResyncActionReplicasProxy(primaryTerm);
-    }
-
-    @Override
-    protected void sendReplicaRequest(
-        final ConcreteReplicaRequest<ResyncReplicationRequest> replicaRequest,
-        final DiscoveryNode node,
-        final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
-        if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            super.sendReplicaRequest(replicaRequest, node, listener);
-        } else {
-            final long pre60NodeCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
-            listener.onResponse(new ReplicaResponse(pre60NodeCheckpoint, pre60NodeCheckpoint));
-        }
+    protected ReplicationOperation.Replicas<ResyncReplicationRequest> newReplicasProxy() {
+        return new ResyncActionReplicasProxy();
     }
 
     @Override
@@ -110,26 +77,49 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected ClusterBlockLevel indexBlockLevel() {
+    public ClusterBlockLevel indexBlockLevel() {
         // resync should never be blocked because it's an internal action
         return null;
     }
 
     @Override
-    protected WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> shardOperationOnPrimary(
-        ResyncReplicationRequest request, IndexShard primary) throws Exception {
-        final ResyncReplicationRequest replicaRequest = performOnPrimary(request, primary);
-        return new WritePrimaryResult<>(replicaRequest, new ResyncReplicationResponse(), null, null, primary, logger);
+    protected void dispatchedShardOperationOnPrimary(ResyncReplicationRequest request, IndexShard primary,
+            ActionListener<PrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse>> listener) {
+        ActionListener.completeWith(listener,
+            () -> new WritePrimaryResult<>(performOnPrimary(request), new ResyncReplicationResponse(), null, null, primary, logger));
     }
 
-    public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request, IndexShard primary) {
+    @Override
+    protected long primaryOperationSize(ResyncReplicationRequest request) {
+        return Stream.of(request.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
+    }
+
+    @Override
+    protected int primaryOperationCount(ResyncReplicationRequest request) {
+        return request.getOperations().length;
+    }
+
+    public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request) {
         return request;
     }
 
     @Override
-    protected WriteReplicaResult shardOperationOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
-        Translog.Location location = performOnReplica(request, replica);
-        return new WriteReplicaResult(request, location, null, replica, logger);
+    protected void dispatchedShardOperationOnReplica(ResyncReplicationRequest request, IndexShard replica,
+            ActionListener<ReplicaResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            Translog.Location location = performOnReplica(request, replica);
+            return new WriteReplicaResult<>(request, location, null, replica, logger);
+        });
+    }
+
+    @Override
+    protected long replicaOperationSize(ResyncReplicationRequest request) {
+        return Stream.of(request.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
+    }
+
+    @Override
+    protected int replicaOperationCount(ResyncReplicationRequest request) {
+        return request.getOperations().length;
     }
 
     public static Translog.Location performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
@@ -167,14 +157,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
             new TransportResponseHandler<ResyncReplicationResponse>() {
                 @Override
                 public ResyncReplicationResponse read(StreamInput in) throws IOException {
-                    ResyncReplicationResponse response = newResponseInstance();
-                    response.readFrom(in);
-                    return response;
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
+                    return newResponseInstance(in);
                 }
 
                 @Override
@@ -205,15 +188,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
      */
     class ResyncActionReplicasProxy extends ReplicasProxy {
 
-        ResyncActionReplicasProxy(long primaryTerm) {
-            super(primaryTerm);
-        }
-
         @Override
-        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception, Runnable onSuccess,
-                                      Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
-            shardStateAction.remoteShardFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, false, message, exception,
-                createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
+        public void failShardIfNeeded(ShardRouting replica, long primaryTerm, String message, Exception exception,
+                                      ActionListener<Void> listener) {
+            shardStateAction.remoteShardFailed(
+                replica.shardId(), replica.allocationId().getId(), primaryTerm, false, message, exception, listener);
         }
     }
 }

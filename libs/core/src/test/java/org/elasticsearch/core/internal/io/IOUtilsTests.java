@@ -1,4 +1,4 @@
-/*
+/* @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -19,22 +19,29 @@ package org.elasticsearch.core.internal.io;
 
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.io.PathUtils;
+import org.apache.lucene.util.Constants;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -206,12 +213,53 @@ public class IOUtilsTests extends ESTestCase {
 
     }
 
+    private void fsync(final Path path, final boolean isDir) throws IOException {
+        IOUtils.fsync(path, isDir, randomBoolean());
+    }
+
     public void testFsyncDirectory() throws Exception {
         final Path path = createTempDir().toRealPath();
         final Path subPath = path.resolve(randomAlphaOfLength(8));
         Files.createDirectories(subPath);
-        IOUtils.fsync(subPath, true);
+        fsync(subPath, true);
         // no exception
+    }
+
+    private static final class AccessDeniedWhileOpeningDirectoryFileSystem extends FilterFileSystemProvider {
+
+        AccessDeniedWhileOpeningDirectoryFileSystem(final FileSystem delegate) {
+            super("access_denied://", Objects.requireNonNull(delegate));
+        }
+
+        @Override
+        public FileChannel newFileChannel(
+                final Path path,
+                final Set<? extends OpenOption> options,
+                final FileAttribute<?>... attrs) throws IOException {
+            if (Files.isDirectory(path)) {
+                throw new AccessDeniedException(path.toString());
+            }
+            return delegate.newFileChannel(path, options, attrs);
+        }
+
+    }
+
+    public void testFsyncAccessDeniedOpeningDirectory() throws Exception {
+        final Path path = createTempDir().toRealPath();
+        final FileSystem fs = new AccessDeniedWhileOpeningDirectoryFileSystem(path.getFileSystem()).getFileSystem(URI.create("file:///"));
+        final Path wrapped = new FilterPath(path, fs);
+        if (Constants.WINDOWS) {
+            // no exception, we early return and do not even try to open the directory
+            fsync(wrapped, true);
+        } else {
+            expectThrows(AccessDeniedException.class, () -> fsync(wrapped, true));
+        }
+    }
+
+    public void testFsyncNonExistentDirectory() throws Exception {
+        final Path dir = FilterPath.unwrap(createTempDir()).toRealPath();
+        final Path nonExistentDir = dir.resolve("non-existent");
+        expectThrows(NoSuchFileException.class, () -> fsync(nonExistentDir, true));
     }
 
     public void testFsyncFile() throws IOException {
@@ -222,7 +270,7 @@ public class IOUtilsTests extends ESTestCase {
         try (OutputStream o = Files.newOutputStream(file)) {
             o.write("0\n".getBytes(StandardCharsets.US_ASCII));
         }
-        IOUtils.fsync(file, false);
+        fsync(file, false);
         // no exception
     }
 

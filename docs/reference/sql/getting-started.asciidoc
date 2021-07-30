@@ -3,14 +3,12 @@
 [[sql-getting-started]]
 == Getting Started with SQL
 
-beta[]
-
 To start using {es-sql}, create
 an index with some data to experiment with:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /library/book/_bulk?refresh
+PUT /library/_bulk?refresh
 {"index":{"_id": "Leviathan Wakes"}}
 {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
 {"index":{"_id": "Hyperion"}}
@@ -18,18 +16,16 @@ PUT /library/book/_bulk?refresh
 {"index":{"_id": "Dune"}}
 {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
 --------------------------------------------------
-// CONSOLE
 
-And now you can execute SQL using the <<sql-rest>> right away:
+And now you can execute SQL using the <<sql-search-api,SQL search API>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_sql?format=txt
 {
-    "query": "SELECT * FROM library WHERE release_date < '2000-01-01'"
+  "query": "SELECT * FROM library WHERE release_date < '2000-01-01'"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Which should return something along the lines of:
@@ -42,7 +38,7 @@ Dan Simmons    |Hyperion       |482            |1989-05-26T00:00:00.000Z
 Frank Herbert  |Dune           |604            |1965-06-01T00:00:00.000Z
 --------------------------------------------------
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 You can also use the <<sql-cli>>. There is a script to start it
 shipped in x-pack's bin directory:

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.search;
 
@@ -22,40 +11,44 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class FetchSearchPhaseTests extends ESTestCase {
 
-    public void testShortcutQueryAndFetchOptimization() throws IOException {
+    public void testShortcutQueryAndFetchOptimization() {
         SearchPhaseController controller = new SearchPhaseController(
-            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
+            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
-            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 1);
-        AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            mockSearchPhaseContext.getRequest(), 1, exc  -> {});
         boolean hasHits = randomBoolean();
         final int numHits;
         if (hasHits) {
             QuerySearchResult queryResult = new QuerySearchResult();
+            queryResult.setSearchShardTarget(new SearchShardTarget("node0",
+                new ShardId("index", "index", 0), null, OriginalIndices.NONE));
             queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                     new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 1.0F), new DocValueFormat[0]);
             queryResult.size(1);
@@ -63,115 +56,123 @@ public class FetchSearchPhaseTests extends ESTestCase {
             fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(42)}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F));
             QueryFetchSearchResult fetchSearchResult = new QueryFetchSearchResult(queryResult, fetchResult);
             fetchSearchResult.setShardIndex(0);
-            results.consumeResult(fetchSearchResult);
+            results.consumeResult(fetchSearchResult, () -> {});
             numHits = 1;
         } else {
             numHits = 0;
         }
 
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
             @Override
-            public void run() throws IOException {
-                responseRef.set(mockSearchPhaseContext.buildSearchResponse(searchResponse, null));
+            public void run() {
+                mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
             }
         });
         assertEquals("fetch", phase.getName());
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
-        assertNotNull(responseRef.get());
-        assertEquals(numHits, responseRef.get().getHits().getTotalHits().value);
+        SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
+        assertNotNull(searchResponse);
+        assertEquals(numHits, searchResponse.getHits().getTotalHits().value);
         if (numHits != 0) {
-            assertEquals(42, responseRef.get().getHits().getAt(0).docId());
+            assertEquals(42, searchResponse.getHits().getAt(0).docId());
         }
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
     }
 
-    public void testFetchTwoDocument() throws IOException {
+    public void testFetchTwoDocument() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
-            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
-            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
-        AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = randomIntBetween(2, 10);
-        QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0, null));
+        ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
+        QuerySearchResult queryResult = new QuerySearchResult(ctx1, new SearchShardTarget("node1", new ShardId("test", "na", 0),
+            null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
         queryResult.setShardIndex(0);
-        results.consumeResult(queryResult);
+        results.consumeResult(queryResult, () -> {});
 
-        queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new Index("test", "na"), 1, null));
+        final ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 321);
+        queryResult = new QuerySearchResult(
+            ctx2, new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
         queryResult.setShardIndex(1);
-        results.consumeResult(queryResult);
+        results.consumeResult(queryResult, () -> {});
 
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
                 FetchSearchResult fetchResult = new FetchSearchResult();
-                if (request.id() == 321) {
+                if (request.contextId().equals(ctx2)) {
                     fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(84)},
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO), 2.0F));
                 } else {
-                    assertEquals(123, request.id());
+                    assertEquals(ctx1, request.contextId());
                     fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(42)},
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F));
                 }
                 listener.onResponse(fetchResult);
             }
         };
-        mockSearchPhaseContext.searchTransport = searchTransportService;
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
                 @Override
-                public void run() throws IOException {
-                    responseRef.set(mockSearchPhaseContext.buildSearchResponse(searchResponse, null));
+                public void run() {
+                    mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
                 }
             });
         assertEquals("fetch", phase.getName());
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
-        assertNotNull(responseRef.get());
-        assertEquals(2, responseRef.get().getHits().getTotalHits().value);
-        assertEquals(84, responseRef.get().getHits().getAt(0).docId());
-        assertEquals(42, responseRef.get().getHits().getAt(1).docId());
-        assertEquals(0, responseRef.get().getFailedShards());
-        assertEquals(2, responseRef.get().getSuccessfulShards());
+        SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
+        assertNotNull(searchResponse);
+        assertEquals(2, searchResponse.getHits().getTotalHits().value);
+        assertEquals(84, searchResponse.getHits().getAt(0).docId());
+        assertEquals(42, searchResponse.getHits().getAt(1).docId());
+        assertEquals(0, searchResponse.getFailedShards());
+        assertEquals(2, searchResponse.getSuccessfulShards());
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
     }
 
-    public void testFailFetchOneDoc() throws IOException {
+    public void testFailFetchOneDoc() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
-            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
-            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
-        AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = randomIntBetween(2, 10);
-        QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0, null));
+        final ShardSearchContextId ctx = new ShardSearchContextId(UUIDs.base64UUID(), 123);
+        QuerySearchResult queryResult = new QuerySearchResult(ctx,
+            new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
         queryResult.setShardIndex(0);
-        results.consumeResult(queryResult);
+        results.consumeResult(queryResult, () -> {});
 
-        queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new Index("test", "na"), 1, null));
+        queryResult = new QuerySearchResult(new ShardSearchContextId("", 321),
+            new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
         queryResult.setShardIndex(1);
-        results.consumeResult(queryResult);
+        results.consumeResult(queryResult, () -> {});
 
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
-                if (request.id() == 321) {
+                if (request.contextId().getId() == 321) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
                     fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(84)},
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO), 2.0F));
@@ -182,65 +183,65 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
             }
         };
-        mockSearchPhaseContext.searchTransport = searchTransportService;
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
                 @Override
-                public void run() throws IOException {
-                    responseRef.set(mockSearchPhaseContext.buildSearchResponse(searchResponse, null));
+                public void run() {
+                    mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
                 }
             });
         assertEquals("fetch", phase.getName());
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
-        assertNotNull(responseRef.get());
-        assertEquals(2, responseRef.get().getHits().getTotalHits().value);
-        assertEquals(84, responseRef.get().getHits().getAt(0).docId());
-        assertEquals(1, responseRef.get().getFailedShards());
-        assertEquals(1, responseRef.get().getSuccessfulShards());
-        assertEquals(1, responseRef.get().getShardFailures().length);
-        assertTrue(responseRef.get().getShardFailures()[0].getCause() instanceof MockDirectoryWrapper.FakeIOException);
+        SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
+        assertNotNull(searchResponse);
+        assertEquals(2, searchResponse.getHits().getTotalHits().value);
+        assertEquals(84, searchResponse.getHits().getAt(0).docId());
+        assertEquals(1, searchResponse.getFailedShards());
+        assertEquals(1, searchResponse.getSuccessfulShards());
+        assertEquals(1, searchResponse.getShardFailures().length);
+        assertTrue(searchResponse.getShardFailures()[0].getCause() instanceof MockDirectoryWrapper.FakeIOException);
         assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
-        assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(123L));
+        assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(ctx));
     }
 
-    public void testFetchDocsConcurrently() throws IOException, InterruptedException {
+    public void testFetchDocsConcurrently() throws InterruptedException {
         int resultSetSize = randomIntBetween(0, 100);
         // we use at least 2 hits otherwise this is subject to single shard optimization and we trip an assert...
         int numHits = randomIntBetween(2, 100); // also numshards --> 1 hit per shard
         SearchPhaseController controller = new SearchPhaseController(
-            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
+            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
-            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), numHits);
-        AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            mockSearchPhaseContext.getRequest(), numHits, exc  -> {});
         for (int i = 0; i < numHits; i++) {
-            QuerySearchResult queryResult = new QuerySearchResult(i, new SearchShardTarget("node1", new Index("test", "na"), 0, null));
+            QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("", i),
+                new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE), null);
             queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                     new ScoreDoc[] {new ScoreDoc(i+1, i)}), i), new DocValueFormat[0]);
             queryResult.size(resultSetSize); // the size of the result set
             queryResult.setShardIndex(i);
-            results.consumeResult(queryResult);
+            results.consumeResult(queryResult, () -> {});
         }
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
                 new Thread(() -> {
                     FetchSearchResult fetchResult = new FetchSearchResult();
-                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit((int) (request.id()+1))},
+                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit((int) (request.contextId().getId()+1))},
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO), 100F));
                     listener.onResponse(fetchResult);
                 }).start();
             }
         };
-        mockSearchPhaseContext.searchTransport = searchTransportService;
         CountDownLatch latch = new CountDownLatch(1);
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
                 @Override
-                public void run() throws IOException {
-                    responseRef.set(mockSearchPhaseContext.buildSearchResponse(searchResponse, null));
+                public void run() {
+                    mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
                     latch.countDown();
                 }
             });
@@ -248,45 +249,50 @@ public class FetchSearchPhaseTests extends ESTestCase {
         phase.run();
         latch.await();
         mockSearchPhaseContext.assertNoFailure();
-        assertNotNull(responseRef.get());
-        assertEquals(numHits, responseRef.get().getHits().getTotalHits().value);
-        assertEquals(Math.min(numHits, resultSetSize), responseRef.get().getHits().getHits().length);
-        SearchHit[] hits = responseRef.get().getHits().getHits();
+        SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
+        assertNotNull(searchResponse);
+        assertEquals(numHits, searchResponse.getHits().getTotalHits().value);
+        assertEquals(Math.min(numHits, resultSetSize), searchResponse.getHits().getHits().length);
+        SearchHit[] hits = searchResponse.getHits().getHits();
         for (int i = 0; i < hits.length; i++) {
             assertNotNull(hits[i]);
             assertEquals("index: " + i, numHits-i, hits[i].docId());
             assertEquals("index: " + i, numHits-1-i, (int)hits[i].getScore());
         }
-        assertEquals(0, responseRef.get().getFailedShards());
-        assertEquals(numHits, responseRef.get().getSuccessfulShards());
+        assertEquals(0, searchResponse.getFailedShards());
+        assertEquals(numHits, searchResponse.getSuccessfulShards());
         int sizeReleasedContexts = Math.max(0, numHits - resultSetSize); // all non fetched results will be freed
         assertEquals(mockSearchPhaseContext.releasedSearchContexts.toString(),
             sizeReleasedContexts, mockSearchPhaseContext.releasedSearchContexts.size());
     }
 
-    public void testExceptionFailsPhase() throws IOException {
+    public void testExceptionFailsPhase() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
-            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
-            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
-        AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        QueryPhaseResultConsumer results =
+            controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = randomIntBetween(2, 10);
-        QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0, null));
+        QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("", 123),
+            new SearchShardTarget("node1", new ShardId("test", "na", 0),
+            null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
         queryResult.setShardIndex(0);
-        results.consumeResult(queryResult);
+        results.consumeResult(queryResult, () -> {});
 
-        queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new Index("test", "na"), 1, null));
+        queryResult = new QuerySearchResult(new ShardSearchContextId("", 321),
+            new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
         queryResult.setShardIndex(1);
-        results.consumeResult(queryResult);
+        results.consumeResult(queryResult,  () -> {});
         AtomicInteger numFetches = new AtomicInteger(0);
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -294,7 +300,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 if (numFetches.incrementAndGet() == 1) {
                     throw new RuntimeException("BOOM");
                 }
-                if (request.id() == 321) {
+                if (request.contextId().getId() == 321) {
                     fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(84)},
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO), 2.0F));
                 } else {
@@ -305,50 +311,53 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 listener.onResponse(fetchResult);
             }
         };
-        mockSearchPhaseContext.searchTransport = searchTransportService;
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
                 @Override
-                public void run() throws IOException {
-                    responseRef.set(mockSearchPhaseContext.buildSearchResponse(searchResponse, null));
+                public void run() {
+                    mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
                 }
             });
         assertEquals("fetch", phase.getName());
         phase.run();
         assertNotNull(mockSearchPhaseContext.phaseFailure.get());
         assertEquals(mockSearchPhaseContext.phaseFailure.get().getMessage(), "BOOM");
-        assertNull(responseRef.get());
+        assertNull(mockSearchPhaseContext.searchResponse.get());
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
     }
 
-    public void testCleanupIrrelevantContexts() throws IOException { // contexts that are not fetched should be cleaned up
+    public void testCleanupIrrelevantContexts() { // contexts that are not fetched should be cleaned up
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
-            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
-            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
-        AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = 1;
-        QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0, null));
+        final ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
+        QuerySearchResult queryResult = new QuerySearchResult(ctx1,
+            new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
         queryResult.setShardIndex(0);
-        results.consumeResult(queryResult);
+        results.consumeResult(queryResult, () -> {});
 
-        queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new Index("test", "na"), 1, null));
+        final ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 321);
+        queryResult = new QuerySearchResult(ctx2,
+            new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
         queryResult.setShardIndex(1);
-        results.consumeResult(queryResult);
+        results.consumeResult(queryResult, () -> {});
 
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
                 FetchSearchResult fetchResult = new FetchSearchResult();
-                if (request.id() == 321) {
+                if (request.contextId().getId() == 321) {
                     fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(84)},
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO), 2.0F));
                 } else {
@@ -357,24 +366,24 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 listener.onResponse(fetchResult);
             }
         };
-        mockSearchPhaseContext.searchTransport = searchTransportService;
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
                 @Override
-                public void run() throws IOException {
-                    responseRef.set(mockSearchPhaseContext.buildSearchResponse(searchResponse, null));
+                public void run() {
+                    mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
                 }
             });
         assertEquals("fetch", phase.getName());
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
-        assertNotNull(responseRef.get());
-        assertEquals(2, responseRef.get().getHits().getTotalHits().value);
-        assertEquals(1, responseRef.get().getHits().getHits().length);
-        assertEquals(84, responseRef.get().getHits().getAt(0).docId());
-        assertEquals(0, responseRef.get().getFailedShards());
-        assertEquals(2, responseRef.get().getSuccessfulShards());
+        SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
+        assertNotNull(searchResponse);
+        assertEquals(2, searchResponse.getHits().getTotalHits().value);
+        assertEquals(1, searchResponse.getHits().getHits().length);
+        assertEquals(84, searchResponse.getHits().getAt(0).docId());
+        assertEquals(0, searchResponse.getFailedShards());
+        assertEquals(2, searchResponse.getSuccessfulShards());
         assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
-        assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(123L));
+        assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(ctx1));
     }
 }

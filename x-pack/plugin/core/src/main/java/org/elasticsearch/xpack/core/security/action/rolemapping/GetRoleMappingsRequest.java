@@ -1,11 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
-
-import java.io.IOException;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -13,6 +12,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+
+import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -24,6 +25,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class GetRoleMappingsRequest extends ActionRequest {
 
     private String[] names = Strings.EMPTY_ARRAY;
+
+    public GetRoleMappingsRequest(StreamInput in) throws IOException {
+        super(in);
+        names = in.readStringArray();
+    }
 
     public GetRoleMappingsRequest() {
     }
@@ -51,12 +57,6 @@ public class GetRoleMappingsRequest extends ActionRequest {
      */
     public String[] getNames() {
         return names;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        names = in.readStringArray();
     }
 
     @Override

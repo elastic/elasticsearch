@@ -1,10 +1,14 @@
+[role="xpack"]
 [[transform-search]]
-=== Search Transform
+=== {watcher} search {watcher-transform}
+++++
+<titleabbrev>Search {watcher-transform}</titleabbrev>
+++++
 
-A <<transform, Transform>> that executes a search on the cluster and replaces
-the current payload in the watch execution context with the returned search
-response. The following snippet shows how a simple search transform can be
-defined on the watch level:
+A <<transform,{watcher-transform}>> that executes a search on the cluster and
+replaces the current payload in the watch execution context with the returned
+search response. The following snippet shows how a simple search transform can
+be defined on the watch level:
 
 [source,js]
 --------------------------------------------------
@@ -21,8 +25,9 @@ defined on the watch level:
 // NOTCONSOLE
 
 Like every other search based construct, one can make use of the full search
-API supported by Elasticsearch. For example, the following search transform
-execute a search over all events indices, matching events with `error` priority:
+API supported by Elasticsearch. For example, the following search
+{watcher-transform} execute a search over all events indices, matching events
+with `error` priority:
 
 [source,js]
 --------------------------------------------------
@@ -44,56 +49,54 @@ execute a search over all events indices, matching events with `error` priority:
 --------------------------------------------------
 // NOTCONSOLE
 
-The following table lists all available settings for the search transform:
+The following table lists all available settings for the search
+{watcher-transform}:
 
 [[transform-search-settings]]
-.Search Transform Settings
+.Search {watcher-transform} settings
 [cols=",^,,", options="header"]
 |======
 | Name                                          |Required   | Default           | Description
 
-| `request.search_type`                         | no        | query_then_fetch  | The search {ref}/search-request-search-type.html[type].
+| `request.search_type`                         | no        | query_then_fetch  | The search <<search-type,type>>.
 
 | `request.indices`                             | no        | all indices       | One or more indices to search on.
 
-| `request.types`                               | no        | all types         | One or more document types to search on (may be a
-                                                                                  comma-delimited string or an array of document types
-                                                                                  names)
-
 | `request.body`                                | no        | `match_all` query | The body of the request. The
-                                                                                  {ref}/search-request-body.html[request body] follows
+                                                                                  <<search-request-body,request body>> follows
                                                                                   the same structure you normally send in the body of
                                                                                   a REST `_search` request. The body can be static text
-                                                                                  or include `mustache` <<templates, templates>>.
+                                                                                  or include `mustache` <<templates,templates>>.
 
-| `request.indices_options.expand_wildcards`    | no        | `open`            | Determines how to expand indices wildcards. Can be one
-                                                                                  of `open`, `closed`, `none` or `all`
-                                                                                  (see {ref}/multi-index.html[multi-index support])
+| `request.indices_options.expand_wildcards`    | no        | `open`            | Determines how to expand indices wildcards. An array
+                                                                                  consisting of a combination of `open`, `closed`,
+                                                                                  and `hidden`. Alternatively a value of `none` or `all`.
+                                                                                  (see <<multi-index,multi-index support>>)
 
 | `request.indices_options.ignore_unavailable`  | no        | `true`            | A boolean value that determines whether the search
                                                                                   should leniently ignore unavailable indices
-                                                                                  (see {ref}/multi-index.html[multi-index support])
+                                                                                  (see <<multi-index,multi-index support>>)
 
 | `request.indices_options.allow_no_indices`    | no        | `true`            | A boolean value that determines whether the search
                                                                                   should leniently return no results when no indices
-                                                                                  are resolved (see {ref}/multi-index.html[multi-index support])
+                                                                                  are resolved (see <<multi-index,multi-index support>>)
 
 | `request.template`                            | no        | -                 | The body of the search template. See
-                                                                                  <<templates, configure templates>> for more information.
+                                                                                  <<templates,configure templates>> for more information.
 
 | `timeout`                                     | no        | 30s               | The timeout for waiting for the search api call to
                                                                                   return. If no response is returned within this time,
-                                                                                  the search transform times out and fails. This setting
+                                                                                  the search {watcher-transform} times out and fails. This setting
                                                                                   overrides the default timeouts.
 |======
 
 [[transform-search-template]]
-==== Template Support
+==== Template support
 
-The search transform support mustache <<templates, templates>>. This can either
-be as part of the body definition, or alternatively, point to an existing
-template (either defined in a file or {ref}/search-template.html#pre-registered-templates[registered]
-as a script in Elasticsearch).
+The search {watcher-transform} support mustache <<templates, templates>>. This
+can either be as part of the body definition or alternatively point to an
+existing template (either defined in a file or
+<<create-search-template,stored>> as a script in Elasticsearch).
 
 For example, the following snippet shows a search that refers to the scheduled
 time of the watch:
@@ -105,7 +108,6 @@ time of the watch:
     "search" : {
       "request" : {
         "indices" : [ "logstash-*" ],
-        "types" : [ "event" ],
         "body" : {
           "size" : 0,
           "query" : {
@@ -134,7 +136,7 @@ time of the watch:
 // NOTCONSOLE
 
 The model of the template is a union between the provided `template.params`
-settings and the <<watch-execution-context, standard watch execution context model>>.
+settings and the <<watch-execution-context,standard watch execution context model>>.
 
 The following is an example of using templates that refer to provided parameters:
 
@@ -145,7 +147,6 @@ The following is an example of using templates that refer to provided parameters
     "search" : {
       "request" : {
         "indices" : [ "logstash-*" ],
-        "types" : [ "event" ],
         "template" : {
           "source" : {
             "size" : 0,

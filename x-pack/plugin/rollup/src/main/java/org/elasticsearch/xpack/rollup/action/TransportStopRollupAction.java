@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.action;
 
@@ -14,7 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -81,10 +82,15 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
                                 listener.onResponse(response);
                             } else {
                                 listener.onFailure(new ElasticsearchTimeoutException("Timed out after [" + request.timeout().getStringRep()
-                                    + "] while waiting for rollup job [" + request.getId() + "] to stop"));
+                                    + "] while waiting for rollup job [" + request.getId() + "] to stop. State was ["
+                                    + ((RollupJobStatus) jobTask.getStatus()).getIndexerState() + "]"));
                             }
                         } catch (InterruptedException e) {
                             listener.onFailure(e);
+                        } catch (Exception e) {
+                            listener.onFailure(new ElasticsearchTimeoutException("Encountered unexpected error while waiting for " +
+                                "rollup job [" + request.getId() + "] to stop.  State was ["
+                                + ((RollupJobStatus) jobTask.getStatus()).getIndexerState() + "].", e));
                         }
                     });
 

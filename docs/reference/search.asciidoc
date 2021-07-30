@@ -1,175 +1,60 @@
 [[search]]
-= Search APIs
+== Search APIs
 
-[partintro]
---
+Search APIs are used to search and aggregate data stored in {es} indices and
+data streams. For an overview and related tutorials, see <<search-your-data>>.
 
-Most search APIs are <<search-multi-index,multi-index>>, with the
-exception of the <<search-explain>> endpoints.
+Most search APIs support <<api-multi-index,multi-target syntax>>, with the
+exception of the <<search-explain,explain API>>.
 
-[float]
-[[search-routing]]
-== Routing
+[discrete]
+[[core-search-apis]]
+=== Core search
 
-When executing a search, Elasticsearch will pick the "best" copy of the data
-based on the <<search-adaptive-replica,adaptive replica selection>> formula.
-Which shards will be searched on can also be controlled by providing the
-`routing` parameter. For example, when indexing tweets, the routing value can be
-the user name:
+* <<search-search>>
+* <<search-multi-search>>
+* <<async-search>>
+* <<point-in-time-api>>
+* <<scroll-api>>
+* <<clear-scroll-api>>
+* <<search-suggesters>>
+* <<search-terms-enum>>
 
-[source,js]
---------------------------------------------------
-POST /twitter/_doc?routing=kimchy
-{
-    "user" : "kimchy",
-    "postDate" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
-}
---------------------------------------------------
-// CONSOLE
+[discrete]
+[[search-testing-apis]]
+=== Search testing
 
-In such a case, if we want to search only on the tweets for a specific
-user, we can specify it as the routing, resulting in the search hitting
-only the relevant shard:
+* <<search-explain>>
+* <<search-field-caps>>
+* <<search-profile>>
+* <<search-rank-eval>>
+* <<search-shards>>
+* <<search-validate>>
 
-[source,js]
---------------------------------------------------
-POST /twitter/_search?routing=kimchy
-{
-    "query": {
-        "bool" : {
-            "must" : {
-                "query_string" : {
-                    "query" : "some query string here"
-                }
-            },
-            "filter" : {
-                "term" : { "user" : "kimchy" }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
+[discrete]
+[[search-template-apis]]
+=== Search templates
 
-The routing parameter can be multi valued represented as a comma
-separated string. This will result in hitting the relevant shards where
-the routing values match to.
+* <<search-template-api>>
+* <<multi-search-template>>
+* <<render-search-template-api>>
 
-[float]
-[[search-adaptive-replica]]
-== Adaptive Replica Selection
-
-By default, Elasticsearch will use what is called adaptive replica selection.
-This allows the coordinating node to send the request to the copy deemed "best"
-based on a number of criteria:
-
-- Response time of past requests between the coordinating node and the node
-  containing the copy of the data
-- Time past search requests took to execute on the node containing the data
-- The queue size of the search threadpool on the node containing the data
-
-This can be turned off by changing the dynamic cluster setting
-`cluster.routing.use_adaptive_replica_selection` from `true` to `false`:
-
-[source,js]
---------------------------------------------------
-PUT /_cluster/settings
-{
-    "transient": {
-        "cluster.routing.use_adaptive_replica_selection": false
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-If adaptive replica selection is turned off, searches are sent to the
-index/indices shards in a round robin fashion between all copies of the data
-(primaries and replicas).
-
-[float]
-[[stats-groups]]
-== Stats Groups
-
-A search can be associated with stats groups, which maintains a
-statistics aggregation per group. It can later be retrieved using the
-<<indices-stats,indices stats>> API
-specifically. For example, here is a search body request that associate
-the request with two different groups:
-
-[source,js]
---------------------------------------------------
-POST /_search
-{
-    "query" : {
-        "match_all" : {}
-    },
-    "stats" : ["group1", "group2"]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-
-[float]
-[[global-search-timeout]]
-== Global Search Timeout
-
-Individual searches can have a timeout as part of the
-<<search-request-body>>. Since search requests can originate from many
-sources, Elasticsearch has a dynamic cluster-level setting for a global
-search timeout that applies to all search requests that do not set a
-timeout in the request body. These requests will be cancelled after
-the specified time using the mechanism described in the following section on
-<<global-search-cancellation>>. Therefore the same caveats about timeout
-responsiveness apply.
-
-The setting key is `search.default_search_timeout` and can be set using the
-<<cluster-update-settings>> endpoints. The default value is no global timeout.
-Setting this value to `-1` resets the global search timeout to no timeout.
-
-[float]
-[[global-search-cancellation]]
-== Search Cancellation
-
-Searches can be cancelled using standard <<task-cancellation,task cancellation>>
-mechanism. By default, a running search only checks if it is cancelled or
-not on segment boundaries, therefore the cancellation can be delayed by large
-segments. The search cancellation responsiveness can be improved by setting
-the dynamic cluster-level setting `search.low_level_cancellation` to `true`.
-However, it comes with an additional overhead of more frequent cancellation
-checks that can be noticeable on large fast running search queries. Changing this
-setting only affects the searches that start after the change is made.
-
-[float]
-[[search-concurrency-and-parallelism]]
-== Search concurrency and parallelism
-
-By default Elasticsearch doesn't reject any search requests based on the number
-of shards the request hits. While Elasticsearch will optimize the search
-execution on the coordinating node a large number of shards can have a
-significant impact CPU and memory wise. It is usually a better idea to organize
-data in such a way that there are fewer larger shards. In case you would like to
-configure a soft limit, you can update the `action.search.shard_count.limit`
-cluster setting in order to reject search requests that hit too many shards.
-
-The request parameter `max_concurrent_shard_requests` can be used to control the
-maximum number of concurrent shard requests the search API will execute for the
-request. This parameter should be used to protect a single request from
-overloading a cluster (e.g., a default request will hit all indices in a cluster
-which could cause shard request rejections if the number of shards per node is
-high). This default is based on the number of data nodes in the cluster but at
-most `256`.
-
---
 
 include::search/search.asciidoc[]
 
-include::search/uri-request.asciidoc[]
+include::search/async-search.asciidoc[]
 
-include::search/request-body.asciidoc[]
+include::search/point-in-time-api.asciidoc[]
 
-include::search/search-template.asciidoc[]
+include::search/scroll-api.asciidoc[]
+
+include::search/clear-scroll-api.asciidoc[]
+
+include::search/search-template-api.asciidoc[]
+
+include::search/multi-search-template-api.asciidoc[]
+
+include::search/render-search-template-api.asciidoc[]
 
 include::search/search-shards.asciidoc[]
 
@@ -180,6 +65,8 @@ include::search/multi-search.asciidoc[]
 include::search/count.asciidoc[]
 
 include::search/validate.asciidoc[]
+
+include::search/terms-enum.asciidoc[]
 
 include::search/explain.asciidoc[]
 

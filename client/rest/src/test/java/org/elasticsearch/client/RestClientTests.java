@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -25,7 +25,6 @@ import org.apache.http.client.AuthCache;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.elasticsearch.client.DeadHostStateTests.ConfigurableTimeSupplier;
 import org.elasticsearch.client.RestClient.NodeTuple;
 
 import java.io.IOException;
@@ -40,10 +39,13 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -51,13 +53,14 @@ import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class RestClientTests extends RestClientTestCase {
 
     public void testCloseIsIdempotent() throws IOException {
         List<Node> nodes = singletonList(new Node(new HttpHost("localhost", 9200)));
         CloseableHttpAsyncClient closeableHttpAsyncClient = mock(CloseableHttpAsyncClient.class);
-        RestClient restClient = new RestClient(closeableHttpAsyncClient, 1_000, new Header[0], nodes, null, null, null, false);
+        RestClient restClient = new RestClient(closeableHttpAsyncClient, new Header[0], nodes, null, null, null, false, false);
         restClient.close();
         verify(closeableHttpAsyncClient, times(1)).close();
         restClient.close();
@@ -266,14 +269,24 @@ public class RestClientTests extends RestClientTestCase {
 
         // Mark all the nodes dead for a few test cases
         {
-            ConfigurableTimeSupplier timeSupplier = new ConfigurableTimeSupplier();
+            final AtomicLong time = new AtomicLong(0L);
+            Supplier<Long> timeSupplier = time::get;
             Map<HttpHost, DeadHostState> blacklist = new HashMap<>();
             blacklist.put(n1.getHost(), new DeadHostState(timeSupplier));
             blacklist.put(n2.getHost(), new DeadHostState(new DeadHostState(timeSupplier)));
             blacklist.put(n3.getHost(), new DeadHostState(new DeadHostState(new DeadHostState(timeSupplier))));
 
             /*
-             * selectHosts will revive a single host if regardless of
+             * case when fewer nodeTuple than blacklist, won't result in any IllegalCapacityException
+             */
+            {
+                NodeTuple<List<Node>> fewerNodeTuple = new NodeTuple<>(Arrays.asList(n1, n2), null);
+                assertSelectLivingHosts(Arrays.asList(n1), fewerNodeTuple, blacklist, NodeSelector.ANY);
+                assertSelectLivingHosts(Arrays.asList(n2), fewerNodeTuple, blacklist, not1);
+            }
+
+            /*
+             * selectHosts will revive a single host regardless of
              * blacklist time. It'll revive the node that is closest
              * to being revived that the NodeSelector is ok with.
              */
@@ -295,7 +308,7 @@ public class RestClientTests extends RestClientTestCase {
              * Now lets wind the clock forward, past the timeout for one of
              * the dead nodes. We should return it.
              */
-            timeSupplier.nanoTime = new DeadHostState(timeSupplier).getDeadUntilNanos();
+            time.set(new DeadHostState(timeSupplier).getDeadUntilNanos());
             assertSelectLivingHosts(Arrays.asList(n1), nodeTuple, blacklist, NodeSelector.ANY);
 
             /*
@@ -309,7 +322,7 @@ public class RestClientTests extends RestClientTestCase {
              * blacklist timeouts then we function as though the nodes aren't
              * in the blacklist at all.
              */
-            timeSupplier.nanoTime += DeadHostState.MAX_CONNECTION_TIMEOUT_NANOS;
+            time.addAndGet(DeadHostState.MAX_CONNECTION_TIMEOUT_NANOS);
             assertSelectLivingHosts(Arrays.asList(n1, n2, n3), nodeTuple, blacklist, NodeSelector.ANY);
             assertSelectLivingHosts(Arrays.asList(n2, n3), nodeTuple, blacklist, not1);
         }
@@ -344,8 +357,7 @@ public class RestClientTests extends RestClientTestCase {
 
     private static RestClient createRestClient() {
         List<Node> nodes = Collections.singletonList(new Node(new HttpHost("localhost", 9200)));
-        return new RestClient(mock(CloseableHttpAsyncClient.class), randomLongBetween(1_000, 30_000),
-                new Header[] {}, nodes, null, null, null, false);
+        return new RestClient(mock(CloseableHttpAsyncClient.class), new Header[] {}, nodes, null, null, null, false, false);
     }
 
     public void testRoundRobin() throws IOException {
@@ -375,6 +387,18 @@ public class RestClientTests extends RestClientTestCase {
         assertEquals(Integer.MIN_VALUE, lastNodeIndex.incrementAndGet());
         assertNodes(nodeTuple, lastNodeIndex, 50);
         assertEquals(Integer.MIN_VALUE + 50, lastNodeIndex.get());
+    }
+
+    public void testIsRunning(){
+        List<Node> nodes = Collections.singletonList(new Node(new HttpHost("localhost", 9200)));
+        CloseableHttpAsyncClient client = mock(CloseableHttpAsyncClient.class);
+        RestClient restClient = new RestClient(client, new Header[] {}, nodes, null, null, null, false, false);
+
+        when(client.isRunning()).thenReturn(true);
+        assertTrue(restClient.isRunning());
+
+        when(client.isRunning()).thenReturn(false);
+        assertFalse(restClient.isRunning());
     }
 
     private static void assertNodes(NodeTuple<List<Node>> nodeTuple, AtomicInteger lastNodeIndex, int runs) throws IOException {

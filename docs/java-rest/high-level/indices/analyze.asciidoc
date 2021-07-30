@@ -19,18 +19,18 @@ The simplest version uses a built-in analyzer:
 ---------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-builtin-request]
 ---------------------------------------------------
-<1> The text to include.  Multiple strings are treated as a multi-valued field
-<2> A built-in analyzer
+<1> A built-in analyzer
+<2> The text to include. Multiple strings are treated as a multi-valued field
 
 You can configure a custom analyzer:
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-custom-request]
 ---------------------------------------------------
-<1> Configure char filters
+<1> Configuration for a custom tokenfilter
 <2> Configure the tokenizer
-<3> Add a built-in tokenfilter
-<4> Configuration for a custom tokenfilter
+<3> Configure char filters
+<4> Add a built-in tokenfilter
 <5> Add the custom tokenfilter
 
 You can also build a custom normalizer, by including only charfilters and

@@ -1,20 +1,9 @@
 #
-# Licensed to Elasticsearch under one or more contributor
-# license agreements. See the NOTICE file distributed with
-# this work for additional information regarding copyright
-# ownership. Elasticsearch licenses this file to you under
-# the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
 #
 
 #
@@ -24,31 +13,31 @@
 
 #### Primitive types
 
-class void no_import {
+class void @no_import {
 }
 
-class boolean no_import {
+class boolean @no_import {
 }
 
-class byte no_import {
+class byte @no_import {
 }
 
-class short no_import {
+class short @no_import {
 }
 
-class char no_import {
+class char @no_import {
 }
 
-class int no_import {
+class int @no_import {
 }
 
-class long no_import {
+class long @no_import {
 }
 
-class float no_import {
+class float @no_import {
 }
 
-class double no_import {
+class double @no_import {
 }
 
 #### Painless debugging API
@@ -64,16 +53,20 @@ class org.elasticsearch.common.geo.GeoPoint {
   double getLon()
 }
 
+class org.elasticsearch.common.geo.GeoBoundingBox {
+  org.elasticsearch.common.geo.GeoPoint topLeft()
+  org.elasticsearch.common.geo.GeoPoint bottomRight()
+}
+
+
 class org.elasticsearch.index.fielddata.ScriptDocValues$Strings {
   String get(int)
   String getValue()
-  List getValues()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$Longs {
   Long get(int)
   long getValue()
-  List getValues()
 }
 
 class org.elasticsearch.script.JodaCompatibleZonedDateTime {
@@ -109,7 +102,6 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
   ZonedDateTime plusSeconds(long)
   ZonedDateTime plusWeeks(long)
   ZonedDateTime plusYears(long)
-  Instant toInstant()
   OffsetDateTime toOffsetDateTime()
   ZonedDateTime truncatedTo(TemporalUnit)
   ZonedDateTime with(TemporalAdjuster)
@@ -127,14 +119,6 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
   ZonedDateTime withYear(int)
   ZonedDateTime withZoneSameLocal(ZoneId)
   ZonedDateTime withZoneSameInstant(ZoneId)
-
-  #### Joda methods that exist in java time
-  boolean equals(Object)
-  int hashCode()
-  boolean isAfter(ZonedDateTime)
-  boolean isBefore(ZonedDateTime)
-  boolean isEqual(ZonedDateTime)
-  String toString()
 
   #### Joda time methods
   long getMillis()
@@ -163,19 +147,24 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
 class org.elasticsearch.index.fielddata.ScriptDocValues$Dates {
   JodaCompatibleZonedDateTime get(int)
   JodaCompatibleZonedDateTime getValue()
-  List getValues()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$Doubles {
   Double get(int)
   double getValue()
-  List getValues()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$Geometry {
+  int getDimensionalType()
+  org.elasticsearch.common.geo.GeoPoint getCentroid()
+  org.elasticsearch.common.geo.GeoBoundingBox getBoundingBox()
+  double getMercatorWidth()
+  double getMercatorHeight()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints {
   org.elasticsearch.common.geo.GeoPoint get(int)
   org.elasticsearch.common.geo.GeoPoint getValue()
-  List getValues()
   double getLat()
   double getLon()
   double[] getLats()
@@ -193,13 +182,11 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints {
 class org.elasticsearch.index.fielddata.ScriptDocValues$Booleans {
   Boolean get(int)
   boolean getValue()
-  List getValues()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$BytesRefs {
   BytesRef get(int)
   BytesRef getValue()
-  List getValues()
 }
 
 class org.apache.lucene.util.BytesRef {
@@ -213,7 +200,6 @@ class org.apache.lucene.util.BytesRef {
 class org.elasticsearch.index.mapper.IpFieldMapper$IpFieldType$IpScriptDocValues {
   String get(int)
   String getValue()
-  List getValues()
 }
 
 class org.elasticsearch.search.lookup.FieldLookup {
@@ -242,30 +228,12 @@ class org.elasticsearch.index.similarity.ScriptedSimilarity$Doc {
   float getFreq()
 }
 
-# for testing
-class org.elasticsearch.painless.FeatureTest no_import {
-  int z
-  ()
-  (int,int)
-  int getX()
-  int getY()
-  Integer getI()
-  void setX(int)
-  void setY(int)
-  void setI(Integer)
-  boolean overloadedStatic()
-  boolean overloadedStatic(boolean)
-  int staticNumberTest(Number)
-  Double mixedAdd(int, Byte, char, Float)
-  Object twoFunctionsOfX(Function,Function)
-  void listInput(List)
-  int org.elasticsearch.painless.FeatureTestAugmentation getTotal()
-  int org.elasticsearch.painless.FeatureTestAugmentation addToTotal(int)
+class org.elasticsearch.index.query.IntervalFilterScript$Interval {
+  int getStart()
+  int getEnd()
+  int getGaps()
 }
 
-# for testing
-static_import {
-  int staticAddIntsTest(int, int) from_class org.elasticsearch.painless.StaticTest
-  float staticAddFloatsTest(float, float) from_class org.elasticsearch.painless.FeatureTest
-  int testAddWithState(int, int, int, double) bound_to org.elasticsearch.painless.BindingTest
+class org.elasticsearch.script.ScoreScript$ExplanationHolder {
+  void set(String)
 }

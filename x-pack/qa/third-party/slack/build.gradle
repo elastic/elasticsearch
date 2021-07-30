@@ -1,26 +1,38 @@
-import org.elasticsearch.gradle.test.NodeInfo
-import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.internal.info.BuildParams
 
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
-  testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
+  testImplementation project(':x-pack:plugin:core')
+  testImplementation project(path: xpackModule('watcher'))
+}
+
+restResources {
+  restApi {
+    include 'watcher'
+  }
 }
 
 String slackUrl = System.getenv('slack_url')
 
-integTestCluster {
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
-  keystoreSetting 'xpack.notification.slack.account.test_account.secure_url', slackUrl
+if (!slackUrl) {
+  tasks.named("integTest").configure { enabled = false }
+  tasks.named("testingConventions").configure { enabled = false }
+} else {
+  testClusters.matching { it.name == "integTest" }.configureEach {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.security.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+    keystore 'xpack.notification.slack.account.test_account.secure_url', slackUrl
+  }
 }
 
-if (!slackUrl) {
-  integTest.enabled = false
-  testingConventions.enabled = false
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("integTest").configure{enabled = false }
 }

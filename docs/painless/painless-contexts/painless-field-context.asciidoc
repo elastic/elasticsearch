@@ -2,7 +2,7 @@
 === Field context
 
 Use a Painless script to create a
-{ref}/search-request-script-fields.html[script field] to return
+{ref}/search-fields.html#script-fields[script field] to return
 a customized value for each document in the results of a query.
 
 *Variables*
@@ -25,7 +25,8 @@ a customized value for each document in the results of a query.
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+Both the standard <<painless-api-reference-shared, Painless API>> and
+<<painless-api-reference-field, Specialized Field API>> are available.
 
 
 *Example*
@@ -41,7 +42,7 @@ the `getDayOfWeek` function to determine the corresponding day of the week.
 
 [source,Painless]
 ----
-doc['datetime'].value.getDayOfWeek();
+doc['datetime'].value.getDayOfWeekEnum();
 ----
 
 The second script calculates the number of actors. Actors' names are stored
@@ -49,7 +50,7 @@ as a text array in the `actors` field.
 
 [source,Painless]
 ----
-params['_source']['actors'].length;                        <1>
+params['_source']['actors'].size();                        <1>
 ----
 
 <1> By default, doc values are not available for text fields. However,
@@ -59,26 +60,25 @@ params['_source']['actors'].length;                        <1>
 
 Submit the following request:
 
-[source,js]
+[source,console]
 ----
 GET seats/_search
 {
-    "query" : {
-        "match_all": {}
+  "query": {
+    "match_all": {}
+  },
+  "script_fields": {
+    "day-of-week": {
+      "script": {
+        "source": "doc['datetime'].value.getDayOfWeekEnum()"
+      }
     },
-    "script_fields" : {
-        "day-of-week" : {
-            "script" : {
-                "source": "doc['datetime'].value.getDayOfWeek()"
-            }
-        },
-        "number-of-actors" : {
-            "script" : {
-                "source": "params['_source']['actors'].length"
-            }
-        }
+    "number-of-actors": {
+      "script": {
+        "source": "params['_source']['actors'].size()"
+      }
     }
+  }
 }
 ----
-// CONSOLE
-// TEST[skip: requires setup from other pages]
+// TEST[setup:seats]

@@ -1,29 +1,44 @@
 [[analysis-htmlstrip-charfilter]]
-=== HTML Strip Char Filter
+=== HTML strip character filter
+++++
+<titleabbrev>HTML strip</titleabbrev>
+++++
 
-The `html_strip` character filter strips HTML elements from the text and
-replaces HTML entities with their decoded value (e.g. replacing `&amp;` with
-`&`).
+Strips HTML elements from a text and replaces HTML entities with their decoded
+value (e.g, replaces `&amp;` with `&`).
 
-[float]
-=== Example output
+The `html_strip` filter uses Lucene's
+{lucene-analysis-docs}/charfilter/HTMLStripCharFilter.html[HTMLStripCharFilter].
 
-[source,js]
----------------------------
-POST _analyze
+[[analysis-htmlstrip-charfilter-analyze-ex]]
+==== Example
+
+The following <<indices-analyze,analyze API>> request uses the
+`html_strip` filter to change the text `<p>I&apos;m so <b>happy</b>!</p>` to
+`\nI'm so happy!\n`.
+
+[source,console]
+----
+GET /_analyze
 {
-  "tokenizer":      "keyword", <1>
-  "char_filter":  [ "html_strip" ],
+  "tokenizer": "keyword",
+  "char_filter": [
+    "html_strip"
+  ],
   "text": "<p>I&apos;m so <b>happy</b>!</p>"
 }
----------------------------
-// CONSOLE
-<1> The <<analysis-keyword-tokenizer,`keyword` tokenizer>> returns a single term.
+----
 
-/////////////////////
+The filter produces the following text:
 
-[source,js]
-----------------------------
+[source,text]
+----
+[ \nI'm so happy!\n ]
+----
+
+////
+[source,console-result]
+----
 {
   "tokens": [
     {
@@ -35,96 +50,81 @@ POST _analyze
     }
   ]
 }
-----------------------------
-// TESTRESPONSE
+----
+////
 
-/////////////////////
+[[analysis-htmlstrip-charfilter-analyzer-ex]]
+==== Add to an analyzer
 
+The following <<indices-create-index,create index API>> request uses the
+`html_strip` filter to configure a new
+<<analysis-custom-analyzer,custom analyzer>>.
 
-The above example returns the term:
-
-[source,text]
----------------------------
-[ \nI'm so happy!\n ]
----------------------------
-
-The same example with the `standard` tokenizer would return the following terms:
-
-[source,text]
----------------------------
-[ I'm, so, happy ]
----------------------------
-
-[float]
-=== Configuration
-
-The `html_strip` character filter accepts the following parameter:
-
-[horizontal]
-`escaped_tags`::
-
-    An array of HTML tags which should not be stripped from the original text.
-
-[float]
-=== Example configuration
-
-In this example, we configure the `html_strip` character filter to leave `<b>`
-tags in place:
-
-[source,js]
-----------------------------
-PUT my_index
+[source,console]
+----
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
       "analyzer": {
         "my_analyzer": {
           "tokenizer": "keyword",
-          "char_filter": ["my_char_filter"]
-        }
-      },
-      "char_filter": {
-        "my_char_filter": {
-          "type": "html_strip",
-          "escaped_tags": ["b"]
+          "char_filter": [
+            "html_strip"
+          ]
         }
       }
     }
   }
 }
+----
 
-POST my_index/_analyze
+[[analysis-htmlstrip-charfilter-configure-parms]]
+==== Configurable parameters
+
+`escaped_tags`::
+(Optional, array of strings)
+Array of HTML elements without enclosing angle brackets (`< >`). The filter
+skips these HTML elements when stripping HTML from the text. For example, a
+value of `[ "p" ]` skips the `<p>` HTML element.
+
+[[analysis-htmlstrip-charfilter-customize]]
+==== Customize
+
+To customize the `html_strip` filter, duplicate it to create the basis for a new
+custom character filter. You can modify the filter using its configurable
+parameters.
+
+The following <<indices-create-index,create index API>> request
+configures a new <<analysis-custom-analyzer,custom analyzer>> using a custom
+`html_strip` filter, `my_custom_html_strip_char_filter`.
+
+The `my_custom_html_strip_char_filter` filter skips the removal of the `<b>`
+HTML element.
+
+[source,console]
+----
+PUT my-index-000001
 {
-  "analyzer": "my_analyzer",
-  "text": "<p>I&apos;m so <b>happy</b>!</p>"
-}
-----------------------------
-// CONSOLE
-
-/////////////////////
-
-[source,js]
-----------------------------
-{
-  "tokens": [
-    {
-      "token": "\nI'm so <b>happy</b>!\n",
-      "start_offset": 0,
-      "end_offset": 32,
-      "type": "word",
-      "position": 0
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "keyword",
+          "char_filter": [
+            "my_custom_html_strip_char_filter"
+          ]
+        }
+      },
+      "char_filter": {
+        "my_custom_html_strip_char_filter": {
+          "type": "html_strip",
+          "escaped_tags": [
+            "b"
+          ]
+        }
+      }
     }
-  ]
+  }
 }
-----------------------------
-// TESTRESPONSE
-
-/////////////////////
-
-
-The above example produces the following term:
-
-[source,text]
----------------------------
-[ \nI'm so <b>happy</b>!\n ]
----------------------------
+----

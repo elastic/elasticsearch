@@ -1,0 +1,67 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-upgrading]]
+=== Upgrading clusters using {ccr}
+++++
+<titleabbrev>Upgrading clusters</titleabbrev>
+++++
+
+Clusters that are actively using {ccr} require a careful approach to upgrades.
+The following conditions could cause index following to fail during rolling
+upgrades:
+
+* Clusters that have not yet been upgraded will reject new index settings or
+mapping types that are replicated from an upgraded cluster.
+* Nodes in a cluster that has not been upgraded will reject index files from a
+node in an upgraded cluster when index following tries to fall back to
+file-based recovery. This limitation is due to Lucene not being forward
+compatible.
+
+The approach to running a rolling upgrade on clusters where {ccr} is
+enabled differs based on uni-directional and bi-directional index following.
+
+[[ccr-uni-directional-upgrade]]
+==== Uni-directional index following
+In a uni-directional configuration, one cluster contains only
+leader indices, and the other cluster contains only follower indices that
+replicate the leader indices.
+
+In this strategy, the cluster with follower indices should be upgraded
+first and the cluster with leader indices should be upgraded last.
+Upgrading the clusters in this order ensures that index following can continue
+during the upgrade without downtime.
+
+You can also use this strategy to upgrade a
+<<ccr-chained-replication,replication chain>>. Start by upgrading clusters at
+the end of the chain and working your way back to the cluster that contains the
+leader indices.
+
+For example, consider a configuration where Cluster A contains all leader
+indices. Cluster B follows indices in Cluster A, and Cluster C follows indices
+in Cluster B.
+
+--
+  Cluster A
+          ^--Cluster B
+                     ^--Cluster C
+--
+
+In this configuration, upgrade the clusters in the following order:
+
+. Cluster C
+. Cluster B
+. Cluster A
+
+[[ccr-bi-directional-upgrade]]
+==== Bi-directional index following
+
+In a bi-directional configuration, each cluster contains both leader and
+follower indices.
+
+When upgrading clusters in this configuration,
+<<ccr-pause-replication,pause all index following>> and
+<<ccr-auto-follow-pause,pause auto-follow patterns>> prior to
+upgrading both clusters.
+
+After upgrading both clusters, resume index following and resume replication
+of auto-follow patterns.

@@ -1,21 +1,20 @@
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testCompile project(xpackModule('security'))
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testCompile 'com.google.jimfs:jimfs:1.1'
-  testCompile 'com.google.guava:guava:16.0.1'
+  testImplementation project(xpackModule('security'))
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
+  testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
 }
 
 // add test resources from security, so certificate tool tests can use example certs
-sourceSets.test.resources.srcDirs(project(xpackModule('security')).sourceSets.test.resources.srcDirs)
+tasks.named("processTestResources").configure {
+  from(project(xpackModule('security')).sourceSets.test.resources.srcDirs)
+}
 
 // we have to repeate these patterns because the security test resources are effectively in the src of this project
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.key'
   exclude '**/*.p12'
   exclude '**/*.der'
 }
-
-// these are just tests, no need to audit
-thirdPartyAudit.enabled = false

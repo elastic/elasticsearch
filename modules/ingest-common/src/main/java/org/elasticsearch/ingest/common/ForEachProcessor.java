@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -23,12 +12,15 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.WrappingProcessor;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.elasticsearch.script.ScriptService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
@@ -43,7 +35,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
  *
  * Note that this processor is experimental.
  */
-public final class ForEachProcessor extends AbstractProcessor {
+public final class ForEachProcessor extends AbstractProcessor implements WrappingProcessor {
 
     public static final String TYPE = "foreach";
 
@@ -51,8 +43,8 @@ public final class ForEachProcessor extends AbstractProcessor {
     private final Processor processor;
     private final boolean ignoreMissing;
 
-    ForEachProcessor(String tag, String field, Processor processor, boolean ignoreMissing) {
-        super(tag);
+    ForEachProcessor(String tag, String description, String field, Processor processor, boolean ignoreMissing) {
+        super(tag, description);
         this.field = field;
         this.processor = processor;
         this.ignoreMissing = ignoreMissing;
@@ -63,29 +55,49 @@ public final class ForEachProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         List<?> values = ingestDocument.getFieldValue(field, List.class, ignoreMissing);
         if (values == null) {
             if (ignoreMissing) {
-                return ingestDocument;
+                handler.accept(ingestDocument, null);
+            } else {
+                handler.accept(null, new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements."));
             }
-            throw new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements.");
+        } else {
+            innerExecute(0, new ArrayList<>(values), new ArrayList<>(values.size()), ingestDocument, handler);
         }
-        List<Object> newValues = new ArrayList<>(values.size());
-        IngestDocument document = ingestDocument;
-        for (Object value : values) {
-            Object previousValue = ingestDocument.getIngestMetadata().put("_value", value);
-            try {
-                document = processor.execute(document);
-                if (document == null) {
-                    return null;
+    }
+
+    void innerExecute(int index, List<?> values, List<Object> newValues, IngestDocument document,
+                      BiConsumer<IngestDocument, Exception> handler) {
+        for (; index < values.size(); index++) {
+            AtomicBoolean shouldContinueHere = new AtomicBoolean();
+            Object value = values.get(index);
+            Object previousValue = document.getIngestMetadata().put("_value", value);
+            int nextIndex = index + 1;
+            processor.execute(document, (result, e) -> {
+                newValues.add(document.getIngestMetadata().put("_value", previousValue));
+                if (e != null || result == null) {
+                    handler.accept(result, e);
+                } else if (shouldContinueHere.getAndSet(true)) {
+                    innerExecute(nextIndex, values, newValues, document, handler);
                 }
-            } finally {
-                newValues.add(ingestDocument.getIngestMetadata().put("_value", previousValue));
+            });
+
+            if (shouldContinueHere.getAndSet(true) == false) {
+                return;
             }
         }
-        document.setFieldValue(field, newValues);
-        return document;
+
+        if (index == values.size()) {
+            document.setFieldValue(field, new ArrayList<>(newValues));
+            handler.accept(document, null);
+        }
+    }
+
+    @Override
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+        throw new UnsupportedOperationException("this method should not get executed");
     }
 
     @Override
@@ -97,7 +109,7 @@ public final class ForEachProcessor extends AbstractProcessor {
         return field;
     }
 
-    Processor getProcessor() {
+    public Processor getInnerProcessor() {
         return processor;
     }
 
@@ -111,7 +123,7 @@ public final class ForEachProcessor extends AbstractProcessor {
 
         @Override
         public ForEachProcessor create(Map<String, Processor.Factory> factories, String tag,
-                                       Map<String, Object> config) throws Exception {
+                                       String description, Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
             boolean ignoreMissing = readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
             Map<String, Map<String, Object>> processorConfig = readMap(TYPE, tag, config, "processor");
@@ -122,7 +134,7 @@ public final class ForEachProcessor extends AbstractProcessor {
             Map.Entry<String, Map<String, Object>> entry = entries.iterator().next();
             Processor processor =
                 ConfigurationUtils.readProcessor(factories, scriptService, entry.getKey(), entry.getValue());
-            return new ForEachProcessor(tag, field, processor, ignoreMissing);
+            return new ForEachProcessor(tag, description, field, processor, ignoreMissing);
         }
     }
 }

@@ -1,50 +1,52 @@
 [role="xpack"]
 [testenv="basic"]
 [[unfreeze-index-api]]
-== Unfreeze Index API
+=== Unfreeze index API
 ++++
-<titleabbrev>Unfreeze Index</titleabbrev>
+<titleabbrev>Unfreeze index</titleabbrev>
 ++++
+
+deprecated::[7.14, Frozen indices are no longer useful due to https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[recent improvements in heap memory usage].]
 
 Unfreezes an index.
 
-[float]
-=== Request
+[[unfreeze-index-api-request]]
+==== {api-request-title}
 
 `POST /<index>/_unfreeze`
 
-[float]
-=== Description
+[[unfreeze-index-api-prereqs]]
+==== {api-prereq-title}
 
-When a frozen index is unfrozen, the index goes through the normal recovery 
-process and becomes writeable again. See <<frozen-indices>> and <<freeze-index-api>>.
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
 
-[float]
-=== Path Parameters
+[[unfreeze-index-api-desc]]
+==== {api-description-title}
 
-`index` (required)::
-(string) Identifier for the index
+When a frozen index is unfrozen, the index goes through the normal recovery
+process and becomes writeable again. See <<freeze-index-api>>.
 
+IMPORTANT: Freezing an index will close the index and reopen it within the same
+API call. This causes primaries to not be allocated for a short amount of time
+and causes the cluster to go red until the primaries are allocated again. This
+limitation might be removed in the future.
 
-//=== Query Parameters
+[[unfreeze-index-api-path-parms]]
+==== {api-path-parms-title}
 
-//=== Authorization
+`<index>`::
+  (Required, string) Identifier for the index.
 
-[float]
-=== Examples
+[[unfreeze-index-api-examples]]
+==== {api-examples-title}
 
 The following example freezes and unfreezes an index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /my_index/_freeze
-POST /my_index/_unfreeze
+POST /my-index-000001/_freeze
+POST /my-index-000001/_unfreeze
 --------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT my_index\n/]
-
-[IMPORTANT]
-================================
- Freezing an index will close the index and reopen it within the same API call. This causes primaries to not be allocated for a short
- amount of time and causes the cluster to go red until the primaries are allocated again. This limitation might be removed in the future.
-================================
+// TEST[s/^/PUT my-index-000001\n/]
+// TEST[skip:unable to ignore deprecation warning]

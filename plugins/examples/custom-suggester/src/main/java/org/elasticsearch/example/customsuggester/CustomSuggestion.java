@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.example.customsuggester;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
@@ -34,8 +23,6 @@ import java.io.IOException;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry> {
-
-    public static final int TYPE = 999;
 
     public static final ParseField DUMMY = new ParseField("dummy");
 
@@ -62,11 +49,6 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
         return CustomSuggestionBuilder.SUGGESTION_NAME;
     }
 
-    @Override
-    public int getWriteableType() {
-        return TYPE;
-    }
-
     /**
      * A meaningless value used to test that plugin suggesters can add fields to their Suggestion types
      *
@@ -75,11 +57,6 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
      */
     public String getDummy() {
         return dummy;
-    }
-
-    @Override
-    protected Entry newEntry() {
-        return new Entry();
     }
 
     @Override
@@ -100,7 +77,11 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
         static {
             declareCommonFields(PARSER);
             PARSER.declareString((entry, dummy) -> entry.dummy = dummy, DUMMY);
-            PARSER.declareObjectArray(Entry::addOptions, (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
+            /*
+             * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
+             * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
+             */
+            PARSER.declareObjectArray((e, o) -> e.addOptions(o), (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
         }
 
         private String dummy;
@@ -121,11 +102,6 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(dummy);
-        }
-
-        @Override
-        protected Option newOption() {
-            return new Option();
         }
 
         @Override
@@ -177,8 +153,6 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
             }
 
             private String dummy;
-
-            public Option() {}
 
             public Option(Text text, float score, String dummy) {
                 super(text, score);

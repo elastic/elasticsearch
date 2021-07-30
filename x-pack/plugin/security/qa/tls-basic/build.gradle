@@ -1,0 +1,39 @@
+apply plugin: 'elasticsearch.java-rest-test'
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+dependencies {
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+if (BuildParams.inFipsJvm){
+  // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
+  tasks.named("javaRestTest").configure{enabled = false }
+}
+
+testClusters.matching { it.name == 'javaRestTest' }.configureEach {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 2
+
+  extraConfigFile 'http.key', file('src/javaRestTest/resources/ssl/http.key')
+  extraConfigFile 'http.crt', file('src/javaRestTest/resources/ssl/http.crt')
+  extraConfigFile 'transport.key', file('src/javaRestTest/resources/ssl/transport.key')
+  extraConfigFile 'transport.crt', file('src/javaRestTest/resources/ssl/transport.crt')
+  extraConfigFile 'ca.crt', file('src/javaRestTest/resources/ssl/ca.crt')
+
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'basic'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.http.ssl.enabled', 'true'
+  setting 'xpack.security.http.ssl.certificate', 'http.crt'
+  setting 'xpack.security.http.ssl.key', 'http.key'
+  setting 'xpack.security.http.ssl.key_passphrase', 'http-password'
+  setting 'xpack.security.http.ssl.certificate_authorities', 'ca.crt'
+  setting 'xpack.security.transport.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.certificate', 'transport.crt'
+  setting 'xpack.security.transport.ssl.key', 'transport.key'
+  setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
+  setting 'xpack.security.transport.ssl.certificate_authorities', 'ca.crt'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+}

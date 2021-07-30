@@ -1,30 +1,42 @@
 [role="xpack"]
 [[security-api-put-role]]
 === Create or update roles API
+++++
+<titleabbrev>Create or update roles</titleabbrev>
+++++
 
 Adds and updates roles in the native realm.
 
-==== Request
+[[security-api-put-role-request]]
+==== {api-request-title}
 
 `POST /_security/role/<name>` +
 
 `PUT /_security/role/<name>`
 
 
-==== Description
+[[security-api-put-role-prereqs]]
+==== {api-prereq-title}
 
-The role API is generally the preferred way to manage roles, rather than using
-file-based role management. For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+* To use this API, you must have at least the `manage_security` cluster
+privilege.
 
+[[security-api-put-role-desc]]
+==== {api-description-title}
 
-==== Path Parameters
+The role management APIs are generally the preferred way to manage roles, rather than using
+<<roles-management-file,file-based role management>>. The create
+or update roles API cannot update roles that are defined in roles files.
+
+[[security-api-put-role-path-params]]
+==== {api-path-parms-title}
 
 `name`::
   (string) The name of the role.
 
 
-==== Request Body
+[[security-api-put-role-request-body]]
+==== {api-request-body-title}
 
 The following parameters can be specified in the body of a PUT or POST request
 and pertain to adding a role:
@@ -46,7 +58,7 @@ This field is optional.
 `indices`:: (list) A list of indices permissions entries.
 `field_security`::: (list) The document fields that the owners of the role have
 read access to. For more information, see
-{stack-ov}/field-and-document-access-control.html[Setting up field and document level security].
+<<field-and-document-access-control>>.
 `names` (required)::: (list) A list of indices (or index name patterns) to which the
 permissions in this entry apply.
 `privileges`(required)::: (list) The index level privileges that the owners of the role
@@ -60,22 +72,16 @@ that begin with `_` are reserved for system usage.
 
 `run_as`:: (list) A list of users that the owners of this role can impersonate.
 For more information, see
-{stack-ov}/run-as-privilege.html[Submitting requests on behalf of other users].
+<<run-as-privilege>>.
 
-For more information, see {stack-ov}/defining-roles.html[Defining roles].
+For more information, see <<defining-roles>>.
 
-
-==== Authorization
-
-To use this API, you must have at least the `manage_security` cluster
-privilege.
-
-
-==== Examples
+[[security-api-put-role-example]]
+==== {api-examples-title}
 
 The following example adds a role called `my_admin_role`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/my_admin_role
 {
@@ -103,12 +109,11 @@ POST /_security/role/my_admin_role
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 A successful call returns a JSON structure that shows whether the role has been
 created or updated.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "role": {
@@ -116,5 +121,5 @@ created or updated.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 <1> When an existing role is updated, `created` is set to false.

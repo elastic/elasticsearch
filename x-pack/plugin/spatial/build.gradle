@@ -1,0 +1,35 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+esplugin {
+  name 'spatial'
+  description 'A plugin for Basic Spatial features'
+  classname 'org.elasticsearch.xpack.spatial.SpatialPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('vector-tile'))
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  api project(path: ':modules:geo')
+  restTestConfig project(path: ':modules:geo', configuration: 'restTests')
+}
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'indices', 'index', 'search', 'xpack'
+  }
+  restTests {
+    includeCore 'geo_shape'
+  }
+}
+
+testClusters.all {
+  setting 'xpack.license.self_generated.type', 'trial'
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
+}

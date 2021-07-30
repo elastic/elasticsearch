@@ -36,8 +36,8 @@ $ cat /tmp/elasticsearch-pid && echo
 $ kill -SIGTERM 15516
 --------------------------------------------------
 
-[[fatal-errors]
-[float]
+[discrete]
+[[fatal-errors]]
 === Stopping on Fatal Errors
 
 During the life of the Elasticsearch virtual machine, certain fatal errors could arise that put the

@@ -1,29 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.resync;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
@@ -36,12 +22,15 @@ import java.util.Objects;
  */
 public final class ResyncReplicationRequest extends ReplicatedWriteRequest<ResyncReplicationRequest> {
 
-    private long trimAboveSeqNo;
-    private Translog.Operation[] operations;
-    private long maxSeenAutoIdTimestampOnPrimary;
+    private final long trimAboveSeqNo;
+    private final Translog.Operation[] operations;
+    private final long maxSeenAutoIdTimestampOnPrimary;
 
-    ResyncReplicationRequest() {
-        super();
+    ResyncReplicationRequest(StreamInput in) throws IOException {
+        super(in);
+        trimAboveSeqNo = in.readZLong();
+        maxSeenAutoIdTimestampOnPrimary = in.readZLong();
+        operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
     }
 
     public ResyncReplicationRequest(final ShardId shardId, final long trimAboveSeqNo, final long maxSeenAutoIdTimestampOnPrimary,
@@ -65,39 +54,10 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
     }
 
     @Override
-    public void readFrom(final StreamInput in) throws IOException {
-        assert Version.CURRENT.major <= 7;
-        if (in.getVersion().equals(Version.V_6_0_0)) {
-            /*
-             * Resync replication request serialization was broken in 6.0.0 due to the elements of the stream not being prefixed with a
-             * byte indicating the type of the operation.
-             */
-            // TODO: remove this check in 8.0.0 which provides no BWC guarantees with 6.x.
-            throw new IllegalStateException("resync replication request serialization is broken in 6.0.0");
-        }
-        super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            trimAboveSeqNo = in.readZLong();
-        } else {
-            trimAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
-            maxSeenAutoIdTimestampOnPrimary = in.readZLong();
-        } else {
-            maxSeenAutoIdTimestampOnPrimary = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
-        }
-        operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
-    }
-
-    @Override
     public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeZLong(trimAboveSeqNo);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
-            out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
-        }
+        out.writeZLong(trimAboveSeqNo);
+        out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
         out.writeArray(Translog.Operation::writeOperation, operations);
     }
 

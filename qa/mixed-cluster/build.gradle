@@ -1,74 +1,69 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.rest-resources'
 
-// This is a top level task which we will add dependencies to below.
-// It is a single task that can be used to backcompat tests against all versions.
-task bwcTest {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
+restResources {
+  restTests {
+    includeCore '*'
+  }
 }
 
-for (Version version : bwcVersions.wireCompatible) {
-  String baseName = "v${version}"
-
-  Task mixedClusterTest = tasks.create(name: "${baseName}#mixedClusterTest", type: RestIntegTestTask) {
-    mustRunAfter(precommit)
-    includePackaged = true
+for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
+  if (bwcVersion == VersionProperties.getElasticsearchVersion()) {
+    // Not really a mixed cluster
+    continue;
   }
+
+  String baseName = "v${bwcVersion}"
 
   /* This project runs the core REST tests against a 4 node cluster where two of
      the nodes has a different minor.  */
-  Object extension = extensions.findByName("${baseName}#mixedClusterTestCluster")
-  configure(extension) {
-    numNodes = 4
-    numBwcNodes = 2
-    bwcVersion = version
-  }
+  testClusters {
+    "${baseName}" {
+      versions = [bwcVersion.toString(), project.version]
+      numberOfNodes = 4
 
-  Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
-    dependsOn = [mixedClusterTest]
-  }
-
-  if (project.bwc_tests_enabled) {
-    bwcTest.dependsOn(versionBwcTest)
-  }
-
-  tasks.getByName("${baseName}#mixedClusterTestRunner").configure {
-    /* To support taking index snapshots, we have to set path.repo setting */
-    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
-  }
-}
-
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
-
-// basic integ tests includes testing bwc against the most recent version
-task integTest {
-  if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.unreleasedWireCompatible) {
-      dependsOn "v${version}#bwcTest"
+      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      setting 'xpack.security.enabled', 'false'
     }
   }
-}
 
-check.dependsOn(integTest)
+  tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
+    useCluster testClusters."${baseName}"
+    mustRunAfter("precommit")
+    doFirst {
+      delete("${buildDir}/cluster/shared/repo/${baseName}")
+      // Getting the endpoints causes a wait for the cluster
+      println "Test cluster endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
+      println "Upgrading one node to create a mixed cluster"
+      testClusters."${baseName}".nextNodeToNextVersion()
+      // Getting the endpoints causes a wait for the cluster
+      println "Upgrade complete, endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
+      println "Upgrading another node to create a mixed cluster"
+      testClusters."${baseName}".nextNodeToNextVersion()
+
+      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+      nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    }
+    systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+    onlyIf { project.bwc_tests_enabled }
+  }
+
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn "${baseName}#mixedClusterTest"
+  }
+}

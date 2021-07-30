@@ -1,0 +1,294 @@
+[role="xpack"]
+[testenv="basic"]
+[[update-transform]]
+= Update {transform} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Update {transform}</titleabbrev>
+++++
+
+Updates certain properties of a {transform}.
+
+[[update-transform-request]]
+== {api-request-title}
+
+`POST _transform/<transform_id>/_update`
+
+[[update-transform-prereqs]]
+== {api-prereq-title}
+
+Requires the following privileges:
+
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+  privilege)
+* source indices: `read`, `view_index_metadata`
+* destination index: `read`, `index`.
+
+
+[[update-transform-desc]]
+== {api-description-title}
+
+This API updates an existing {transform}. The list of properties that you can
+update is a subset of the list that you can define when you create a {transform}.
+
+When the {transform} is updated, a series of validations occur to ensure its
+success. You can use the `defer_validation` parameter to skip these checks.
+
+All updated properties except description do not take effect until after the
+{transform} starts the next checkpoint. This is so there is data consistency in
+each checkpoint.
+
+[IMPORTANT]
+====
+
+* When {es} {security-features} are enabled, your {transform} remembers which
+roles the user who updated it had at the time of update and runs with those
+privileges.
+* You must use {kib} or this API to update a {transform}. Do not update a
+{transform} directly via `.transform-internal*` indices using the {es} index API.
+If {es} {security-features} are enabled, do not give users any privileges on
+`.transform-internal*` indices. If you used {transforms} prior 7.5, also do not
+give users any privileges on `.data-frame-internal*` indices.
+
+====
+
+[[update-transform-path-parms]]
+== {api-path-parms-title}
+
+`<transform_id>`::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
+
+[[update-transform-query-parms]]
+== {api-query-parms-title}
+
+`defer_validation`::
+  (Optional, Boolean) When `true`, deferrable validations are not run. This
+  behavior may be desired if the source index does not exist until after the
+  {transform} is updated.
+
+[role="child_attributes"]
+[[update-transform-request-body]]
+== {api-request-body-title}
+
+`description`::
+  (Optional, string) Free text description of the {transform}.
+
+//Begin dest
+`dest`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest]
++
+.Properties of `dest`
+[%collapsible%open]
+====
+
+`index`:::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-index]
+
+`pipeline`:::
+(Optional, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
+====
+//End dest
+
+`frequency`::
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
+
+//Begin retention policy
+`retention_policy`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention]
++
+.Properties of `retention_policy`
+[%collapsible%open]
+====
+`time`:::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time]
++
+.Properties of `time`
+[%collapsible%open]
+=====
+`field`:::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-field]
+
+`max_age`:::
+(Required, <<time-units, time units>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-max-age]
+=====
+====
+//End retention policy
+
+//Begin settings
+`settings`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
++
+.Properties of `settings`
+[%collapsible%open]
+====
+`dates_as_epoch_millis`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dates-as-epoch-milli]
+`docs_per_second`:::
+(Optional, float)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
+`max_page_search_size`:::
+(Optional, integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
+====
+//End settings
+
+//Begin source
+`source`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-transforms]
++
+.Properties of `source`
+[%collapsible%open]
+====
+
+`index`:::
+(Required, string or array)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
+
+`query`:::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
+====
+//End source
+
+//Begin sync
+`sync`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync]
++
+--
+NOTE: You can update these properties only if it is a continuous {transform}. You
+cannot change a batch {transform} into a continuous {transform} or vice versa.
+Instead, clone the {transform} in {kib} and add or remove the `sync` property.
+
+--
++
+.Properties of `sync`
+[%collapsible%open]
+====
+
+//Begin sync.time
+`time`:::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
++
+.Properties of `time`
+[%collapsible%open]
+=====
+
+`delay`::::
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
+
+`field`::::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
++
+--
+TIP: In general, it’s a good idea to use a field that contains the
+<<access-ingest-metadata,ingest timestamp>>. If you use a different field,
+you might need to set the `delay` such that it accounts for data transmission
+delays.
+
+--
+=====
+//End sync.time
+====
+//End sync
+
+[[update-transform-example]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _transform/simple-kibana-ecomm-pivot/_update
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce",
+    "query": {
+      "term": {
+        "geoip.continent_name": {
+          "value": "Asia"
+        }
+      }
+    }
+  },
+  "description": "Maximum priced ecommerce data by customer_id in Asia",
+  "dest": {
+    "index": "kibana_sample_data_ecommerce_transform_v2",
+    "pipeline": "add_timestamp_pipeline"
+  },
+  "frequency": "15m",
+  "sync": {
+    "time": {
+      "field": "order_date",
+      "delay": "120s"
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:simple_kibana_continuous_pivot]
+
+When the {transform} is updated, you receive the updated configuration:
+
+[source,console-result]
+----
+{
+  "id": "simple-kibana-ecomm-pivot",
+  "source": {
+    "index": ["kibana_sample_data_ecommerce"],
+    "query": {
+      "term": {
+        "geoip.continent_name": {
+          "value": "Asia"
+        }
+      }
+    }
+  },
+  "pivot": {
+    "group_by": {
+      "customer_id": {
+        "terms": {
+          "field": "customer_id"
+        }
+      }
+    },
+    "aggregations": {
+      "max_price": {
+        "max": {
+          "field": "taxful_total_price"
+        }
+      }
+    }
+  },
+  "description": "Maximum priced ecommerce data by customer_id in Asia",
+  "dest": {
+    "index": "kibana_sample_data_ecommerce_transform_v2",
+    "pipeline": "add_timestamp_pipeline"
+  },
+  "frequency": "15m",
+  "sync": {
+    "time": {
+      "field": "order_date",
+      "delay": "120s"
+    }
+  },
+  "settings": { },
+  "version": "7.5.0",
+  "create_time": 1518808660505
+}
+----
+// TESTRESPONSE[s/"version": "7.5.0"/"version": $body.version/]
+// TESTRESPONSE[s/"create_time": 1518808660505/"create_time": $body.create_time/]

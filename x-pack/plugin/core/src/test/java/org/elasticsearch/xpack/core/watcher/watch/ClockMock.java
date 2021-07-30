@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.watch;
 
-import org.elasticsearch.common.unit.TimeValue;
-import org.joda.time.DateTime;
+import org.elasticsearch.core.TimeValue;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 
 /**
  * A clock that can be modified for testing.
@@ -58,8 +59,8 @@ public class ClockMock extends Clock {
         return wrappedClock.instant();
     }
 
-    public synchronized void setTime(DateTime now) {
-        setTime(Instant.ofEpochMilli(now.getMillis()));
+    public synchronized void setTime(ZonedDateTime now) {
+        setTime(now.toInstant());
     }
 
     private void setTime(Instant now) {

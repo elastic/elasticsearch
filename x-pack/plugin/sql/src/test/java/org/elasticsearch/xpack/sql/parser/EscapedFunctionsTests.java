@@ -1,24 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.parser;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
-import org.elasticsearch.xpack.sql.plan.logical.Limit;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.type.DataType;
 import org.junit.Assert;
 
 import java.util.List;
@@ -26,39 +25,89 @@ import java.util.Locale;
 
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.randomWhitespaces;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.startsWith;
 
 public class EscapedFunctionsTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
 
+    private String buildExpression(String escape, String pattern, Object value) {
+        return format(Locale.ROOT, "{" + randomWhitespaces() + escape + " " + randomWhitespaces() +
+            pattern + randomWhitespaces() + "}", value);
+    }
+
     private Literal dateLiteral(String date) {
-        Expression exp = parser.createExpression(format(Locale.ROOT, "{d '%s'}", date));
+        Expression exp = parser.createExpression(buildExpression("d", "'%s'", date));
         assertThat(exp, instanceOf(Expression.class));
         return (Literal) exp;
     }
 
     private Literal timeLiteral(String date) {
-        Expression exp = parser.createExpression(format(Locale.ROOT, "{t '%s'}", date));
+        Expression exp = parser.createExpression(buildExpression("t", "'%s'", date));
         assertThat(exp, instanceOf(Expression.class));
         return (Literal) exp;
     }
 
     private Literal timestampLiteral(String date) {
-        Expression exp = parser.createExpression(format(Locale.ROOT, "{ts '%s'}", date));
+        Expression exp = parser.createExpression(buildExpression("ts", "'%s'", date));
         assertThat(exp, instanceOf(Expression.class));
         return (Literal) exp;
     }
 
-    private Literal guidLiteral(String date) {
-        Expression exp = parser.createExpression(format(Locale.ROOT, "{guid '%s'}", date));
+    private String buildDate() {
+        StringBuilder sb = new StringBuilder();
+        int length = randomIntBetween(4, 9);
+
+        if (randomBoolean()) {
+            sb.append('-');
+        } else {
+            if (length > 4) {
+                sb.append('-');
+            }
+        }
+
+        for (int i = 1; i <= length; i++) {
+            sb.append(i);
+        }
+        sb.append("-05-10");
+        return sb.toString();
+    }
+
+    private String buildTime() {
+        if (randomBoolean()) {
+            return (randomBoolean() ? "T" : " ") + "11:22" + buildSecsFractionalAndTimezone();
+        }
+        return "";
+    }
+
+    private String buildSecsFractionalAndTimezone() {
+        String str = "";
+        if (randomBoolean()) {
+            str = ":55" + randomFrom("", ".1", ".12", ".123", ".1234", ".12345", ".123456",
+                    ".1234567", ".12345678", ".123456789") +
+                    randomFrom("", "Z", "Etc/GMT-5", "-05:30", "+04:20");
+        }
+        return str;
+    }
+
+    private Literal guidLiteral(String guid) {
+        Expression exp = parser.createExpression(buildExpression("guid", "'%s'", guid));
         assertThat(exp, instanceOf(Expression.class));
         return (Literal) exp;
     }
 
     private Limit limit(int limit) {
-        LogicalPlan plan = parser.createStatement(format(Locale.ROOT, "SELECT * FROM emp {limit %d}", limit));
+        LogicalPlan plan = parser.createStatement("SELECT * FROM emp " + buildExpression("limit", "%d", limit));
         assertThat(plan, instanceOf(With.class));
         With with = (With) plan;
         Limit limitPlan = (Limit) (with.child());
@@ -67,25 +116,31 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     private LikePattern likeEscape(String like, String character) {
-        Expression exp = parser.createExpression(format(Locale.ROOT, "exp LIKE '%s' {escape '%s'}", like, character));
+        Expression exp = parser.createExpression(format(Locale.ROOT, "exp LIKE '%s' ", like) +
+                buildExpression("escape", "'%s'", character));
         assertThat(exp, instanceOf(Like.class));
         return ((Like) exp).pattern();
     }
 
     private Function function(String name) {
-        Expression exp = parser.createExpression(format(Locale.ROOT, "{fn %s}", name));
+        Expression exp = parser.createExpression(
+            format(Locale.ROOT, "{" + randomWhitespaces() + "fn" + randomWhitespaces() + "%s" + randomWhitespaces() + "}", name));
         assertThat(exp, instanceOf(Function.class));
         return (Function) exp;
     }
 
+    private void assertFunction(String name, String result) {
+        String escapedName = name.replace("(", "\\(").replace(")", "\\)").replace("{", "\\{").replace("}", "\\}");
+        assertThat(result, matchesPattern("\\{\\s*fn\\s*" + escapedName + "\\s*}"));
+    }
     public void testFunctionNoArg() {
         Function f = function("SCORE()");
-        assertEquals("SCORE", f.functionName());
+        assertFunction("SCORE()", f.sourceText());
     }
 
     public void testFunctionOneArg() {
         Function f = function("ABS(foo)");
-        assertEquals("ABS", f.functionName());
+        assertFunction("ABS(foo)", f.sourceText());
         assertEquals(1, f.arguments().size());
         Expression arg = f.arguments().get(0);
         assertThat(arg, instanceOf(UnresolvedAttribute.class));
@@ -95,134 +150,173 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testFunctionOneArgFunction() {
         Function f = function("ABS({fn SCORE()})");
-        assertEquals("ABS", f.functionName());
+        assertFunction("ABS({fn SCORE()})", f.sourceText());
         assertEquals(1, f.arguments().size());
         Expression arg = f.arguments().get(0);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         UnresolvedFunction uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("SCORE"));
+        assertThat(uf.sourceText(), is("{fn SCORE()}"));
     }
 
     public void testFunctionFloorWithExtract() {
-        Function f = function("CAST({fn FLOOR({fn EXTRACT(YEAR FROM \"foo\")})} AS int)");
-        assertEquals("CAST", f.functionName());
+        String e = "CAST({fn FLOOR({fn EXTRACT(YEAR FROM \"foo\")})} AS int)";
+        Function f = function(e);
+        assertEquals(e, f.sourceText());
         assertEquals(1, f.arguments().size());
         Expression arg = f.arguments().get(0);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         f = (Function) arg;
-        assertEquals("FLOOR", f.functionName());
+        assertEquals("{fn FLOOR({fn EXTRACT(YEAR FROM \"foo\")})}", f.sourceText());
         assertEquals(1, f.arguments().size());
         arg = f.arguments().get(0);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         UnresolvedFunction uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("YEAR"));
+        assertThat(uf.sourceText(), is("EXTRACT(YEAR FROM \"foo\")"));
     }
 
     public void testFunctionWithFunctionWithArg() {
         Function f = function("POWER(foo, {fn POWER({fn SCORE()}, {fN SCORE()})})");
-        assertEquals("POWER", f.functionName());
+        assertFunction("POWER(foo, {fn POWER({fn SCORE()}, {fN SCORE()})})", f.sourceText());
         assertEquals(2, f.arguments().size());
         Expression arg = f.arguments().get(1);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         UnresolvedFunction uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("POWER"));
+        assertThat(uf.sourceText(), is("{fn POWER({fn SCORE()}, {fN SCORE()})}"));
         assertEquals(2, uf.arguments().size());
 
         List<Expression> args = uf.arguments();
         arg = args.get(0);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("SCORE"));
+        assertThat(uf.sourceText(), is("{fn SCORE()}"));
 
         arg = args.get(1);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("SCORE"));
+        assertThat(uf.sourceText(), is("{fN SCORE()}"));
     }
 
     public void testFunctionWithFunctionWithArgAndParams() {
-        Function f = (Function) parser.createExpression("POWER(?, {fn POWER({fn ABS(?)}, {fN ABS(?)})})",
-                asList(new SqlTypedParamValue(DataType.LONG.esType, 1),
-                       new SqlTypedParamValue(DataType.LONG.esType, 1),
-                       new SqlTypedParamValue(DataType.LONG.esType, 1)));
+        String e = "POWER(?, {fn POWER({fn ABS(?)}, {fN ABS(?)})})";
+        Function f = (Function) parser.createExpression(e,
+                asList(new SqlTypedParamValue(LONG.typeName(), 1), new SqlTypedParamValue(LONG.typeName(), 1),
+                        new SqlTypedParamValue(LONG.typeName(), 1)));
 
-        assertEquals("POWER", f.functionName());
+        assertEquals(e, f.sourceText());
         assertEquals(2, f.arguments().size());
         Expression arg = f.arguments().get(1);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         UnresolvedFunction uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("POWER"));
+        assertEquals("{fn POWER({fn ABS(?)}, {fN ABS(?)})}", uf.sourceText());
         assertEquals(2, uf.arguments().size());
 
         List<Expression> args = uf.arguments();
         arg = args.get(0);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("ABS"));
+        assertThat(uf.sourceText(), is("{fn ABS(?)}"));
 
         arg = args.get(1);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("ABS"));
+        assertThat(uf.sourceText(), is("{fN ABS(?)}"));
     }
 
     public void testDateLiteral() {
-        Literal l = dateLiteral("2012-01-01");
-        assertThat(l.dataType(), is(DataType.DATE));
+        Literal l = dateLiteral(buildDate() + buildTime());
+        assertThat(l.dataType(), is(DATE));
     }
 
     public void testDateLiteralValidation() {
         ParsingException ex = expectThrows(ParsingException.class, () -> dateLiteral("2012-13-01"));
-        assertEquals("line 1:2: Invalid date received; Cannot parse \"2012-13-01\": Value 13 for monthOfYear must be in the range [1,12]",
+        assertEquals("line 1:2: Invalid date received; Text '2012-13-01' could not be parsed: " +
+                "Invalid value for MonthOfYear (valid values 1 - 12): 13",
                 ex.getMessage());
     }
 
-    public void testTimeLiteralUnsupported() {
-        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> timeLiteral("10:10:10"));
-        assertThat(ex.getMessage(), is("Time (only) literals are not supported; a date component is required as well"));
+    public void testTimeLiteral() {
+        Literal l = timeLiteral("12:23" + buildSecsFractionalAndTimezone());
+        assertThat(l.dataType(), is(TIME));
     }
 
     public void testTimeLiteralValidation() {
         ParsingException ex = expectThrows(ParsingException.class, () -> timeLiteral("10:10:65"));
-        assertEquals("line 1:2: Invalid time received; Cannot parse \"10:10:65\": Value 65 for secondOfMinute must be in the range [0,59]",
+        assertEquals("line 1:2: Invalid time received; Text '10:10:65' could not be parsed: " +
+                "Invalid value for SecondOfMinute (valid values 0 - 59): 65",
                 ex.getMessage());
     }
 
     public void testTimestampLiteral() {
-        Literal l = timestampLiteral("2012-01-01 10:01:02.3456");
-        assertThat(l.dataType(), is(DataType.DATE));
+        Literal l = timestampLiteral(buildDate() + " 10:20" + buildSecsFractionalAndTimezone());
+        assertThat(l.dataType(), is(DATETIME));
+        l = timestampLiteral(buildDate() + "T11:22" + buildSecsFractionalAndTimezone());
+        assertThat(l.dataType(), is(DATETIME));
     }
 
     public void testTimestampLiteralValidation() {
-        ParsingException ex = expectThrows(ParsingException.class, () -> timestampLiteral("2012-01-01T10:01:02.3456"));
+        String date = buildDate();
+        ParsingException ex = expectThrows(ParsingException.class, () -> timestampLiteral(date+ "_AB 10:01:02.3456"));
         assertEquals(
-                "line 1:2: Invalid timestamp received; Invalid format: \"2012-01-01T10:01:02.3456\" is malformed at \"T10:01:02.3456\"",
+                "line 1:2: Invalid timestamp received; Text '" + date + "_AB 10:01:02.3456' could not be parsed, " +
+                        "unparsed text found at index " + date.length(),
                 ex.getMessage());
+        ex = expectThrows(ParsingException.class, () -> timestampLiteral("20120101_AB 10:01:02.3456"));
+        assertEquals(
+                "line 1:2: Invalid timestamp received; Text '20120101_AB 10:01:02.3456' could not be parsed at index 0",
+                ex.getMessage());
+
+        ex = expectThrows(ParsingException.class, () -> timestampLiteral(date));
+        assertThat(ex.getMessage(), startsWith(
+                "line 1:2: Invalid timestamp received; Text '" + date + "' could not be parsed: " +
+                        "Unable to obtain ZonedDateTime from TemporalAccessor"));
     }
 
     public void testGUID() {
         Literal l = guidLiteral("12345678-90ab-cdef-0123-456789abcdef");
-        assertThat(l.dataType(), is(DataType.KEYWORD));
+        assertThat(l.dataType(), is(KEYWORD));
 
         l = guidLiteral("12345678-90AB-cdef-0123-456789ABCdef");
-        assertThat(l.dataType(), is(DataType.KEYWORD));
+        assertThat(l.dataType(), is(KEYWORD));
     }
 
     public void testGUIDValidationHexa() {
         ParsingException ex = expectThrows(ParsingException.class, () -> guidLiteral("12345678-90ab-cdef-0123-456789abcdeH"));
-        assertEquals("line 1:8: Invalid GUID, expected hexadecimal at offset[35], found [H]", ex.getMessage());
+        assertThat(ex.getMessage(), endsWith(": Invalid GUID, expected hexadecimal at offset[35], found [H]"));
     }
 
     public void testGUIDValidationGroups() {
         ParsingException ex = expectThrows(ParsingException.class, () -> guidLiteral("12345678A90ab-cdef-0123-456789abcdeH"));
-        assertEquals("line 1:8: Invalid GUID, expected group separator at offset [8], found [A]", ex.getMessage());
+        assertThat(ex.getMessage(), endsWith(": Invalid GUID, expected group separator at offset [8], found [A]"));
     }
 
     public void testGUIDValidationLength() {
         ParsingException ex = expectThrows(ParsingException.class, () -> guidLiteral("12345678A90"));
-        assertEquals("line 1:8: Invalid GUID, too short", ex.getMessage());
+        assertThat(ex.getMessage(), endsWith(": Invalid GUID, too short"));
     }
 
+    public void testCurrentTimestampAsEscapedExpression() {
+        Expression expr = parser.createExpression("{fn CURRENT_TIMESTAMP(2)}");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("{fn CURRENT_TIMESTAMP(2)}", ur.sourceText());
+        assertEquals(1, ur.children().size());
+    }
+
+    public void testCurrentDateAsEscapedExpression() {
+        Expression expr = parser.createExpression("{fn CURRENT_DATE()}");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("{fn CURRENT_DATE()}", ur.sourceText());
+        assertEquals(0, ur.children().size());
+    }
+
+    public void testCurrentTimeAsEscapedExpression() {
+        Expression expr = parser.createExpression("{fn CURRENT_TIME(2)}");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("{fn CURRENT_TIME(2)}", ur.sourceText());
+        assertEquals(1, ur.children().size());
+    }
 
     public void testLimit() {
         Limit limit = limit(10);

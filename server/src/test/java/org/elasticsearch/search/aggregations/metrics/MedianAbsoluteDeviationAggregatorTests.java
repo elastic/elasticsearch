@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -22,31 +11,42 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregatorTests.ExactMedianAbsoluteDeviation.calculateMAD;
 import static org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregatorTests.IsCloseToRelative.closeToRelative;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,6 +55,11 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
     private static final int SAMPLE_MIN = -1000000;
     private static final int SAMPLE_MAX = 1000000;
+    private static final String FIELD_NAME = "number";
+
+    /** Script to return the {@code _value} provided by aggs framework. */
+    private static final String VALUE_SCRIPT = "_value";
+    private static final String SINGLE_SCRIPT = "single";
 
     private static <T extends IndexableField> CheckedConsumer<RandomIndexWriter, IOException> randomSample(
             int size,
@@ -71,43 +76,55 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
     // intentionally not writing any docs
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), writer -> {}, agg -> assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN)));
+        testAggregation(new MatchAllDocsQuery(), writer -> {}, agg -> {
+            assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
+            assertFalse(AggregationInspectionHelper.hasValue(agg));
+        });
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(
+        testAggregation(
             new MatchAllDocsQuery(),
             writer -> {
                 writer.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
                 writer.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 2)));
             },
-            agg -> assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN))
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
+                assertFalse(AggregationInspectionHelper.hasValue(agg));
+            }
         );
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
         final int size = randomIntBetween(100, 1000);
         final List<Long> sample = new ArrayList<>(size);
-        testCase(
-            new DocValuesFieldExistsQuery("number"),
+        testAggregation(
+            new DocValuesFieldExistsQuery(FIELD_NAME),
             randomSample(size, point -> {
                 sample.add(point);
-                return singleton(new SortedNumericDocValuesField("number", point));
+                return singleton(new SortedNumericDocValuesField(FIELD_NAME, point));
             }),
-            agg -> assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)))
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
+                assertTrue(AggregationInspectionHelper.hasValue(agg));
+            }
         );
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
         final int size = randomIntBetween(100, 1000);
         final List<Long> sample = new ArrayList<>(size);
-        testCase(
-            new DocValuesFieldExistsQuery("number"),
+        testAggregation(
+            new DocValuesFieldExistsQuery(FIELD_NAME),
             randomSample(size, point -> {
                 sample.add(point);
-                return singleton(new NumericDocValuesField("number", point));
+                return singleton(new NumericDocValuesField(FIELD_NAME, point));
             }),
-            agg -> assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)))
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
+                assertTrue(AggregationInspectionHelper.hasValue(agg));
+            }
         );
     }
 
@@ -116,56 +133,128 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         final int upperRange = 500;
         final int[] sample = IntStream.rangeClosed(1, 1000).toArray();
         final int[] filteredSample = Arrays.stream(sample).filter(point -> point  >= lowerRange && point <= upperRange).toArray();
-        testCase(
-            IntPoint.newRangeQuery("number", lowerRange, upperRange),
+        testAggregation(
+            IntPoint.newRangeQuery(FIELD_NAME, lowerRange, upperRange),
             writer -> {
                 for (int point : sample) {
-                    writer.addDocument(Arrays.asList(new IntPoint("number", point), new SortedNumericDocValuesField("number", point)));
+                    writer.addDocument(Arrays.asList(new IntPoint(FIELD_NAME, point), new SortedNumericDocValuesField(FIELD_NAME, point)));
                 }
             },
-            agg -> assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(filteredSample)))
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(filteredSample)));
+                assertTrue(AggregationInspectionHelper.hasValue(agg));
+            }
         );
     }
 
     public void testQueryFiltersAll() throws IOException {
-        testCase(
-            IntPoint.newRangeQuery("number", -1, 0),
+        testAggregation(
+            IntPoint.newRangeQuery(FIELD_NAME, -1, 0),
             writer -> {
-                writer.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
-                writer.addDocument(Arrays.asList(new IntPoint("number", 2), new SortedNumericDocValuesField("number", 2)));
+                writer.addDocument(Arrays.asList(new IntPoint(FIELD_NAME, 1), new SortedNumericDocValuesField(FIELD_NAME, 1)));
+                writer.addDocument(Arrays.asList(new IntPoint(FIELD_NAME, 2), new SortedNumericDocValuesField(FIELD_NAME, 2)));
             },
-            agg -> assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN))
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
+                assertFalse(AggregationInspectionHelper.hasValue(agg));
+            }
         );
     }
 
-    private void testCase(Query query,
-                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+    public void testUnmapped() throws IOException {
+        MedianAbsoluteDeviationAggregationBuilder aggregationBuilder = new MedianAbsoluteDeviationAggregationBuilder("foo")
+            .field(FIELD_NAME);
+
+        testAggregation(aggregationBuilder, new DocValuesFieldExistsQuery(FIELD_NAME), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
+            iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
+        }, agg -> {
+            assertEquals(Double.NaN,  agg.getMedianAbsoluteDeviation(),0);
+            assertFalse(AggregationInspectionHelper.hasValue(agg));
+        });
+    }
+
+    public void testUnmappedMissing() throws IOException {
+        MedianAbsoluteDeviationAggregationBuilder aggregationBuilder = new MedianAbsoluteDeviationAggregationBuilder("foo")
+            .field(FIELD_NAME)
+            .missing(1234);
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
+        }, agg -> {
+            assertEquals(0, agg.getMedianAbsoluteDeviation(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(agg));
+        });
+    }
+
+    public void testValueScript() throws IOException {
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
+
+        MedianAbsoluteDeviationAggregationBuilder aggregationBuilder = new MedianAbsoluteDeviationAggregationBuilder("foo")
+            .field(FIELD_NAME)
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
+
+        final int size = randomIntBetween(100, 1000);
+        final List<Long> sample = new ArrayList<>(size);
+        testAggregation(aggregationBuilder,
+            new MatchAllDocsQuery(),
+            randomSample(size, point -> {
+                sample.add(point);
+                return singleton(new SortedNumericDocValuesField(FIELD_NAME, point));
+            }),
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
+                assertTrue(AggregationInspectionHelper.hasValue(agg));
+            }, fieldType);
+    }
+
+    public void testSingleScript() throws IOException {
+        MedianAbsoluteDeviationAggregationBuilder aggregationBuilder = new MedianAbsoluteDeviationAggregationBuilder("foo")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SINGLE_SCRIPT, Collections.emptyMap()));
+
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
+
+        final int size = randomIntBetween(100, 1000);
+        final List<Long> sample = new ArrayList<>(size);
+        testAggregation(aggregationBuilder,
+            new MatchAllDocsQuery(),
+            iw -> {
+                for (int i = 0; i < 10; i++) {
+                    iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, i + 1)));
+                }
+            },
+            agg -> {
+                assertEquals(0, agg.getMedianAbsoluteDeviation(), 0);
+                assertTrue(AggregationInspectionHelper.hasValue(agg));
+            }, fieldType);
+    }
+
+    private void testAggregation(Query query,
+                          CheckedConsumer<RandomIndexWriter,
+                          IOException> buildIndex,
                           Consumer<InternalMedianAbsoluteDeviation> verify) throws IOException {
+        MedianAbsoluteDeviationAggregationBuilder builder = new MedianAbsoluteDeviationAggregationBuilder("mad")
+            .field(FIELD_NAME)
+            .compression(randomDoubleBetween(20, 1000, true));
 
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                buildIndex.accept(indexWriter);
-            }
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        testAggregation(builder, query, buildIndex, verify, fieldType);
+    }
 
-                MedianAbsoluteDeviationAggregationBuilder builder = new MedianAbsoluteDeviationAggregationBuilder("mad")
-                    .field("number")
-                    .compression(randomDoubleBetween(20, 1000, true));
-
-                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                fieldType.setName("number");
-
-                MedianAbsoluteDeviationAggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
-                aggregator.preCollection();
-                indexSearcher.search(query, aggregator);
-                aggregator.postCollection();
-
-                verify.accept((InternalMedianAbsoluteDeviation) aggregator.buildAggregation(0L));
-            }
-        }
-
+    private void testAggregation(
+        AggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> indexer,
+        Consumer<InternalMedianAbsoluteDeviation> verify,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        testCase(aggregationBuilder, query, indexer, verify, fieldTypes);
     }
 
     public static class IsCloseToRelative extends TypeSafeMatcher<Double> {
@@ -241,11 +330,41 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         private static double calculateMedian(double[] sample) {
             final double[] sorted = Arrays.copyOf(sample, sample.length);
             Arrays.sort(sorted);
-
-            final int halfway =  (int) Math.ceil(sorted.length / 2d);
-            final double median = (sorted[halfway - 1] + sorted[halfway]) / 2d;
+            final int halfway = (int) Math.ceil(sorted.length / 2d);
+            final double median;
+            if (sorted.length % 2 == 0) {
+                // even
+                median = (sorted[halfway - 1] + sorted[halfway]) / 2d;
+            } else {
+                // odd
+                median = (sorted[halfway - 1]);
+            }
             return median;
         }
+    }
 
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return singletonList(CoreValuesSourceType.NUMERIC);
+    }
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new MedianAbsoluteDeviationAggregationBuilder("foo").field(fieldName);
+    }
+
+    @Override
+    protected ScriptService getMockScriptService() {
+        Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+        scripts.put(VALUE_SCRIPT, vars -> ((Number) vars.get("_value")).doubleValue() + 1);
+        scripts.put(SINGLE_SCRIPT, vars -> 1);
+
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
+            scripts,
+            Collections.emptyMap());
+        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
+
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
     }
 }

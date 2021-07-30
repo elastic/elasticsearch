@@ -1,31 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -36,21 +28,28 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
     /**
      * Represents a failure.
      */
-    public static class Failure implements Streamable {
-        private String index;
-        private String type;
-        private String id;
-        private Exception cause;
+    public static class Failure implements Writeable {
+        private final String index;
+        private final String id;
+        private final Exception cause;
 
-        Failure() {
-
-        }
-
-        public Failure(String index, String type, String id, Exception cause) {
+        public Failure(String index, String id, Exception cause) {
             this.index = index;
-            this.type = type;
             this.id = id;
             this.cause = cause;
+        }
+
+        public Failure(StreamInput in) throws IOException {
+            index = in.readString();
+            if (in.getVersion().before(Version.V_8_0_0)) {
+                // types no longer relevant so ignore
+                String type = in.readOptionalString();
+                if (type != null) {
+                    throw new IllegalStateException("types are no longer supported but found [" + type + "]");
+                }
+            }
+            id = in.readString();
+            cause = in.readException();
         }
 
         /**
@@ -58,16 +57,6 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
          */
         public String getIndex() {
             return this.index;
-        }
-
-        /**
-         * The type of the action.
-         *
-         * @deprecated Types are in the process of being removed.
-         */
-        @Deprecated
-        public String getType() {
-            return type;
         }
 
         /**
@@ -84,36 +73,27 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
             return this.cause;
         }
 
-        public static Failure readFailure(StreamInput in) throws IOException {
-            Failure failure = new Failure();
-            failure.readFrom(in);
-            return failure;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            index = in.readString();
-            type = in.readOptionalString();
-            id = in.readString();
-            cause = in.readException();
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            out.writeOptionalString(type);
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                // types not supported so send an empty array to previous versions
+                out.writeOptionalString(null);
+            }
             out.writeString(id);
             out.writeException(cause);
         }
     }
 
-    private MultiTermVectorsItemResponse[] responses;
-
-    MultiTermVectorsResponse() {
-    }
+    private final MultiTermVectorsItemResponse[] responses;
 
     public MultiTermVectorsResponse(MultiTermVectorsItemResponse[] responses) {
         this.responses = responses;
+    }
+
+    public MultiTermVectorsResponse(StreamInput in) throws IOException {
+        super(in);
+        responses = in.readArray(MultiTermVectorsItemResponse::new, MultiTermVectorsItemResponse[]::new);
     }
 
     public MultiTermVectorsItemResponse[] getResponses() {
@@ -134,7 +114,9 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
                 builder.startObject();
                 Failure failure = response.getFailure();
                 builder.field(Fields._INDEX, failure.getIndex());
-                builder.field(Fields._TYPE, failure.getType());
+                if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+                    builder.field(Fields._TYPE, MapperService.SINGLE_MAPPING_NAME);
+                }
                 builder.field(Fields._ID, failure.getId());
                 ElasticsearchException.generateFailureXContent(builder, params, failure.getCause(), true);
                 builder.endObject();
@@ -156,20 +138,7 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        responses = new MultiTermVectorsItemResponse[in.readVInt()];
-        for (int i = 0; i < responses.length; i++) {
-            responses[i] = MultiTermVectorsItemResponse.readItemResponse(in);
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(responses.length);
-        for (MultiTermVectorsItemResponse response : responses) {
-            response.writeTo(out);
-        }
+        out.writeArray(responses);
     }
 }

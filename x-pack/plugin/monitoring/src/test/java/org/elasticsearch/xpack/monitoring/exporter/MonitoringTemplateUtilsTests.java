@@ -1,21 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
@@ -59,7 +59,7 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
         assertTemplate(source, equalTo("{\n" +
                 "  \"index_patterns\": \".monitoring-data-" + TEMPLATE_VERSION + "\",\n" +
                 "  \"mappings\": {\n" +
-                "    \"doc\": {\n" +
+                "    \"_doc\": {\n" +
                 "      \"_meta\": {\n" +
                 "        \"template.version\": \"" + TEMPLATE_VERSION + "\"\n" +
                 "      }\n" +
@@ -93,9 +93,10 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
     }
 
     public void testIndexName() {
-        final long timestamp = new DateTime(2017, 8, 3, 13, 47, 58, DateTimeZone.UTC).getMillis();
+        final long timestamp = ZonedDateTime.of(2017, 8, 3, 13, 47, 58,
+            0, ZoneOffset.UTC).toInstant().toEpochMilli();
 
-        DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC();
+        DateFormatter formatter = DateFormatter.forPattern("yyyy.MM.dd").withZone(ZoneOffset.UTC);
         assertThat(indexName(formatter, MonitoredSystem.ES, timestamp),
                 equalTo(".monitoring-es-" + TEMPLATE_VERSION + "-2017.08.03"));
         assertThat(indexName(formatter, MonitoredSystem.KIBANA, timestamp),
@@ -105,7 +106,7 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
         assertThat(indexName(formatter, MonitoredSystem.BEATS, timestamp),
                 equalTo(".monitoring-beats-" + TEMPLATE_VERSION + "-2017.08.03"));
 
-        formatter = DateTimeFormat.forPattern("YYYY-dd-MM-HH.mm.ss").withZoneUTC();
+        formatter = DateFormatter.forPattern("yyyy-dd-MM-HH.mm.ss").withZone(ZoneOffset.UTC);
         assertThat(indexName(formatter, MonitoredSystem.ES, timestamp),
                 equalTo(".monitoring-es-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
         assertThat(indexName(formatter, MonitoredSystem.KIBANA, timestamp),

@@ -1,27 +1,34 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE =
-            basicAuthHeaderValue("test_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+            basicAuthHeaderValue("test_user", new SecureString(SecuritySettingsSourceField.TEST_PASSWORD));
+
+    protected static final Version UPGRADE_FROM_VERSION =
+        Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     @Override
     protected boolean preserveIndicesUponCompletion() {
@@ -30,6 +37,11 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     @Override
     protected boolean preserveReposUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveSnapshotsUponCompletion() {
         return true;
     }
 
@@ -45,6 +57,16 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     @Override
     protected boolean preserveILMPoliciesUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveDataStreamsUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveSearchableSnapshotsIndicesUponCompletion() {
         return true;
     }
 
@@ -73,29 +95,40 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     protected Settings restClientSettings() {
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
+
+                // increase the timeout here to 90 seconds to handle long waits for a green
+                // cluster health. the waits for green need to be longer than a minute to
+                // account for delayed shards
+                .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
+
                 .build();
     }
 
     protected Collection<String> templatesToWaitFor() {
-        return Collections.singletonList("security-index-template");
+        return Collections.emptyList();
     }
 
     @Before
     public void setupForTests() throws Exception {
-        awaitBusy(() -> {
-            boolean success = true;
-            for (String template : templatesToWaitFor()) {
-                try {
-                    final boolean exists = adminClient()
-                            .performRequest(new Request("HEAD", "_template/" + template))
-                            .getStatusLine().getStatusCode() == 200;
-                    success &= exists;
-                    logger.debug("template [{}] exists [{}]", template, exists);
-                } catch (IOException e) {
-                    logger.warn("error calling template api", e);
-                }
+        final Collection<String> expectedTemplates = templatesToWaitFor();
+
+        if (expectedTemplates.isEmpty()) {
+            return;
+        }
+        assertBusy(() -> {
+            final Request catRequest = new Request("GET", "_cat/templates?h=n&s=n");
+            final Response catResponse = adminClient().performRequest(catRequest);
+
+            final List<String> templates = Streams.readAllLines(catResponse.getEntity().getContent());
+
+            final List<String> missingTemplates = expectedTemplates.stream()
+                .filter(each -> templates.contains(each) == false)
+                .collect(Collectors.toList());
+
+            // While it's possible to use a Hamcrest matcher for this, the failure is much less legible.
+            if (missingTemplates.isEmpty() == false) {
+                fail("Some expected templates are missing: " + missingTemplates + ". The templates that exist are: " + templates + "");
             }
-            return success;
         });
     }
 }

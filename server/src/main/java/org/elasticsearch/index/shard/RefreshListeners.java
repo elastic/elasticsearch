@@ -1,27 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.translog.Translog;
 
@@ -29,7 +21,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
@@ -45,14 +36,26 @@ import static java.util.Objects.requireNonNull;
 public final class RefreshListeners implements ReferenceManager.RefreshListener, Closeable {
     private final IntSupplier getMaxRefreshListeners;
     private final Runnable forceRefresh;
-    private final Executor listenerExecutor;
     private final Logger logger;
     private final ThreadContext threadContext;
+    private final MeanMetric refreshMetric;
+
+    /**
+     * Time in nanosecond when beforeRefresh() is called. Used for calculating refresh metrics.
+     */
+    private long currentRefreshStartTime;
 
     /**
      * Is this closed? If true then we won't add more listeners and have flushed all pending listeners.
      */
     private volatile boolean closed = false;
+
+    /**
+     * Force-refreshes new refresh listeners that are added while {@code >= 0}. Used to prevent becoming blocked on operations waiting for
+     * refresh during relocation.
+     */
+    private int refreshForcers;
+
     /**
      * List of refresh listeners. Defaults to null and built on demand because most refresh cycles won't need it. Entries are never removed
      * from it, rather, it is nulled and rebuilt when needed again. The (hopefully) rare entries that didn't make the current refresh cycle
@@ -66,13 +69,44 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      */
     private volatile Translog.Location lastRefreshedLocation;
 
-    public RefreshListeners(IntSupplier getMaxRefreshListeners, Runnable forceRefresh, Executor listenerExecutor, Logger logger,
-                            ThreadContext threadContext) {
+    public RefreshListeners(
+        final IntSupplier getMaxRefreshListeners,
+        final Runnable forceRefresh,
+        final Logger logger,
+        final ThreadContext threadContext,
+        final MeanMetric refreshMetric
+    ) {
         this.getMaxRefreshListeners = getMaxRefreshListeners;
         this.forceRefresh = forceRefresh;
-        this.listenerExecutor = listenerExecutor;
         this.logger = logger;
         this.threadContext = threadContext;
+        this.refreshMetric = refreshMetric;
+    }
+
+    /**
+     * Force-refreshes newly added listeners and forces a refresh if there are currently listeners registered. See {@link #refreshForcers}.
+     */
+    public Releasable forceRefreshes() {
+        synchronized (this) {
+            assert refreshForcers >= 0;
+            refreshForcers += 1;
+        }
+        final Releasable releaseOnce = Releasables.releaseOnce(() -> {
+            synchronized (RefreshListeners.this) {
+                assert refreshForcers > 0;
+                refreshForcers -= 1;
+            }
+        });
+        if (refreshNeeded()) {
+            try {
+                forceRefresh.run();
+            } catch (Exception e) {
+                releaseOnce.close();
+                throw e;
+            }
+        }
+        assert refreshListeners == null;
+        return releaseOnce;
     }
 
     /**
@@ -94,15 +128,12 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             return true;
         }
         synchronized (this) {
-            List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = refreshListeners;
-            if (listeners == null) {
-                if (closed) {
-                    throw new IllegalStateException("can't wait for refresh on a closed index");
-                }
-                listeners = new ArrayList<>();
-                refreshListeners = listeners;
+            if (closed) {
+                throw new IllegalStateException("can't wait for refresh on a closed index");
             }
-            if (listeners.size() < getMaxRefreshListeners.getAsInt()) {
+            List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = refreshListeners;
+            final int maxRefreshes = getMaxRefreshListeners.getAsInt();
+            if (refreshForcers == 0 && maxRefreshes > 0 && (listeners == null || listeners.size() < maxRefreshes)) {
                 ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
                 Consumer<Boolean> contextPreservingListener = forced -> {
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -110,8 +141,12 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                         listener.accept(forced);
                     }
                 };
+                if (listeners == null) {
+                    listeners = new ArrayList<>();
+                }
                 // We have a free slot so register the listener
                 listeners.add(new Tuple<>(location, contextPreservingListener));
+                refreshListeners = listeners;
                 return false;
             }
         }
@@ -168,10 +203,14 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     @Override
     public void beforeRefresh() throws IOException {
         currentRefreshLocation = currentRefreshLocationSupplier.get();
+        currentRefreshStartTime = System.nanoTime();
     }
 
     @Override
     public void afterRefresh(boolean didRefresh) throws IOException {
+        // Increment refresh metric before communicating to listeners.
+        refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
+
         /* We intentionally ignore didRefresh here because our timing is a little off. It'd be a useful flag if we knew everything that made
          * it into the refresh, but the way we snapshot the translog position before the refresh, things can sneak into the refresh that we
          * don't know about. */
@@ -234,24 +273,22 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                 }
             }
         }
-        // Lastly, fire the listeners that are ready on the listener thread pool
+        // Lastly, fire the listeners that are ready
         fireListeners(listenersToFire);
     }
 
     /**
      * Fire some listeners. Does nothing if the list of listeners is null.
      */
-    private void fireListeners(List<Tuple<Translog.Location, Consumer<Boolean>>> listenersToFire) {
+    private void fireListeners(final List<Tuple<Translog.Location, Consumer<Boolean>>> listenersToFire) {
         if (listenersToFire != null) {
-            listenerExecutor.execute(() -> {
-                for (Tuple<Translog.Location, Consumer<Boolean>> listener : listenersToFire) {
-                    try {
-                        listener.v2().accept(false);
-                    } catch (Exception e) {
-                        logger.warn("Error firing refresh listener", e);
-                    }
+            for (final Tuple<Translog.Location, Consumer<Boolean>> listener : listenersToFire) {
+                try {
+                    listener.v2().accept(false);
+                } catch (final Exception e) {
+                    logger.warn("error firing refresh listener", e);
                 }
-            });
+            }
         }
     }
 }

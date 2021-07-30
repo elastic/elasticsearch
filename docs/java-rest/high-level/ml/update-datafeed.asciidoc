@@ -3,15 +3,15 @@
 :request: UpdateDatafeedRequest
 :response: PutDatafeedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Update Datafeed API
+=== Update datafeeds API
 
-The Update Datafeed API can be used to update a {ml} datafeed
-in the cluster. The API accepts a +{request}+ object
+Updates a {ml} datafeed in the cluster. The API accepts a +{request}+ object
 as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Update Datafeed Request
+==== Update datafeeds request
 
 A +{request}+ requires the following argument:
 
@@ -22,7 +22,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 <1> The updated configuration of the {ml} datafeed
 
 [id="{upid}-{api}-config"]
-==== Updated Datafeed Arguments
+==== Updated datafeeds arguments
 
 A `DatafeedUpdate` requires an existing non-null `datafeedId` and
 allows updating various settings.
@@ -31,17 +31,19 @@ allows updating various settings.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-config]
 --------------------------------------------------
-<1> Mandatory, non-null `datafeedId` referencing an existing {ml} datafeed
-<2> Optional, set the datafeed Aggregations for data gathering
-<3> Optional, the indices that contain the data to retrieve and feed into the job
+<1> Mandatory, non-null `datafeedId` referencing an existing {ml} datafeed.
+<2> Optional, set the datafeed aggregations for data gathering.
+<3> Optional, the indices that contain the data to retrieve and feed into the
+{anomaly-job}.
 <4> Optional, specifies how data searches are split into time chunks.
-<5> Optional, the interval at which scheduled queries are made while the datafeed runs in real time.
-<6> Optional, a query to filter the search results by. Defaults to the `match_all` query.
+<5> Optional, the interval at which scheduled queries are made while the
+datafeed runs in real time.
+<6> Optional, a query to filter the search results by. Defaults to the
+`match_all` query.
 <7> Optional, the time interval behind real time that data is queried.
 <8> Optional, allows the use of script fields.
 <9> Optional, the `size` parameter used in the searches.
-<10> Optional, the `jobId` that references the job that the datafeed should be associated with
-after the update.
+<10> Optional, the runtime fields used in the datafeed.
 
 include::../execution.asciidoc[]
 
@@ -55,4 +57,4 @@ the updated {ml} datafeed if it has been successfully updated.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The updated datafeed
+<1> The updated datafeed.

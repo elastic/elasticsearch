@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.io.IOException;
@@ -44,12 +33,12 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     protected final List<B> buckets;
     protected Map<String, B> bucketMap;
 
-    protected long docCountError;
+    protected Long docCountError;
 
-    protected InternalMappedTerms(String name, BucketOrder order, int requiredSize, long minDocCount,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData, DocValueFormat format, int shardSize,
-            boolean showTermDocCountError, long otherDocCount, List<B> buckets, long docCountError) {
-        super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData);
+    protected InternalMappedTerms(String name, BucketOrder reduceOrder, BucketOrder order, int requiredSize, long minDocCount,
+            Map<String, Object> metadata, DocValueFormat format, int shardSize,
+            boolean showTermDocCountError, long otherDocCount, List<B> buckets, Long docCountError) {
+        super(name, reduceOrder, order, requiredSize, minDocCount, metadata);
         this.format = format;
         this.shardSize = shardSize;
         this.showTermDocCountError = showTermDocCountError;
@@ -63,7 +52,14 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
      */
     protected InternalMappedTerms(StreamInput in, Bucket.Reader<B> bucketReader) throws IOException {
         super(in);
-        docCountError = in.readZLong();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo fix after backport
+            docCountError = in.readOptionalLong();
+        } else {
+            docCountError = in.readZLong();
+            if (docCountError == 0) {
+                docCountError = null;
+            }
+        }
         format = in.readNamedWriteable(DocValueFormat.class);
         shardSize = readSize(in);
         showTermDocCountError = in.readBoolean();
@@ -73,7 +69,11 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
 
     @Override
     protected final void writeTermTypeInfoTo(StreamOutput out) throws IOException {
-        out.writeZLong(docCountError);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {  // todo fix after backport
+            out.writeOptionalLong(docCountError);
+        } else {
+            out.writeZLong(docCountError == null ? 0 : docCountError);
+        }
         out.writeNamedWriteable(format);
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);
@@ -92,7 +92,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     }
 
     @Override
-    public long getDocCountError() {
+    public Long getDocCountError() {
         return docCountError;
     }
 
@@ -115,10 +115,13 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalMappedTerms<?,?> that = (InternalMappedTerms<?,?>) obj;
-        return super.doEquals(obj)
-                && Objects.equals(buckets, that.buckets)
+        return Objects.equals(buckets, that.buckets)
                 && Objects.equals(format, that.format)
                 && Objects.equals(otherDocCount, that.otherDocCount)
                 && Objects.equals(showTermDocCountError, that.showTermDocCountError)
@@ -127,8 +130,8 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(super.doHashCode(), buckets, format, otherDocCount, showTermDocCountError, shardSize);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), buckets, format, otherDocCount, showTermDocCountError, shardSize);
     }
 
     @Override

@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -28,10 +18,10 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.ISODateTimeFormat;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -42,17 +32,25 @@ public final class DateProcessor extends AbstractProcessor {
 
     public static final String TYPE = "date";
     static final String DEFAULT_TARGET_FIELD = "@timestamp";
+    static final String DEFAULT_OUTPUT_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX";
 
+    private final DateFormatter formatter;
     private final TemplateScript.Factory timezone;
     private final TemplateScript.Factory locale;
     private final String field;
     private final String targetField;
     private final List<String> formats;
-    private final List<Function<Map<String, Object>, Function<String, DateTime>>> dateParsers;
+    private final List<Function<Map<String, Object>, Function<String, ZonedDateTime>>> dateParsers;
+    private final String outputFormat;
 
-    DateProcessor(String tag, @Nullable TemplateScript.Factory timezone, @Nullable TemplateScript.Factory locale,
+    DateProcessor(String tag, String description, @Nullable TemplateScript.Factory timezone, @Nullable TemplateScript.Factory locale,
                   String field, List<String> formats, String targetField) {
-        super(tag);
+        this(tag, description, timezone, locale, field, formats, targetField, DEFAULT_OUTPUT_FORMAT);
+    }
+
+    DateProcessor(String tag, String description, @Nullable TemplateScript.Factory timezone, @Nullable TemplateScript.Factory locale,
+                  String field, List<String> formats, String targetField, String outputFormat) {
+        super(tag, description);
         this.timezone = timezone;
         this.locale = locale;
         this.field = field;
@@ -63,10 +61,12 @@ public final class DateProcessor extends AbstractProcessor {
             DateFormat dateFormat = DateFormat.fromString(format);
             dateParsers.add((params) -> dateFormat.getFunction(format, newDateTimeZone(params), newLocale(params)));
         }
+        this.outputFormat = outputFormat;
+        formatter = DateFormatter.forPattern(this.outputFormat);
     }
 
-    private DateTimeZone newDateTimeZone(Map<String, Object> params) {
-        return timezone == null ? DateTimeZone.UTC : DateTimeZone.forID(timezone.newInstance(params).execute());
+    private ZoneId newDateTimeZone(Map<String, Object> params) {
+        return timezone == null ? ZoneOffset.UTC : ZoneId.of(timezone.newInstance(params).execute());
     }
 
     private Locale newLocale(Map<String, Object> params) {
@@ -82,9 +82,9 @@ public final class DateProcessor extends AbstractProcessor {
             value = obj.toString();
         }
 
-        DateTime dateTime = null;
+        ZonedDateTime dateTime = null;
         Exception lastException = null;
-        for (Function<Map<String, Object>, Function<String, DateTime>> dateParser : dateParsers) {
+        for (Function<Map<String, Object>, Function<String, ZonedDateTime>> dateParser : dateParsers) {
             try {
                 dateTime = dateParser.apply(ingestDocument.getSourceAndMetadata()).apply(value);
             } catch (Exception e) {
@@ -97,7 +97,7 @@ public final class DateProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("unable to parse date [" + value + "]", lastException);
         }
 
-        ingestDocument.setFieldValue(targetField, ISODateTimeFormat.dateTime().print(dateTime));
+        ingestDocument.setFieldValue(targetField, formatter.format(dateTime));
         return ingestDocument;
     }
 
@@ -126,6 +126,10 @@ public final class DateProcessor extends AbstractProcessor {
         return formats;
     }
 
+    String getOutputFormat() {
+        return outputFormat;
+    }
+
     public static final class Factory implements Processor.Factory {
 
         private final ScriptService scriptService;
@@ -135,7 +139,7 @@ public final class DateProcessor extends AbstractProcessor {
         }
 
         public DateProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    Map<String, Object> config) throws Exception {
+                                    String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET_FIELD);
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "timezone");
@@ -151,7 +155,16 @@ public final class DateProcessor extends AbstractProcessor {
                     "locale", localeString, scriptService);
             }
             List<String> formats = ConfigurationUtils.readList(TYPE, processorTag, config, "formats");
-            return new DateProcessor(processorTag, compiledTimezoneTemplate, compiledLocaleTemplate, field, formats, targetField);
+            String outputFormat =
+                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "output_format", DEFAULT_OUTPUT_FORMAT);
+            try {
+                DateFormatter.forPattern(outputFormat);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("invalid output format [" + outputFormat + "]", e);
+            }
+
+            return new DateProcessor(processorTag, description, compiledTimezoneTemplate, compiledLocaleTemplate, field, formats,
+                targetField, outputFormat);
         }
     }
 }

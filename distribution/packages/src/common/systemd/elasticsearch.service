@@ -1,23 +1,25 @@
 [Unit]
 Description=Elasticsearch
-Documentation=http://www.elastic.co
+Documentation=https://www.elastic.co
 Wants=network-online.target
 After=network-online.target
 
 [Service]
+Type=notify
 RuntimeDirectory=elasticsearch
 PrivateTmp=true
 Environment=ES_HOME=/usr/share/elasticsearch
-Environment=ES_PATH_CONF=${path.conf}
+Environment=ES_PATH_CONF=@path.conf@
 Environment=PID_DIR=/var/run/elasticsearch
-EnvironmentFile=-${path.env}
+Environment=ES_SD_NOTIFY=true
+EnvironmentFile=-@path.env@
 
 WorkingDirectory=/usr/share/elasticsearch
 
 User=elasticsearch
 Group=elasticsearch
 
-ExecStart=/usr/share/elasticsearch/bin/elasticsearch -p ${PID_DIR}/elasticsearch.pid --quiet
+ExecStart=/usr/share/elasticsearch/bin/systemd-entrypoint -p ${PID_DIR}/elasticsearch.pid --quiet
 
 # StandardOutput is configured to redirect to journalctl since
 # some error messages may be logged in standard output before
@@ -29,7 +31,7 @@ StandardOutput=journal
 StandardError=inherit
 
 # Specifies the maximum file descriptor number that can be opened by this process
-LimitNOFILE=65536
+LimitNOFILE=65535
 
 # Specifies the maximum number of processes
 LimitNPROC=4096
@@ -55,7 +57,10 @@ SendSIGKILL=no
 # When a JVM receives a SIGTERM signal it exits with code 143
 SuccessExitStatus=143
 
+# Allow a slow startup before the systemd notifier module kicks in to extend the timeout
+TimeoutStartSec=75
+
 [Install]
 WantedBy=multi-user.target
 
-# Built for ${project.name}-${project.version} (${project.name})
+# Built for @project.name@-@project.version@ (@project.name@)

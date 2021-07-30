@@ -1,18 +1,17 @@
 [role="xpack"]
 [testenv="basic"]
 [[config-monitoring-indices]]
-=== Configuring indices for monitoring
+== Configuring indices for monitoring
 
-<<indices-templates,Index templates>> are used to configure the indices
+<<indices-templates-v1,Index templates>> are used to configure the indices
 that store the monitoring data collected from a cluster.
 
 You can retrieve the templates through the `_template` API:
 
-[source,sh]
+[source,console]
 ----------------------------------
 GET /_template/.monitoring-*
 ----------------------------------
-// CONSOLE
 
 By default, the template configures one shard and one replica for the
 monitoring indices. To override the default settings, add your own template:
@@ -26,19 +25,28 @@ section.
 For example, the following template increases the number of shards to five
 and the number of replicas to two.
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT /_template/custom_monitoring
 {
-    "index_patterns": ".monitoring-*",
-    "order": 1,
-    "settings": {
-        "number_of_shards": 5,
-        "number_of_replicas": 2
-    }
+  "index_patterns": ".monitoring-*",
+  "order": 1,
+  "settings": {
+    "number_of_shards": 5,
+    "number_of_replicas": 2
+  }
 }
 ----------------------------------
-// CONSOLE
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/custom_monitoring
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
 
 IMPORTANT: Only set the `number_of_shards` and `number_of_replicas` in the
 settings section. Overriding other monitoring template settings could cause

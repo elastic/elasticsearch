@@ -1,83 +1,136 @@
-[[disk-allocator]]
-=== Disk-based shard allocation
+[[disk-based-shard-allocation]]
+==== Disk-based shard allocation settings
+[[disk-based-shard-allocation-description]]
+// tag::disk-based-shard-allocation-description-tag[]
 
-Elasticsearch considers the available disk space on a node before deciding
-whether to allocate new shards to that node or to actively relocate shards away
-from that node.
+The disk-based shard allocator ensures that all nodes have enough disk space
+without performing more shard movements than necessary. It allocates shards
+based on a pair of thresholds known as the _low watermark_ and the _high
+watermark_. Its primary goal is to ensure that no node exceeds the high
+watermark, or at least that any such overage is only temporary. If a node
+exceeds the high watermark then {es} will solve this by moving some of its
+shards onto other nodes in the cluster.
 
-Below are the settings that can be configured in the `elasticsearch.yml` config
-file or updated dynamically on a live cluster with the
-<<cluster-update-settings,cluster-update-settings>> API:
+NOTE: It is normal for nodes to temporarily exceed the high watermark from time
+to time.
 
-`cluster.routing.allocation.disk.threshold_enabled`::
+The allocator also tries to keep nodes clear of the high watermark by
+forbidding the allocation of more shards to a node that exceeds the low
+watermark. Importantly, if all of your nodes have exceeded the low watermark
+then no new shards can be allocated and {es} will not be able to move any
+shards between nodes in order to keep the disk usage below the high watermark.
+You must ensure that your cluster has enough disk space in total and that there
+are always some nodes below the low watermark.
 
-    Defaults to `true`.  Set to `false` to disable the disk allocation decider.
+Shard movements triggered by the disk-based shard allocator must also satisfy
+all other shard allocation rules such as
+<<cluster-shard-allocation-filtering,allocation filtering>> and
+<<forced-awareness,forced awareness>>. If these rules are too strict then they
+can also prevent the shard movements needed to keep the nodes' disk usage under
+control. If you are using <<data-tiers,data tiers>> then {es} automatically
+configures allocation filtering rules to place shards within the appropriate
+tier, which means that the disk-based shard allocator works independently
+within each tier.
 
-`cluster.routing.allocation.disk.watermark.low`::
+If a node is filling up its disk faster than {es} can move shards elsewhere
+then there is a risk that the disk will completely fill up. To prevent this, as
+a last resort, once the disk usage reaches the _flood-stage_ watermark {es}
+will block writes to indices with a shard on the affected node. It will also
+continue to move shards onto the other nodes in the cluster. When disk usage
+on the affected node drops below the high watermark, {es} automatically removes
+the write block.
 
-    Controls the low watermark for disk usage. It defaults to `85%`, meaning
-    that Elasticsearch will not allocate shards to nodes that have more than
-    85% disk used. It can also be set to an absolute byte value (like `500mb`)
-    to prevent Elasticsearch from allocating shards if less than the specified
-    amount of space is available. This setting has no effect on the primary
-    shards of newly-created indices or, specifically, any shards that have
-    never previously been allocated.
+[[disk-based-shard-allocation-does-not-balance]]
+[TIP]
+====
+It is normal for the nodes in your cluster to be using very different amounts
+of disk space. The <<shards-rebalancing-settings,balance>> of the cluster
+depends only on the number of shards on each node and the indices to which
+those shards belong. It considers neither the sizes of these shards nor the
+available disk space on each node, for the following reasons:
 
-`cluster.routing.allocation.disk.watermark.high`::
+* Disk usage changes over time. Balancing the disk usage of individual nodes
+would require a lot more shard movements, perhaps even wastefully undoing
+earlier movements. Moving a shard consumes resources such as I/O and network
+bandwidth and may evict data from the filesystem cache. These resources are
+better spent handling your searches and indexing where possible.
 
-    Controls the high watermark. It defaults to `90%`, meaning that
-    Elasticsearch will attempt to relocate shards away from a node whose disk
-    usage is above 90%. It can also be set to an absolute byte value (similarly
-    to the low watermark) to relocate shards away from a node if it has less
-    than the specified amount of free space. This setting affects the
-    allocation of all shards, whether previously allocated or not.
+* A cluster with equal disk usage on every node typically performs no better
+than one that has unequal disk usage, as long as no disk is too full.
+====
 
-`cluster.routing.allocation.disk.watermark.flood_stage`::
+You can use the following settings to control disk-based allocation:
+
+[[cluster-routing-disk-threshold]]
+// tag::cluster-routing-disk-threshold-tag[]
+`cluster.routing.allocation.disk.threshold_enabled` {ess-icon}::
+(<<dynamic-cluster-setting,Dynamic>>)
+Defaults to `true`. Set to `false` to disable the disk allocation decider.
+// end::cluster-routing-disk-threshold-tag[]
+
+[[cluster-routing-watermark-low]]
+// tag::cluster-routing-watermark-low-tag[]
+`cluster.routing.allocation.disk.watermark.low` {ess-icon}::
+(<<dynamic-cluster-setting,Dynamic>>)
+Controls the low watermark for disk usage. It defaults to `85%`, meaning that {es} will not allocate shards to nodes that have more than 85% disk used. It can also be set to an absolute byte value (like `500mb`) to prevent {es} from allocating shards if less than the specified amount of space is available. This setting has no effect on the primary shards of newly-created indices but will prevent their replicas from being allocated.
+// end::cluster-routing-watermark-low-tag[]
+
+[[cluster-routing-watermark-high]]
+// tag::cluster-routing-watermark-high-tag[]
+`cluster.routing.allocation.disk.watermark.high` {ess-icon}::
+(<<dynamic-cluster-setting,Dynamic>>)
+Controls the high watermark. It defaults to `90%`, meaning that {es} will attempt to relocate shards away from a node whose disk usage is above 90%. It can also be set to an absolute byte value (similarly to the low watermark) to relocate shards away from a node if it has less than the specified amount of free space. This setting affects the allocation of all shards, whether previously allocated or not.
+// end::cluster-routing-watermark-high-tag[]
+
+`cluster.routing.allocation.disk.watermark.enable_for_single_data_node`::
+    (<<static-cluster-setting,Static>>)
+In earlier releases, the default behaviour was to disregard disk watermarks for a single
+data node cluster when making an allocation decision. This is deprecated behavior
+since 7.14 and has been removed in 8.0. The only valid value for this setting
+is now `true`. The setting will be removed in a future release.
+
+[[cluster-routing-flood-stage]]
+// tag::cluster-routing-flood-stage-tag[]
+`cluster.routing.allocation.disk.watermark.flood_stage` {ess-icon}::
 +
 --
-Controls the flood stage watermark. It defaults to 95%, meaning that
-Elasticsearch enforces a read-only index block
-(`index.blocks.read_only_allow_delete`) on every index that has one or more
-shards allocated on the node that has at least one disk exceeding the flood
-stage. This is a last resort to prevent nodes from running out of disk space.
-The index block must be released manually once there is enough disk space
-available to allow indexing operations to continue.
+(<<dynamic-cluster-setting,Dynamic>>)
+Controls the flood stage watermark, which defaults to 95%. {es} enforces a read-only index block (`index.blocks.read_only_allow_delete`) on every index that has one or more shards allocated on the node, and that has at least one disk exceeding the flood stage. This setting is a last resort to prevent nodes from running out of disk space. The index block is automatically released when the disk utilization falls below the high watermark.
 
-NOTE: You can not mix the usage of percentage values and byte values within
-these settings. Either all are set to percentage values, or all are set to byte
-values. This is so that we can we validate that the settings are internally
-consistent (that is, the low disk threshold is not more than the high disk
-threshold, and the high disk threshold is not more than the flood stage
-threshold).
+NOTE: You cannot mix the usage of percentage values and byte values within
+these settings. Either all values are set to percentage values, or all are set to byte values. This enforcement is so that {es} can validate that the settings are internally consistent, ensuring that the low disk threshold is less than the high disk threshold, and the high disk threshold is less than the flood stage threshold.
 
-An example of resetting the read-only index block on the `twitter` index:
+An example of resetting the read-only index block on the `my-index-000001` index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /twitter/_settings
+PUT /my-index-000001/_settings
 {
   "index.blocks.read_only_allow_delete": null
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 --
+// end::cluster-routing-flood-stage-tag[]
+
+[[cluster-routing-flood-stage-frozen]]
+// tag::cluster-routing-flood-stage-tag[]
+`cluster.routing.allocation.disk.watermark.flood_stage.frozen` {ess-icon}::
+(<<dynamic-cluster-setting,Dynamic>>)
+Controls the flood stage watermark for dedicated frozen nodes, which defaults to
+95%.
+
+`cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom` {ess-icon}::
+(<<dynamic-cluster-setting,Dynamic>>)
+Controls the max headroom for the flood stage watermark for dedicated frozen
+nodes. Defaults to 20GB when
+`cluster.routing.allocation.disk.watermark.flood_stage.frozen` is not explicitly
+set. This caps the amount of free space required on dedicated frozen nodes.
 
 `cluster.info.update.interval`::
-
-    How often Elasticsearch should check on disk usage for each node in the
+    (<<dynamic-cluster-setting,Dynamic>>)
+    How often {es} should check on disk usage for each node in the
     cluster. Defaults to `30s`.
-
-`cluster.routing.allocation.disk.include_relocations`::
-
-    Defaults to +true+, which means that Elasticsearch will take into account
-    shards that are currently being relocated to the target node when computing
-    a node's disk usage. Taking relocating shards' sizes into account may,
-    however, mean that the disk usage for a node is incorrectly estimated on
-    the high side, since the relocation could be 90% complete and a recently
-    retrieved disk usage would include the total size of the relocating shard
-    as well as the space already used by the running relocation.
-
 
 NOTE: Percentage values refer to used disk space, while byte values refer to
 free disk space. This can be confusing, since it flips the meaning of high and
@@ -88,7 +141,7 @@ An example of updating the low watermark to at least 100 gigabytes free, a high
 watermark of at least 50 gigabytes free, and a flood stage watermark of 10
 gigabytes free, and updating the information about the cluster every minute:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _cluster/settings
 {
@@ -100,4 +153,3 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
-// CONSOLE

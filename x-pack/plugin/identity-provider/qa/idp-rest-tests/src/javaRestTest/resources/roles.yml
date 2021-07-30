@@ -1,0 +1,11 @@
+# A basic role that is used to call the IdP's APIs
+idp_admin:
+  cluster:
+    - monitor
+    - "cluster:admin/idp/*"
+
+idp_user:
+  applications:
+    - application: elastic-cloud
+      resources: ["ec:123456:abcdefg"]
+      privileges: ["sso:viewer"]

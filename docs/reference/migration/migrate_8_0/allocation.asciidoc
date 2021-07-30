@@ -1,0 +1,46 @@
+[discrete]
+[[breaking_80_allocation_changes]]
+==== Allocation changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+[[breaking_80_allocation_change_flood_stage_block_always_removed]]
+.The automatic removal of flood-stage blocks is no longer optional.
+[%collapsible]
+====
+*Details* +
+If a node exceeds the flood-stage disk watermark then we add a block to all of
+its indices to prevent further writes as a last-ditch attempt to prevent the
+node completely exhausting its disk space. By default, from 7.4 onwards the
+block is automatically removed when a node drops below the high watermark
+again, but this behaviour could be disabled by setting the system property
+`es.disk.auto_release_flood_stage_block` to `false`. This behaviour is no
+longer optional, and this system property must now not be set.
+
+*Impact* +
+Discontinue use of the `es.disk.auto_release_flood_stage_block` system property.
+Specifying this property in `elasticsearch.yml` will result in an error on
+startup.
+====
+
+[[breaking_80_allocation_change_include_relocations_removed]]
+.Accounting for the disk usage of relocating shards is no longer optional.
+[%collapsible]
+====
+*Details* +
+By default {es} will account for the sizes of relocating shards when making
+allocation decisions based on the disk usage of the nodes in the cluster. In
+earlier versions the `cluster.routing.allocation.disk.include_relocations`
+setting allowed this accounting to be disabled, which would result in poor
+allocation decisions that might overshoot watermarks and require significant
+extra work to correct. This behaviour is no longer optional, and this setting
+has been removed.
+
+*Impact* +
+Discontinue use of the `cluster.routing.allocation.disk.include_relocations`
+setting. Specifying this setting in `elasticsearch.yml` will result in an error
+on startup.
+====
+// end::notable-breaking-changes[]

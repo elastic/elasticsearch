@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.netty4;
@@ -25,13 +14,14 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObject;
@@ -41,10 +31,11 @@ import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpVersion;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.NettyAllocator;
 
 import java.io.Closeable;
 import java.net.SocketAddress;
@@ -84,11 +75,14 @@ class Netty4HttpClient implements Closeable {
     private final Bootstrap clientBootstrap;
 
     Netty4HttpClient() {
-        clientBootstrap = new Bootstrap().channel(NioSocketChannel.class).group(new NioEventLoopGroup());
+        clientBootstrap = new Bootstrap()
+            .channel(NettyAllocator.getChannelType())
+            .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
+            .group(new NioEventLoopGroup(1));
     }
 
-    public Collection<FullHttpResponse> get(SocketAddress remoteAddress, String... uris) throws InterruptedException {
-        Collection<HttpRequest> requests = new ArrayList<>(uris.length);
+    public List<FullHttpResponse> get(SocketAddress remoteAddress, String... uris) throws InterruptedException {
+        List<HttpRequest> requests = new ArrayList<>(uris.length);
         for (int i = 0; i < uris.length; i++) {
             final HttpRequest httpRequest = new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uris[i]);
             httpRequest.headers().add(HOST, "localhost");
@@ -98,27 +92,25 @@ class Netty4HttpClient implements Closeable {
         return sendRequests(remoteAddress, requests);
     }
 
-    @SafeVarargs // Safe not because it doesn't do anything with the type parameters but because it won't leak them into other methods.
-    public final Collection<FullHttpResponse> post(SocketAddress remoteAddress, Tuple<String, CharSequence>... urisAndBodies)
+    public final Collection<FullHttpResponse> post(SocketAddress remoteAddress, List<Tuple<String, CharSequence>> urisAndBodies)
         throws InterruptedException {
         return processRequestsWithBody(HttpMethod.POST, remoteAddress, urisAndBodies);
     }
 
-    public final FullHttpResponse post(SocketAddress remoteAddress, FullHttpRequest httpRequest) throws InterruptedException {
-        Collection<FullHttpResponse> responses = sendRequests(remoteAddress, Collections.singleton(httpRequest));
+    public final FullHttpResponse send(SocketAddress remoteAddress, FullHttpRequest httpRequest) throws InterruptedException {
+        List<FullHttpResponse> responses = sendRequests(remoteAddress, Collections.singleton(httpRequest));
         assert responses.size() == 1 : "expected 1 and only 1 http response";
-        return responses.iterator().next();
+        return responses.get(0);
     }
 
-    @SafeVarargs // Safe not because it doesn't do anything with the type parameters but because it won't leak them into other methods.
-    public final Collection<FullHttpResponse> put(SocketAddress remoteAddress, Tuple<String, CharSequence>... urisAndBodies)
+    public final Collection<FullHttpResponse> put(SocketAddress remoteAddress, List<Tuple<String, CharSequence>> urisAndBodies)
         throws InterruptedException {
         return processRequestsWithBody(HttpMethod.PUT, remoteAddress, urisAndBodies);
     }
 
-    private Collection<FullHttpResponse> processRequestsWithBody(HttpMethod method, SocketAddress remoteAddress, Tuple<String,
-        CharSequence>... urisAndBodies) throws InterruptedException {
-        Collection<HttpRequest> requests = new ArrayList<>(urisAndBodies.length);
+    private List<FullHttpResponse> processRequestsWithBody(HttpMethod method, SocketAddress remoteAddress, List<Tuple<String,
+        CharSequence>> urisAndBodies) throws InterruptedException {
+        List<HttpRequest> requests = new ArrayList<>(urisAndBodies.size());
         for (Tuple<String, CharSequence> uriAndBody : urisAndBodies) {
             ByteBuf content = Unpooled.copiedBuffer(uriAndBody.v2(), StandardCharsets.UTF_8);
             HttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, uriAndBody.v1(), content);
@@ -130,11 +122,11 @@ class Netty4HttpClient implements Closeable {
         return sendRequests(remoteAddress, requests);
     }
 
-    private synchronized Collection<FullHttpResponse> sendRequests(
+    private synchronized List<FullHttpResponse> sendRequests(
         final SocketAddress remoteAddress,
         final Collection<HttpRequest> requests) throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(requests.size());
-        final Collection<FullHttpResponse> content = Collections.synchronizedList(new ArrayList<>(requests.size()));
+        final List<FullHttpResponse> content = Collections.synchronizedList(new ArrayList<>(requests.size()));
 
         clientBootstrap.handler(new CountDownLatchHandler(latch, content));
 
@@ -178,16 +170,20 @@ class Netty4HttpClient implements Closeable {
         }
 
         @Override
-        protected void initChannel(SocketChannel ch) throws Exception {
+        protected void initChannel(SocketChannel ch) {
             final int maxContentLength = new ByteSizeValue(100, ByteSizeUnit.MB).bytesAsInt();
             ch.pipeline().addLast(new HttpResponseDecoder());
             ch.pipeline().addLast(new HttpRequestEncoder());
+            ch.pipeline().addLast(new HttpContentDecompressor());
             ch.pipeline().addLast(new HttpObjectAggregator(maxContentLength));
             ch.pipeline().addLast(new SimpleChannelInboundHandler<HttpObject>() {
                 @Override
-                protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) throws Exception {
+                protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {
                     final FullHttpResponse response = (FullHttpResponse) msg;
-                    content.add(response.copy());
+                    // We copy the buffer manually to avoid a huge allocation on a pooled allocator. We have
+                    // a test that tracks huge allocations, so we want to avoid them in this test code.
+                    ByteBuf newContent = Unpooled.copiedBuffer(((FullHttpResponse) msg).content());
+                    content.add(response.replace(newContent));
                     latch.countDown();
                 }
 

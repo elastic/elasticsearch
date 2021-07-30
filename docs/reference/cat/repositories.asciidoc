@@ -1,17 +1,52 @@
 [[cat-repositories]]
-== cat repositories
+=== cat repositories API
+++++
+<titleabbrev>cat repositories</titleabbrev>
+++++
 
-The `repositories` command shows the snapshot repositories registered in the
-cluster. For example:
+Returns the <<snapshots-repositories,snapshot repositories>> for a cluster.
 
-[source,js]
+
+[[cat-repositories-api-request]]
+==== {api-request-title}
+
+`GET /_cat/repositories`
+
+[[cat-repositories-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`monitor_snapshot`, `create_snapshot`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cat-repositories-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-repositories-api-example]]
+==== {api-examples-title}
+
+[source,console]
 --------------------------------------------------
-GET /_cat/repositories?v
+GET /_cat/repositories?v=true
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT \/_snapshot\/repo1\n{"type": "fs", "settings": {"location": "repo\/1"}}\n/]
 
-might looks like:
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
@@ -19,6 +54,4 @@ id    type
 repo1   fs
 repo2   s3
 --------------------------------------------------
-// TESTRESPONSE[s/\nrepo2   s3// _cat]
-
-We can quickly see which repositories are registered and their type.
+// TESTRESPONSE[s/\nrepo2   s3// non_json]

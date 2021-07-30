@@ -1,16 +1,19 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-license]]
-=== Get License API
+=== Get license API
+++++
+<titleabbrev>Get license</titleabbrev>
+++++
 
 This API enables you to retrieve licensing information.
 
-[float]
+[discrete]
 ==== Request
 
 `GET /_license`
 
-[float]
+[discrete]
 ==== Description
 
 This API returns information about the type of license, when it was issued, and
@@ -19,35 +22,36 @@ when it expires, for example.
 For more information about the different types of licenses, see
 https://www.elastic.co/subscriptions.
 
+NOTE: If the master node is generating a new cluster state, the get license API
+may return a `404 Not Found` response. If you receive an unexpected `404`
+response after cluster startup, wait a short period and retry the request. 
 
-[float]
+[discrete]
 ==== Query Parameters
 
 `local`::
-  (boolean) Specifies whether to retrieve local information. The default value
+  (Boolean) Specifies whether to retrieve local information. The default value
   is `false`, which means the information is retrieved from the master node.
 
 
-[float]
+[discrete]
 ==== Authorization
 
 You must have `monitor` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+For more information, see <<security-privileges>>.
 
 
-[float]
+[discrete]
 ==== Examples
 
 The following example provides information about a trial license:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_license
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "license" : {
@@ -59,6 +63,7 @@ GET /_license
     "expiry_date" : "2018-11-19T22:05:12.332Z",
     "expiry_date_in_millis" : 1542665112332,
     "max_nodes" : 1000,
+    "max_resource_units" : null,
     "issued_to" : "test",
     "issuer" : "elasticsearch",
     "start_date_in_millis" : -1

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
@@ -25,18 +14,17 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -46,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * the delay marker). These are shards that have become unassigned due to a node leaving
  * and which were assigned the delay marker based on the index delay setting
  * {@link UnassignedInfo#INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING}
- * (see {@link AllocationService#deassociateDeadNodes(RoutingAllocation)}).
+ * (see {@link AllocationService#disassociateDeadNodes(RoutingAllocation)}.
  * This class is responsible for choosing the next (closest) delay expiration of a
  * delayed shard to schedule a reroute to remove the delay marker.
  * The actual removal of the delay marker happens in
@@ -70,7 +58,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
     class DelayedRerouteTask extends ClusterStateUpdateTask {
         final TimeValue nextDelay; // delay until submitting the reroute command
         final long baseTimestampNanos; // timestamp (in nanos) upon which delay was calculated
-        volatile ScheduledFuture<?> future;
+        volatile Scheduler.Cancellable cancellable;
         final AtomicBoolean cancelScheduling = new AtomicBoolean();
 
         DelayedRerouteTask(TimeValue nextDelay, long baseTimestampNanos) {
@@ -84,12 +72,14 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
 
         public void cancelScheduling() {
             cancelScheduling.set(true);
-            FutureUtils.cancel(future);
+            if (cancellable != null) {
+                cancellable.cancel();
+            }
             removeIfSameTask(this);
         }
 
         public void schedule() {
-            future = threadPool.schedule(nextDelay, ThreadPool.Names.SAME, new AbstractRunnable() {
+            cancellable = threadPool.schedule(new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
                     if (cancelScheduling.get()) {
@@ -103,7 +93,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
                     logger.warn("failed to submit schedule/execute reroute post unassigned shard", e);
                     removeIfSameTask(DelayedRerouteTask.this);
                 }
-            });
+            }, nextDelay, ThreadPool.Names.SAME);
         }
 
         @Override
@@ -130,13 +120,14 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
     }
 
     @Inject
-    public DelayedAllocationService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public DelayedAllocationService(ThreadPool threadPool, ClusterService clusterService,
                                     AllocationService allocationService) {
-        super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        clusterService.addListener(this);
+        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
+            clusterService.addListener(this);
+        }
     }
 
     @Override
@@ -160,8 +151,8 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        long currentNanoTime = currentNanoTime();
-        if (event.state().nodes().isLocalNodeElectedMaster()) {
+        if (event.localNodeMaster()) {
+            long currentNanoTime = currentNanoTime();
             scheduleIfNeeded(currentNanoTime, event.state());
         }
     }

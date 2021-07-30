@@ -1,0 +1,135 @@
+[role="xpack"]
+[testenv="basic"]
+[[enrich-stats-api]]
+=== Enrich stats API
+++++
+<titleabbrev>Enrich stats</titleabbrev>
+++++
+
+Returns <<coordinating-node,enrich coordinator>> statistics
+and information about <<enrich-policy,enrich policies>>
+that are currently executing.
+
+[source,console]
+----
+GET /_enrich/_stats
+----
+
+
+[[enrich-stats-api-request]]
+==== {api-request-title}
+
+`GET /_enrich/_stats`
+
+
+[[enrich-stats-api-response-body]]
+==== {api-response-body-title}
+
+`executing_policies`::
++
+--
+(Array of objects)
+Objects containing information
+about each enrich policy
+that is currently executing.
+
+Returned parameters include:
+
+`name`::
+(String)
+Name of the enrich policy.
+
+`task`::
+(<<tasks,Task object>>)
+Object containing detailed information
+about the policy execution task.
+--
+
+`coordinator_stats`::
++
+--
+(Array of objects)
+Objects containing information
+about each <<coordinating-node,coordinating ingest node>>
+for configured enrich processors.
+
+Returned parameters include:
+
+`node_id`::
+(String)
+ID of the ingest node coordinating search requests
+for configured enrich processors.
+
+`queue_size`::
+(Integer)
+Number of search requests in the queue.
+
+`remote_requests_current`::
+(Integer)
+Current number of outstanding remote requests.
+
+`remote_requests_total`::
+(Integer)
+Number of outstanding remote requests executed
+since node startup.
++
+In most cases,
+a remote request includes multiple search requests.
+This depends on the number of search requests in the queue
+when the remote request is executed.
+
+`executed_searches_total`::
+(Integer)
+Number of search requests
+that enrich processors have executed
+since node startup.
+--
+
+
+[[enrich-stats-api-example]]
+==== {api-examples-title}
+
+
+[source,console]
+----
+GET /_enrich/_stats
+----
+//TEST[s/^/PUT \/_enrich\/policy\/my-policy\/_execute\/n/\
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "executing_policies": [
+    {
+      "name": "my-policy",
+      "task": {
+        "id": 124,
+        "type": "direct",
+        "action": "cluster:admin/xpack/enrich/execute",
+        "start_time_in_millis": 1458585884904,
+        "running_time_in_nanos": 47402,
+        "cancellable": false,
+        "parent_task_id": "oTUltX4IQMOUUVeiohTt8A:123",
+        "headers": {
+          "X-Opaque-Id": "123456"
+        }
+      }
+    }
+  ],
+  "coordinator_stats": [
+    {
+      "node_id": "1sFM8cmSROZYhPxVsiWew",
+      "queue_size": 0,
+      "remote_requests_current": 0,
+      "remote_requests_total": 0,
+      "executed_searches_total": 0
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"executing_policies": \[[^\]]*\]/"executing_policies": $body.$_path/]
+// TESTRESPONSE[s/"node_id": "1sFM8cmSROZYhPxVsiWew"/"node_id" : $body.coordinator_stats.0.node_id/]
+// TESTRESPONSE[s/"remote_requests_total": 0/"remote_requests_total" : $body.coordinator_stats.0.remote_requests_total/]
+// TESTRESPONSE[s/"executed_searches_total": 0/"executed_searches_total" : $body.coordinator_stats.0.executed_searches_total/]

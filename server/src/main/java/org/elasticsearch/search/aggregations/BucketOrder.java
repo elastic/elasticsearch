@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
@@ -29,12 +18,15 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.ToLongFunction;
 
 /**
- * {@link Bucket} Ordering strategy.
+ * {@link Bucket} ordering strategy. Buckets can be order either as
+ * "complete" buckets using {@link #comparator()} or against a combination
+ * of the buckets internals with its ordinal with
+ * {@link #partiallyBuiltBucketComparator(ToLongFunction, Aggregator)}.
  */
 public abstract class BucketOrder implements ToXContentObject, Writeable {
-
     /**
      * Creates a bucket ordering strategy that sorts buckets by their document counts (ascending or descending).
      *
@@ -98,16 +90,46 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
     }
 
     /**
-     * @return A comparator for the bucket based on the given aggregator. The comparator is used in two phases:
-     * <p>
-     * - aggregation phase, where each shard builds a list of buckets to be sent to the coordinating node.
-     * In this phase, the passed in aggregator will be the aggregator that aggregates the buckets on the
-     * shard level.
-     * <p>
-     * - reduce phase, where the coordinating node gathers all the buckets from all the shards and reduces them
-     * to a final bucket list. In this case, the passed in aggregator will be {@code null}.
+     * Validate an aggregation against an {@linkplain Aggregator}.
+     * @throws AggregationExecutionException when the ordering is invalid
+     *         for this {@linkplain Aggregator}.
      */
-    public abstract Comparator<Bucket> comparator(Aggregator aggregator);
+    public final void validate(Aggregator aggregator) throws AggregationExecutionException{
+        /*
+         * Building partiallyBuiltBucketComparator and throwing it away is enough
+         * to validate this order because doing so checks all of the appropriate
+         * paths.
+         */
+        partiallyBuiltBucketComparator(null, aggregator);
+    }
+
+    /**
+     * A builds comparator comparing buckets partially built buckets by
+     * delegating comparison of the results of any "child" aggregations to
+     * the provided {@linkplain Aggregator}.
+     * <p>
+     * Warning: This is fairly difficult to use and impossible to use cleanly.
+     * In addition, this exists primarily to return the "top n" buckets based
+     * on the results of a sub aggregation. The trouble is that could end up
+     * throwing away buckets on the data nodes that should ultimately be kept
+     * after reducing all of the results. If you know that this is coming it
+     * is fine, but most folks that use "generic" sorts don't. In other words:
+     * before you use this method think super duper hard if you want to have
+     * these kinds of issues. The terms agg does an folks get into trouble
+     * with it all the time.
+     * </p>
+     */
+    public abstract <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator);
+
+    /**
+     * Build a comparator for fully built buckets.
+     */
+    public abstract Comparator<Bucket> comparator();
+
+    /**
+     * Build a comparator for {@link DelayedBucket}, a wrapper that delays bucket reduction.
+     */
+    abstract Comparator<DelayedBucket<? extends Bucket>> delayedBucketComparator();
 
     /**
      * @return unique internal ID used for reading/writing this order from/to a stream.

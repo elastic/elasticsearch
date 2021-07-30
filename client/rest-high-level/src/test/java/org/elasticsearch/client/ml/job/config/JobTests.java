@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.job.config;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -125,9 +114,6 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         if (randomBoolean()) {
             builder.setFinishedTime(new Date(randomNonNegativeLong()));
         }
-        if (randomBoolean()) {
-            builder.setEstablishedModelMemory(randomNonNegativeLong());
-        }
         builder.setAnalysisConfig(AnalysisConfigTests.createRandomized());
         builder.setAnalysisLimits(AnalysisLimitsTests.createRandomized());
 
@@ -136,7 +122,7 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         builder.setDataDescription(dataDescription);
 
         if (randomBoolean()) {
-            builder.setModelPlotConfig(new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10)));
+            builder.setModelPlotConfig(ModelPlotConfigTests.createRandomized());
         }
         if (randomBoolean()) {
             builder.setRenormalizationWindowDays(randomNonNegativeLong());
@@ -144,11 +130,23 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         if (randomBoolean()) {
             builder.setBackgroundPersistInterval(TimeValue.timeValueHours(randomIntBetween(1, 24)));
         }
+        Long modelSnapshotRetentionDays = null;
         if (randomBoolean()) {
-            builder.setModelSnapshotRetentionDays(randomNonNegativeLong());
+            modelSnapshotRetentionDays = randomNonNegativeLong();
+            builder.setModelSnapshotRetentionDays(modelSnapshotRetentionDays);
+        }
+        if (randomBoolean()) {
+            if (modelSnapshotRetentionDays != null) {
+                builder.setDailyModelSnapshotRetentionAfterDays(randomLongBetween(0, modelSnapshotRetentionDays));
+            } else {
+                builder.setDailyModelSnapshotRetentionAfterDays(randomNonNegativeLong());
+            }
         }
         if (randomBoolean()) {
             builder.setResultsRetentionDays(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            builder.setSystemAnnotationsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             builder.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
@@ -162,6 +160,9 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         if (randomBoolean()) {
             builder.setDeleting(randomBoolean());
         }
+        if (randomBoolean()) {
+            builder.setAllowLazyOpen(randomBoolean());
+        }
         return builder;
     }
 
@@ -171,7 +172,7 @@ public class JobTests extends AbstractXContentTestCase<Job> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

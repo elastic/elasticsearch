@@ -18,8 +18,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> An empty request
 <2> Setting the indices to fetch mapping for
-<3> The types to be returned
-<4> The fields to be returned
+<3> The fields to be returned
 
 ==== Optional arguments
 The following arguments can also optionally be provided:
@@ -30,14 +29,6 @@ include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
 --------------------------------------------------
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and
 how wildcard expressions are expanded
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-local]
---------------------------------------------------
-<1> The `local` flag (defaults to `false`) controls whether the aliases need
-to be looked up in the local cluster state or in the cluster state held by
-the elected master node
 
 include::../execution.asciidoc[]
 
@@ -53,7 +44,7 @@ executed operation as follows:
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Returning all requested indices fields' mappings
-<2> Retrieving the mappings for a particular index and type
+<2> Retrieving the mappings for a particular index
 <3> Getting the mappings metadata for the `message` field
 <4> Getting the full name of the field
 <5> Getting the mapping source of the field

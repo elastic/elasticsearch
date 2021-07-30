@@ -1,0 +1,60 @@
+[[rank-feature]]
+=== Rank feature field type
+++++
+<titleabbrev>Rank feature</titleabbrev>
+++++
+
+A `rank_feature` field can index numbers so that they can later be used to boost
+documents in queries with a <<query-dsl-rank-feature-query,`rank_feature`>> query.
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "pagerank": {
+        "type": "rank_feature" <1>
+      },
+      "url_length": {
+        "type": "rank_feature",
+        "positive_score_impact": false <2>
+      }
+    }
+  }
+}
+
+PUT my-index-000001/_doc/1
+{
+  "pagerank": 8,
+  "url_length": 22
+}
+
+GET my-index-000001/_search
+{
+  "query": {
+    "rank_feature": {
+      "field": "pagerank"
+    }
+  }
+}
+--------------------------------------------------
+
+<1> Rank feature fields must use the `rank_feature` field type
+<2> Rank features that correlate negatively with the score need to declare it
+
+NOTE: `rank_feature` fields only support single-valued fields and strictly positive
+values. Multi-valued fields and negative values will be rejected.
+
+NOTE: `rank_feature` fields do not support querying, sorting or aggregating. They may
+only be used within <<query-dsl-rank-feature-query,`rank_feature`>> queries.
+
+NOTE: `rank_feature` fields only preserve 9 significant bits for the precision, which
+translates to a relative error of about 0.4%.
+
+Rank features that correlate negatively with the score should set
+`positive_score_impact` to `false` (defaults to `true`). This will be used by
+the <<query-dsl-rank-feature-query,`rank_feature`>> query to modify the scoring formula
+in such a way that the score decreases with the value of the feature instead of
+increasing. For instance in web search, the url length is a commonly used
+feature which correlates negatively with scores.

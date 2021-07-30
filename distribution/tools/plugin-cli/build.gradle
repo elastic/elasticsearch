@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 apply plugin: 'elasticsearch.build'
@@ -22,26 +11,65 @@ apply plugin: 'elasticsearch.build'
 archivesBaseName = 'elasticsearch-plugin-cli'
 
 dependencies {
-  compileOnly "org.elasticsearch:elasticsearch:${version}"
-  compileOnly "org.elasticsearch:elasticsearch-cli:${version}"
-  compile "org.bouncycastle:bcpg-jdk15on:1.59"
-  compile "org.bouncycastle:bcprov-jdk15on:1.59"
-  testCompile "org.elasticsearch.test:framework:${version}"
-  testCompile 'com.google.jimfs:jimfs:1.1'
-  testCompile 'com.google.guava:guava:18.0'
+  compileOnly project(":server")
+  compileOnly project(":libs:elasticsearch-cli")
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+  api "org.bouncycastle:bcpg-fips:1.0.4"
+  api "org.bouncycastle:bc-fips:1.0.2"
+  testImplementation project(":test:framework")
+  testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
+  testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'
 }
 
-test {
+tasks.named("test").configure {
   // TODO: find a way to add permissions for the tests in this module
   systemProperty 'tests.security.manager', 'false'
 }
 
-if (project.inFipsJvm) {
-  // FIPS JVM includes manny classes from bouncycastle which count as jar hell for the third party audit,
-  // rather than provide a long list of exclusions, disable the check on FIPS.
-  thirdPartyAudit.enabled = false
+/*
+ * these two classes intentionally use the following JDK internal APIs in order to offer the necessary
+ * functionality
+ *
+ * sun.security.internal.spec.TlsKeyMaterialParameterSpec
+ * sun.security.internal.spec.TlsKeyMaterialSpec
+ * sun.security.internal.spec.TlsMasterSecretParameterSpec
+ * sun.security.internal.spec.TlsPrfParameterSpec
+ * sun.security.internal.spec.TlsRsaPremasterSecretParameterSpec
+ * sun.security.provider.SecureRandom
+ *
+ */
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+          'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider$CoreSecureRandom',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$BaseTLSKeyGeneratorSpi',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator$2',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator$2',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSPRFKeyGenerator',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator$2'
+  )
+}
+
+tasks.named('splitPackagesAudit').configure {
+    // o.e.plugins is owned by server, these shouldb be renamed to plugincli
+  ignoreClasses 'org.elasticsearch.plugins.InstallPluginAction',
+    'org.elasticsearch.plugins.InstallPluginCommand',
+    'org.elasticsearch.plugins.ListPluginsCommand',
+    'org.elasticsearch.plugins.PluginCli',
+    'org.elasticsearch.plugins.ProgressInputStream',
+    'org.elasticsearch.plugins.RemovePluginAction',
+    'org.elasticsearch.plugins.RemovePluginCommand',
+    'org.elasticsearch.plugins.PluginDescriptor'
 }

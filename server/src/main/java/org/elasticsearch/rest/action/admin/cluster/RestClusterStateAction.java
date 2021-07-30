@@ -1,64 +1,72 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.function.LongSupplier;
+
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterStateAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    public RestClusterStateAction(Settings settings, RestController controller, SettingsFilter settingsFilter) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}/{indices}", this);
+    private final ThreadPool threadPool;
 
+    public RestClusterStateAction(SettingsFilter settingsFilter, ThreadPool threadPool) {
         this.settingsFilter = settingsFilter;
+        this.threadPool = threadPool;
     }
 
     @Override
     public String getName() {
         return "cluster_state_action";
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_cluster/state"),
+            new Route(GET, "/_cluster/state/{metric}"),
+            new Route(GET, "/_cluster/state/{metric}/{indices}"));
+    }
+
+    @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return true;
     }
 
     @Override
@@ -68,13 +76,13 @@ public class RestClusterStateAction extends BaseRestHandler {
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         if (request.hasParam("wait_for_metadata_version")) {
-            clusterStateRequest.waitForMetaDataVersion(request.paramAsLong("wait_for_metadata_version", 0));
+            clusterStateRequest.waitForMetadataVersion(request.paramAsLong("wait_for_metadata_version", 0));
         }
         clusterStateRequest.waitForTimeout(request.paramAsTime("wait_for_timeout", ClusterStateRequest.DEFAULT_WAIT_FOR_NODE_TIMEOUT));
 
         final String[] indices = Strings.splitStringByCommaToArray(request.param("indices", "_all"));
         boolean isAllIndicesOnly = indices.length == 1 && "_all".equals(indices[0]);
-        if (!isAllIndicesOnly) {
+        if (isAllIndicesOnly == false) {
             clusterStateRequest.indices(indices);
         }
 
@@ -88,27 +96,32 @@ public class RestClusterStateAction extends BaseRestHandler {
              */
             clusterStateRequest.routingTable(
                     metrics.contains(ClusterState.Metric.ROUTING_TABLE) || metrics.contains(ClusterState.Metric.ROUTING_NODES));
-            clusterStateRequest.metaData(metrics.contains(ClusterState.Metric.METADATA));
+            clusterStateRequest.metadata(metrics.contains(ClusterState.Metric.METADATA));
             clusterStateRequest.blocks(metrics.contains(ClusterState.Metric.BLOCKS));
             clusterStateRequest.customs(metrics.contains(ClusterState.Metric.CUSTOMS));
         }
         settingsFilter.addFilterSettingParams(request);
 
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                if (clusterStateRequest.waitForMetaDataVersion() != null) {
-                    builder.field(Fields.WAIT_FOR_TIMED_OUT, response.isWaitForTimedOut());
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+                ClusterStateAction.INSTANCE,
+                clusterStateRequest,
+                new DispatchingRestToXContentListener<RestClusterStateResponse>(
+                        // Process serialization on MANAGEMENT pool since the serialization of the cluster state to XContent
+                        // can be too slow to execute on an IO thread
+                        threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                        channel,
+                        request) {
+                    @Override
+                    protected ToXContent.Params getParams() {
+                        return new ToXContent.DelegatingMapParams(
+                                singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API),
+                                request);
+                    }
                 }
-                builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
-                builder.humanReadableField(Fields.CLUSTER_STATE_SIZE_IN_BYTES, Fields.CLUSTER_STATE_SIZE,
-                        response.getTotalCompressedSize());
-                response.getState().toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
-            }
-        });
+                        .map(response -> new RestClusterStateResponse(
+                                clusterStateRequest,
+                                response,
+                                threadPool::relativeTimeInMillis)));
     }
 
     private static final Set<String> RESPONSE_PARAMS;
@@ -133,7 +146,41 @@ public class RestClusterStateAction extends BaseRestHandler {
     static final class Fields {
         static final String WAIT_FOR_TIMED_OUT = "wait_for_timed_out";
         static final String CLUSTER_NAME = "cluster_name";
-        static final String CLUSTER_STATE_SIZE = "compressed_size";
-        static final String CLUSTER_STATE_SIZE_IN_BYTES = "compressed_size_in_bytes";
     }
+
+    private static class RestClusterStateResponse implements ToXContentObject {
+
+        private final ClusterStateRequest request;
+        private final ClusterStateResponse response;
+        private final LongSupplier currentTimeMillisSupplier;
+        private final long startTimeMillis;
+
+        RestClusterStateResponse(ClusterStateRequest request, ClusterStateResponse response, LongSupplier currentTimeMillisSupplier) {
+            this.request = request;
+            this.response = response;
+            this.currentTimeMillisSupplier = currentTimeMillisSupplier;
+            this.startTimeMillis = currentTimeMillisSupplier.getAsLong();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (request.local() == false &&
+                    currentTimeMillisSupplier.getAsLong() - startTimeMillis >
+                            request.masterNodeTimeout().millis()) {
+                throw new ElasticsearchTimeoutException("Timed out getting cluster state");
+            }
+            builder.startObject();
+            if (request.waitForMetadataVersion() != null) {
+                builder.field(Fields.WAIT_FOR_TIMED_OUT, response.isWaitForTimedOut());
+            }
+            builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
+            final ClusterState responseState = response.getState();
+            if (responseState != null) {
+                responseState.toXContent(builder, params);
+            }
+            builder.endObject();
+            return builder;
+        }
+    }
+
 }

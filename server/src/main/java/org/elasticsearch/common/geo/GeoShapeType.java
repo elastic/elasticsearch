@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.geo;
 
@@ -30,7 +19,6 @@ import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.geo.parsers.CoordinateNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -168,9 +156,9 @@ public enum GeoShapeType {
                     coordinates.children.size(), numValidPts);
             }
             // close linear ring iff coerce is set and ring is open, otherwise throw parse exception
-            if (!coordinates.children.get(0).coordinate.equals(
-                coordinates.children.get(coordinates.children.size() - 1).coordinate)) {
-                if (coerce == true) {
+            if (coordinates.children.get(0).coordinate.equals(
+                coordinates.children.get(coordinates.children.size() - 1).coordinate) == false) {
+                if (coerce) {
                     coordinates.children.add(coordinates.children.get(0));
                 } else {
                     throw new ElasticsearchParseException("invalid LinearRing found (coordinates are not closed)");
@@ -258,7 +246,7 @@ public enum GeoShapeType {
     },
     GEOMETRYCOLLECTION("geometrycollection") {
         @Override
-        public ShapeBuilder<?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+        public ShapeBuilder<?, ?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                        Orientation orientation, boolean coerce) {
             // noop, handled in parser
             return null;
@@ -298,8 +286,8 @@ public enum GeoShapeType {
         throw new IllegalArgumentException("unknown geo_shape ["+geoshapename+"]");
     }
 
-    public abstract ShapeBuilder<?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
-                                            ShapeBuilder.Orientation orientation, boolean coerce);
+    public abstract ShapeBuilder<?, ?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+                                            Orientation orientation, boolean coerce);
     abstract CoordinateNode validate(CoordinateNode coordinates, boolean coerce);
 
     /** wkt shape name */

@@ -1,31 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.physical;
+
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import org.elasticsearch.xpack.sql.tree.Location;
-
 abstract class BinaryExec extends PhysicalPlan {
 
     private final PhysicalPlan left, right;
 
-    protected BinaryExec(Location location, PhysicalPlan left, PhysicalPlan right) {
-        super(location, Arrays.asList(left, right));
+    protected BinaryExec(Source source, PhysicalPlan left, PhysicalPlan right) {
+        super(source, Arrays.asList(left, right));
         this.left = left;
         this.right = right;
     }
 
     @Override
     public final BinaryExec replaceChildren(List<PhysicalPlan> newChildren) {
-        if (newChildren.size() != 2) {
-            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
-        }
         return replaceChildren(newChildren.get(0), newChildren.get(1));
     }
     protected abstract BinaryExec replaceChildren(PhysicalPlan newLeft, PhysicalPlan newRight);

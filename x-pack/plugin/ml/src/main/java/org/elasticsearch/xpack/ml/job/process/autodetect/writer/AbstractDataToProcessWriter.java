@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
@@ -13,10 +14,6 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.process.writer.LengthEncodedWriter;
-import org.supercsv.encoder.CsvEncoder;
-import org.supercsv.encoder.DefaultCsvEncoder;
-import org.supercsv.prefs.CsvPreference;
-import org.supercsv.util.CsvContext;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,6 +28,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+
+import static org.elasticsearch.xpack.core.ml.utils.Intervals.alignToFloor;
 
 public abstract class AbstractDataToProcessWriter implements DataToProcessWriter {
 
@@ -47,7 +46,8 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
     private final Logger logger;
     private final DateTransformer dateTransformer;
-    private long latencySeconds;
+    private final long bucketSpanMs;
+    private final long latencySeconds;
 
     protected Map<String, Integer> inFieldIndexes;
     protected List<InputOutputMap> inputOutputMap;
@@ -67,6 +67,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         this.dataCountsReporter = Objects.requireNonNull(dataCountsReporter);
         this.logger = Objects.requireNonNull(logger);
         this.latencySeconds = analysisConfig.getLatency() == null ? 0 : analysisConfig.getLatency().seconds();
+        this.bucketSpanMs = analysisConfig.getBucketSpan().getMillis();
 
         Date date = dataCountsReporter.getLatestRecordTime();
         latestEpochMsThisUpload = 0;
@@ -75,7 +76,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
             latestEpochMs = date.getTime();
         }
 
-        boolean isDateFormatString = dataDescription.isTransformTime() && !dataDescription.isEpochMs();
+        boolean isDateFormatString = dataDescription.isTransformTime() && dataDescription.isEpochMs() == false;
         if (isDateFormatString) {
             dateTransformer = new DateFormatDateTransformer(dataDescription.getTimeFormat());
         } else {
@@ -122,10 +123,10 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
     /**
      * Tokenize the field that has been configured for categorization, and store the resulting list of tokens in CSV
-     * format in the appropriate field of the record to be sent to the analytics.
+     * format in the appropriate field of the record to be sent to the process.
      * @param categorizationAnalyzer   The analyzer to use to convert the categorization field to a list of tokens
      * @param categorizationFieldValue The value of the categorization field to be tokenized
-     * @param record                   The record to be sent to the analytics
+     * @param record                   The record to be sent to the process
      */
     protected void tokenizeForCategorization(CategorizationAnalyzer categorizationAnalyzer, String categorizationFieldValue,
                                              String[] record) {
@@ -141,19 +142,38 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     static String tokenizeForCategorization(CategorizationAnalyzer categorizationAnalyzer, String categorizationFieldName,
                                             String categorizationFieldValue) {
         StringBuilder builder = new StringBuilder();
-        CsvContext context = new CsvContext(0, 0, 0);
-        // Using the CsvEncoder directly is faster than using a CsvLineWriter with end-of-line set to the empty string
-        CsvEncoder encoder = new DefaultCsvEncoder();
         boolean first = true;
         for (String token : categorizationAnalyzer.tokenizeField(categorizationFieldName, categorizationFieldValue)) {
             if (first) {
                 first = false;
             } else {
-                builder.appendCodePoint(CsvPreference.STANDARD_PREFERENCE.getDelimiterChar());
+                builder.append(',');
             }
-            builder.append(encoder.encode(token, context, CsvPreference.STANDARD_PREFERENCE));
+            if (needsEscaping(token)) {
+                builder.append('"');
+                for (int i = 0; i < token.length(); ++i) {
+                    char c = token.charAt(i);
+                    if (c == '"') {
+                        builder.append('"');
+                    }
+                    builder.append(c);
+                }
+                builder.append('"');
+            } else {
+                builder.append(token);
+            }
         }
         return builder.toString();
+    }
+
+    private static boolean needsEscaping(String value) {
+        for (int i = 0; i < value.length(); ++i) {
+            char c = value.charAt(i);
+            if (c == '"' || c == ',' || c == '\n' || c == '\r') {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -177,9 +197,11 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         }
 
         record[TIME_FIELD_OUT_INDEX] = Long.toString(epochMs / MS_IN_SECOND);
+        final long latestBucketFloor = alignToFloor(latestEpochMs, bucketSpanMs);
 
-        // Records have epoch seconds timestamp so compare for out of order in seconds
-        if (epochMs / MS_IN_SECOND < latestEpochMs / MS_IN_SECOND - latencySeconds) {
+        // We care only about records that are older than the current bucket according to our latest timestamp
+        // The native side handles random order within the same bucket without issue
+        if (epochMs / MS_IN_SECOND < latestBucketFloor / MS_IN_SECOND - latencySeconds) {
             // out of order
             dataCountsReporter.reportOutOfOrderRecord(numberOfFieldsRead);
 
@@ -195,7 +217,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         latestEpochMsThisUpload = latestEpochMs;
 
         autodetectProcess.writeRecord(record);
-        dataCountsReporter.reportRecordWritten(numberOfFieldsRead, epochMs);
+        dataCountsReporter.reportRecordWritten(numberOfFieldsRead, epochMs, latestEpochMs);
 
         return true;
     }
@@ -207,7 +229,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
     /**
      * Get all the expected input fields i.e. all the fields we
-     * must see in the csv header
+     * must see in the input
      */
     final Collection<String> inputFields() {
         Set<String> requiredFields = analysisConfig.analysisFields();
@@ -324,7 +346,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     /**
      * Input and output array indexes map
      */
-    protected class InputOutputMap {
+    protected static class InputOutputMap {
         int inputIndex;
         int outputIndex;
 

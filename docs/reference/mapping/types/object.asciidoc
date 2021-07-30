@@ -1,12 +1,15 @@
 [[object]]
-=== Object datatype
+=== Object field type
+++++
+<titleabbrev>Object</titleabbrev>
+++++
 
 JSON documents are hierarchical in nature: the document may contain inner
 objects which, in turn, may contain inner objects themselves:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 { <1>
   "region": "US",
   "manager": { <2>
@@ -18,7 +21,7 @@ PUT my_index/_doc/1
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The outer document is also a JSON object.
 <2> It contains an inner object called `manager`.
 <3> Which in turn contains an inner object called `name`.
@@ -39,24 +42,22 @@ pairs, something like this:
 
 An explicit mapping for the above document could look like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
-    "_doc": { <1>
-      "properties": {
-        "region": {
-          "type": "keyword"
-        },
-        "manager": { <2>
-          "properties": {
-            "age":  { "type": "integer" },
-            "name": { <3>
-              "properties": {
-                "first": { "type": "text" },
-                "last":  { "type": "text" }
-              }
+    "properties": { <1>
+      "region": {
+        "type": "keyword"
+      },
+      "manager": { <2>
+        "properties": {
+          "age":  { "type": "integer" },
+          "name": { <3>
+            "properties": {
+              "first": { "type": "text" },
+              "last":  { "type": "text" }
             }
           }
         }
@@ -65,8 +66,8 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
-<1> The mapping type is a type of object, and has a `properties` field.
+
+<1> Properties in the top-level mappings definition.
 <2> The `manager` field is an inner `object` field.
 <3> The `manager.name` field is an inner `object` field within the `manager` field.
 
@@ -81,7 +82,7 @@ The following parameters are accepted by `object` fields:
 <<dynamic,`dynamic`>>::
 
     Whether or not new `properties` should be added dynamically
-    to an existing object.  Accepts `true` (default), `false`
+    to an existing object. Accepts `true` (default), `runtime`, `false`
     and `strict`.
 
 <<enabled,`enabled`>>::
@@ -92,7 +93,7 @@ The following parameters are accepted by `object` fields:
 <<properties,`properties`>>::
 
     The fields within the object, which can be of any
-    <<mapping-types,datatype>>, including `object`. New properties
+    <<mapping-types,data type>>, including `object`. New properties
     may be added to an existing object.
 
 IMPORTANT: If you need to index arrays of objects instead of single objects,

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.security;
@@ -45,7 +34,7 @@ public class PutPrivilegesRequestTests extends ESTestCase {
                 Arrays.asList(Collections.singletonList(ApplicationPrivilege.builder()
                         .application("app01")
                         .privilege("all")
-                        .actions(Sets.newHashSet("action:login", "action:logout"))
+                        .actions(List.of("action:login", "action:logout"))
                         .metadata(Collections.singletonMap("k1", "v1"))
                         .build()),
                      null, Collections.emptyList()));
@@ -69,8 +58,8 @@ public class PutPrivilegesRequestTests extends ESTestCase {
                 + "      \"application\" : \"app01\",\n"
                 + "      \"name\" : \"all\",\n"
                 + "      \"actions\" : [\n"
-                + "        \"action:logout\",\n"
-                + "        \"action:login\"\n"
+                + "        \"action:login\",\n"
+                + "        \"action:logout\"\n"
                 + "      ],\n"
                 + "      \"metadata\" : {\n"
                 + "        \"k1\" : \"v1\"\n"
@@ -88,8 +77,8 @@ public class PutPrivilegesRequestTests extends ESTestCase {
                 + "      \"application\" : \"app02\",\n"
                 + "      \"name\" : \"all\",\n"
                 + "      \"actions\" : [\n"
-                + "        \"action:logout\",\n"
-                + "        \"action:login\"\n"
+                + "        \"action:login\",\n"
+                + "        \"action:logout\"\n"
                 + "      ],\n"
                 + "      \"metadata\" : {\n"
                 + "        \"k2\" : \"v2\"\n"
@@ -101,18 +90,18 @@ public class PutPrivilegesRequestTests extends ESTestCase {
         privileges.add(ApplicationPrivilege.builder()
                 .application("app01")
                 .privilege("all")
-                .actions(Sets.newHashSet("action:login", "action:logout"))
+                .actions(List.of("action:login", "action:logout"))
                 .metadata(Collections.singletonMap("k1", "v1"))
                 .build());
         privileges.add(ApplicationPrivilege.builder()
                 .application("app01")
                 .privilege("read")
-                .actions(Sets.newHashSet("data:read"))
+                .actions(List.of("data:read"))
                 .build());
         privileges.add(ApplicationPrivilege.builder()
                 .application("app02")
                 .privilege("all")
-                .actions(Sets.newHashSet("action:login", "action:logout"))
+                .actions(List.of("action:login", "action:logout"))
                 .metadata(Collections.singletonMap("k2", "v2"))
                 .build());
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
@@ -126,13 +115,13 @@ public class PutPrivilegesRequestTests extends ESTestCase {
         privileges.add(ApplicationPrivilege.builder()
                 .application(randomAlphaOfLength(5))
                 .privilege(randomAlphaOfLength(3))
-                .actions(Sets.newHashSet(randomAlphaOfLength(5), randomAlphaOfLength(5)))
+                .actions(List.of(randomAlphaOfLength(5), randomAlphaOfLength(5)))
                 .metadata(Collections.singletonMap(randomAlphaOfLength(3), randomAlphaOfLength(3)))
                 .build());
         privileges.add(ApplicationPrivilege.builder()
                 .application(randomAlphaOfLength(5))
                 .privilege(randomAlphaOfLength(3))
-                .actions(Sets.newHashSet(randomAlphaOfLength(5), randomAlphaOfLength(5)))
+                .actions(List.of(randomAlphaOfLength(5), randomAlphaOfLength(5)))
                 .metadata(Collections.singletonMap(randomAlphaOfLength(3), randomAlphaOfLength(3)))
                 .build());
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
@@ -156,7 +145,7 @@ public class PutPrivilegesRequestTests extends ESTestCase {
             privileges.add(ApplicationPrivilege.builder()
                     .application(randomAlphaOfLength(5))
                     .privilege(randomAlphaOfLength(3))
-                    .actions(Sets.newHashSet(randomAlphaOfLength(6)))
+                    .actions(List.of(randomAlphaOfLength(6)))
                     .build());
             return new PutPrivilegesRequest(privileges, original.getRefreshPolicy());
         case 1:

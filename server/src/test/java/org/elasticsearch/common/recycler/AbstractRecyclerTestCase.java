@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.recycler;
@@ -36,7 +25,7 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
     protected static final Recycler.C<byte[]> RECYCLER_C = new AbstractRecyclerC<byte[]>() {
 
         @Override
-        public byte[] newInstance(int sizing) {
+        public byte[] newInstance() {
             byte[] value = new byte[10];
             // "fresh" is intentionally not 0 to ensure we covered this code path
             Arrays.fill(value, FRESH);
@@ -99,7 +88,6 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
             assertNotSame(b1, b2);
         }
         o.close();
-        r.close();
     }
 
     public void testRecycle() {
@@ -111,7 +99,6 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
         o = r.obtain();
         assertRecycled(o.v());
         o.close();
-        r.close();
     }
 
     public void testDoubleRelease() {
@@ -128,7 +115,6 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
         final Recycler.V<byte[]> v2 = r.obtain();
         final Recycler.V<byte[]> v3 = r.obtain();
         assertNotSame(v2.v(), v3.v());
-        r.close();
     }
 
     public void testDestroyWhenOverCapacity() {
@@ -152,9 +138,6 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
         // release first ref, verify for destruction
         o.close();
         assertDead(data);
-
-        // close the rest
-        r.close();
     }
 
     public void testClose() {
@@ -171,10 +154,6 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
 
         // verify that recycle() ran
         assertRecycled(data);
-
-        // closing the recycler should mark recycled instances via destroy()
-        r.close();
-        assertDead(data);
     }
 
 }

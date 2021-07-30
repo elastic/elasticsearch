@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.seqno;
@@ -29,10 +18,6 @@ public class SequenceNumbers {
     public static final String LOCAL_CHECKPOINT_KEY = "local_checkpoint";
     public static final String MAX_SEQ_NO = "max_seq_no";
     /**
-     * Represents a checkpoint coming from a pre-6.0 node
-     */
-    public static final long PRE_60_NODE_CHECKPOINT = -3L;
-    /**
      * Represents an unassigned sequence number (e.g., can be used on primary operations before they are executed).
      */
     public static final long UNASSIGNED_SEQ_NO = -2L;
@@ -40,6 +25,11 @@ public class SequenceNumbers {
      * Represents no operations have been performed on the shard. Initial value of a sequence number.
      */
     public static final long NO_OPS_PERFORMED = -1L;
+
+    /**
+     * Represents an unassigned primary term (e.g., when a primary shard was not yet allocated)
+     */
+    public static final long UNASSIGNED_PRIMARY_TERM = 0L;
 
     /**
      * Reads the sequence number stats from the commit data (maximum sequence number and local checkpoint).

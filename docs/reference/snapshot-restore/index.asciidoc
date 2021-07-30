@@ -1,0 +1,125 @@
+[[snapshot-restore]]
+= Snapshot and restore
+
+[partintro]
+--
+
+// tag::snapshot-intro[]
+A _snapshot_ is a backup taken from a running {es} cluster.
+You can take snapshots of an entire cluster, including all its data streams and
+indices. You can also take snapshots of only specific data streams or indices in
+the cluster.
+
+You must
+<<snapshots-register-repository, register a snapshot repository>>
+before you can <<snapshots-take-snapshot, create snapshots>>.
+
+Snapshots can be stored in either local or remote repositories.
+Remote repositories can reside on Amazon S3, HDFS, Microsoft Azure,
+Google Cloud Storage,
+and other platforms supported by a {plugins}/repository.html[repository plugin].
+// end::snapshot-intro[]
+
+{es} takes snapshots incrementally: the snapshotting process only copies data
+to the repository that was not already copied there by an earlier snapshot,
+avoiding unnecessary duplication of work or storage space. This means you can
+safely take snapshots very frequently with minimal overhead. This
+incrementality only applies within a single repository because no data is
+shared between repositories. Snapshots are also logically independent from each
+other, even within a single repository: deleting a snapshot does not affect the
+integrity of any other snapshot.
+
+// tag::restore-intro[]
+You can <<snapshots-restore-snapshot,restore snapshots>> to a running cluster, which includes all data streams and indices in the snapshot
+by default.
+However, you can choose to restore only the cluster state or specific data
+streams or indices from a snapshot.
+// end::restore-intro[]
+
+You can use
+<<getting-started-snapshot-lifecycle-management, {slm}>>
+to automatically take and manage snapshots.
+
+// tag::backup-warning[]
+WARNING: **The only reliable and supported way to back up a cluster is by
+taking a snapshot**. You cannot back up an {es} cluster by making copies of the
+data directories of its nodes. There are no supported methods to restore any
+data from a filesystem-level backup. If you try to restore a cluster from such
+a backup, it may fail with reports of corruption or missing files or other data
+inconsistencies, or it may appear to have succeeded having silently lost some
+of your data.
+// end::backup-warning[]
+
+A copy of the data directories of a cluster's nodes does not work as a backup
+because it is not a consistent representation of their contents at a single
+point in time. You cannot fix this by shutting down nodes while making the
+copies, nor by taking atomic filesystem-level snapshots, because {es} has
+consistency requirements that span the whole cluster. You must use the built-in
+snapshot functionality for cluster backups.
+
+[discrete]
+[[snapshot-restore-version-compatibility]]
+=== Version compatibility
+
+IMPORTANT: Version compatibility refers to the underlying Lucene index
+compatibility. Follow the <<setup-upgrade,Upgrade documentation>>
+when migrating between versions.
+
+A snapshot contains a copy of the on-disk data structures that comprise an
+index or a data stream's backing indices. This means that snapshots can only be restored to versions of
+{es} that can read the indices.
+
+The following table indicates snapshot compatibility between versions. The first column denotes the base version that you can restore snapshots from.
+
+// tag::snapshot-compatibility-matrix[]
+[cols="6"]
+|===
+| 5+^h| Cluster version
+^h| Snapshot version ^| 2.x ^| 5.x ^| 6.x ^| 7.x ^| 8.x
+^| *1.x* -> ^|{yes-icon} ^|{no-icon}  ^|{no-icon}  ^|{no-icon}  ^|{no-icon}
+^| *2.x* -> ^|{yes-icon} ^|{yes-icon} ^|{no-icon}  ^|{no-icon}  ^|{no-icon}
+^| *5.x* -> ^|{no-icon}  ^|{yes-icon} ^|{yes-icon} ^|{no-icon}  ^|{no-icon}
+^| *6.x* -> ^|{no-icon}  ^|{no-icon}  ^|{yes-icon} ^|{yes-icon} ^|{no-icon}
+^| *7.x* -> ^|{no-icon}  ^|{no-icon}  ^|{no-icon}  ^|{yes-icon} ^|{yes-icon}
+|===
+// end::snapshot-compatibility-matrix[]
+
+The following conditions apply for restoring snapshots and indices across versions:
+
+* *Snapshots*: You cannot restore snapshots from later {es} versions into a cluster running an earlier {es} version. For example, you cannot restore a snapshot taken in 7.6.0 to a cluster running 7.5.0.
+* *Indices*: You cannot restore indices into a cluster running a version of {es} that is more than _one major version_ newer than the version of {es} used to snapshot the indices. For example, you cannot restore indices from a snapshot taken in 5.0 to a cluster running 7.0.
++
+[NOTE]
+====
+The one caveat is that snapshots taken by {es} 2.0 can be restored in clusters running {es} 5.0.
+====
+
+Each snapshot can contain indices created in various versions of {es}. This
+includes backing indices created for data streams. When restoring a snapshot, it
+must be possible to restore all of these indices into the target cluster. If any
+indices in a snapshot were created in an incompatible version, you will not be
+able restore the snapshot.
+
+IMPORTANT: When backing up your data prior to an upgrade, keep in mind that you
+won't be able to restore snapshots after you upgrade if they contain indices
+created in a version that's incompatible with the upgrade version.
+
+If you end up in a situation where you need to restore a snapshot of a data stream or index
+that is incompatible with the version of the cluster you are currently running,
+you can restore it on the latest compatible version and use
+<<reindex-from-remote,reindex-from-remote>> to rebuild the data stream or index on the current
+version. Reindexing from remote is only possible if the original data stream or index has
+source enabled. Retrieving and reindexing the data can take significantly
+longer than simply restoring a snapshot. If you have a large amount of data, we
+recommend testing the reindex from remote process with a subset of your data to
+understand the time requirements before proceeding.
+
+--
+
+include::register-repository.asciidoc[]
+include::take-snapshot.asciidoc[]
+include::restore-snapshot.asciidoc[]
+include::monitor-snapshot-restore.asciidoc[]
+include::delete-snapshot.asciidoc[]
+include::../slm/index.asciidoc[]
+include::../searchable-snapshots/index.asciidoc[]

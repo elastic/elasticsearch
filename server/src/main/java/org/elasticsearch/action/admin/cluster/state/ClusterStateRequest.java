@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,9 +15,14 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Map;
 
 public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateRequest> implements IndicesRequest.Replaceable {
 
@@ -37,10 +30,10 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
 
     private boolean routingTable = true;
     private boolean nodes = true;
-    private boolean metaData = true;
+    private boolean metadata = true;
     private boolean blocks = true;
     private boolean customs = true;
-    private Long waitForMetaDataVersion;
+    private Long waitForMetadataVersion;
     private TimeValue waitForTimeout = DEFAULT_WAIT_FOR_NODE_TIMEOUT;
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
@@ -52,15 +45,13 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         super(in);
         routingTable = in.readBoolean();
         nodes = in.readBoolean();
-        metaData = in.readBoolean();
+        metadata = in.readBoolean();
         blocks = in.readBoolean();
         customs = in.readBoolean();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            waitForTimeout = in.readTimeValue();
-            waitForMetaDataVersion = in.readOptionalLong();
-        }
+        waitForTimeout = in.readTimeValue();
+        waitForMetadataVersion = in.readOptionalLong();
     }
 
     @Override
@@ -68,15 +59,13 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         super.writeTo(out);
         out.writeBoolean(routingTable);
         out.writeBoolean(nodes);
-        out.writeBoolean(metaData);
+        out.writeBoolean(metadata);
         out.writeBoolean(blocks);
         out.writeBoolean(customs);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeTimeValue(waitForTimeout);
-            out.writeOptionalLong(waitForMetaDataVersion);
-        }
+        out.writeTimeValue(waitForTimeout);
+        out.writeOptionalLong(waitForMetadataVersion);
     }
 
     @Override
@@ -87,7 +76,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
     public ClusterStateRequest all() {
         routingTable = true;
         nodes = true;
-        metaData = true;
+        metadata = true;
         blocks = true;
         customs = true;
         indices = Strings.EMPTY_ARRAY;
@@ -97,7 +86,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
     public ClusterStateRequest clear() {
         routingTable = false;
         nodes = false;
-        metaData = false;
+        metadata = false;
         blocks = false;
         customs = false;
         indices = Strings.EMPTY_ARRAY;
@@ -122,12 +111,12 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         return this;
     }
 
-    public boolean metaData() {
-        return metaData;
+    public boolean metadata() {
+        return metadata;
     }
 
-    public ClusterStateRequest metaData(boolean metaData) {
-        this.metaData = metaData;
+    public ClusterStateRequest metadata(boolean metadata) {
+        this.metadata = metadata;
         return this;
     }
 
@@ -161,6 +150,11 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         return this;
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
     public ClusterStateRequest customs(boolean customs) {
         this.customs = customs;
         return this;
@@ -179,21 +173,59 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         return this;
     }
 
-    public Long waitForMetaDataVersion() {
-        return waitForMetaDataVersion;
+    public Long waitForMetadataVersion() {
+        return waitForMetadataVersion;
     }
 
-    public ClusterStateRequest waitForMetaDataVersion(long waitForMetaDataVersion) {
-        if (waitForMetaDataVersion < 1) {
-            throw new IllegalArgumentException("provided waitForMetaDataVersion should be >= 1, but instead is [" +
-                waitForMetaDataVersion + "]");
+    public ClusterStateRequest waitForMetadataVersion(long waitForMetadataVersion) {
+        if (waitForMetadataVersion < 1) {
+            throw new IllegalArgumentException("provided waitForMetadataVersion should be >= 1, but instead is [" +
+                waitForMetadataVersion + "]");
         }
-        this.waitForMetaDataVersion = waitForMetaDataVersion;
+        this.waitForMetadataVersion = waitForMetadataVersion;
         return this;
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
+            @Override
+            public boolean shouldCancelChildrenOnCancellation() {
+                return true;
+            }
+        };
     }
+
+    @Override
+    public String getDescription() {
+        final StringBuilder stringBuilder = new StringBuilder("cluster state [");
+        if (routingTable) {
+            stringBuilder.append("routing table, ");
+        }
+        if (nodes) {
+            stringBuilder.append("nodes, ");
+        }
+        if (metadata) {
+            stringBuilder.append("metadata, ");
+        }
+        if (blocks) {
+            stringBuilder.append("blocks, ");
+        }
+        if (customs) {
+            stringBuilder.append("customs, ");
+        }
+        if (local) {
+            stringBuilder.append("local, ");
+        }
+        if (waitForMetadataVersion != null) {
+            stringBuilder.append("wait for metadata version [").append(waitForMetadataVersion)
+                    .append("] with timeout [").append(waitForTimeout).append("], ");
+        }
+        if (indices.length > 0) {
+            stringBuilder.append("indices ").append(Arrays.toString(indices)).append(", ");
+        }
+        stringBuilder.append("master timeout [").append(masterNodeTimeout).append("]]");
+        return stringBuilder.toString();
+    }
+
 }

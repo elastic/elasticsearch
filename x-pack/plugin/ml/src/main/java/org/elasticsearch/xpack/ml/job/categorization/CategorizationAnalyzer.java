@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.categorization;
 
@@ -9,20 +10,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 
 import java.io.Closeable;
@@ -35,21 +24,16 @@ import java.util.List;
  *
  * Converts messages to lists of tokens that will be fed to the ML categorization algorithm.
  *
- * The code in {@link #makeAnalyzer} and the methods it calls is largely copied from {@link TransportAnalyzeAction}.
- * Unfortunately there is no easy way to reuse a subset of the <code>_analyze</code> action implementation, as the
- * logic required here is not quite identical to that of {@link TransportAnalyzeAction}, and the required code is
- * hard to partially reuse.
- * TODO: consider refactoring ES core to allow more reuse.
  */
 public class CategorizationAnalyzer implements Closeable {
 
     private final Analyzer analyzer;
     private final boolean closeAnalyzer;
 
-    public CategorizationAnalyzer(AnalysisRegistry analysisRegistry, Environment environment,
+    public CategorizationAnalyzer(AnalysisRegistry analysisRegistry,
                                   CategorizationAnalyzerConfig categorizationAnalyzerConfig) throws IOException {
 
-        Tuple<Analyzer, Boolean> tuple = makeAnalyzer(categorizationAnalyzerConfig, analysisRegistry, environment);
+        Tuple<Analyzer, Boolean> tuple = makeAnalyzer(categorizationAnalyzerConfig, analysisRegistry);
         analyzer = tuple.v1();
         closeAnalyzer = tuple.v2();
     }
@@ -93,9 +77,9 @@ public class CategorizationAnalyzer implements Closeable {
      * server-side rather than client-side, as the client will not have loaded the appropriate analysis
      * modules/plugins.
      */
-    public static void verifyConfigBuilder(CategorizationAnalyzerConfig.Builder configBuilder, AnalysisRegistry analysisRegistry,
-                                           Environment environment) throws IOException {
-        Tuple<Analyzer, Boolean> tuple = makeAnalyzer(configBuilder.build(), analysisRegistry, environment);
+    public static void verifyConfigBuilder(CategorizationAnalyzerConfig.Builder configBuilder, AnalysisRegistry analysisRegistry)
+        throws IOException {
+        Tuple<Analyzer, Boolean> tuple = makeAnalyzer(configBuilder.build(), analysisRegistry);
         if (tuple.v2()) {
             tuple.v1().close();
         }
@@ -108,8 +92,8 @@ public class CategorizationAnalyzer implements Closeable {
      * @return The first tuple member is the {@link Analyzer}; the second indicates whether the caller is responsible
      *         for closing it.
      */
-    private static Tuple<Analyzer, Boolean> makeAnalyzer(CategorizationAnalyzerConfig config, AnalysisRegistry analysisRegistry,
-                                                         Environment environment) throws IOException {
+    private static Tuple<Analyzer, Boolean> makeAnalyzer(CategorizationAnalyzerConfig config, AnalysisRegistry analysisRegistry)
+        throws IOException {
         String analyzer = config.getAnalyzer();
         if (analyzer != null) {
             Analyzer globalAnalyzer = analysisRegistry.getAnalyzer(analyzer);
@@ -118,162 +102,9 @@ public class CategorizationAnalyzer implements Closeable {
             }
             return new Tuple<>(globalAnalyzer, Boolean.FALSE);
         } else {
-            List<CharFilterFactory> charFilterFactoryList = parseCharFilterFactories(config, analysisRegistry, environment);
-
-            Tuple<String, TokenizerFactory> tokenizerFactory = parseTokenizerFactory(config, analysisRegistry, environment);
-
-            List<TokenFilterFactory> tokenFilterFactoryList = parseTokenFilterFactories(config, analysisRegistry, environment,
-                tokenizerFactory, charFilterFactoryList);
-
-            return new Tuple<>(new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(),
-                charFilterFactoryList.toArray(new CharFilterFactory[charFilterFactoryList.size()]),
-                tokenFilterFactoryList.toArray(new TokenFilterFactory[tokenFilterFactoryList.size()])), Boolean.TRUE);
+            return new Tuple<>(analysisRegistry.buildCustomAnalyzer(null, false,
+                config.getTokenizer(), config.getCharFilters(), config.getTokenFilters()), Boolean.TRUE);
         }
     }
 
-
-    /**
-     * Get char filter factories for each configured char filter.  Each configuration
-     * element can be the name of an out-of-the-box char filter, or a custom definition.
-     */
-    private static List<CharFilterFactory> parseCharFilterFactories(CategorizationAnalyzerConfig config, AnalysisRegistry analysisRegistry,
-                                                                    Environment environment) throws IOException {
-        List<CategorizationAnalyzerConfig.NameOrDefinition> charFilters = config.getCharFilters();
-        final List<CharFilterFactory> charFilterFactoryList = new ArrayList<>();
-        for (CategorizationAnalyzerConfig.NameOrDefinition charFilter : charFilters) {
-            final CharFilterFactory charFilterFactory;
-            if (charFilter.name != null) {
-                AnalysisModule.AnalysisProvider<CharFilterFactory> charFilterFactoryFactory =
-                    analysisRegistry.getCharFilterProvider(charFilter.name);
-                if (charFilterFactoryFactory == null) {
-                    throw new IllegalArgumentException("Failed to find global char filter under [" + charFilter.name + "]");
-                }
-                charFilterFactory = charFilterFactoryFactory.get(environment, charFilter.name);
-            } else {
-                String charFilterTypeName = charFilter.definition.get("type");
-                if (charFilterTypeName == null) {
-                    throw new IllegalArgumentException("Missing [type] setting for char filter: " + charFilter.definition);
-                }
-                AnalysisModule.AnalysisProvider<CharFilterFactory> charFilterFactoryFactory =
-                    analysisRegistry.getCharFilterProvider(charFilterTypeName);
-                if (charFilterFactoryFactory == null) {
-                    throw new IllegalArgumentException("Failed to find global char filter under [" + charFilterTypeName + "]");
-                }
-                Settings settings = augmentSettings(charFilter.definition);
-                // Need to set anonymous "name" of char_filter
-                charFilterFactory = charFilterFactoryFactory.get(buildDummyIndexSettings(settings), environment, "_anonymous_charfilter",
-                    settings);
-            }
-            if (charFilterFactory == null) {
-                throw new IllegalArgumentException("Failed to find char filter [" + charFilter + "]");
-            }
-            charFilterFactoryList.add(charFilterFactory);
-        }
-        return charFilterFactoryList;
-    }
-
-    /**
-     * Get the tokenizer factory for the configured tokenizer.  The configuration
-     * can be the name of an out-of-the-box tokenizer, or a custom definition.
-     */
-    private static Tuple<String, TokenizerFactory> parseTokenizerFactory(CategorizationAnalyzerConfig config,
-                                                                         AnalysisRegistry analysisRegistry, Environment environment)
-        throws IOException {
-        CategorizationAnalyzerConfig.NameOrDefinition tokenizer = config.getTokenizer();
-        final String name;
-        final TokenizerFactory tokenizerFactory;
-        if (tokenizer.name != null) {
-            name = tokenizer.name;
-            AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(name);
-            if (tokenizerFactoryFactory == null) {
-                throw new IllegalArgumentException("Failed to find global tokenizer under [" + name + "]");
-            }
-            tokenizerFactory = tokenizerFactoryFactory.get(environment, name);
-        } else {
-            String tokenizerTypeName = tokenizer.definition.get("type");
-            if (tokenizerTypeName == null) {
-                throw new IllegalArgumentException("Missing [type] setting for tokenizer: " + tokenizer.definition);
-            }
-            AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory =
-                analysisRegistry.getTokenizerProvider(tokenizerTypeName);
-            if (tokenizerFactoryFactory == null) {
-                throw new IllegalArgumentException("Failed to find global tokenizer under [" + tokenizerTypeName + "]");
-            }
-            Settings settings = augmentSettings(tokenizer.definition);
-            // Need to set anonymous "name" of tokenizer
-            name = "_anonymous_tokenizer";
-            tokenizerFactory = tokenizerFactoryFactory.get(buildDummyIndexSettings(settings), environment, name, settings);
-        }
-        return new Tuple<>(name, tokenizerFactory);
-    }
-
-    /**
-     * Get token filter factories for each configured token filter.  Each configuration
-     * element can be the name of an out-of-the-box token filter, or a custom definition.
-     */
-    private static List<TokenFilterFactory> parseTokenFilterFactories(CategorizationAnalyzerConfig config,
-                                                                      AnalysisRegistry analysisRegistry, Environment environment,
-                                                                      Tuple<String, TokenizerFactory> tokenizerFactory,
-                                                                      List<CharFilterFactory> charFilterFactoryList) throws IOException {
-        List<CategorizationAnalyzerConfig.NameOrDefinition> tokenFilters = config.getTokenFilters();
-        TransportAnalyzeAction.DeferredTokenFilterRegistry deferredRegistry
-            = new TransportAnalyzeAction.DeferredTokenFilterRegistry(analysisRegistry, null);
-        final List<TokenFilterFactory> tokenFilterFactoryList = new ArrayList<>();
-        for (CategorizationAnalyzerConfig.NameOrDefinition tokenFilter : tokenFilters) {
-            TokenFilterFactory tokenFilterFactory;
-            if (tokenFilter.name != null) {
-                AnalysisModule.AnalysisProvider<TokenFilterFactory> tokenFilterFactoryFactory;
-                tokenFilterFactoryFactory = analysisRegistry.getTokenFilterProvider(tokenFilter.name);
-                if (tokenFilterFactoryFactory == null) {
-                    throw new IllegalArgumentException("Failed to find global token filter under [" + tokenFilter.name + "]");
-                }
-                tokenFilterFactory = tokenFilterFactoryFactory.get(environment, tokenFilter.name);
-            } else {
-                String filterTypeName = tokenFilter.definition.get("type");
-                if (filterTypeName == null) {
-                    throw new IllegalArgumentException("Missing [type] setting for token filter: " + tokenFilter.definition);
-                }
-                AnalysisModule.AnalysisProvider<TokenFilterFactory> tokenFilterFactoryFactory =
-                    analysisRegistry.getTokenFilterProvider(filterTypeName);
-                if (tokenFilterFactoryFactory == null) {
-                    throw new IllegalArgumentException("Failed to find global token filter under [" + filterTypeName + "]");
-                }
-                Settings settings = augmentSettings(tokenFilter.definition);
-                // Need to set anonymous "name" of token_filter
-                tokenFilterFactory = tokenFilterFactoryFactory.get(buildDummyIndexSettings(settings), environment, "_anonymous_tokenfilter",
-                    settings);
-                tokenFilterFactory = tokenFilterFactory.getChainAwareTokenFilterFactory(tokenizerFactory.v2(),
-                    charFilterFactoryList, tokenFilterFactoryList, deferredRegistry);
-            }
-            if (tokenFilterFactory == null) {
-                throw new IllegalArgumentException("Failed to find or create token filter [" + tokenFilter + "]");
-            }
-            tokenFilterFactoryList.add(tokenFilterFactory);
-        }
-        return tokenFilterFactoryList;
-    }
-
-    /**
-     * The Elasticsearch analysis functionality is designed to work with indices.  For
-     * categorization we have to pretend we've got some index settings.
-     */
-    private static IndexSettings buildDummyIndexSettings(Settings settings) {
-        IndexMetaData metaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(settings).build();
-        return new IndexSettings(metaData, Settings.EMPTY);
-    }
-
-    /**
-     * The behaviour of Elasticsearch analyzers can vary between versions.
-     * For categorization we'll always use the latest version of the text analysis.
-     * The other settings are just to stop classes that expect to be associated with
-     * an index from complaining.
-     */
-    private static Settings augmentSettings(Settings settings) {
-        return Settings.builder().put(settings)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .build();
-    }
 }

@@ -1,0 +1,53 @@
+---
+apiVersion: v1
+
+# The repository name in registry1, excluding /ironbank/
+name: "elastic/elasticsearch/elasticsearch"
+
+# List of tags to push for the repository in registry1
+# The most specific version should be the first tag and will be shown
+# on ironbank.dsop.io
+tags:
+- "${version}"
+- "latest"
+
+# Build args passed to Dockerfile ARGs
+args:
+  BASE_IMAGE: "redhat/ubi/ubi8"
+  BASE_TAG: "8.4"
+
+# Docker image labels
+labels:
+  org.opencontainers.image.title: "elasticsearch"
+  # Human-readable description of the software packaged in the image
+  org.opencontainers.image.description: "You know, for search."
+  # License(s) under which contained software is distributed
+  org.opencontainers.image.licenses: "${license}"
+  # URL to find more information on the image
+  org.opencontainers.image.url: "https://github.com/elastic/elasticsearch"
+  # Name of the distributing entity, organization or individual
+  org.opencontainers.image.vendor: "Elastic"
+  org.opencontainers.image.version: "${version}"
+  # Keywords to help with search (ex. "cicd,gitops,golang")
+  mil.dso.ironbank.image.keywords: "search,elastic,elasticsearch,java"
+  # This value can be "opensource" or "commercial"
+  mil.dso.ironbank.image.type: "commercial"
+  # Product the image belongs to for grouping multiple images
+  mil.dso.ironbank.product.name: "elasticsearch"
+
+# List of resources to make available to the offline build context
+resources:
+  - filename: "elasticsearch-${version}-linux-x86_64.tar.gz"
+    url: "<artifact_path>/elasticsearch-${version}-linux-x86_64.tar.gz"
+  - filename: "tini"
+    url: "https://github.com/krallin/tini/releases/download/v0.19.0/tini-amd64"
+    validation:
+      type: "sha256"
+      value: "93dcc18adc78c65a028a84799ecf8ad40c936fdfc5f2a57b1acda5a8117fa82c"
+
+# List of project maintainers
+maintainers:
+  - name: "Nassim Kammah"
+    email: "nassim.kammah@elastic.co"
+  - name: "Rory Hunter"
+    email: "rory.hunter@elastic.co"

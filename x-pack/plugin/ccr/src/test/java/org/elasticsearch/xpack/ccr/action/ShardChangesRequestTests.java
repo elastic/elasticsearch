@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ShardChangesRequestTests extends AbstractStreamableTestCase<ShardChangesAction.Request> {
+public class ShardChangesRequestTests extends AbstractWireSerializingTestCase<ShardChangesAction.Request> {
 
     @Override
     protected ShardChangesAction.Request createTestInstance() {
@@ -23,8 +25,8 @@ public class ShardChangesRequestTests extends AbstractStreamableTestCase<ShardCh
     }
 
     @Override
-    protected ShardChangesAction.Request createBlankInstance() {
-        return new ShardChangesAction.Request();
+    protected Writeable.Reader<ShardChangesAction.Request> instanceReader() {
+        return ShardChangesAction.Request::new;
     }
 
     public void testValidate() {

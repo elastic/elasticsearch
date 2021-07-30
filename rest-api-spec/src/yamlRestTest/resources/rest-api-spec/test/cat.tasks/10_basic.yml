@@ -1,0 +1,34 @@
+---
+"Test cat tasks output":
+
+  - do:
+      cat.tasks: {}
+
+  - match:
+      $body: |
+               / # action  task_id      parent_task_id      type    start_time   timestamp            running_time  ip                                  node
+               ^(  \S+\s+  \S+\:\d+\s+  (?:\-|\S+\:\d+)\s+  \S+\s+  \d+\s+       \d\d\:\d\d\:\d\d\s+  \S+\s+        \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}\s+  \S+\n)+$/
+
+  - do:
+      cat.tasks:
+       detailed: true
+
+  - match:
+      $body: |
+               / # action  task_id      parent_task_id      type    start_time   timestamp            running_time  ip                                  node   description
+               ^(  \S+\s+  \S+\:\d+\s+  (?:\-|\S+\:\d+)\s+  \S+\s+  \d+\s+       \d\d\:\d\d\:\d\d\s+  \S+\s+        \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}\s+  \S+\s+ .*\n)+$/
+
+---
+"Test cat tasks output with X-Opaque-Id":
+  - skip:
+      version: " - 7.9.99"
+      reason: support for opaque_id was added in 7.10.0
+      features: headers
+
+  - do:
+      headers: { "X-Opaque-Id": "TestID" }
+      cat.tasks:
+        h: ["action", "x_opaque_id"]
+
+  - match:
+      $body: /TestID/

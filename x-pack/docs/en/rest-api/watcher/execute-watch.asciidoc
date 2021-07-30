@@ -1,20 +1,30 @@
 [role="xpack"]
 [[watcher-api-execute-watch]]
-=== Execute Watch API
+=== Execute watch API
+++++
+<titleabbrev>Execute watch</titleabbrev>
+++++
 
-The execute watch API forces the execution of a stored watch. It can be used to
-force execution of the watch outside of its triggering logic, or to simulate the
-watch execution for debugging purposes.
+Forces the execution of a stored watch.
 
-[float]
-==== Request
+[[watcher-api-execute-watch-request]]
+==== {api-request-title}
 
 `POST _watcher/watch/<watch_id>/_execute` +
 
 `POST _watcher/watch/_execute`
 
-[float]
-==== Description
+[[watcher-api-execute-watch-prereqs]]
+==== {api-prereq-title}
+
+* You must have `manage_watcher` cluster privileges to use this API. For more
+information, see <<security-privileges>>.
+
+[[watcher-api-execute-watch-desc]]
+==== {api-description-title}
+
+This API can be used to force execution of the watch outside of its triggering
+logic or to simulate the watch execution for debugging purposes.
 
 For testing and debugging purposes, you also have fine-grained control on how
 the watch runs. You can execute the watch without executing all of its actions
@@ -22,29 +32,28 @@ or alternatively by simulating them. You can also force execution by ignoring
 the watch condition and control whether a watch record would be written to the
 watch history after execution.
 
-[float]
 [[watcher-api-execute-inline-watch]]
-===== Inline Watch Execution
+===== Inline watch execution
 
 You can use the Execute API to execute watches that are not yet registered by
 specifying the watch definition inline. This serves as great tool for testing
 and debugging your watches prior to adding them to {watcher}.
 
-[float]
-==== Path Parameters
+[[watcher-api-execute-watch-path-params]]
+==== {api-path-parms-title}
 
-`watch_id`::
-  (string) Identifier for the watch.
+`<watch_id>`::
+  (Optional, string) Identifier for the watch.
 
-[float]
-==== Query Parameters
+[[watcher-api-execute-watch-query-params]]
+==== {api-query-parms-title}
 
 `debug`::
-  (boolean) Defines whether the watch runs in debug mode. The default value is
-  `false`.
+  (Optional, Boolean) Defines whether the watch runs in debug mode. The default
+  value is `false`.
 
-[float]
-==== Request Body
+[[watcher-api-execute-watch-request-body]]
+==== {api-request-body-title}
 
 This API supports the following fields:
 
@@ -56,14 +65,14 @@ This API supports the following fields:
                                               that will be used during the watch execution
 
 | `ignore_condition`  | no       | false    | When set to `true`, the watch execution uses the
-                                              {xpack-ref}/condition-always.html[Always Condition].
+                                              <<condition-always,always condition>>.
                                               This can also be specified as an HTTP parameter.
 
 | `alternative_input` | no       | null     | When present, the watch uses this object as a payload
                                               instead of executing its own input.
 
 | `action_modes`      | no       | null     | Determines how to handle the watch actions as part of the
-                                              watch execution. See <<watcher-api-execute-watch-action-mode, Action Execution Modes>>
+                                              watch execution. See <<watcher-api-execute-watch-action-mode>>
                                               for more information.
 
 | `record_execution`  | no       | false    | When set to `true`, the watch record representing the watch
@@ -72,15 +81,13 @@ This API supports the following fields:
                                               watch is updated, possibly throttling subsequent executions.
                                               This can also be specified as an HTTP parameter.
 
-| `watch`             | no       | null     | When present, this
-                                              {xpack-ref}/how-watcher-works.html#watch-definition[watch] is used
+| `watch`             | no       | null     | When present, this <<watch-definition,watch>> is used
                                               instead of the one specified in the request. This watch is
                                               not persisted to the index and record_execution cannot be set.
 |======
 
-[float]
 [[watcher-api-execute-watch-action-mode]]
-===== Action Execution Modes
+===== Action execution modes
 
 Action modes define how actions are handled during the watch execution. There
 are five possible modes an action can be associated with:
@@ -90,18 +97,18 @@ are five possible modes an action can be associated with:
 | Name              | Description
 
 | `simulate`        | The action execution is simulated. Each action type
-                      define its own simulation operation mode. For example, the
-                      {xpack-ref}/actions-email.html[email] action creates
+                      defines its own simulation operation mode. For example, the
+                      <<actions-email,`email` action>> creates
                       the email that would have been sent but does not actually
                       send it. In this mode, the action might be throttled if the
                       current state of the watch indicates it should be.
 
-| `force_simulate`  | Similar to the the `simulate` mode, except the action is
-                      not be throttled even if the current state of the watch
+| `force_simulate`  | Similar to the `simulate` mode, except the action is
+                      not throttled even if the current state of the watch
                       indicates it should be.
 
 | `execute`         | Executes the action as it would have been executed if the
-                      watch would have been triggered by its own trigger. The
+                      watch had been triggered by its own trigger. The
                       execution might be throttled if the current state of the
                       watch indicates it should be.
 
@@ -113,38 +120,38 @@ are five possible modes an action can be associated with:
                       Effectively forces the action to be throttled.
 |======
 
-[float]
-==== Authorization
-You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {xpack-ref}/security-privileges.html[Security Privileges].
+[[watcher-api-execute-watch-security]]
+===== Security integration
 
-[float]
-==== Security Integration
-
-When {security} is enabled on your Elasticsearch cluster, then watches will be
-executed with the privileges of the user that stored the watches. If your user
-is allowed to read index `a`, but not index `b`, then the exact same set of
+When {es} {security-features} are enabled on your cluster, watches
+are executed with the privileges of the user that stored the watches. If your
+user is allowed to read index `a`, but not index `b`, then the exact same set of
 rules will apply during execution of a watch.
 
 When using the execute watch API, the authorization data of the user that
-called the API will be used as a base, instead of of the information who stored
+called the API will be used as a base, instead of the information who stored
 the watch.
 
-[float]
-==== Examples
+//[[watcher-api-execute-watch-response-body]]
+//==== {api-response-body-title}
+
+//[[watcher-api-execute-watch-response-codes]]
+//==== {api-response-codes-title}
+
+[[watcher-api-execute-watch-example]]
+==== {api-examples-title}
 
 The following example executes the `my_watch` watch:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/my_watch/_execute
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]
 
 The following example shows a comprehensive example of executing the `my-watch` watch:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/my_watch/_execute
 {
@@ -162,8 +169,8 @@ POST _watcher/watch/my_watch/_execute
   "record_execution" : true <5>
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]
+
 <1> The triggered and schedule times are provided.
 <2> The input as defined by the watch is ignored and instead the provided input
     is used as the execution payload.
@@ -177,11 +184,12 @@ POST _watcher/watch/my_watch/_execute
 
 This is an example of the output:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_id": "my_watch_0-2015-06-02T23:17:55.124Z", <1>
   "watch_record": { <2>
+    "@timestamp": "2015-06-02T23:17:55.124Z",
     "watch_id": "my_watch",
     "node": "my_node",
     "messages": [],
@@ -252,7 +260,6 @@ This is an example of the output:
           "index": {
             "response": {
               "index": "test",
-              "type": "test2",
               "version": 1,
               "created": true,
               "result": "created",
@@ -270,6 +277,7 @@ This is an example of the output:
 --------------------------------------------------
 // TESTRESPONSE[s/my_watch_0-2015-06-02T23:17:55.124Z/$body._id/]
 // TESTRESPONSE[s/"triggered_time": "2015-06-02T23:17:55.124Z"/"triggered_time": "$body.watch_record.trigger_event.triggered_time"/]
+// TESTRESPONSE[s/"@timestamp": "2015-06-02T23:17:55.124Z"/"@timestamp": "$body.watch_record.trigger_event.triggered_time"/]
 // TESTRESPONSE[s/"scheduled_time": "2015-06-02T23:17:55.124Z"/"scheduled_time": "$body.watch_record.trigger_event.manual.schedule.scheduled_time"/]
 // TESTRESPONSE[s/"execution_time": "2015-06-02T23:17:55.124Z"/"execution_time": "$body.watch_record.result.execution_time"/]
 // TESTRESPONSE[s/"timestamp": "2015-06-02T23:17:55.111Z"/"timestamp": "$body.watch_record.status.state.timestamp"/]
@@ -287,7 +295,7 @@ This is an example of the output:
 You can set a different execution mode for every action by associating the mode
 name with the action id:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/my_watch/_execute
 {
@@ -297,13 +305,12 @@ POST _watcher/watch/my_watch/_execute
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]
 
 You can also associate a single execution mode with all the actions in the watch
 using `_all` as the action id:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/my_watch/_execute
 {
@@ -312,12 +319,11 @@ POST _watcher/watch/my_watch/_execute
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]
 
 The following example shows how to execute a watch inline:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/_execute
 {
@@ -348,13 +354,12 @@ POST _watcher/watch/_execute
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 All other settings for this API still apply when inlining a watch. In the
 following snippet, while the inline watch defines a `compare` condition,
 during the execution this condition will be ignored:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/_execute
 {
@@ -386,4 +391,3 @@ POST _watcher/watch/_execute
   }
 }
 --------------------------------------------------
-// CONSOLE

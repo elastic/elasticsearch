@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -36,6 +36,7 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
@@ -50,10 +51,14 @@ import org.elasticsearch.client.RestClientBuilder.HttpClientConfigCallback;
 import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyStore;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 
@@ -91,7 +96,7 @@ public class RestClientDocumentation {
     // end::rest-client-options-singleton
 
     @SuppressWarnings("unused")
-    public void testUsage() throws IOException, InterruptedException {
+    public void usage() throws IOException, InterruptedException {
 
         //tag::rest-client-init
         RestClient restClient = RestClient.builder(
@@ -110,13 +115,6 @@ public class RestClientDocumentation {
             Header[] defaultHeaders = new Header[]{new BasicHeader("header", "value")};
             builder.setDefaultHeaders(defaultHeaders); // <1>
             //end::rest-client-init-default-headers
-        }
-        {
-            //tag::rest-client-init-max-retry-timeout
-            RestClientBuilder builder = RestClient.builder(
-                new HttpHost("localhost", 9200, "http"));
-            builder.setMaxRetryTimeoutMillis(10000); // <1>
-            //end::rest-client-init-max-retry-timeout
         }
         {
             //tag::rest-client-init-node-selector
@@ -213,16 +211,17 @@ public class RestClientDocumentation {
             Request request = new Request(
                 "GET",  // <1>
                 "/");   // <2>
-            restClient.performRequestAsync(request, new ResponseListener() {
-                @Override
-                public void onSuccess(Response response) {
-                    // <3>
-                }
+            Cancellable cancellable = restClient.performRequestAsync(request,
+                new ResponseListener() {
+                    @Override
+                    public void onSuccess(Response response) {
+                        // <3>
+                    }
 
-                @Override
-                public void onFailure(Exception exception) {
-                    // <4>
-                }
+                    @Override
+                    public void onFailure(Exception exception) {
+                        // <4>
+                    }
             });
             //end::rest-client-async
         }
@@ -279,6 +278,26 @@ public class RestClientDocumentation {
             //end::rest-client-async-example
         }
         {
+            //tag::rest-client-async-cancel
+            Request request = new Request("GET", "/posts/_search");
+            Cancellable cancellable = restClient.performRequestAsync(
+                request,
+                new ResponseListener() {
+                    @Override
+                    public void onSuccess(Response response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception exception) {
+                        // <2>
+                    }
+                }
+            );
+            cancellable.cancel();
+            //end::rest-client-async-cancel
+        }
+        {
             //tag::rest-client-response2
             Response response = restClient.performRequest(new Request("GET", "/"));
             RequestLine requestLine = response.getRequestLine(); // <1>
@@ -291,7 +310,7 @@ public class RestClientDocumentation {
     }
 
     @SuppressWarnings("unused")
-    public void testCommonConfiguration() throws Exception {
+    public void commonConfiguration() throws Exception {
         {
             //tag::rest-client-config-timeouts
             RestClientBuilder builder = RestClient.builder(
@@ -305,9 +324,19 @@ public class RestClientDocumentation {
                                 .setConnectTimeout(5000)
                                 .setSocketTimeout(60000);
                         }
-                    })
-                .setMaxRetryTimeoutMillis(60000);
+                    });
             //end::rest-client-config-timeouts
+        }
+        {
+            //tag::rest-client-config-request-options-timeouts
+            RequestConfig requestConfig = RequestConfig.custom()
+                .setConnectTimeout(5000)
+                .setSocketTimeout(60000)
+                .build();
+            RequestOptions options = RequestOptions.DEFAULT.toBuilder()
+                .setRequestConfig(requestConfig)
+                .build();
+            //end::rest-client-config-request-options-timeouts
         }
         {
             //tag::rest-client-config-threads
@@ -330,7 +359,7 @@ public class RestClientDocumentation {
             final CredentialsProvider credentialsProvider =
                 new BasicCredentialsProvider();
             credentialsProvider.setCredentials(AuthScope.ANY,
-                new UsernamePasswordCredentials("user", "password"));
+                new UsernamePasswordCredentials("user", "test-user-password"));
 
             RestClientBuilder builder = RestClient.builder(
                 new HttpHost("localhost", 9200))
@@ -349,7 +378,7 @@ public class RestClientDocumentation {
             final CredentialsProvider credentialsProvider =
                 new BasicCredentialsProvider();
             credentialsProvider.setCredentials(AuthScope.ANY,
-                new UsernamePasswordCredentials("user", "password"));
+                new UsernamePasswordCredentials("user", "test-user-password"));
 
             RestClientBuilder builder = RestClient.builder(
                 new HttpHost("localhost", 9200))
@@ -365,11 +394,11 @@ public class RestClientDocumentation {
             //end::rest-client-config-disable-preemptive-auth
         }
         {
-            Path keyStorePath = Paths.get("");
             String keyStorePass = "";
             //tag::rest-client-config-encrypted-communication
-            KeyStore truststore = KeyStore.getInstance("jks");
-            try (InputStream is = Files.newInputStream(keyStorePath)) {
+            Path trustStorePath = Paths.get("/path/to/truststore.p12");
+            KeyStore truststore = KeyStore.getInstance("pkcs12");
+            try (InputStream is = Files.newInputStream(trustStorePath)) {
                 truststore.load(is, keyStorePass.toCharArray());
             }
             SSLContextBuilder sslBuilder = SSLContexts.custom()
@@ -386,5 +415,87 @@ public class RestClientDocumentation {
                 });
             //end::rest-client-config-encrypted-communication
         }
+        {
+            //tag::rest-client-config-trust-ca-pem
+            Path caCertificatePath = Paths.get("/path/to/ca.crt");
+            CertificateFactory factory =
+                CertificateFactory.getInstance("X.509");
+            Certificate trustedCa;
+            try (InputStream is = Files.newInputStream(caCertificatePath)) {
+                trustedCa = factory.generateCertificate(is);
+            }
+            KeyStore trustStore = KeyStore.getInstance("pkcs12");
+            trustStore.load(null, null);
+            trustStore.setCertificateEntry("ca", trustedCa);
+            SSLContextBuilder sslContextBuilder = SSLContexts.custom()
+                .loadTrustMaterial(trustStore, null);
+            final SSLContext sslContext = sslContextBuilder.build();
+            RestClient.builder(
+                new HttpHost("localhost", 9200, "https"))
+                .setHttpClientConfigCallback(new HttpClientConfigCallback() {
+                    @Override
+                    public HttpAsyncClientBuilder customizeHttpClient(
+                        HttpAsyncClientBuilder httpClientBuilder) {
+                        return httpClientBuilder.setSSLContext(sslContext);
+                    }
+                });
+            //end::rest-client-config-trust-ca-pem
+        }
+        {
+            String trustStorePass = "";
+            String keyStorePass = "";
+            //tag::rest-client-config-mutual-tls-authentication
+            Path trustStorePath = Paths.get("/path/to/your/truststore.p12");
+            Path keyStorePath = Paths.get("/path/to/your/keystore.p12");
+            KeyStore trustStore = KeyStore.getInstance("pkcs12");
+            KeyStore keyStore = KeyStore.getInstance("pkcs12");
+            try (InputStream is = Files.newInputStream(trustStorePath)) {
+                trustStore.load(is, trustStorePass.toCharArray());
+            }
+            try (InputStream is = Files.newInputStream(keyStorePath)) {
+                keyStore.load(is, keyStorePass.toCharArray());
+            }
+            SSLContextBuilder sslBuilder = SSLContexts.custom()
+                .loadTrustMaterial(trustStore, null)
+                .loadKeyMaterial(keyStore, keyStorePass.toCharArray());
+            final SSLContext sslContext = sslBuilder.build();
+            RestClientBuilder builder = RestClient.builder(
+                new HttpHost("localhost", 9200, "https"))
+                .setHttpClientConfigCallback(new HttpClientConfigCallback() {
+                    @Override
+                    public HttpAsyncClientBuilder customizeHttpClient(
+                        HttpAsyncClientBuilder httpClientBuilder) {
+                        return httpClientBuilder.setSSLContext(sslContext);
+                    }
+                });
+            //end::rest-client-config-mutual-tls-authentication
+        }
+        {
+            //tag::rest-client-auth-bearer-token
+            RestClientBuilder builder = RestClient.builder(
+                new HttpHost("localhost", 9200, "http"));
+            Header[] defaultHeaders =
+                new Header[]{new BasicHeader("Authorization",
+                    "Bearer u6iuAxZ0RG1Kcm5jVFI4eU4tZU9aVFEwT2F3")};
+            builder.setDefaultHeaders(defaultHeaders);
+            //end::rest-client-auth-bearer-token
+        }
+        {
+            //tag::rest-client-auth-api-key
+            String apiKeyId = "uqlEyn8B_gQ_jlvwDIvM";
+            String apiKeySecret = "HxHWk2m4RN-V_qg9cDpuX";
+            String apiKeyAuth =
+                Base64.getEncoder().encodeToString(
+                    (apiKeyId + ":" + apiKeySecret)
+                        .getBytes(StandardCharsets.UTF_8));
+            RestClientBuilder builder = RestClient.builder(
+                new HttpHost("localhost", 9200, "http"));
+            Header[] defaultHeaders =
+                new Header[]{new BasicHeader("Authorization",
+                    "ApiKey " + apiKeyAuth)};
+            builder.setDefaultHeaders(defaultHeaders);
+            //end::rest-client-auth-api-key
+        }
+
     }
 }

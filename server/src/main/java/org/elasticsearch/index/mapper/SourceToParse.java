@@ -1,57 +1,49 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
-import java.util.Objects;
-
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 
-public class SourceToParse {
+import java.util.Map;
+import java.util.Objects;
 
-    public static SourceToParse source(String index, String type, String id, BytesReference source,
-                                       XContentType contentType) {
-        return new SourceToParse(index, type, id, source, contentType);
-    }
+public class SourceToParse {
 
     private final BytesReference source;
 
     private final String index;
 
-    private final String type;
-
     private final String id;
 
-    private String routing;
+    private final @Nullable String routing;
 
-    private XContentType xContentType;
+    private final XContentType xContentType;
 
-    private SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType) {
+    private final Map<String, String> dynamicTemplates;
+
+    public SourceToParse(String index, String id, BytesReference source, XContentType xContentType, @Nullable String routing,
+                         Map<String, String> dynamicTemplates) {
         this.index = Objects.requireNonNull(index);
-        this.type = Objects.requireNonNull(type);
         this.id = Objects.requireNonNull(id);
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
         this.xContentType = Objects.requireNonNull(xContentType);
+        this.routing = routing;
+        this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
+    }
+
+    public SourceToParse(String index, String id, BytesReference source, XContentType xContentType) {
+        this(index, id, source, xContentType, null, Map.of());
     }
 
     public BytesReference source() {
@@ -62,25 +54,23 @@ public class SourceToParse {
         return this.index;
     }
 
-    public String type() {
-        return this.type;
-    }
-
     public String id() {
         return this.id;
     }
 
-    public String routing() {
+    public @Nullable String routing() {
         return this.routing;
+    }
+
+    /**
+     * Returns a map from the full path (i.e. foo.bar) of field names to the names of dynamic mapping templates.
+     */
+    public Map<String, String> dynamicTemplates() {
+        return dynamicTemplates;
     }
 
     public XContentType getXContentType() {
         return this.xContentType;
-    }
-
-    public SourceToParse routing(String routing) {
-        this.routing = routing;
-        return this;
     }
 
     public enum Origin {

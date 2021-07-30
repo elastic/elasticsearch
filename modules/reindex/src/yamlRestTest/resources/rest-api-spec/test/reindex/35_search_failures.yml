@@ -1,0 +1,42 @@
+---
+"Response format for search failures":
+  - do:
+      indices.create:
+        index: source
+        body:
+          settings:
+            index.number_of_shards: 2
+
+  - do:
+      index:
+        index:   source
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: bad_request
+      reindex:
+        body:
+          source:
+            index:   source
+            query:
+              script:
+                script:
+                  lang: painless
+                  source: throw new IllegalArgumentException("Cats!")
+          dest:
+            index:   dest
+  - match: {error.type: search_phase_execution_exception}
+  - match: {error.reason: "Partial shards failure"}
+  - match: {error.phase: query}
+  - match: {error.root_cause.0.type:   script_exception}
+  - match: {error.root_cause.0.reason: runtime error}
+  - match: {error.failed_shards.0.shard: 0}
+  - match: {error.failed_shards.0.index:  source}
+  - is_true: error.failed_shards.0.node
+  - match: {error.failed_shards.0.reason.type:   script_exception}
+  - match: {error.failed_shards.0.reason.reason: runtime error}
+  - match: {error.failed_shards.0.reason.caused_by.type:   illegal_argument_exception}
+  - match: {error.failed_shards.0.reason.caused_by.reason: Cats!}

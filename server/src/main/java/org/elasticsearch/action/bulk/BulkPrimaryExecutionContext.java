@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -172,11 +161,6 @@ class BulkPrimaryExecutionContext {
         return getCurrentItem().index();
     }
 
-    /** returns any primary response that was set by a previous primary */
-    public BulkItemResponse getPreviousPrimaryResponse() {
-        return getCurrentItem().getPrimaryResponse();
-    }
-
     /** returns a translog location that is needed to be synced in order to persist all operations executed so far */
     public Translog.Location getLocationToSync() {
         assert hasMoreOperationsToExecute() == false;
@@ -244,7 +228,7 @@ class BulkPrimaryExecutionContext {
         executionResult = new BulkItemResponse(getCurrentItem().id(), docWriteRequest.opType(),
             // Make sure to use getCurrentItem().index() here, if you use docWriteRequest.index() it will use the
             // concrete index instead of an alias if used!
-            new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.type(), docWriteRequest.id(), cause));
+            new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.id(), cause));
         markAsCompleted(executionResult);
     }
 
@@ -258,11 +242,11 @@ class BulkPrimaryExecutionContext {
                 final DocWriteResponse response;
                 if (result.getOperationType() == Engine.Operation.TYPE.INDEX) {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
-                    response = new IndexResponse(primary.shardId(), requestToExecute.type(), requestToExecute.id(),
+                    response = new IndexResponse(primary.shardId(), requestToExecute.id(),
                         result.getSeqNo(), result.getTerm(), indexResult.getVersion(), indexResult.isCreated());
                 } else if (result.getOperationType() == Engine.Operation.TYPE.DELETE) {
                     Engine.DeleteResult deleteResult = (Engine.DeleteResult) result;
-                    response = new DeleteResponse(primary.shardId(), requestToExecute.type(), requestToExecute.id(),
+                    response = new DeleteResponse(primary.shardId(), requestToExecute.id(),
                         deleteResult.getSeqNo(), result.getTerm(), deleteResult.getVersion(), deleteResult.isFound());
 
                 } else {
@@ -278,8 +262,8 @@ class BulkPrimaryExecutionContext {
                     // Make sure to use request.index() here, if you
                     // use docWriteRequest.index() it will use the
                     // concrete index instead of an alias if used!
-                    new BulkItemResponse.Failure(request.index(), docWriteRequest.type(), docWriteRequest.id(),
-                        result.getFailure(), result.getSeqNo()));
+                    new BulkItemResponse.Failure(request.index(), docWriteRequest.id(),
+                        result.getFailure(), result.getSeqNo(), result.getTerm()));
                 break;
             default:
                 throw new AssertionError("unknown result type for " + getCurrentItem() + ": " + result.getResultType());

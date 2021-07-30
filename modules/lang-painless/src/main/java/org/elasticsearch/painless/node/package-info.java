@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 /**
@@ -33,17 +22,13 @@
  * {@link org.elasticsearch.painless.node.AExpression} - The superclass for all E* (expression) and P* (postfix) nodes.
  * {@link org.elasticsearch.painless.node.ANode} - The superclass for all nodes.
  * {@link org.elasticsearch.painless.node.AStatement} - The superclass for all S* (statement) nodes.
- * {@link org.elasticsearch.painless.node.AStoreable} - The super class for an expression that can store a value in local memory.
  * {@link org.elasticsearch.painless.node.EAssignment} - Represents an assignment with the lhs and rhs as child nodes.
  * {@link org.elasticsearch.painless.node.EBinary} - Represents a binary math expression.
- * {@link org.elasticsearch.painless.node.EBool} - Represents a boolean expression.
- * {@link org.elasticsearch.painless.node.EBoolean} - Represents a boolean constant.
+ * {@link org.elasticsearch.painless.node.EBooleanComp} - Represents a boolean expression.
+ * {@link org.elasticsearch.painless.node.EBooleanConstant} - Represents a boolean constant.
  * {@link org.elasticsearch.painless.node.ECallLocal} - Represents a user-defined call.
- * {@link org.elasticsearch.painless.node.ECapturingFunctionRef} - Represents a function reference (capturing).
- * {@link org.elasticsearch.painless.node.ECast} - Represents a cast inserted into the tree replacing others. (Internal only.)
  * {@link org.elasticsearch.painless.node.EComp} - Represents a comparison expression.
  * {@link org.elasticsearch.painless.node.EConditional} - Represents a conditional expression.
- * {@link org.elasticsearch.painless.node.EConstant} - Represents a constant inserted into the tree replacing others. (Internal only.)
  * {@link org.elasticsearch.painless.node.EDecimal} - Represents a decimal constant.
  * {@link org.elasticsearch.painless.node.EExplicit} - Represents an explicit cast.
  * {@link org.elasticsearch.painless.node.EFunctionRef} - Represents a function reference (non-capturing).
@@ -56,24 +41,12 @@
  * {@link org.elasticsearch.painless.node.ENull} - Represents a null constant.
  * {@link org.elasticsearch.painless.node.ENumeric} - Represents a non-decimal numeric constant.
  * {@link org.elasticsearch.painless.node.ERegex} - Represents a regular expression constant.
- * {@link org.elasticsearch.painless.node.EStatic} - Represents a static type target.
  * {@link org.elasticsearch.painless.node.EString} - Represents a string constant.
  * {@link org.elasticsearch.painless.node.EUnary} - Represents a unary math expression.
- * {@link org.elasticsearch.painless.node.EVariable} - Represents a variable load/store.
- * {@link org.elasticsearch.painless.node.ILambda} - Represents a marker to signify this node is a lambda function.
- * {@link org.elasticsearch.painless.node.PBrace} - Represents an array load/store and defers to a child subnode.
- * {@link org.elasticsearch.painless.node.PCallInvoke} - Represents a method call and defers to a child subnode.
- * {@link org.elasticsearch.painless.node.PField} - Represents a field load/store and defers to a child subnode.
- * {@link org.elasticsearch.painless.node.PSubArrayLength} - Represents an array length field load.
- * {@link org.elasticsearch.painless.node.PSubBrace} - Represents an array load/store.
- * {@link org.elasticsearch.painless.node.PSubCallInvoke} - Represents a method call.
- * {@link org.elasticsearch.painless.node.PSubDefArray} - Represents an array load/store or shortcut on a def type.  (Internal only.)
- * {@link org.elasticsearch.painless.node.PSubDefCall} - Represents a method call made on a def type. (Internal only.)
- * {@link org.elasticsearch.painless.node.PSubDefField} - Represents a field load/store or shortcut on a def type.  (Internal only.)
- * {@link org.elasticsearch.painless.node.PSubField} - Represents a field load/store.
- * {@link org.elasticsearch.painless.node.PSubListShortcut} - Represents a list load/store shortcut.  (Internal only.)
- * {@link org.elasticsearch.painless.node.PSubMapShortcut} - Represents a map load/store shortcut. (Internal only.)
- * {@link org.elasticsearch.painless.node.PSubShortcut} - Represents a field load/store shortcut.  (Internal only.)
+ * {@link org.elasticsearch.painless.node.ESymbol} - Represents a variable load/store.
+ * {@link org.elasticsearch.painless.node.EBrace} - Represents an array load/store and defers to a child subnode.
+ * {@link org.elasticsearch.painless.node.ECall} - Represents a method call and defers to a child subnode.
+ * {@link org.elasticsearch.painless.node.EDot} - Represents a field load/store and defers to a child subnode.
  * {@link org.elasticsearch.painless.node.SBlock} - Represents a set of statements as a branch of control-flow.
  * {@link org.elasticsearch.painless.node.SBreak} - Represents a break statement.
  * {@link org.elasticsearch.painless.node.SCatch} - Represents a catch block as part of a try-catch block.
@@ -88,9 +61,7 @@
  * {@link org.elasticsearch.painless.node.SIf} - Represents an if block.
  * {@link org.elasticsearch.painless.node.SIfElse} - Represents an if/else block.
  * {@link org.elasticsearch.painless.node.SReturn} - Represents a return statement.
- * {@link org.elasticsearch.painless.node.SSource} - The root of all Painless trees.  Contains a series of statements.
- * {@link org.elasticsearch.painless.node.SSubEachArray} - Represents a for-each loop for arrays.
- * {@link org.elasticsearch.painless.node.SSubEachIterable} - Represents a for-each loop for iterables.
+ * {@link org.elasticsearch.painless.node.SClass} - The root of all Painless trees.  Contains a series of statements.
  * {@link org.elasticsearch.painless.node.SThrow} - Represents a throw statement.
  * {@link org.elasticsearch.painless.node.STry} - Represents the try block as part of a try-catch block.
  * {@link org.elasticsearch.painless.node.SWhile} - Represents a while loop.
@@ -98,7 +69,7 @@
  * Note that internal nodes are generated during the analysis phase by modifying the tree on-the-fly
  * for clarity of development and convenience during the writing phase.
  * <p>
- * All Painless trees must start with an SSource node at the root.  Each node has a constructor that requires
+ * All Painless trees must start with an SClass node at the root.  Each node has a constructor that requires
  * all of its values and children be passed in at the time of instantiation.  This means that Painless trees
  * are build bottom-up; however, this helps enforce tree structure correctness and fits naturally with a
  * standard recursive-descent parser.
@@ -109,7 +80,7 @@
  * <p>
  * Generally, expression nodes have member data that evaluate static and def types.  The typical order for an expression node
  * during the analysis phase looks like the following:
- * {@code
+ * <pre>{@code
  * For known expected types:
  *
  * expression.child.expected = expectedType      // set the known expected type
@@ -132,7 +103,7 @@
  * expression.child = expression.child.cast(...) // add an implicit cast node if the child node's
  *                                               // actual type is not the expected type and set the
  *                                               // expression's child to the implicit cast node
- * }
+ * }</pre>
  * Expression nodes just call each child during the writing phase.
  * <p>
  * Postfix nodes represent postfixes in a variable/method chain including braces, calls, or fields.

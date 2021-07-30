@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
@@ -56,7 +45,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
             .put(ThreadContext.PREFIX + ".key2", "val 2")
             .build();
 
-    private static final Action<?>[] ACTIONS = new Action[] {
+    private static final ActionType<?>[] ACTIONS = new ActionType[] {
                 // client actions
                 GetAction.INSTANCE, SearchAction.INSTANCE, DeleteAction.INSTANCE, DeleteStoredScriptAction.INSTANCE,
                 IndexAction.INSTANCE,
@@ -92,7 +81,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         terminate(threadPool);
     }
 
-    protected abstract Client buildClient(Settings headersSettings, Action<?>[] testedActions);
+    protected abstract Client buildClient(Settings headersSettings, ActionType<?>[] testedActions);
 
 
     public void testActions() {
@@ -103,12 +92,12 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         //      validation in the settings??? - ugly and conceptually wrong)
 
         // choosing arbitrary top level actions to test
-        client.prepareGet("idx", "type", "id").execute(new AssertingActionListener<>(GetAction.NAME, client.threadPool()));
+        client.prepareGet("idx", "id").execute(new AssertingActionListener<>(GetAction.NAME, client.threadPool()));
         client.prepareSearch().execute(new AssertingActionListener<>(SearchAction.NAME, client.threadPool()));
-        client.prepareDelete("idx", "type", "id").execute(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
+        client.prepareDelete("idx", "id").execute(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
         client.admin().cluster().prepareDeleteStoredScript("id")
             .execute(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
-        client.prepareIndex("idx", "type", "id").setSource("source", XContentType.JSON)
+        client.prepareIndex("idx").setId("id").setSource("source", XContentType.JSON)
             .execute(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
 
         // choosing arbitrary cluster admin actions to test
@@ -131,7 +120,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         expected.put("key1", key1Val);
         expected.put("key2", "val 2");
         client.threadPool().getThreadContext().putHeader("key1", key1Val);
-        client.prepareGet("idx", "type", "id")
+        client.prepareGet("idx", "id")
                 .execute(new AssertingActionListener<>(GetAction.NAME, expected, client.threadPool()));
 
         client.admin().cluster().prepareClusterStats()
@@ -201,7 +190,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         public Throwable unwrap(Throwable t, Class<? extends Throwable> exceptionType) {
             int counter = 0;
             Throwable result = t;
-            while (!exceptionType.isInstance(result)) {
+            while (exceptionType.isInstance(result) == false) {
                 if (result.getCause() == null) {
                     return null;
                 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.stats;
@@ -81,6 +82,30 @@ public class ForecastStats implements ToXContentObject, Writeable {
         statusCounts.merge(other.statusCounts);
 
         return this;
+    }
+
+    public long getTotal() {
+        return total;
+    }
+
+    public long getForecastedJobs() {
+        return forecastedJobs;
+    }
+
+    public StatsAccumulator getMemoryStats() {
+        return memoryStats;
+    }
+
+    public StatsAccumulator getRecordStats() {
+        return recordStats;
+    }
+
+    public StatsAccumulator getRuntimeStats() {
+        return runtimeStats;
+    }
+
+    public CountAccumulator getStatusCounts() {
+        return statusCounts;
     }
 
     @Override

@@ -1,0 +1,850 @@
+[role="xpack"]
+[[security-troubleshooting]]
+== Troubleshooting security
+++++
+<titleabbrev>Troubleshooting</titleabbrev>
+++++
+
+Use the information in this section to troubleshoot common problems and find
+answers for frequently asked questions.
+
+* <<security-trb-settings>>
+* <<security-trb-roles>>
+* <<security-trb-extraargs>>
+* <<trouble-shoot-active-directory>>
+* <<trb-security-maccurl>>
+* <<trb-security-sslhandshake>>
+* <<trb-security-ssl>>
+* <<trb-security-kerberos>>
+* <<trb-security-saml>>
+* <<trb-security-internalserver>>
+* <<trb-security-setup>>
+* <<trb-security-path>>
+
+
+For issues that you cannot fix yourself … we’re here to help.
+If you are an existing Elastic customer with a support contract, please create
+a ticket in the
+https://support.elastic.co/customers/s/login/[Elastic Support portal].
+Or post in the https://discuss.elastic.co/[Elastic forum].
+
+[[security-trb-settings]]
+=== Some settings are not returned via the nodes settings API
+
+*Symptoms:*
+
+* When you use the <<cluster-nodes-info,nodes info API>> to retrieve
+settings for a node, some information is missing.
+
+*Resolution:*
+
+This is intentional. Some of the settings are considered to be highly
+sensitive: all `ssl` settings, ldap `bind_dn`, and `bind_password`.
+For this reason, we filter these settings and do not expose them via
+the nodes info API rest endpoint. You can also define additional
+sensitive settings that should be hidden using the
+`xpack.security.hide_settings` setting. For example, this snippet
+hides the `url` settings of the `ldap1` realm and all settings of the
+`ad1` realm.
+
+[source, yaml]
+------------------------------------------
+xpack.security.hide_settings: xpack.security.authc.realms.ldap1.url,
+xpack.security.authc.realms.ad1.*
+------------------------------------------
+
+[[security-trb-roles]]
+=== Authorization exceptions
+
+*Symptoms:*
+
+* I configured the appropriate roles and the users, but I still get an
+authorization exception.
+* I can authenticate to LDAP, but I still get an authorization exception.
+
+
+*Resolution:*
+
+. Verify that the role names associated with the users match the roles defined
+in the `roles.yml` file. You can use the `elasticsearch-users` tool to list all
+the users. Any unknown roles are marked with `*`.
++
+--
+[source, shell]
+------------------------------------------
+bin/elasticsearch-users list
+rdeniro        : admin
+alpacino       : power_user
+jacknich       : monitoring,unknown_role* <1>
+------------------------------------------
+<1> `unknown_role` was not found in `roles.yml`
+
+For more information about this command, see the
+<<users-command,`elasticsearch-users` command>>.
+--
+
+. If you are authenticating to LDAP, a number of configuration options can cause
+this error.
++
+--
+|======================
+|_group identification_ |
+
+Groups are located by either an LDAP search or by the "memberOf" attribute on
+the user. Also, If subtree search is turned off, it will search only one
+level deep. For all the options, see <<ref-ldap-settings>>.
+There are many options here and sticking to the defaults will not work for all
+scenarios.
+
+| _group to role mapping_|
+
+Either the `role_mapping.yml` file or the location for this file could be
+misconfigured. For more information, see <<security-files>>.
+
+|_role definition_|
+
+The role definition might be missing or invalid.
+
+|======================
+
+To help track down these possibilities, add the following lines to the end of
+the `log4j2.properties` configuration file in the `ES_PATH_CONF`:
+
+[source,properties]
+----------------
+logger.authc.name = org.elasticsearch.xpack.security.authc
+logger.authc.level = DEBUG
+----------------
+
+A successful authentication should produce debug statements that list groups and
+role mappings.
+--
+
+[[security-trb-extraargs]]
+=== Users command fails due to extra arguments
+
+*Symptoms:*
+
+* The `elasticsearch-users` command fails with the following message:
+`ERROR: extra arguments [...] were provided`.
+
+*Resolution:*
+
+This error occurs when the `elasticsearch-users` tool is parsing the input and
+finds unexpected arguments. This can happen when there are special characters
+used in some of the arguments. For example, on Windows systems the `,` character
+is considered a parameter separator; in other words `-r role1,role2` is
+translated to `-r role1 role2` and the `elasticsearch-users` tool only
+recognizes `role1` as an expected parameter. The solution here is to quote the
+parameter: `-r "role1,role2"`.
+
+For more information about this command, see
+<<users-command,`elasticsearch-users` command>>.
+
+[[trouble-shoot-active-directory]]
+=== Users are frequently locked out of Active Directory
+
+*Symptoms:*
+
+* Certain users are being frequently locked out of Active Directory.
+
+*Resolution:*
+
+Check your realm configuration; realms are checked serially, one after another.
+If your Active Directory realm is being checked before other realms and there
+are usernames that appear in both Active Directory and another realm, a valid
+login for one realm might be causing failed login attempts in another realm.
+
+For example, if `UserA` exists in both Active Directory and a file realm, and
+the Active Directory realm is checked first and file is checked second, an
+attempt to authenticate as `UserA` in the file realm would first attempt to
+authenticate against Active Directory and fail, before successfully
+authenticating against the `file` realm. Because authentication is verified on
+each request, the Active Directory realm would be checked - and fail - on each
+request for `UserA` in the `file` realm. In this case, while the authentication
+request completed successfully, the account on Active Directory would have
+received several failed login attempts, and that account might become
+temporarily locked out. Plan the order of your realms accordingly.
+
+Also note that it is not typically necessary to define multiple Active Directory
+realms to handle domain controller failures. When using Microsoft DNS, the DNS
+entry for the domain should always point to an available domain controller.
+
+
+[[trb-security-maccurl]]
+=== Certificate verification fails for curl on Mac
+
+*Symptoms:*
+
+* `curl` on the Mac returns a certificate verification error even when the
+`--cacert` option is used.
+
+
+*Resolution:*
+
+Apple's integration of `curl` with their keychain technology disables the
+`--cacert` option.
+See http://curl.haxx.se/mail/archive-2013-10/0036.html for more information.
+
+You can use another tool, such as `wget`, to test certificates. Alternately, you
+can add the certificate for the signing certificate authority MacOS system
+keychain, using a procedure similar to the one detailed at the
+http://support.apple.com/kb/PH14003[Apple knowledge base]. Be sure to add the
+signing CA's certificate and not the server's certificate.
+
+
+[[trb-security-sslhandshake]]
+=== SSLHandshakeException causes connections to fail
+
+*Symptoms:*
+
+* A `SSLHandshakeException` causes a connection to a node to fail and indicates
+that there is a configuration issue. Some of the common exceptions are shown
+below with tips on how to resolve these issues.
+
+
+*Resolution:*
+
+`java.security.cert.CertificateException: No name matching node01.example.com found`::
++
+--
+Indicates that a client connection was made to `node01.example.com` but the
+certificate returned did not contain the name `node01.example.com`. In most
+cases, the issue can be resolved by ensuring the name is specified during
+certificate creation. For more information, see <<encrypt-internode-communication>>. Another scenario is
+when the environment does not wish to use DNS names in certificates at all. In
+this scenario, all settings in `elasticsearch.yml` should only use IP addresses
+including the `network.publish_host` setting.
+--
+
+`java.security.cert.CertificateException: No subject alternative names present`::
++
+--
+Indicates that a client connection was made to an IP address but the returned
+certificate did not contain any `SubjectAlternativeName` entries. IP addresses
+are only used for hostname verification if they are specified as a
+`SubjectAlternativeName` during certificate creation. If the intent was to use
+IP addresses for hostname verification, then the certificate will need to be
+regenerated with the appropriate IP address. See <<encrypt-internode-communication>>.
+--
+
+`javax.net.ssl.SSLHandshakeException: null cert chain` and `javax.net.ssl.SSLException: Received fatal alert: bad_certificate`::
++
+--
+The `SSLHandshakeException` indicates that a self-signed certificate was
+returned by the client that is not trusted as it cannot be found in the
+`truststore` or `keystore`. This `SSLException` is seen on the client side of
+the connection.
+--
+
+`sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target` and `javax.net.ssl.SSLException: Received fatal alert: certificate_unknown`::
++
+--
+This `SunCertPathBuilderException` indicates that a certificate was returned
+during the handshake that is not trusted. This message is seen on the client
+side of the connection. The `SSLException` is seen on the server side of the
+connection. The CA certificate that signed the returned certificate was not
+found in the `keystore` or `truststore` and needs to be added to trust this
+certificate.
+--
+
+`javax.net.ssl.SSLHandshakeException: Invalid ECDH ServerKeyExchange signature`::
++
+--
+The `Invalid ECDH ServerKeyExchange signature` can indicate that a key and a corresponding certificate don't match and are
+causing the handshake to fail.
+Verify the contents of each of the files you are using for your configured certificate authorities, certificates and keys. In particular, check that the key and certificate belong to the same key pair.
+--
+
+[[trb-security-ssl]]
+=== Common SSL/TLS exceptions
+
+*Symptoms:*
+
+* You might see some exceptions related to SSL/TLS in your logs. Some of the
+common exceptions are shown below with tips on how to resolve these issues. +
+
+
+
+*Resolution:*
+
+`WARN: received plaintext http traffic on a https channel, closing connection`::
++
+--
+Indicates that there was an incoming plaintext http request. This typically
+occurs when an external applications attempts to make an unencrypted call to the
+REST interface. Please ensure that all applications are using `https` when
+calling the REST interface with SSL enabled.
+--
+
+`org.elasticsearch.common.netty.handler.ssl.NotSslRecordException: not an SSL/TLS record:`::
++
+--
+Indicates that there was incoming plaintext traffic on an SSL connection. This
+typically occurs when a node is not configured to use encrypted communication
+and tries to connect to nodes that are using encrypted communication. Please
+verify that all nodes are using the same setting for
+`xpack.security.transport.ssl.enabled`.
+
+For more information about this setting, see
+<<security-settings>>.
+--
+
+`java.io.StreamCorruptedException: invalid internal transport message format, got`::
++
+--
+Indicates an issue with data received on the transport interface in an unknown
+format. This can happen when a node with encrypted communication enabled
+connects to a node that has encrypted communication disabled. Please verify that
+all nodes are using the same setting for `xpack.security.transport.ssl.enabled`.
+
+For more information about this setting, see
+<<security-settings>>.
+--
+
+`java.lang.IllegalArgumentException: empty text`::
++
+--
+This exception is typically seen when a `https` request is made to a node that
+is not using `https`. If `https` is desired, please ensure the following setting
+is in `elasticsearch.yml`:
+
+[source,yaml]
+----------------
+xpack.security.http.ssl.enabled: true
+----------------
+
+For more information about this setting, see
+<<security-settings>>.
+--
+
+`ERROR: unsupported ciphers [...] were requested but cannot be used in this JVM`::
++
+--
+This error occurs when a SSL/TLS cipher suite is specified that cannot supported
+by the JVM that {es} is running in. Security tries to use the specified cipher
+suites that are supported by this JVM. This error can occur when using the
+Security defaults as some distributions of OpenJDK do not enable the PKCS11
+provider by default. In this case, we recommend consulting your JVM
+documentation for details on how to enable the PKCS11 provider.
+
+Another common source of this error is requesting cipher suites that use
+encrypting with a key length greater than 128 bits when running on an Oracle JDK.
+In this case, you must install the
+<<ciphers, JCE Unlimited Strength Jurisdiction Policy Files>>.
+--
+
+[[trb-security-kerberos]]
+=== Common Kerberos exceptions
+
+*Symptoms:*
+
+* User authentication fails due to either GSS negotiation failure
+or a service login failure (either on the server or in the {es} http client).
+Some of the common exceptions are listed below with some tips to help resolve
+them.
+
+*Resolution:*
+
+`Failure unspecified at GSS-API level (Mechanism level: Checksum failed)`::
++
+--
+
+When you see this error message on the HTTP client side, then it may be
+related to an incorrect password.
+
+When you see this error message in the {es} server logs, then it may be
+related to the {es} service keytab. The keytab file is present but it failed
+to log in as the user. Please check the keytab expiry. Also check whether the
+keytab contain up-to-date credentials; if not, replace them.
+
+You can use tools like `klist` or `ktab` to list principals inside
+the keytab and validate them. You can use `kinit` to see if you can acquire
+initial tickets using the keytab. Please check the tools and their documentation
+in your Kerberos environment.
+
+Kerberos depends on proper hostname resolution, so please check your DNS infrastructure.
+Incorrect DNS setup, DNS SRV records or configuration for KDC servers in `krb5.conf`
+can cause problems with hostname resolution.
+
+--
+
+`Failure unspecified at GSS-API level (Mechanism level: Request is a replay (34))`::
+
+`Failure unspecified at GSS-API level (Mechanism level: Clock skew too great (37))`::
++
+--
+
+To prevent replay attacks, Kerberos V5 sets a maximum tolerance for computer
+clock synchronization and it is typically 5 minutes. Please check whether
+the time on the machines within the domain is in sync.
+
+--
+
+`gss_init_sec_context() failed: An unsupported mechanism was requested`::
+
+`No credential found for: 1.2.840.113554.1.2.2 usage: Accept`::
++
+--
+
+You would usually see this error message on the client side when using `curl` to
+test {es} Kerberos setup. For example, these messages occur when you are using
+an old version of curl on the client and therefore Kerberos Spnego support is missing.
+The Kerberos realm in {es} only supports Spengo mechanism (Oid 1.3.6.1.5.5.2);
+it does not yet support Kerberos mechanism (Oid 1.2.840.113554.1.2.2).
+
+Make sure that:
+
+* You have installed curl version 7.49 or above as older versions of curl have
+known Kerberos bugs.
+
+* The curl installed on your machine has `GSS-API`, `Kerberos` and `SPNEGO`
+features listed when you invoke command `curl -V`. If not, you will need to
+compile `curl` version with this support.
+
+To download latest curl version visit https://curl.haxx.se/download.html
+
+--
+
+As Kerberos logs are often cryptic in nature and many things can go wrong
+as it depends on external services like DNS and NTP. You might
+have to enable additional debug logs to determine the root cause of the issue.
+
+{es} uses a JAAS (Java Authentication and Authorization Service) Kerberos login
+module to provide Kerberos support. To enable debug logs on {es} for the login
+module use following Kerberos realm setting:
+[source,yaml]
+----------------
+xpack.security.authc.realms.kerberos.<realm-name>.krb.debug: true
+----------------
+
+For detailed information, see <<ref-kerberos-settings>>.
+
+Sometimes you may need to go deeper to understand the problem during SPNEGO
+GSS context negotiation or look at the Kerberos message exchange. To enable
+Kerberos/SPNEGO debug logging on JVM, add following JVM system properties:
+
+`-Dsun.security.krb5.debug=true`
+
+`-Dsun.security.spnego.debug=true`
+
+For more information about JVM system properties, see <<jvm-options>>.
+
+[[trb-security-saml]]
+=== Common SAML issues
+
+Some of the common SAML problems are shown below with tips on how to resolve
+these issues.
+
+. *Symptoms:*
++
+--
+Authentication in {kib} fails and the following error is printed in the {es}
+logs:
+
+....
+Cannot find any matching realm for [SamlPrepareAuthenticationRequest{realmName=saml1,
+assertionConsumerServiceURL=https://my.kibana.url/api/security/saml/callback}]
+....
+
+*Resolution:*
+
+In order to initiate a SAML authentication, {kib} needs to know which SAML realm
+it should use from the ones that are configured in {es}. You can use the
+`xpack.security.authc.providers.saml.<provider-name>.realm` setting to explicitly
+set the SAML realm name in {kib}. It must match the name of the SAML realm that is
+configured in {es}.
+
+If you get an error like the one above, it possibly means that the value of
+`xpack.security.authc.providers.saml.<provider-name>.realm` in your {kib}
+configuration is wrong. Verify that it matches the name of the configured realm
+in {es}, which is the string after `xpack.security.authc.realms.saml.` in your
+{es} configuration.
+
+--
+
+. *Symptoms:*
++
+--
+Authentication in {kib} fails and the following error is printed in the
+{es} logs:
+
+....
+Authentication to realm saml1 failed - Provided SAML response is not valid for realm
+saml/saml1 (Caused by ElasticsearchSecurityException[Conditions
+[https://5aadb9778c594cc3aad0efc126a0f92e.kibana.company....ple.com/]
+do not match required audience
+[https://5aadb9778c594cc3aad0efc126a0f92e.kibana.company.example.com]])
+....
+
+*Resolution:*
+
+We received a SAML response that is addressed to another SAML Service Provider.
+This usually means that the configured SAML Service Provider Entity ID in
+`elasticsearch.yml` (`sp.entity_id`) does not match what has been configured as
+the SAML Service Provider Entity ID in the SAML Identity Provider documentation.
+
+To resolve this issue, ensure that both the saml realm in {es} and the IdP are
+configured with the same string for the SAML Entity ID of the Service Provider.
+
+In the {es} log, just before the exception message (above), there will also be
+one or more `INFO` level messages of the form
+....
+Audience restriction
+[https://5aadb9778c594cc3aad0efc126a0f92e.kibana.company.example.com/]
+does not match required audience
+[https://5aadb9778c594cc3aad0efc126a0f92e.kibana.company.example.com]
+(difference starts at character [#68] [/] vs [])
+....
+This log message can assist in determining the difference between the value that
+was received from the IdP and the value at has been configured in {es}.
+The text in parentheses that describes the difference between the two audience
+identifiers will only be shown if the two strings are considered to be similar.
+
+TIP: These strings are compared as case-sensitive strings and not as
+canonicalized URLs even when the values are URL-like. Be mindful of trailing
+slashes, port numbers, etc.
+
+--
+
+. *Symptoms:*
++
+--
+Authentication in {kib} fails and the following error is printed in the
+{es} logs:
+
+....
+Cannot find metadata for entity [your:entity.id] in [metadata.xml]
+....
+
+*Resolution:*
+
+We could not find the metadata for the SAML Entity ID `your:entity.id` in the
+configured metadata file (`metadata.xml`).
+
+.. Ensure that the `metadata.xml` file you are using is indeed the one provided
+by your SAML Identity Provider.
+.. Ensure that the `metadata.xml` file contains one <EntityDescriptor> element
+as follows: `<EntityDescriptor ID="0597c9aa-e69b-46e7-a1c6-636c7b8a8070" entityID="https://saml.example.com/f174199a-a96e-4201-88f1-0d57a610c522/" ...`
+where the value of the `entityID` attribute is the same as the value of the
+`idp.entity_id` that you have set in your SAML realm configuration in
+`elasticsearch.yml`.
+.. Note that these are also compared as case-sensitive strings and not as
+canonicalized URLs even when the values are URL-like.
+--
+
+. *Symptoms:*
++
+--
+Authentication in {kib} fails and the following error is printed in the {es}
+logs:
+
+....
+unable to authenticate user [<unauthenticated-saml-user>]
+for action [cluster:admin/xpack/security/saml/authenticate]
+....
+
+*Resolution:*
+
+This error indicates that {es} failed to process the incoming SAML
+authentication message. Since the message can't be processed, {es} is not aware
+of who the to-be authenticated user is and the `<unauthenticated-saml-user>`
+placeholder is used instead. To diagnose the _actual_ problem, you must check
+the {es} logs for further details.
+--
+
+. *Symptoms:*
++
+--
+Authentication in {kib} fails and the following error is printed in the {es}
+logs:
+
+....
+Authentication to realm <saml-realm-name> failed - SAML Attribute [<AttributeName0>] for
+[xpack.security.authc.realms.saml.<saml-realm-name>.attributes.principal] not found in saml attributes
+[<AttributeName1>=<AttributeValue1>, <AttributeName2>=<AttributeValue2>, ...] or NameID [ NameID(format)=value ]
+....
+
+*Resolution:*
+
+This error indicates that {es} failed to find the necessary SAML attribute in the SAML response that the
+Identity Provider sent. In this example, {es} is configured as follows:
+....
+xpack.security.authc.realms.saml.<saml-realm-name>.attributes.principal: AttributeName0
+....
+This configuration means that {es} expects to find a SAML Attribute with the name `AttributeName0` or a `NameID` with the appropriate format in the SAML
+response so that <<saml-attribute-mapping,it can map it>> to the `principal` user property. The `principal` user property is a
+mandatory one, so if this mapping can't happen, the authentication fails.
+
+If you are attempting to map a `NameID`, make sure that the expected `NameID` format matches the one that is sent.
+See <<saml-attribute-mapping-nameid>> for more details.
+
+If you are attempting to map a SAML attribute and it is not part of the list in the error message, it might mean
+that you have misspelled the attribute name, or that the IdP is not sending this particular attribute. You might
+be able to use another attribute from the list to map to `principal` or consult with your IdP administrator to
+determine if the required attribute can be sent.
+
+--
+
+. *Symptoms:*
++
+--
+Authentication in {kib} fails and the following error is printed in the {es}
+logs:
+
+....
+Cannot find [{urn:oasis:names:tc:SAML:2.0:metadata}IDPSSODescriptor]/[urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect] in descriptor
+....
+
+*Resolution:*
+
+This error indicates that the SAML metadata for your Identity Provider do not contain a `<SingleSignOnService>` endpoint with binding of
+HTTP-Redirect (urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect). {es} supports only the `HTTP-Redirect` binding for SAML authentication
+requests (and it doesn't support the `HTTP-POST` binding). Consult your IdP administrator in order to enable at least one
+`<SingleSignOnService>` supporting `HTTP-Redirect` binding and update your IdP SAML Metadata.
+--
+
+. *Symptoms:*
++
+--
+Authentication in {kib} fails and the following error is printed in the
+{es} logs:
+
+....
+Authentication to realm my-saml-realm failed -
+Provided SAML response is not valid for realm saml/my-saml-realm
+(Caused by ElasticsearchSecurityException[SAML Response is not a 'success' response:
+ The SAML IdP did not grant the request. It indicated that the Elastic Stack side sent
+ something invalid (urn:oasis:names:tc:SAML:2.0:status:Requester). Specific status code which might
+ indicate what the issue is: [urn:oasis:names:tc:SAML:2.0:status:InvalidNameIDPolicy]]
+)
+....
+
+*Resolution:*
+
+This means that the SAML Identity Provider failed to authenticate the user and
+sent a SAML Response to the Service Provider ({stack}) indicating this failure.
+The message will convey whether the SAML Identity Provider thinks that the problem
+is with the Service Provider ({stack}) or with the Identity Provider itself and
+the specific status code that follows is extremely useful as it usually indicates
+the underlying issue. The list of specific error codes is defined in the
+https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf[SAML 2.0 Core specification - Section 3.2.2.2]
+and the most commonly encountered ones are:
+
+. `urn:oasis:names:tc:SAML:2.0:status:AuthnFailed`: The SAML Identity Provider failed to
+  authenticate the user. There is not much to troubleshoot on the {stack} side for this status, the logs of
+  the SAML Identity Provider will hopefully offer much more information.
+. `urn:oasis:names:tc:SAML:2.0:status:InvalidNameIDPolicy`: The SAML Identity Provider cannot support
+  releasing a NameID with the requested format. When creating SAML Authentication Requests, {es} sets
+  the NameIDPolicy element of the Authentication request with the appropriate value. This is controlled
+  by the <<ref-saml-settings,`nameid_format`>> configuration parameter in
+  `elasticsearch.yml`, which if not set defaults to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient`.
+   This instructs the Identity Provider to return a NameID with that specific format in the SAML Response. If
+  the SAML Identity Provider cannot grant that request, for example because it is configured to release a
+  NameID format with `urn:oasis:names:tc:SAML:2.0:nameid-format:persistent` format instead, it returns this error
+  indicating an invalid NameID policy. This issue can be resolved by adjusting `nameid_format` to match the format
+  the SAML Identity Provider can return or by setting it to `urn:oasis:names:tc:SAML:2.0:nameid-format:unspecified`
+  so that the Identity Provider is allowed to return any format it wants.
+--
+
+. *Symptoms:*
++
+--
+Authentication in {kib} fails and the following error is printed in the
+{es} logs:
+
+....
+The XML Signature of this SAML message cannot be validated. Please verify that the saml
+realm uses the correct SAMLmetadata file/URL for this Identity Provider
+....
+
+*Resolution:*
+
+This means that {es} failed to validate the digital signature of the SAML
+message that the Identity Provider sent. {es} uses the public key of the
+Identity Provider that is included in the SAML metadata, in order to validate
+the signature that the IdP has created using its corresponding private key.
+Failure to do so, can have a number of causes:
+
+.. As the error message indicates, the most common cause is that the wrong
+metadata file is used and as such the public key it contains doesn't correspond
+to the private key the Identity Provider uses.
+.. The configuration of the Identity Provider has changed or the key has been
+rotated and the metadata file that {es} is using has not been updated.
+.. The SAML Response has been altered in transit and the signature cannot be
+validated even though the correct key is used.
+
+NOTE: The private keys and public keys and self-signed X.509 certificates that
+are used in SAML for digital signatures as described above have no relation to
+the keys and certificates that are used for TLS either on the transport or the
+http layer. A failure such as the one described above has nothing to do with
+your `xpack.ssl` related configuration.
+
+--
+
+. *Symptoms:*
++
+--
+Users are unable to login with a local username and password in {kib} because
+SAML is enabled.
+
+*Resolution:*
+
+If you want your users to be able to use local credentials to authenticate to
+{kib} in addition to using the SAML realm for Single Sign-On, you must enable
+the `basic` `authProvider` in {kib}. The process is documented in the
+<<saml-kibana-basic, SAML Guide>>
+--
+
+*Logging:*
+
+Very detailed trace logging can be enabled specifically for the SAML realm by
+setting the following transient setting:
+
+[source, shell]
+-----------------------------------------------
+PUT /_cluster/settings
+{
+  "transient": {
+    "logger.org.elasticsearch.xpack.security.authc.saml": "trace"
+  }
+}
+-----------------------------------------------
+
+
+Alternatively, you can add the following lines to the end of the
+`log4j2.properties` configuration file in the `ES_PATH_CONF`:
+
+[source,properties]
+----------------
+logger.saml.name = org.elasticsearch.xpack.security.authc.saml
+logger.saml.level = TRACE
+----------------
+
+[[trb-security-internalserver]]
+=== Internal Server Error in Kibana
+
+*Symptoms:*
+
+* In 5.1.1, an `UnhandledPromiseRejectionWarning` occurs and {kib} displays an
+Internal Server Error.
+//TBD: Is the same true for later releases?
+
+*Resolution:*
+
+If the Security plugin is enabled in {es} but disabled in {kib}, you must
+still set `elasticsearch.username` and `elasticsearch.password` in `kibana.yml`.
+Otherwise, {kib} cannot connect to {es}.
+
+
+[[trb-security-setup]]
+=== Setup-passwords command fails due to connection failure
+
+The <<setup-passwords,elasticsearch-setup-passwords command>> sets
+passwords for the built-in users by sending user management API requests. If
+your cluster uses SSL/TLS for the HTTP (REST) interface, the command attempts to
+establish a connection with the HTTPS protocol. If the connection attempt fails,
+the command fails.
+
+*Symptoms:*
+
+. {es} is running HTTPS, but the command fails to detect it and returns the
+following errors:
++
+--
+[source, shell]
+------------------------------------------
+Cannot connect to elasticsearch node.
+java.net.SocketException: Unexpected end of file from server
+...
+ERROR: Failed to connect to elasticsearch at
+http://127.0.0.1:9200/_security/_authenticate?pretty.
+Is the URL correct and elasticsearch running?
+------------------------------------------
+--
+
+. SSL/TLS is configured, but trust cannot be established. The command returns
+the following errors:
++
+--
+[source, shell]
+------------------------------------------
+SSL connection to
+https://127.0.0.1:9200/_security/_authenticate?pretty
+failed: sun.security.validator.ValidatorException:
+PKIX path building failed:
+sun.security.provider.certpath.SunCertPathBuilderException:
+unable to find valid certification path to requested target
+Please check the elasticsearch SSL settings under
+xpack.security.http.ssl.
+...
+ERROR: Failed to establish SSL connection to elasticsearch at
+https://127.0.0.1:9200/_security/_authenticate?pretty.
+------------------------------------------
+--
+
+. The command fails because hostname verification fails, which results in the
+following errors:
++
+--
+[source, shell]
+------------------------------------------
+SSL connection to
+https://idp.localhost.test:9200/_security/_authenticate?pretty
+failed: java.security.cert.CertificateException:
+No subject alternative DNS name matching
+elasticsearch.example.com found.
+Please check the elasticsearch SSL settings under
+xpack.security.http.ssl.
+...
+ERROR: Failed to establish SSL connection to elasticsearch at
+https://elasticsearch.example.com:9200/_security/_authenticate?pretty.
+------------------------------------------
+--
+
+*Resolution:*
+
+. If your cluster uses TLS/SSL for the HTTP interface but the
+`elasticsearch-setup-passwords` command attempts to establish a non-secure
+connection, use the `--url` command option to explicitly specify an HTTPS URL.
+Alternatively, set the `xpack.security.http.ssl.enabled` setting to `true`.
+
+. If the command does not trust the {es} server, verify that you configured the
+`xpack.security.http.ssl.certificate_authorities` setting or the
+`xpack.security.http.ssl.truststore.path` setting.
+
+. If hostname verification fails, you can disable this verification by setting
+`xpack.security.http.ssl.verification_mode` to `certificate`.
+
+For more information about these settings, see
+<<security-settings>>.
+
+[[trb-security-path]]
+=== Failures due to relocation of the configuration files
+
+*Symptoms:*
+
+* Active Directory or LDAP realms might stop working after upgrading to {es} 6.3
+or later releases. In 6.4 or later releases, you might see messages in the {es}
+log that indicate a config file is in a deprecated location.
+
+*Resolution:*
+
+By default, in 6.2 and earlier releases, the security configuration files are
+located in the `ES_PATH_CONF/x-pack` directory, where `ES_PATH_CONF` is an
+environment variable that defines the location of the
+<<config-files-location,config directory>>.
+
+In 6.3 and later releases, the config directory no longer contains an `x-pack`
+directory. The files that were stored in this folder, such as the
+`log4j2.properties`, `role_mapping.yml`, `roles.yml`, `users`, and `users_roles`
+files, now exist directly in the config directory.
+
+IMPORTANT: If you upgraded to 6.3 or later releases, your old security
+configuration files still exist in an `x-pack` folder. That file path is
+deprecated, however, and you should move your files out of that folder.
+
+In 6.3 and later releases, settings such as `files.role_mapping` default to
+`ES_PATH_CONF/role_mapping.yml`. If you do not want to use the default locations,
+you must update the settings appropriately. See
+<<security-settings>>.

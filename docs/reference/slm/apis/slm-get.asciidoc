@@ -1,0 +1,126 @@
+[role="xpack"]
+[testenv="basic"]
+[[slm-api-get-policy]]
+=== Get snapshot lifecycle policy API
+++++
+<titleabbrev>Get policy</titleabbrev>
+++++
+
+Retrieves one or more snapshot lifecycle policy definitions and
+information about the latest snapshot attempts.
+
+[[slm-api-get-request]]
+==== {api-request-title}
+
+`GET /_slm/policy/<policy-id>`
+
+`GET /_slm/policy`
+
+[[slm-api-get-lifecycle-prereqs]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the `manage_slm`
+cluster privilege to use this API. For more information, see
+<<security-privileges>>.
+
+[[slm-api-get-desc]]
+==== {api-description-title}
+
+Returns the specified policy definition and 
+information about the latest successful and failed attempts to create snapshots. 
+If no policy is specified, returns all defined policies.
+
+[[slm-api-get-path-params]]
+==== {api-path-parms-title}
+
+`<policy-id>`::
+(Optional, string)
+Comma-separated list of snapshot lifecycle policy IDs.
+
+[[slm-api-get-example]]
+==== {api-examples-title}
+
+[[slm-api-get-specific-ex]]
+===== Get a specific policy
+
+////
+[source,console]
+--------------------------------------------------
+PUT /_slm/policy/daily-snapshots
+{
+  "schedule": "0 30 1 * * ?", <1>
+  "name": "<daily-snap-{now/d}>", <2>
+  "repository": "my_repository", <3>
+  "config": { <4>
+    "indices": ["data-*", "important"], <5>
+    "ignore_unavailable": false,
+    "include_global_state": false
+  },
+  "retention": { <6>
+    "expire_after": "30d", <7>
+    "min_count": 5, <8>
+    "max_count": 50 <9>
+  }
+}
+--------------------------------------------------
+// TEST[setup:setup-repository]
+////
+
+Get the `daily-snapshots` policy:
+
+[source,console]
+--------------------------------------------------
+GET /_slm/policy/daily-snapshots?human
+--------------------------------------------------
+// TEST[continued]
+
+This request returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "daily-snapshots" : {
+    "version": 1, <1>
+    "modified_date": "2019-04-23T01:30:00.000Z", <2>
+    "modified_date_millis": 1556048137314,
+    "policy" : {
+      "schedule": "0 30 1 * * ?",
+      "name": "<daily-snap-{now/d}>",
+      "repository": "my_repository",
+      "config": {
+        "indices": ["data-*", "important"],
+        "ignore_unavailable": false,
+        "include_global_state": false
+      },
+      "retention": {
+        "expire_after": "30d",
+        "min_count": 5,
+        "max_count": 50
+      }
+    },
+    "stats": {
+      "policy": "daily-snapshots",
+      "snapshots_taken": 0,
+      "snapshots_failed": 0,
+      "snapshots_deleted": 0,
+      "snapshot_deletion_failures": 0
+    },
+    "next_execution": "2019-04-24T01:30:00.000Z", <3>
+    "next_execution_millis": 1556048160000
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"modified_date": "2019-04-23T01:30:00.000Z"/"modified_date": $body.daily-snapshots.modified_date/ s/"modified_date_millis": 1556048137314/"modified_date_millis": $body.daily-snapshots.modified_date_millis/ s/"next_execution": "2019-04-24T01:30:00.000Z"/"next_execution": $body.daily-snapshots.next_execution/ s/"next_execution_millis": 1556048160000/"next_execution_millis": $body.daily-snapshots.next_execution_millis/]
+<1> The version of the snapshot policy, only the latest version is stored and incremented when the policy is updated
+<2> The last time this policy was modified.
+<3> The next time this policy will be executed.
+
+
+[[slm-api-get-all-ex]]
+===== Get all policies
+
+[source,console]
+--------------------------------------------------
+GET /_slm/policy
+--------------------------------------------------
+// TEST[continued]

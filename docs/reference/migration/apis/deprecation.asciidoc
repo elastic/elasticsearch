@@ -1,44 +1,54 @@
 [role="xpack"]
 [testenv="basic"]
 [[migration-api-deprecation]]
-=== Deprecation Info APIs
+=== Deprecation info APIs
+++++
+<titleabbrev>Deprecation info</titleabbrev>
+++++
+
+IMPORTANT: Use this API to check for deprecated configuration before performing
+a major version upgrade. You should run it on the last minor version of the
+major version you are upgrading from, as earlier minor versions may not include
+all deprecations.
 
 The deprecation API is to be used to retrieve information about different
 cluster, node, and index level settings that use deprecated features that will
 be removed or changed in the next major version.
 
-[float]
-==== Request
+[[migration-api-request]]
+==== {api-request-title}
 
 `GET /_migration/deprecations` +
 
-`GET /<index_name>/_migration/deprecations`
+`GET /<target>/_migration/deprecations`
 
-//=== Description
+[[migration-api-prereqs]]
+==== {api-prereq-title}
 
-[float]
-==== Path Parameters
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
-`index_name`::
-  (string) Identifier for the index. It can be an index name or a wildcard
-  expression. When you specify this parameter, only index-level deprecations for
-  the specified indices are returned.
+[[migration-api-path-params]]
+==== {api-path-parms-title}
 
-//=== Query Parameters
+`<target>`::
+(Optional, string)
+Comma-separate list of data streams or indices to check. Wildcard (`*`)
+expressions are supported.
++
+When you specify this parameter, only deprecations for the specified
+data streams or indices are returned.
 
-//=== Authorization
-
-[float]
-==== Examples
+[[migration-api-example]]
+==== {api-examples-title}
 
 To see the list of offenders in your cluster, submit a GET request to the
 `_migration/deprecations` endpoint:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_migration/deprecations
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:cannot assert tests have certain deprecations]
 
 Example response:
@@ -51,7 +61,7 @@ Example response:
     {
       "level" : "critical",
       "message" : "Cluster name cannot contain ':'",
-      "url" : "{ref}/breaking-changes-7.0.html#_literal_literal_is_no_longer_allowed_in_cluster_name",
+      "url" : "{ref-70}/breaking-changes-7.0.html#_literal_literal_is_no_longer_allowed_in_cluster_name",
       "details" : "This cluster is named [mycompany:logging], which contains the illegal character ':'."
     }
   ],
@@ -61,11 +71,12 @@ Example response:
       {
         "level" : "warning",
         "message" : "Index name cannot contain ':'",
-        "url" : "{ref}/breaking-changes-7.0.html#_literal_literal_is_no_longer_allowed_in_index_name",
+        "url" : "{ref-70}/breaking-changes-7.0.html#_literal_literal_is_no_longer_allowed_in_index_name",
         "details" : "This index is named [logs:apache], which contains the illegal character ':'."
       }
     ]
-  }
+  },
+  "ml_settings" : [ ]
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -106,14 +117,15 @@ key. Similarly, any node-level warnings are found under `node_settings`. Since
 only a select subset of your nodes might incorporate these settings, it is
 important to read the `details` section for more information about which nodes
 are affected. Index warnings are sectioned off per index and can be filtered
-using an index-pattern in the query.
+using an index-pattern in the query. This section includes warnings for the
+backing indices of data streams specified in the request path. Machine Learning
+related deprecation warnings can be found under the `ml_settings` key.
 
 The following example request shows only index-level deprecations of all
 `logstash-*` indices:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /logstash-*/_migration/deprecations
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:cannot assert tests have certain deprecations]

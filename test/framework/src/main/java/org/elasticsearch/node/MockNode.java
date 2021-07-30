@@ -1,30 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.node;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -35,10 +24,14 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptService;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
@@ -53,8 +46,8 @@ import org.elasticsearch.transport.TransportService;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -125,12 +118,22 @@ public class MockNode extends Node {
     @Override
     protected SearchService newSearchService(ClusterService clusterService, IndicesService indicesService,
                                              ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays,
-                                             FetchPhase fetchPhase, ResponseCollectorService responseCollectorService) {
+                                             FetchPhase fetchPhase, ResponseCollectorService responseCollectorService,
+                                             CircuitBreakerService circuitBreakerService, ExecutorSelector executorSelector) {
         if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
             return super.newSearchService(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase,
-                responseCollectorService);
+                responseCollectorService, circuitBreakerService, executorSelector);
         }
-        return new MockSearchService(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
+        return new MockSearchService(clusterService, indicesService, threadPool, scriptService,
+            bigArrays, fetchPhase, responseCollectorService, circuitBreakerService, executorSelector);
+    }
+
+    @Override
+    protected ScriptService newScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
+        if (getPluginsService().filterPlugins(MockScriptService.TestPlugin.class).isEmpty()) {
+            return super.newScriptService(settings, engines, contexts);
+        }
+        return new MockScriptService(settings, engines, contexts);
     }
 
     @Override
@@ -158,11 +161,13 @@ public class MockNode extends Node {
 
     @Override
     protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
-                                                       ThreadPool threadPool, NodeClient client, Consumer<ClusterInfo> listener) {
+                                                       ThreadPool threadPool, NodeClient client) {
         if (getPluginsService().filterPlugins(MockInternalClusterInfoService.TestPlugin.class).isEmpty()) {
-            return super.newClusterInfoService(settings, clusterService, threadPool, client, listener);
+            return super.newClusterInfoService(settings, clusterService, threadPool, client);
         } else {
-            return new MockInternalClusterInfoService(settings, clusterService, threadPool, client, listener);
+            final MockInternalClusterInfoService service = new MockInternalClusterInfoService(settings, clusterService, threadPool, client);
+            clusterService.addListener(service);
+            return service;
         }
     }
 
@@ -173,5 +178,14 @@ public class MockNode extends Node {
         } else {
             return new MockHttpTransport();
         }
+    }
+
+    @Override
+    protected void configureNodeAndClusterIdStateListener(ClusterService clusterService) {
+        //do not configure this in tests as this is causing SetOnce to throw exceptions when jvm is used for multiple tests
+    }
+
+    public NamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
     }
 }

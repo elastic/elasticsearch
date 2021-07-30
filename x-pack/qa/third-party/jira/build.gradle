@@ -3,36 +3,30 @@ import groovy.json.JsonSlurper
 import javax.net.ssl.HttpsURLConnection
 import java.nio.charset.StandardCharsets
 
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
-  testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
+  testImplementation project(':x-pack:plugin:core')
+  testImplementation project(path: xpackModule('watcher'))
 }
 
-ext {
-  jiraUrl      = System.getenv('jira_url')
-  jiraUser     = System.getenv('jira_user')
-  jiraPassword = System.getenv('jira_password')
-  jiraProject  = System.getenv('jira_project')
+restResources {
+  restApi {
+    include 'watcher'
+  }
 }
 
-integTestCluster {
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
-  keystoreSetting 'xpack.notification.jira.account.test.secure_url', jiraUrl
-  keystoreSetting 'xpack.notification.jira.account.test.secure_user', jiraUser
-  keystoreSetting 'xpack.notification.jira.account.test.secure_password', jiraPassword
-  setting 'xpack.notification.jira.account.test.issue_defaults.project.key', jiraProject
-  setting 'xpack.notification.jira.account.test.issue_defaults.issuetype.name', 'Bug'
-  setting 'xpack.notification.jira.account.test.issue_defaults.labels.0', 'integration-tests'
-}
+String jiraUrl = System.getenv('jira_url')
+String jiraUser = System.getenv('jira_user')
+String jiraPassword = System.getenv('jira_password')
+String jiraProject = System.getenv('jira_project')
 
-task cleanJira(type: DefaultTask) {
+tasks.register("cleanJira", DefaultTask) {
   doLast {
     List<String> issues = jiraIssues(jiraProject)
     assert issues instanceof List
@@ -46,10 +40,28 @@ task cleanJira(type: DefaultTask) {
 
 // require network access for this one, exit early instead of starting up the cluster if we dont have network
 if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
-    integTest.enabled = false
-    testingConventions.enabled = false
+  tasks.named("integTest").configure { enabled = false }
+  tasks.named("testingConventions").configure { enabled = false }
 } else {
-    integTestRunner.finalizedBy cleanJira
+  testClusters.matching { it.name == "integTest" }.configureEach {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.security.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+    setting 'xpack.notification.jira.account.test.issue_defaults.issuetype.name', 'Bug'
+    setting 'xpack.notification.jira.account.test.issue_defaults.labels.0', 'integration-tests'
+    setting 'xpack.notification.jira.account.test.issue_defaults.project.key', jiraProject
+    keystore 'xpack.notification.jira.account.test.secure_url', jiraUrl
+    keystore 'xpack.notification.jira.account.test.secure_user', jiraUser
+    keystore 'xpack.notification.jira.account.test.secure_password', jiraPassword
+  }
+  integTest.finalizedBy "cleanJira"
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("integTest").configure{enabled = false }
 }
 
 /** List all issues associated to a given Jira project **/
@@ -57,7 +69,7 @@ def jiraIssues(projectKey) {
   // See https://docs.atlassian.com/jira/REST/cloud/#api/2/search-search
   def response = jiraHttpRequest("search?maxResults=100&fields=id,self,key&jql=project%3D${projectKey}", "GET", 200)
   assert response.issues instanceof List
-  return response.issues.findAll {it.key.startsWith(projectKey)}.collect {it.key}
+  return response.issues.findAll { it.key.startsWith(projectKey) }.collect { it.key }
 }
 
 /** Execute an HTTP request against the Jira server instance **/

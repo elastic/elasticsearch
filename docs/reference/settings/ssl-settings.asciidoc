@@ -1,27 +1,25 @@
-
-==== {component} TLS/SSL Settings
-You can configure the following TLS/SSL settings. If the settings are not configured,
-the {ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings]
-are used.
+==== {component} TLS/SSL settings
+You can configure the following TLS/SSL settings.
 
 ifdef::server[]
 +{ssl-prefix}.ssl.enabled+::
+(<<static-cluster-setting,Static>>)
 Used to enable or disable TLS/SSL. The default is `false`.
 endif::server[]
 
 +{ssl-prefix}.ssl.supported_protocols+::
-Supported protocols with versions. Valid protocols: `SSLv2Hello`,
-`SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`. Defaults to `TLSv1.2`, `TLSv1.1`,
-`TLSv1`. Defaults to the value of `xpack.ssl.supported_protocols`.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
 ifdef::server[]
 +{ssl-prefix}.ssl.client_authentication+::
+(<<static-cluster-setting,Static>>)
 Controls the server's behavior in regard to requesting a certificate
 from client connections. Valid values are `required`, `optional`, and `none`.
 `required` forces a client to present a certificate, while `optional`
 requests a client certificate but the client is not required to present one.
 ifndef::client-auth-default[]
-Defaults to the value of `xpack.ssl.client_authentication`.
+Defaults to `required`.
 endif::client-auth-default[]
 ifdef::client-auth-default[]
 Defaults to +{client-auth-default}+.
@@ -30,19 +28,17 @@ endif::server[]
 
 ifdef::verifies[]
 +{ssl-prefix}.ssl.verification_mode+::
-Controls the verification of certificates. Valid values are `none`,
-`certificate`, and `full`.
-See <<ssl-tls-settings, `xpack.ssl.verification_mode`>> for a description of these values.
-Defaults to the value of `xpack.ssl.verification_mode`.
+(<<static-cluster-setting,Static>>)
+Controls the verification of certificates.
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 endif::verifies[]
 
 +{ssl-prefix}.ssl.cipher_suites+::
-Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
-Java Cryptography Architecture documentation]. Defaults to the value of
-`xpack.ssl.cipher_suites`.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
 
-
-===== {component} TLS/SSL Key and Trusted Certificate Settings
+[#{ssl-context}-tls-ssl-key-trusted-certificate-settings]
+===== {component} TLS/SSL key and trusted certificate settings
 
 The following settings are used to specify a private key, certificate, and the
 trusted certificates that should be used when communicating over an SSL/TLS connection.
@@ -53,109 +49,114 @@ ifndef::server[]
 A private key and certificate are optional and would be used if the server requires client authentication for PKI
 authentication.
 endif::server[]
-If none of the settings below are specified, the {ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings] are used.
 
-
-===== PEM Encoded Files
+===== PEM encoded files
 
 When using PEM encoded files, use the following settings:
 
 +{ssl-prefix}.ssl.key+::
-Path to a PEM encoded file containing the private key.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
 
 +{ssl-prefix}.ssl.key_passphrase+::
-The passphrase that is used to decrypt the private key. This value is optional
-as the key might not be encrypted.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
 
-+{ssl-prefix}.ssl.secure_key_passphrase+ (<<secure-settings,Secure>>)::
-The passphrase that is used to decrypt the private key. This value is optional
-as the key might not be encrypted.
++{ssl-prefix}.ssl.secure_key_passphrase+::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 
 +{ssl-prefix}.ssl.certificate+::
-Path to a PEM encoded file containing the certificate (or certificate chain)
-that will be presented when requested.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
 
 +{ssl-prefix}.ssl.certificate_authorities+::
-List of paths to the PEM encoded certificate files that should be trusted.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
 
-===== Java Keystore Files
+===== Java keystore files
 
 When using Java keystore files (JKS), which contain the private key, certificate
 and certificates that should be trusted, use the following settings:
 
 +{ssl-prefix}.ssl.keystore.path+::
-Path to the keystore that holds the private key and certificate.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 
 +{ssl-prefix}.ssl.keystore.password+::
-Password to the keystore.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 
-+{ssl-prefix}.ssl.keystore.secure_password+ (<<secure-settings,Secure>>)::
-Password to the keystore.
++{ssl-prefix}.ssl.keystore.secure_password+::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 
 +{ssl-prefix}.ssl.keystore.key_password+::
-Password for the private key in the keystore. Defaults to the
-same value as +{ssl-prefix}.ssl.keystore.password+.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 
-+{ssl-prefix}.ssl.keystore.secure_key_password+ (<<secure-settings,Secure>>)::
-Password for the private key in the keystore.
++{ssl-prefix}.ssl.keystore.secure_key_password+::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 +{ssl-prefix}.ssl.truststore.path+::
-Path to the truststore file.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 
 +{ssl-prefix}.ssl.truststore.password+::
-Password to the truststore.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 
-+{ssl-prefix}.ssl.truststore.secure_password+ (<<secure-settings,Secure>>)::
-Password to the truststore.
++{ssl-prefix}.ssl.truststore.secure_password+::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
-===== PKCS#12 Files
+[#{ssl-context}-pkcs12-files]
+===== PKCS#12 files
 
-{security} can be configured to use PKCS#12 container files (`.p12` or `.pfx` files)
+{es} can be configured to use PKCS#12 container files (`.p12` or `.pfx` files)
 that contain the private key, certificate and certificates that should be trusted.
 
-PKCS#12 files are configured in the same way as Java Keystore Files:
+PKCS#12 files are configured in the same way as Java keystore files:
 
 +{ssl-prefix}.ssl.keystore.path+::
-Path to the PKCS#12 file that holds the private key and certificate.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 
 +{ssl-prefix}.ssl.keystore.type+::
-Set this to `PKCS12` to indicate that the keystore is a PKCS#12 file.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
 +{ssl-prefix}.ssl.keystore.password+::
-Password to the PKCS#12 file.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 
-+{ssl-prefix}.ssl.keystore.secure_password+ (<<secure-settings,Secure>>)::
-Password to the PKCS#12 file.
++{ssl-prefix}.ssl.keystore.secure_password+::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 
 +{ssl-prefix}.ssl.keystore.key_password+::
-Password for the private key stored in the PKCS#12 file.
-Defaults to the same value as +{ssl-prefix}.ssl.keystore.password+.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 
-+{ssl-prefix}.ssl.keystore.secure_key_password+ (<<secure-settings,Secure>>)::
-Password for the private key stored in the PKCS#12 file.
++{ssl-prefix}.ssl.keystore.secure_key_password+::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 +{ssl-prefix}.ssl.truststore.path+::
-Path to the PKCS#12 file that holds the certificates to be trusted.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 
 +{ssl-prefix}.ssl.truststore.type+::
+(<<static-cluster-setting,Static>>)
 Set this to `PKCS12` to indicate that the truststore is a PKCS#12 file.
+//TBD:Should this use the ssl-truststore-type definition and default values?
 
 +{ssl-prefix}.ssl.truststore.password+::
-Password to the PKCS#12 file.
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 
-+{ssl-prefix}.ssl.truststore.secure_password+ (<<secure-settings,Secure>>)::
-Password to the PKCS#12 file.
++{ssl-prefix}.ssl.truststore.secure_password+::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
-===== PKCS#11 Tokens
-
-{security} can be configured to use a PKCS#11 token that contains the private key,
-certificate and certificates that should be trusted.
-
-PKCS#11 token require additional configuration on the JVM level and can be enabled
-via the following settings:
-
-+{ssl-prefix}.keystore.type+::
-Set this to `PKCS11` to indicate that the PKCS#11 token should be used as a keystore.
-
-+{ssl-prefix}.truststore.type+::
-Set this to `PKCS11` to indicate that the PKCS#11 token should be used as a truststore.

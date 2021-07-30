@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -24,13 +13,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
@@ -39,9 +28,8 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     final boolean keyed;
 
     AbstractInternalTDigestPercentiles(String name, double[] keys, TDigestState state, boolean keyed, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, metadata);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
@@ -72,9 +60,14 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         return value(Double.parseDouble(name));
     }
 
+    @Override
+    public Iterable<String> valueNames() {
+        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
+    }
+
     public abstract double value(double key);
 
-    DocValueFormat formatter() {
+    public DocValueFormat formatter() {
         return format;
     }
 
@@ -82,8 +75,29 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         return state.byteSize();
     }
 
+    /**
+     * Return the internal {@link TDigestState} sketch for this metric.
+     */
+    public TDigestState getState() {
+        return state;
+    }
+
+    /**
+     * Return the keys (percentiles) requested.
+     */
+    public double[] getKeys() {
+        return keys;
+    }
+
+    /**
+     * Should the output be keyed.
+     */
+    public boolean keyed() {
+        return keyed;
+    }
+
     @Override
-    public AbstractInternalTDigestPercentiles doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public AbstractInternalTDigestPercentiles reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         TDigestState merged = null;
         for (InternalAggregation aggregation : aggregations) {
             final AbstractInternalTDigestPercentiles percentiles = (AbstractInternalTDigestPercentiles) aggregation;
@@ -92,11 +106,11 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
             }
             merged.add(percentiles.state);
         }
-        return createReduced(getName(), keys, merged, keyed, pipelineAggregators(), getMetaData());
+        return createReduced(getName(), keys, merged, keyed, getMetadata());
     }
 
     protected abstract AbstractInternalTDigestPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
+            Map<String, Object> metadata);
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
@@ -129,7 +143,11 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         AbstractInternalTDigestPercentiles that = (AbstractInternalTDigestPercentiles) obj;
         return keyed == that.keyed
                 && Arrays.equals(keys, that.keys)
@@ -137,7 +155,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(keyed, Arrays.hashCode(keys), state);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), keyed, Arrays.hashCode(keys), state);
     }
 }

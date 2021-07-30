@@ -1,34 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.execution;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Map;
 
-public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
+public class WatchExecutionSnapshot implements Writeable, ToXContentObject {
 
-    private String watchId;
-    private String watchRecordId;
-    private DateTime triggeredTime;
-    private DateTime executionTime;
-    private ExecutionPhase phase;
+    private final String watchId;
+    private final String watchRecordId;
+    private final ZonedDateTime triggeredTime;
+    private final ZonedDateTime executionTime;
+    private final ExecutionPhase phase;
+    private final StackTraceElement[] executionStackTrace;
     private String[] executedActions;
-    private StackTraceElement[] executionStackTrace;
-
-    public WatchExecutionSnapshot() {
-    }
 
     public WatchExecutionSnapshot(WatchExecutionContext context, StackTraceElement[] executionStackTrace) {
         watchId = context.id().watchId();
@@ -47,36 +46,11 @@ public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
         this.executionStackTrace = executionStackTrace;
     }
 
-    public String watchId() {
-        return watchId;
-    }
-
-    public String watchRecordId() {
-        return watchRecordId;
-    }
-
-    public DateTime triggeredTime() {
-        return triggeredTime;
-    }
-
-    public DateTime executionTime() {
-        return executionTime;
-    }
-
-    public ExecutionPhase executionPhase() {
-        return phase;
-    }
-
-    public StackTraceElement[] executionStackTrace() {
-        return executionStackTrace;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public WatchExecutionSnapshot(StreamInput in) throws IOException {
         watchId = in.readString();
         watchRecordId = in.readString();
-        triggeredTime = new DateTime(in.readVLong(), DateTimeZone.UTC);
-        executionTime = new DateTime(in.readVLong(), DateTimeZone.UTC);
+        triggeredTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
+        executionTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
         phase = ExecutionPhase.resolve(in.readString());
         int size = in.readVInt();
         executionStackTrace = new StackTraceElement[size];
@@ -89,12 +63,36 @@ public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
         }
     }
 
+    public String watchId() {
+        return watchId;
+    }
+
+    public String watchRecordId() {
+        return watchRecordId;
+    }
+
+    public ZonedDateTime triggeredTime() {
+        return triggeredTime;
+    }
+
+    public ZonedDateTime executionTime() {
+        return executionTime;
+    }
+
+    public ExecutionPhase executionPhase() {
+        return phase;
+    }
+
+    public StackTraceElement[] executionStackTrace() {
+        return executionStackTrace;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(watchId);
         out.writeString(watchRecordId);
-        out.writeVLong(triggeredTime.getMillis());
-        out.writeVLong(executionTime.getMillis());
+        out.writeVLong(triggeredTime.toInstant().toEpochMilli());
+        out.writeVLong(executionTime.toInstant().toEpochMilli());
         out.writeString(phase.id());
         out.writeVInt(executionStackTrace.length);
         for (StackTraceElement element : executionStackTrace) {

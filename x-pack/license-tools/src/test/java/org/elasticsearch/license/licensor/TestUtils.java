@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license.licensor;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -20,6 +21,7 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
@@ -34,9 +36,8 @@ public class TestUtils {
     public static final String PUBLIC_KEY_RESOURCE = "/public.key";
     public static final String PRIVATE_KEY_RESOURCE = "/private.key";
 
-    private static final DateFormatter formatDateTimeFormatter =
-            DateFormatter.forPattern("yyyy-MM-dd");
-    private static final DateMathParser dateMathParser = formatDateTimeFormatter.toDateMathParser();
+    private static final DateFormatter dateFormatter = DateFormatter.forPattern("yyyy-MM-dd");
+    private static final DateMathParser dateMathParser = dateFormatter.toDateMathParser();
 
     public static String dumpLicense(License license) throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -49,11 +50,11 @@ public class TestUtils {
     }
 
     public static String dateMathString(String time, final long now) {
-        return formatDateTimeFormatter.formatMillis(dateMathParser.parse(time, () -> now));
+        return dateFormatter.format(dateMathParser.parse(time, () -> now).atZone(ZoneOffset.UTC));
     }
 
     public static long dateMath(String time, final long now) {
-        return dateMathParser.parse(time, () -> now);
+        return dateMathParser.parse(time, () -> now).toEpochMilli();
     }
 
     public static LicenseSpec generateRandomLicenseSpec(int version) {

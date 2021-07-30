@@ -2,104 +2,62 @@
 === Secure settings
 
 Some settings are sensitive, and relying on filesystem permissions to protect
-their values is not sufficient. For this use case, Elasticsearch provides a
-keystore and the `elasticsearch-keystore` tool to manage the settings in the keystore.
+their values is not sufficient. For this use case, {es} provides a
+keystore and the <<elasticsearch-keystore,`elasticsearch-keystore` tool>> to
+manage the settings in the keystore.
 
-NOTE: All commands here should be run as the user which will run Elasticsearch.
+IMPORTANT: Only some settings are designed to be read from the keystore. However,
+the keystore has no validation to block unsupported settings. Adding unsupported
+settings to the keystore causes {es} to fail to start. To see whether a setting
+is supported in the keystore, look for a "Secure" qualifier the setting
+reference.
 
-NOTE: Only some settings are designed to be read from the keystore. See
-documentation for each setting to see if it is supported as part of the keystore.
-
-NOTE: All the modifications to the keystore take affect only after restarting
-Elasticsearch.
-
-NOTE: The elasticsearch keystore currently only provides obfuscation. In the future,
-password protection will be added.
+All the modifications to the keystore take effect only after restarting {es}.
 
 These settings, just like the regular ones in the `elasticsearch.yml` config file,
 need to be specified on each node in the cluster. Currently, all secure settings
 are node-specific settings that must have the same value on every node.
 
-[float]
-[[creating-keystore]]
-=== Creating the keystore
-
-To create the `elasticsearch.keystore`, use the `create` command:
-
-[source,sh]
-----------------------------------------------------------------
-bin/elasticsearch-keystore create
-----------------------------------------------------------------
-
-The file `elasticsearch.keystore` will be created alongside `elasticsearch.yml`.
-
-[float]
-[[list-settings]]
-=== Listing settings in the keystore
-
-A list of the settings in the keystore is available with the `list` command:
-
-[source,sh]
-----------------------------------------------------------------
-bin/elasticsearch-keystore list
-----------------------------------------------------------------
-
-[float]
-[[add-string-to-keystore]]
-=== Adding string settings
-
-Sensitive string settings, like authentication credentials for cloud
-plugins, can be added using the `add` command:
-
-[source,sh]
-----------------------------------------------------------------
-bin/elasticsearch-keystore add the.setting.name.to.set
-----------------------------------------------------------------
-
-The tool will prompt for the value of the setting. To pass the value
-through stdin, use the `--stdin` flag:
-
-[source,sh]
-----------------------------------------------------------------
-cat /file/containing/setting/value | bin/elasticsearch-keystore add --stdin the.setting.name.to.set
-----------------------------------------------------------------
-
-[float]
-[[remove-settings]]
-=== Removing settings
-
-To remove a setting from the keystore, use the `remove` command:
-
-[source,sh]
-----------------------------------------------------------------
-bin/elasticsearch-keystore remove the.setting.name.to.remove
-----------------------------------------------------------------
-
-[float]
+[discrete]
 [[reloadable-secure-settings]]
 === Reloadable secure settings
 
-Just like the settings values in `elasticsearch.yml`, changes to the
-keystore contents are not automatically applied to the running
-elasticsearch node. Re-reading settings requires a node restart.
-However, certain secure settings are marked as *reloadable*. Such settings
-can be re-read and applied on a running node.
+Just like the settings values in `elasticsearch.yml`, changes to the keystore
+contents are not automatically applied to the running {es} node. Re-reading
+settings requires a node restart. However, certain secure settings are marked as
+*reloadable*. Such settings can be <<cluster-nodes-reload-secure-settings, re-read and applied on a running node>>.
 
 The values of all secure settings, *reloadable* or not, must be identical
 across all cluster nodes. After making the desired secure settings changes,
 using the `bin/elasticsearch-keystore add` command, call:
-[source,js]
+
+[source,console]
 ----
 POST _nodes/reload_secure_settings
+{
+  "secure_settings_password": "keystore-password" <1>
+}
 ----
-// CONSOLE
-This API will decrypt and re-read the entire keystore, on every cluster node,
-but only the *reloadable* secure settings will be applied. Changes to other
-settings will not go into effect until the next restart. Once the call returns,
-the reload has been completed, meaning that all internal datastructures dependent
-on these settings have been changed. Everything should look as if the settings
-had the new value from the start.
+// NOTCONSOLE
 
-When changing multiple *reloadable* secure settings, modify all of them, on
-each cluster node, and then issue a `reload_secure_settings` call, instead
-of reloading after each modification.
+<1> The password that the {es} keystore is encrypted with.
+
+This API decrypts and re-reads the entire keystore, on every cluster node,
+but only the *reloadable* secure settings are applied. Changes to other
+settings do not go into effect until the next restart. Once the call returns,
+the reload has been completed, meaning that all internal data structures
+dependent on these settings have been changed. Everything should look as if the
+settings had the new value from the start.
+
+When changing multiple *reloadable* secure settings, modify all of them on each
+cluster node, then issue a <<cluster-nodes-reload-secure-settings, `reload_secure_settings`>>
+call instead of reloading after each modification.
+
+There are reloadable secure settings for:
+
+* {plugins}/repository-azure-client-settings.html[The Azure repository plugin]
+* {plugins}/discovery-ec2-usage.html#_configuring_ec2_discovery[The EC2 discovery plugin]
+* {plugins}/repository-gcs-client.html[The GCS repository plugin]
+* {plugins}/repository-s3-client.html[The S3 repository plugin]
+* <<monitoring-settings>>
+* <<notification-settings>>

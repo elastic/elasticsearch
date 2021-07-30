@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -26,14 +15,12 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -41,7 +28,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
     @Override
     protected FuzzyQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
+        String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
         FuzzyQueryBuilder query = new FuzzyQueryBuilder(fieldName, getRandomValueForFieldName(fieldName));
         if (randomBoolean()) {
             query.fuzziness(randomFuzziness(query.fieldName()));
@@ -75,7 +62,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     @Override
-    protected void doAssertLuceneQuery(FuzzyQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(FuzzyQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, instanceOf(FuzzyQuery.class));
 
         FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
@@ -95,19 +82,10 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         assertEquals("query value cannot be null", e.getMessage());
     }
 
-    public void testUnsupportedFuzzinessForStringType() throws IOException {
-        QueryShardContext context = createShardContext();
-        context.setAllowUnmappedFields(true);
-        FuzzyQueryBuilder fuzzyQueryBuilder = new FuzzyQueryBuilder(STRING_FIELD_NAME, "text");
-        fuzzyQueryBuilder.fuzziness(Fuzziness.build(randomFrom("a string which is not auto", "3h", "200s")));
-        NumberFormatException e = expectThrows(NumberFormatException.class, () -> fuzzyQueryBuilder.toQuery(context));
-        assertThat(e.getMessage(), containsString("For input string"));
-    }
-
     public void testToQueryWithStringField() throws IOException {
         String query = "{\n" +
                 "    \"fuzzy\":{\n" +
-                "        \"" + STRING_FIELD_NAME + "\":{\n" +
+                "        \"" + TEXT_FIELD_NAME + "\":{\n" +
                 "            \"value\":\"sh\",\n" +
                 "            \"fuzziness\": \"AUTO\",\n" +
                 "            \"prefix_length\":1,\n" +
@@ -115,13 +93,13 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 "        }\n" +
                 "    }\n" +
                 "}";
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(BoostQuery.class));
         BoostQuery boostQuery = (BoostQuery) parsedQuery;
         assertThat(boostQuery.getBoost(), equalTo(2.0f));
         assertThat(boostQuery.getQuery(), instanceOf(FuzzyQuery.class));
         FuzzyQuery fuzzyQuery = (FuzzyQuery) boostQuery.getQuery();
-        assertThat(fuzzyQuery.getTerm(), equalTo(new Term(STRING_FIELD_NAME, "sh")));
+        assertThat(fuzzyQuery.getTerm(), equalTo(new Term(TEXT_FIELD_NAME, "sh")));
         assertThat(fuzzyQuery.getMaxEdits(), equalTo(Fuzziness.AUTO.asDistance("sh")));
         assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
     }
@@ -129,7 +107,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     public void testToQueryWithStringFieldDefinedFuzziness() throws IOException {
         String query = "{\n" +
             "    \"fuzzy\":{\n" +
-            "        \"" + STRING_FIELD_NAME + "\":{\n" +
+            "        \"" + TEXT_FIELD_NAME + "\":{\n" +
             "            \"value\":\"sh\",\n" +
             "            \"fuzziness\": \"AUTO:2,5\",\n" +
             "            \"prefix_length\":1,\n" +
@@ -137,13 +115,13 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "        }\n" +
             "    }\n" +
             "}";
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(BoostQuery.class));
         BoostQuery boostQuery = (BoostQuery) parsedQuery;
         assertThat(boostQuery.getBoost(), equalTo(2.0f));
         assertThat(boostQuery.getQuery(), instanceOf(FuzzyQuery.class));
         FuzzyQuery fuzzyQuery = (FuzzyQuery) boostQuery.getQuery();
-        assertThat(fuzzyQuery.getTerm(), equalTo(new Term(STRING_FIELD_NAME, "sh")));
+        assertThat(fuzzyQuery.getTerm(), equalTo(new Term(TEXT_FIELD_NAME, "sh")));
         assertThat(fuzzyQuery.getMaxEdits(), equalTo(1));
         assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
     }
@@ -151,7 +129,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     public void testToQueryWithStringFieldDefinedWrongFuzziness() throws IOException {
         String queryMissingFuzzinessUpLimit = "{\n" +
             "    \"fuzzy\":{\n" +
-            "        \"" + STRING_FIELD_NAME + "\":{\n" +
+            "        \"" + TEXT_FIELD_NAME + "\":{\n" +
             "            \"value\":\"sh\",\n" +
             "            \"fuzziness\": \"AUTO:2\",\n" +
             "            \"prefix_length\":1,\n" +
@@ -160,13 +138,13 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "    }\n" +
             "}";
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-            () -> parseQuery(queryMissingFuzzinessUpLimit).toQuery(createShardContext()));
+            () -> parseQuery(queryMissingFuzzinessUpLimit).toQuery(createSearchExecutionContext()));
         String msg = "failed to find low and high distance values";
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
         String queryHavingNegativeFuzzinessLowLimit = "{\n" +
             "    \"fuzzy\":{\n" +
-            "        \"" + STRING_FIELD_NAME + "\":{\n" +
+            "        \"" + TEXT_FIELD_NAME + "\":{\n" +
             "            \"value\":\"sh\",\n" +
             "            \"fuzziness\": \"AUTO:-1,6\",\n" +
             "            \"prefix_length\":1,\n" +
@@ -175,14 +153,14 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "    }\n" +
             "}";
         String msg2 = "fuzziness wrongly configured";
-        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
-            () -> parseQuery(queryHavingNegativeFuzzinessLowLimit).toQuery(createShardContext()));
+        ElasticsearchParseException e2 = expectThrows(ElasticsearchParseException.class,
+            () -> parseQuery(queryHavingNegativeFuzzinessLowLimit).toQuery(createSearchExecutionContext()));
         assertTrue(e2.getMessage() + " didn't contain: " + msg2 + " but: " + e.getMessage(), e.getMessage().contains
             (msg));
 
         String queryMissingFuzzinessUpLimit2 = "{\n" +
             "    \"fuzzy\":{\n" +
-            "        \"" + STRING_FIELD_NAME + "\":{\n" +
+            "        \"" + TEXT_FIELD_NAME + "\":{\n" +
             "            \"value\":\"sh\",\n" +
             "            \"fuzziness\": \"AUTO:1,\",\n" +
             "            \"prefix_length\":1,\n" +
@@ -191,12 +169,12 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "    }\n" +
             "}";
         e = expectThrows(ElasticsearchParseException.class,
-            () -> parseQuery(queryMissingFuzzinessUpLimit2).toQuery(createShardContext()));
+            () -> parseQuery(queryMissingFuzzinessUpLimit2).toQuery(createSearchExecutionContext()));
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
         String queryMissingFuzzinessLowLimit = "{\n" +
             "    \"fuzzy\":{\n" +
-            "        \"" + STRING_FIELD_NAME + "\":{\n" +
+            "        \"" + TEXT_FIELD_NAME + "\":{\n" +
             "            \"value\":\"sh\",\n" +
             "            \"fuzziness\": \"AUTO:,5\",\n" +
             "            \"prefix_length\":1,\n" +
@@ -205,7 +183,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "    }\n" +
             "}";
         e = expectThrows(ElasticsearchParseException.class,
-            () -> parseQuery(queryMissingFuzzinessLowLimit).toQuery(createShardContext()));
+            () -> parseQuery(queryMissingFuzzinessLowLimit).toQuery(createSearchExecutionContext()));
         msg = "failed to parse [AUTO:,5] as a \"auto:int,int\"";
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
     }
@@ -215,12 +193,12 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 "    \"fuzzy\":{\n" +
                 "        \"" + INT_FIELD_NAME + "\":{\n" +
                 "            \"value\":12,\n" +
-                "            \"fuzziness\":5\n" +
+                "            \"fuzziness\":2\n" +
                 "        }\n" +
                 "    }\n" +
                 "}\n";
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> parseQuery(query).toQuery(createShardContext()));
+                () -> parseQuery(query).toQuery(createSearchExecutionContext()));
         assertEquals("Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
                 e.getMessage());
     }
@@ -295,15 +273,15 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithTranspositions() throws Exception {
-        Query query = new FuzzyQueryBuilder(STRING_FIELD_NAME, "text").toQuery(createShardContext());
+        Query query = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "text").toQuery(createSearchExecutionContext());
         assertThat(query, instanceOf(FuzzyQuery.class));
         assertEquals(FuzzyQuery.defaultTranspositions, ((FuzzyQuery)query).getTranspositions());
 
-        query = new FuzzyQueryBuilder(STRING_FIELD_NAME, "text").transpositions(true).toQuery(createShardContext());
+        query = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "text").transpositions(true).toQuery(createSearchExecutionContext());
         assertThat(query, instanceOf(FuzzyQuery.class));
         assertEquals(true, ((FuzzyQuery)query).getTranspositions());
 
-        query = new FuzzyQueryBuilder(STRING_FIELD_NAME, "text").transpositions(false).toQuery(createShardContext());
+        query = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "text").transpositions(false).toQuery(createSearchExecutionContext());
         assertThat(query, instanceOf(FuzzyQuery.class));
         assertEquals(false, ((FuzzyQuery)query).getTranspositions());
     }

@@ -1,68 +1,43 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-import java.util.Locale
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
 
-// This is a top level task which we will add dependencies to below.
-// It is a single task that can be used to backcompat tests against all versions.
-task bwcTest {
-    description = 'Runs backwards compatibility tests.'
-    group = 'verification'
-}
+for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
+  String baseName = "v${bwcVersion}"
 
-for (Version version : bwcVersions.indexCompatible) {
-    String baseName = "v${version}"
-    Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
-        mustRunAfter(precommit)
+  testClusters {
+    "${baseName}" {
+      version = bwcVersion.toString()
+      setting 'xpack.security.enabled', 'true'
+      user username: 'admin', password: 'admin-password', role: 'superuser'
     }
-    configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-        bwcVersion = version
-        numBwcNodes = 1
-        numNodes = 1
-        clusterName = 'verify-version-constants'
-        if (version.onOrAfter('5.3.0')) {
-            setting 'http.content_type.required', 'true'
-        }
-    }
+  }
 
-    Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
-        dependsOn = [oldClusterTest]
-    }
+  tasks.register("${baseName}#integTest", StandaloneRestIntegTestTask) {
+    useCluster testClusters."${baseName}"
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+  }
 
-    bwcTest.dependsOn(versionBwcTest)
-}
-
-test.enabled = false
-
-task integTest {
-  if (project.bwc_tests_enabled) {
-    final def version = bwcVersions.unreleasedIndexCompatible.first()
-    dependsOn "v${version}#bwcTest"
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn "${baseName}#integTest"
   }
 }
 
-task verifyDocsLuceneVersion {
+tasks.register("verifyDocsLuceneVersion") {
   doFirst {
     File docsVersionsFile = rootProject.file('docs/Versions.asciidoc')
     List<String> versionLines = docsVersionsFile.readLines('UTF-8')
@@ -84,4 +59,6 @@ task verifyDocsLuceneVersion {
   }
 }
 
-check.dependsOn integTest, verifyDocsLuceneVersion
+tasks.named("check").configure {
+  dependsOn verifyDocsLuceneVersion
+}

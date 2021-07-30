@@ -1,17 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.common.http;
 
 import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -24,6 +24,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -61,11 +63,9 @@ public class HttpResponse implements ToXContentObject {
     public HttpResponse(int status, @Nullable BytesReference body, Map<String, String[]> headers) {
         this.status = status;
         this.body = body;
-        MapBuilder<String, String[]> mapBuilder = MapBuilder.newMapBuilder();
-        for (Map.Entry<String, String[]> entry : headers.entrySet()) {
-            mapBuilder.put(entry.getKey().toLowerCase(Locale.ROOT), entry.getValue());
-        }
-        this.headers = mapBuilder.immutableMap();
+        this.headers = headers.entrySet()
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toLowerCase(Locale.ROOT), Map.Entry::getValue));
     }
 
     public int status() {
@@ -85,11 +85,9 @@ public class HttpResponse implements ToXContentObject {
      * in the payload
      */
     public Map<String, List<String>> headers() {
-        MapBuilder<String, List<String>> builder = MapBuilder.newMapBuilder();
-        for (Map.Entry<String, String[]> entry : headers.entrySet()) {
-            builder.put(entry.getKey().toLowerCase(Locale.ROOT), Arrays.asList(entry.getValue()));
-        }
-        return builder.immutableMap();
+        return headers.entrySet()
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toLowerCase(Locale.ROOT), e -> Arrays.asList(e.getValue())));
     }
 
     public String[] header(String header) {
@@ -109,7 +107,12 @@ public class HttpResponse implements ToXContentObject {
         if (values == null || values.length == 0) {
             return null;
         }
-        return XContentType.fromMediaTypeOrFormat(values[0]);
+        try {
+            return XContentType.fromMediaType(values[0]);
+        } catch (IllegalArgumentException e) {
+            //HttpInputTests - content-type being unrecognized_content_type
+            return null;
+        }
     }
 
     @Override
@@ -120,8 +123,8 @@ public class HttpResponse implements ToXContentObject {
         HttpResponse that = (HttpResponse) o;
 
         if (status != that.status) return false;
-        if (!headers.equals(that.headers)) return false;
-        return !(body != null ? !body.equals(that.body) : that.body != null);
+        if (headers.equals(that.headers) == false) return false;
+        return Objects.equals(body, that.body);
     }
 
     @Override
@@ -136,11 +139,11 @@ public class HttpResponse implements ToXContentObject {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("status=[").append(status).append("]");
-        if (!headers.isEmpty()) {
+        if (headers.isEmpty() == false) {
             sb.append(", headers=[");
             boolean first = true;
             for (Map.Entry<String, String[]> header : headers.entrySet()) {
-                if (!first) {
+                if (first == false) {
                     sb.append(", ");
                 }
                 sb.append("[").append(header.getKey()).append(": ").append(Arrays.toString(header.getValue())).append("]");
@@ -157,7 +160,7 @@ public class HttpResponse implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder = builder.startObject().field(Field.STATUS.getPreferredName(), status);
-        if (!headers.isEmpty()) {
+        if (headers.isEmpty() == false) {
             builder.startObject(Field.HEADERS.getPreferredName());
             for (Map.Entry<String, String[]> header : headers.entrySet()) {
                 // in order to prevent dots in field names, that might occur in headers, we simply de_dot those header names
@@ -212,7 +215,7 @@ public class HttpResponse implements ToXContentObject {
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         List<String> values = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (!token.isValue()) {
+                            if (token.isValue() == false) {
                                 throw new ElasticsearchParseException("could not parse http response. expected a header value for header " +
                                         "[{}] but found [{}] instead", headerName, token);
                             } else {

@@ -15,18 +15,12 @@ err_exit() {
     exit 1
 }
 
-# Check for these at preinst time due to failures in postinst if they do not exist
-if [ -x "$JAVA_HOME/bin/java" ]; then
-    JAVA="$JAVA_HOME/bin/java"
-elif command -v java; then
-    JAVA=`command -v java`
-else
-    JAVA=""
+# source the default env file
+if [ -f "@path.env@" ]; then
+    . "@path.env@"
 fi
 
-if [ -z "$JAVA" ]; then
-    err_exit "could not find java; set JAVA_HOME or ensure java is in PATH"
-fi
+export ES_PATH_CONF=${ES_PATH_CONF:-@path.conf@}
 
 case "$1" in
 
@@ -86,4 +80,4 @@ case "$1" in
     ;;
 esac
 
-${scripts.footer}
+@scripts.footer@

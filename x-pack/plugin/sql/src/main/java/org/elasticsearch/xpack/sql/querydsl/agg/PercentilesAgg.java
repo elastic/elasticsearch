@@ -1,34 +1,34 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
 
-public class PercentilesAgg extends LeafAgg {
+public class PercentilesAgg extends DefaultAggSourceLeafAgg {
 
     private final List<Double> percents;
+    private final PercentilesConfig percentilesConfig;
 
-    public PercentilesAgg(String id, String fieldName, List<Double> percents) {
-        super(id, fieldName);
+    public PercentilesAgg(String id, AggSource source, List<Double> percents, PercentilesConfig percentilesConfig) {
+        super(id, source);
         this.percents = percents;
-    }
-
-    public List<Double> percents() {
-        return percents;
+        this.percentilesConfig = percentilesConfig;
     }
 
     @Override
-    AggregationBuilder toBuilder() {
-        // TODO: look at keyed
-        return percentiles(id())
-                .field(fieldName())
-                .percentiles(percents.stream().mapToDouble(Double::doubleValue).toArray());
+    Function<String, ValuesSourceAggregationBuilder<?>> builder() {
+        return s -> percentiles(s)
+            .percentiles(percents.stream().mapToDouble(Double::doubleValue).toArray())
+            .percentilesConfig(percentilesConfig);
     }
 }

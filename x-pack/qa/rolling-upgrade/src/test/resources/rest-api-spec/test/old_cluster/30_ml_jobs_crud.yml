@@ -1,5 +1,22 @@
+setup:
+  - do:
+      index:
+        index: .ml-state
+        id: "dummy-document-to-make-index-creation-idempotent"
+        body: >
+          {
+          }
+
+  - do:
+      cluster.health:
+        index: [".ml-state"]
+        wait_for_status: green
+
 ---
 "Put job on the old cluster and post some data":
+
+  - skip:
+      features: allowed_warnings
 
   - do:
       ml.put_job:
@@ -27,6 +44,8 @@
         job_id: old-cluster-job
 
   - do:
+      allowed_warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: old-cluster-job
         body:
@@ -57,7 +76,75 @@
        wait_for_status: green
 
 ---
+"Put categorization job on the old cluster and post some data":
+
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      ml.put_job:
+        job_id: old-cluster-categorization-job
+        body:  >
+          {
+            "description":"Cluster upgrade with categorization",
+            "analysis_config" : {
+                "bucket_span": "60s",
+                "detectors" :[{"function":"count","by_field_name":"mlcategory"}],
+                "categorization_field_name": "message",
+                "categorization_analyzer" : {
+                    "char_filter" : ["html_strip"],
+                    "tokenizer" : "classic",
+                    "filter" : ["stop"]
+                }
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
+            },
+            "data_description" : {
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: old-cluster-categorization-job }
+
+  - do:
+      ml.open_job:
+        job_id: old-cluster-categorization-job
+
+  - do:
+      allowed_warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
+      ml.post_data:
+        job_id: old-cluster-categorization-job
+        body:
+          - message: "this is the first message to be categorized"
+            time: 1403481600
+          - message: "this is the second message to be categorized"
+            time: 1403481700
+  - match: { processed_record_count: 2 }
+
+  - do:
+      ml.close_job:
+        job_id: old-cluster-categorization-job
+
+  - do:
+      ml.get_categories:
+        job_id: old-cluster-categorization-job
+  - match: { count: 1 }
+
+# Wait for indices to be fully allocated before
+# killing the node
+  - do:
+     cluster.health:
+       index: [".ml-state", ".ml-anomalies-shared"]
+       wait_for_status: green
+
+---
 "Put job on the old cluster with the default model memory limit and post some data":
+
+  - skip:
+      features: allowed_warnings
+
   - do:
       ml.put_job:
         job_id: no-model-memory-limit-job
@@ -79,6 +166,8 @@
         job_id: no-model-memory-limit-job
 
   - do:
+      allowed_warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: no-model-memory-limit-job
         body:
@@ -111,6 +200,69 @@
        wait_for_status: green
 
 ---
+"Put job with timing stats checking on the old cluster and post some data":
+
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      ml.put_job:
+        job_id: old-cluster-job-with-ts
+        body:  >
+          {
+            "description":"Cluster upgrade with timing stats checking",
+            "analysis_config" : {
+                "bucket_span": "60s",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: old-cluster-job-with-ts }
+
+  - do:
+      ml.open_job:
+        job_id: old-cluster-job-with-ts
+
+  - do:
+      allowed_warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
+      ml.post_data:
+        job_id: old-cluster-job-with-ts
+        body:
+          - airline: AAL
+            responsetime: 132.2046
+            sourcetype: post-data-job
+            time: 1403481600
+          - airline: JZA
+            responsetime: 990.4628
+            sourcetype: post-data-job
+            time: 1403481700
+  - match: { processed_record_count: 2 }
+
+  - do:
+      ml.close_job:
+        job_id: old-cluster-job-with-ts
+
+  - do:
+      ml.get_buckets:
+        job_id: old-cluster-job-with-ts
+  - match: { count: 1 }
+
+  # Wait for indices to be fully allocated before
+  # killing the node
+  - do:
+      cluster.health:
+        index: [".ml-state", ".ml-anomalies-shared"]
+        wait_for_status: green
+
+---
 "Put job with empty strings in the configuration":
   - do:
       ml.put_job:
@@ -134,49 +286,7 @@
           }
 
 ---
-"Test job with pre 6.4 rules":
-
-  - skip:
-      version:  "6.4.0 - "
-      reason:   "Rules were replaced by custom_rules on 6.4.0"
-
-  - do:
-      ml.put_job:
-        job_id: job-with-old-rules
-        body:  >
-          {
-            "analysis_config": {
-              "detectors": [
-                {
-                  "function": "count",
-                  "by_field_name": "country",
-                  "detector_rules": [
-                    {
-                      "rule_action": "filter_results",
-                      "rule_conditions": [
-                        {
-                          "condition_type":"numerical_actual",
-                          "field_name":"country",
-                          "field_value": "uk",
-                          "condition": {"operator":"lt","value":"33.3"}
-                        },
-                        {"condition_type":"categorical", "field_name":"country", "value_filter": "foo"}
-                      ]
-                    }
-                  ]
-                }
-              ]
-            },
-            "data_description" : {}
-          }
-
----
 "Test job with pre 6.4 rules - dummy job 6.4 onwards":
-
-  - skip:
-      version:  " - 6.3.99"
-      reason:   "Rules replaced by custom_rules on 6.4.0"
-
   - do:
       ml.put_job:
         job_id: job-with-old-rules

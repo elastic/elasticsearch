@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml;
 
@@ -18,6 +19,41 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MachineLearningTests extends ESTestCase {
+
+    public void testMaxOpenWorkersSetting_givenDefault() {
+        int maxOpenWorkers = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(Settings.EMPTY);
+        assertEquals(512, maxOpenWorkers);
+    }
+
+    public void testMaxOpenWorkersSetting_givenSetting() {
+        Settings.Builder settings = Settings.builder();
+        settings.put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), 7);
+        int maxOpenWorkers = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings.build());
+        assertEquals(7, maxOpenWorkers);
+    }
+
+    public void testMaxMachineMemoryPercent_givenDefault() {
+        int maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(Settings.EMPTY);
+        assertEquals(30, maxMachineMemoryPercent);
+    }
+
+    public void testMaxMachineMemoryPercent_givenValidSetting() {
+        Settings.Builder settings = Settings.builder();
+        int expectedMaxMachineMemoryPercent = randomIntBetween(5, 200);
+        settings.put(MachineLearning.MAX_MACHINE_MEMORY_PERCENT.getKey(), expectedMaxMachineMemoryPercent);
+        int maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings.build());
+        assertEquals(expectedMaxMachineMemoryPercent, maxMachineMemoryPercent);
+    }
+
+    public void testMaxMachineMemoryPercent_givenInvalidSetting() {
+        Settings.Builder settings = Settings.builder();
+        int invalidMaxMachineMemoryPercent = randomFrom(4, 201);
+        settings.put(MachineLearning.MAX_MACHINE_MEMORY_PERCENT.getKey(), invalidMaxMachineMemoryPercent);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings.build()));
+        assertThat(e.getMessage(), startsWith("Failed to parse value [" + invalidMaxMachineMemoryPercent
+            + "] for setting [xpack.ml.max_machine_memory_percent] must be"));
+    }
 
     public void testNoAttributes_givenNoClash() {
         Settings.Builder builder = Settings.builder();
@@ -62,8 +98,8 @@ public class MachineLearningTests extends ESTestCase {
 
     public void testMachineMemory_givenStatsFailure() throws IOException {
         OsStats stats = mock(OsStats.class);
-        when(stats.getMem()).thenReturn(new OsStats.Mem(-1, -1));
-        assertEquals(-1L, MachineLearning.machineMemoryFromStats(stats));
+        when(stats.getMem()).thenReturn(new OsStats.Mem(0, 0));
+        assertEquals(0L, MachineLearning.machineMemoryFromStats(stats));
     }
 
     public void testMachineMemory_givenNoCgroup() throws IOException {

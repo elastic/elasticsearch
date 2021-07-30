@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -29,7 +19,7 @@ import java.util.Set;
 
 /**
  * A utility class for multi threaded operation that needs to be cancellable via interrupts. Every cancellable operation should be
- * executed via {@link #execute(Interruptable)}, which will capture the executing thread and make sure it is interrupted in the case
+ * executed via {@link #execute(Interruptible)}, which will capture the executing thread and make sure it is interrupted in the case
  * of cancellation.
  *
  * Cancellation policy: This class does not support external interruption via <code>Thread#interrupt()</code>. Always use #cancel() instead.
@@ -38,34 +28,35 @@ public class CancellableThreads {
     private final Set<Thread> threads = new HashSet<>();
     // needs to be volatile as it is also read outside of synchronized blocks.
     private volatile boolean cancelled = false;
+    private final SetOnce<OnCancel> onCancel = new SetOnce<>();
     private String reason;
 
     public synchronized boolean isCancelled() {
         return cancelled;
     }
 
-
-    /** call this will throw an exception if operation was cancelled.
-     * Override {@link #onCancel(String, Exception)} for custom failure logic */
-    public synchronized void checkForCancel() {
-        if (isCancelled()) {
-            onCancel(reason, null);
-        }
+    public void checkForCancel() {
+        checkForCancel(null);
     }
 
-    /**
-     * called if {@link #checkForCancel()} was invoked after the operation was cancelled.
-     * the default implementation always throws an {@link ExecutionCancelledException}, suppressing
-     * any other exception that occurred before cancellation
-     *  @param reason              reason for failure supplied by the caller of {@link #cancel}
-     * @param suppressedException any error that was encountered during the execution before the operation was cancelled.
-     */
-    protected void onCancel(String reason, @Nullable Exception suppressedException) {
-        RuntimeException e = new ExecutionCancelledException("operation was cancelled reason [" + reason + "]");
-        if (suppressedException != null) {
-            e.addSuppressed(suppressedException);
+    private void checkForCancel(Exception beforeCancelException) {
+        if (isCancelled()) {
+            final String reason;
+            final OnCancel onCancel;
+            synchronized (this) {
+                reason = this.reason;
+                onCancel = this.onCancel.get();
+            }
+            if (onCancel != null) {
+                onCancel.onCancel(reason, beforeCancelException);
+            }
+            // fallback to the default exception
+            final RuntimeException cancelExp = new ExecutionCancelledException("operation was cancelled reason [" + reason + "]");
+            if (beforeCancelException != null) {
+                cancelExp.addSuppressed(beforeCancelException);
+            }
+            throw cancelExp;
         }
-        throw e;
     }
 
     private synchronized boolean add() {
@@ -77,43 +68,26 @@ public class CancellableThreads {
     }
 
     /**
-     * run the Interruptable, capturing the executing thread. Concurrent calls to {@link #cancel(String)} will interrupt this thread
+     * run the Interruptible, capturing the executing thread. Concurrent calls to {@link #cancel(String)} will interrupt this thread
      * causing the call to prematurely return.
      *
-     * @param interruptable code to run
+     * @param interruptible code to run
      */
-    public void execute(Interruptable interruptable) {
-        try {
-            executeIO(interruptable);
-        } catch (IOException e) {
-            assert false : "the passed interruptable can not result in an IOException";
-            throw new RuntimeException("unexpected IO exception", e);
-        }
-    }
-    /**
-     * run the Interruptable, capturing the executing thread. Concurrent calls to {@link #cancel(String)} will interrupt this thread
-     * causing the call to prematurely return.
-     *
-     * @param interruptable code to run
-     */
-    public void executeIO(IOInterruptable interruptable) throws IOException {
+    public void execute(Interruptible interruptible) {
         boolean wasInterrupted = add();
         boolean cancelledByExternalInterrupt = false;
         RuntimeException runtimeException = null;
-        IOException ioException = null;
 
         try {
-            interruptable.run();
+            interruptible.run();
         } catch (InterruptedException | ThreadInterruptedException e) {
             // ignore, this interrupt has been triggered by us in #cancel()...
             assert cancelled : "Interruption via Thread#interrupt() is unsupported. Use CancellableThreads#cancel() instead";
             // we can only reach here if assertions are disabled. If we reach this code and cancelled is false, this means that we've
             // been interrupted externally (which we don't support).
-            cancelledByExternalInterrupt = !cancelled;
+            cancelledByExternalInterrupt = cancelled == false;
         } catch (RuntimeException t) {
             runtimeException = t;
-        } catch (IOException e) {
-            ioException = e;
         } finally {
             remove();
         }
@@ -125,26 +99,17 @@ public class CancellableThreads {
             // clear the flag interrupted flag as we are checking for failure..
             Thread.interrupted();
         }
-        synchronized (this) {
-            if (isCancelled()) {
-                onCancel(reason, ioException != null ? ioException : runtimeException);
-            } else if (ioException != null) {
-                // if we're not canceling, we throw the original exception
-                throw ioException;
-            }
-            if (runtimeException != null) {
-                // if we're not canceling, we throw the original exception
-                throw runtimeException;
-            }
+        checkForCancel(runtimeException);
+        if (runtimeException != null) {
+            // if we're not canceling, we throw the original exception
+            throw runtimeException;
         }
         if (cancelledByExternalInterrupt) {
             // restore interrupt flag to at least adhere to expected behavior
             Thread.currentThread().interrupt();
             throw new RuntimeException("Interruption via Thread#interrupt() is unsupported. Use CancellableThreads#cancel() instead");
         }
-
     }
-
 
     private synchronized void remove() {
         threads.remove(Thread.currentThread());
@@ -167,12 +132,8 @@ public class CancellableThreads {
     }
 
 
-    public interface Interruptable extends IOInterruptable {
+    public interface Interruptible {
         void run() throws InterruptedException;
-    }
-
-    public interface IOInterruptable {
-        void run() throws IOException, InterruptedException;
     }
 
     public static class ExecutionCancelledException extends ElasticsearchException {
@@ -184,5 +145,27 @@ public class CancellableThreads {
         public ExecutionCancelledException(StreamInput in) throws IOException {
             super(in);
         }
+    }
+
+    /**
+     * Registers a callback that will be invoked when some running operations are cancelled or {@link #checkForCancel()} is called.
+     */
+    public synchronized void setOnCancel(OnCancel onCancel) {
+        this.onCancel.set(onCancel);
+    }
+
+    @FunctionalInterface
+    public interface OnCancel {
+        /**
+         * Called when some running operations are cancelled or {@link #checkForCancel()} is explicitly called.
+         * If this method throws an exception, cancelling tasks will fail with that exception; otherwise they
+         * will fail with the default exception {@link ExecutionCancelledException}.
+         *
+         * @param reason                the reason of the cancellation
+         * @param beforeCancelException any error that was encountered during the execution before the operations were cancelled.
+         * @see #checkForCancel()
+         * @see #setOnCancel(OnCancel)
+         */
+        void onCancel(String reason, @Nullable Exception beforeCancelException);
     }
 }

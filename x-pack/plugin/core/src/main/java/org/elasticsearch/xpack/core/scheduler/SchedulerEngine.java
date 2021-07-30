@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.scheduler;
@@ -17,11 +18,15 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.time.Clock;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -67,6 +72,13 @@ public class SchedulerEngine {
 
         public long getScheduledTime() {
             return scheduledTime;
+        }
+
+        @Override
+        public String toString() {
+            return "Event[jobName=" + jobName + "," +
+                "triggeredTime=" + triggeredTime + "," +
+                "scheduledTime=" + scheduledTime + "]";
         }
     }
 
@@ -126,10 +138,18 @@ public class SchedulerEngine {
     public void stop() {
         scheduler.shutdownNow();
         try {
-            scheduler.awaitTermination(5, TimeUnit.SECONDS);
+            final boolean terminated = scheduler.awaitTermination(5L, TimeUnit.SECONDS);
+            if (terminated == false) {
+                logger.warn("scheduler engine was not terminated after waiting 5s");
+            }
         } catch (InterruptedException e) {
+            logger.warn("interrupted while waiting for scheduler engine termination");
             Thread.currentThread().interrupt();
         }
+    }
+
+    public Set<String> scheduledJobIds() {
+        return Collections.unmodifiableSet(new HashSet<>(schedules.keySet()));
     }
 
     public void add(Job job) {
@@ -169,14 +189,19 @@ public class SchedulerEngine {
         }
     }
 
+    // for testing
+    ActiveSchedule getSchedule(String jobId) {
+        return schedules.get(jobId);
+    }
+
     class ActiveSchedule implements Runnable {
 
         private final String name;
         private final Schedule schedule;
         private final long startTime;
 
-        private volatile ScheduledFuture<?> future;
-        private volatile long scheduledTime;
+        private ScheduledFuture<?> future;
+        private long scheduledTime = -1;
 
         ActiveSchedule(String name, Schedule schedule, long startTime) {
             this.name = name;
@@ -193,7 +218,7 @@ public class SchedulerEngine {
             } catch (final Throwable t) {
                 /*
                  * Allowing the throwable to escape here will lead to be it being caught in FutureTask#run and set as the outcome of this
-                 * task; however, we never inspect the the outcomes of these scheduled tasks and so allowing the throwable to escape
+                 * task; however, we never inspect the outcomes of these scheduled tasks and so allowing the throwable to escape
                  * unhandled here could lead to us losing fatal errors. Instead, we rely on ExceptionsHelper#maybeDieOnAnotherThread to
                  * appropriately dispatch any error to the uncaught exception handler. We should never see an exception here as these do
                  * not escape from SchedulerEngine#notifyListeners.
@@ -204,15 +229,48 @@ public class SchedulerEngine {
             scheduleNextRun(triggeredTime);
         }
 
-        private void scheduleNextRun(long currentTime) {
-            this.scheduledTime = schedule.nextScheduledTimeAfter(startTime, currentTime);
+        private void scheduleNextRun(long triggeredTime) {
+            this.scheduledTime = computeNextScheduledTime(triggeredTime);
             if (scheduledTime != -1) {
-                long delay = Math.max(0, scheduledTime - currentTime);
-                future = scheduler.schedule(this, delay, TimeUnit.MILLISECONDS);
+                long delay = Math.max(0, scheduledTime - clock.millis());
+                try {
+                    synchronized (this) {
+                        if (future == null || future.isCancelled() == false) {
+                            future = scheduler.schedule(this, delay, TimeUnit.MILLISECONDS);
+                        }
+                    }
+                } catch (RejectedExecutionException e) {
+                    // ignoring rejections if the scheduler has been shut down already
+                    if (scheduler.isShutdown() == false) {
+                        throw e;
+                    }
+                }
             }
         }
 
-        public void cancel() {
+        // for testing
+        long getScheduledTime() {
+            return scheduledTime;
+        }
+
+        long computeNextScheduledTime(long triggeredTime) {
+            // multiple time sources + multiple cpus + ntp + VMs means you can't trust time ever!
+            // scheduling happens far enough in advance in most cases that time can drift and we
+            // may execute at some point before the scheduled time. There can also be time differences
+            // between the CPU cores and/or the clock used by the threadpool and that used by this class
+            // for scheduling. Regardless, we shouldn't reschedule to execute again until after the
+            // scheduled time.
+            final long scheduleAfterTime;
+            if (scheduledTime != -1 && triggeredTime < scheduledTime) {
+                scheduleAfterTime = scheduledTime;
+            } else {
+                scheduleAfterTime = triggeredTime;
+            }
+
+            return schedule.nextScheduledTimeAfter(startTime, scheduleAfterTime);
+        }
+
+        public synchronized void cancel() {
             FutureUtils.cancel(future);
         }
     }

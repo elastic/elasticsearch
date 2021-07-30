@@ -6,8 +6,9 @@
 # or 'openjdk' followed by the major release number.
 
 ES_RUNTIME_JAVA:
-  - java8
-  - java8fips
   - java11
-  - zulu8
+  - openjdk16
   - zulu11
+  - corretto11
+  - adoptopenjdk11
+  - openjdk17

@@ -1,12 +1,16 @@
+[role="xpack"]
 [[actions-pagerduty]]
-=== PagerDuty Action
+=== {watcher} PagerDuty action
+++++
+<titleabbrev>PagerDuty action</titleabbrev>
+++++
 
 Use the PagerDuty action to create events in https://pagerduty.com/[
 PagerDuty]. To create PagerDuty events, you must <<configuring-pagerduty,
 configure at least one PagerDuty account>> in `elasticsearch.yml`.
 
 [[configuring-pagerduty-actions]]
-==== Configuring PagerDuty Actions
+==== Configuring PagerDuty actions
 
 You configure PagerDuty actions in the `actions` array. Action-specific attributes
 are specified using the `pagerduty` keyword.
@@ -30,7 +34,7 @@ The following snippet shows a simple PagerDuty action definition:
 
 
 [[adding-context-and-payloads-to-pagerduty-actions]]
-==== Adding Meta Information to a PagerDuty Incident
+==== Adding meta information to a PagerDuty incident
 
 To give the PagerDuty incident some more context, you can attach the
 payload as well as an array of contexts to the action.
@@ -42,7 +46,7 @@ payload as well as an array of contexts to the action.
     "throttle_period" : "5m",
     "pagerduty" : {
       "account" : "team1",
-      "description" : "Main system down, please check! Happened at {{ctx.execution_time}}"
+      "description" : "Main system down, please check! Happened at {{ctx.execution_time}}",
       "attach_payload" : true,
       "client" : "/foo/bar/{{ctx.watch_id}}",
       "client_url" : "http://www.example.org/",
@@ -64,7 +68,7 @@ payload as well as an array of contexts to the action.
 
 
 [[pagerduty-action-attributes]]
-==== Pagerduty Action Attributes
+==== Pagerduty action attributes
 
 [cols=",^,", options="header"]
 |======
@@ -75,7 +79,7 @@ payload as well as an array of contexts to the action.
 
 
 [[pagerduty-event-trigger-incident-attributes]]
-.Pagerduty Event Trigger Incident Attributes
+.Pagerduty event trigger incident attributes
 [cols=",^,", options="header"]
 |======
 | Name              |Required | Description
@@ -114,7 +118,7 @@ NOTE: All of those objects have templating support, so you can use data from the
       context and the payload as part of all the fields.
 
 [[pagerduty-event-trigger-context-attributes]]
-.Pagerduty Event Trigger Context Attributes
+.Pagerduty event trigger context attributes
 [cols=",^,", options="header"]
 |======
 | Name    |Required | Description
@@ -128,7 +132,7 @@ NOTE: All of those objects have templating support, so you can use data from the
 |======
 
 [[configuring-pagerduty]]
-==== Configuring PagerDuty Accounts
+==== Configuring PagerDuty accounts
 
 You configure the accounts {watcher} uses to communicate with PagerDuty in 
 the `xpack.notification.pagerduty` namespace in `elasticsearch.yml`.
@@ -148,17 +152,17 @@ image::images/pagerduty-services.jpg[]
 image::images/pagerduty-integrations.jpg[]
 
 To configure a PagerDuty account in the keystore, you
-must specify an account name and integration key, (see {ref}/secure-settings.html[secure settings]):
+must specify an account name and integration key, (see <<secure-settings>>):
 
 [source,yaml]
 --------------------------------------------------
 bin/elasticsearch-keystore add xpack.notification.pagerduty.account.my_pagerduty_account.secure_service_api_key
 --------------------------------------------------
 
-deprecated[Storing the service api key in the YAML file or via cluster update settings is still supported, but the keystore setting should be used]
+deprecated[7.0.0, "Storing the service api key in the YAML file or via cluster update settings is still supported, but the keystore setting should be used."]
 
-You can also specify defaults for the <<pagerduty-event-trigger-incident-attributes, 
-PagerDuty event attributes>>:
+You can also specify defaults for the
+<<pagerduty-event-trigger-incident-attributes,PagerDuty event attributes>>:
 .
 
 [source,yaml]
@@ -177,7 +181,7 @@ xpack.notification.pagerduty:
 
 If you configure multiple PagerDuty accounts, you either need to set a default 
 account or specify which account the event should be sent with in the
-<<actions-pagerduty, `pagerduty`>> action.
+<<actions-pagerduty,`pagerduty`>> action.
 
 [source,yaml]
 --------------------------------------------------

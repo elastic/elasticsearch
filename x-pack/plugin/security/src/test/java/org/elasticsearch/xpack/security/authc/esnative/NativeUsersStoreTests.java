@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -17,7 +18,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -26,9 +27,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
@@ -45,6 +48,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -74,7 +78,7 @@ public class NativeUsersStoreTests extends ESTestCase {
 
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 requests.add(new Tuple<>(request, listener));
             }
         };
@@ -83,8 +87,8 @@ public class NativeUsersStoreTests extends ESTestCase {
     public void testPasswordUpsertWhenSetEnabledOnReservedUser() throws Exception {
         final NativeUsersStore nativeUsersStore = startNativeUsersStore();
 
-        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
-            BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         nativeUsersStore.setEnabled(user, true, WriteRequest.RefreshPolicy.IMMEDIATE, future);
@@ -102,19 +106,19 @@ public class NativeUsersStoreTests extends ESTestCase {
     public void testBlankPasswordInIndexImpliesDefaultPassword() throws Exception {
         final NativeUsersStore nativeUsersStore = startNativeUsersStore();
 
-        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
-            BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
         final Map<String, Object> values = new HashMap<>();
         values.put(ENABLED_FIELD, Boolean.TRUE);
         values.put(PASSWORD_FIELD, BLANK_PASSWORD);
 
         final GetResult result = new GetResult(
-                SecurityIndexManager.SECURITY_INDEX_NAME,
-                NativeUsersStore.INDEX_TYPE,
+                RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
                 NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, randomAlphaOfLength(12)),
-                1L,
+            0, 1, 1L,
                 true,
                 BytesReference.bytes(jsonBuilder().map(values)),
+                Collections.emptyMap(),
                 Collections.emptyMap());
 
         final PlainActionFuture<NativeUsersStore.ReservedUserInfo> future = new PlainActionFuture<>();
@@ -123,7 +127,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         actionRespond(GetRequest.class, new GetResponse(result));
 
         final NativeUsersStore.ReservedUserInfo userInfo = future.get();
-        assertThat(userInfo.hasEmptyPassword, equalTo(true));
+        assertThat(userInfo.hasEmptyPassword(), equalTo(true));
         assertThat(userInfo.enabled, equalTo(true));
         assertTrue(Hasher.verifyHash(new SecureString("".toCharArray()), userInfo.passwordHash));
     }
@@ -178,13 +182,13 @@ public class NativeUsersStoreTests extends ESTestCase {
         nativeUsersStore.verifyPassword(username, password, future);
 
         final GetResult getResult = new GetResult(
-                SecurityIndexManager.SECURITY_INDEX_NAME,
-                NativeUsersStore.INDEX_TYPE,
+                RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
-                1L,
+                UNASSIGNED_SEQ_NO, 0, 1L,
                 false,
                 null,
-                Collections.emptyMap());
+                Collections.emptyMap(),
+            Collections.emptyMap());
 
         actionRespond(GetRequest.class, new GetResponse(getResult));
 
@@ -195,6 +199,18 @@ public class NativeUsersStoreTests extends ESTestCase {
         assertThat(result.getMessage(), nullValue());
     }
 
+    public void testDefaultReservedUserInfoPasswordEmpty() {
+        NativeUsersStore.ReservedUserInfo disabledUserInfo = NativeUsersStore.ReservedUserInfo.defaultDisabledUserInfo();
+        NativeUsersStore.ReservedUserInfo enabledUserInfo = NativeUsersStore.ReservedUserInfo.defaultEnabledUserInfo();
+        NativeUsersStore.ReservedUserInfo constructedUserInfo =
+            new NativeUsersStore.ReservedUserInfo(Hasher.PBKDF2.hash(new SecureString(randomAlphaOfLength(14))), randomBoolean());
+
+        assertThat(disabledUserInfo.hasEmptyPassword(), equalTo(true));
+        assertThat(enabledUserInfo.hasEmptyPassword(), equalTo(true));
+        assertThat(constructedUserInfo.hasEmptyPassword(), equalTo(false));
+    }
+
+    @SuppressWarnings("unchecked")
     private <ARequest extends ActionRequest, AResponse extends ActionResponse> ARequest actionRespond(Class<ARequest> requestClass,
                                                                                                       AResponse response) {
         Tuple<ARequest, ActionListener<?>> tuple = findRequest(requestClass);
@@ -203,11 +219,11 @@ public class NativeUsersStoreTests extends ESTestCase {
     }
 
     private <ARequest extends ActionRequest> Tuple<ARequest, ActionListener<?>> findRequest(
-            Class<ARequest> requestClass) {
+        Class<ARequest> requestClass) {
         return this.requests.stream()
-                .filter(t -> requestClass.isInstance(t.v1()))
-                .map(t -> new Tuple<ARequest, ActionListener<?>>(requestClass.cast(t.v1()), t.v2()))
-                .findFirst().orElseThrow(() -> new RuntimeException("Cannot find request of type " + requestClass));
+            .filter(t -> requestClass.isInstance(t.v1()))
+            .map(t -> new Tuple<ARequest, ActionListener<?>>(requestClass.cast(t.v1()), t.v2()))
+            .findFirst().orElseThrow(() -> new RuntimeException("Cannot find request of type " + requestClass));
     }
 
     private void respondToGetUserRequest(String username, SecureString password, String[] roles) throws IOException {
@@ -220,23 +236,22 @@ public class NativeUsersStoreTests extends ESTestCase {
         values.put(User.Fields.TYPE.getPreferredName(), NativeUsersStore.USER_DOC_TYPE);
         final BytesReference source = BytesReference.bytes(jsonBuilder().map(values));
         final GetResult getResult = new GetResult(
-                SecurityIndexManager.SECURITY_INDEX_NAME,
-                NativeUsersStore.INDEX_TYPE,
+                RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
-                1L,
+                0, 1, 1L,
                 true,
                 source,
+                Collections.emptyMap(),
                 Collections.emptyMap());
-
 
         actionRespond(GetRequest.class, new GetResponse(getResult));
     }
 
+    @SuppressWarnings("unchecked")
     private NativeUsersStore startNativeUsersStore() {
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.isMappingUpToDate()).thenReturn(true);
         when(securityIndex.isIndexUpToDate()).thenReturn(true);
         when(securityIndex.freeze()).thenReturn(securityIndex);
         doAnswer((i) -> {

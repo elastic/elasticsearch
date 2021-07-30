@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
-import java.util.Objects;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import java.util.Objects;
 
 public class LimitExec extends UnaryExec implements Unexecutable {
 
     private final Expression limit;
 
-    public LimitExec(Location location, PhysicalPlan child, Expression limit) {
-        super(location, child);
+    public LimitExec(Source source, PhysicalPlan child, Expression limit) {
+        super(source, child);
         this.limit = limit;
     }
 
@@ -27,7 +28,7 @@ public class LimitExec extends UnaryExec implements Unexecutable {
 
     @Override
     protected LimitExec replaceChild(PhysicalPlan newChild) {
-        return new LimitExec(location(), newChild, limit);
+        return new LimitExec(source(), newChild, limit);
     }
 
     public Expression limit() {

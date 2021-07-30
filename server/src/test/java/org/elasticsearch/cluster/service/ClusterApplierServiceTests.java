@@ -1,41 +1,33 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
+
 package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
-import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -46,19 +38,25 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.test.ClusterServiceUtils.createNoOpNodeConnectionsService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class ClusterApplierServiceTests extends ESTestCase {
 
-    protected static ThreadPool threadPool;
-    protected TimedClusterApplierService clusterApplierService;
+    private static ThreadPool threadPool;
+    private TimedClusterApplierService clusterApplierService;
 
     @BeforeClass
     public static void createThreadPool() {
@@ -85,23 +83,13 @@ public class ClusterApplierServiceTests extends ESTestCase {
         super.tearDown();
     }
 
-    TimedClusterApplierService createTimedClusterService(boolean makeMaster) throws InterruptedException {
+    private TimedClusterApplierService createTimedClusterService(boolean makeMaster) {
         DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(),
             emptySet(), Version.CURRENT);
         TimedClusterApplierService timedClusterApplierService = new TimedClusterApplierService(Settings.builder().put("cluster.name",
             "ClusterApplierServiceTests").build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool);
-        timedClusterApplierService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
-            @Override
-            public void connectToNodes(DiscoveryNodes discoveryNodes) {
-                // skip
-            }
-
-            @Override
-            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
-                // skip
-            }
-        });
+        timedClusterApplierService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         timedClusterApplierService.setInitialState(ClusterState.builder(new ClusterName("ClusterApplierServiceTests"))
             .nodes(DiscoveryNodes.builder()
                 .add(localNode)
@@ -112,7 +100,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         return timedClusterApplierService;
     }
 
-    @TestLogging("org.elasticsearch.cluster.service:TRACE") // To ensure that we log cluster state events on TRACE level
+    @TestLogging(value = "org.elasticsearch.cluster.service:TRACE", reason = "to ensure that we log cluster state events on TRACE level")
     public void testClusterStateUpdateLogging() throws Exception {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
@@ -138,9 +126,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
         Logger clusterLogger = LogManager.getLogger(ClusterApplierService.class);
         Loggers.addAppender(clusterLogger, mockAppender);
         try {
-            clusterApplierService.currentTimeOverride = System.nanoTime();
+            clusterApplierService.currentTimeOverride = threadPool.relativeTimeInMillis();
             clusterApplierService.runOnApplierThread("test1",
-                currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(1).nanos(),
+                currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(1).millis(),
                 new ClusterApplyListener() {
                     @Override
                     public void onSuccess(String source) { }
@@ -152,7 +140,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
             });
             clusterApplierService.runOnApplierThread("test2",
                 currentState -> {
-                    clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(2).nanos();
+                    clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(2).millis();
                     throw new IllegalArgumentException("Testing handling of exceptions in the cluster state task");
                 },
                 new ClusterApplyListener() {
@@ -183,7 +171,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         }
     }
 
-    @TestLogging("org.elasticsearch.cluster.service:WARN") // To ensure that we log cluster state events on WARN level
+    @TestLogging(value = "org.elasticsearch.cluster.service:WARN", reason = "to ensure that we log cluster state events on WARN level")
     public void testLongClusterStateUpdateLogging() throws Exception {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
@@ -192,28 +180,30 @@ public class ClusterApplierServiceTests extends ESTestCase {
                         "test1 shouldn't see because setting is too low",
                         ClusterApplierService.class.getCanonicalName(),
                         Level.WARN,
-                        "*cluster state applier task [test1] took [*] above the warn threshold of *"));
+                        "*cluster state applier task [test1] took [*] which is above the warn threshold of *"));
         mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                         "test2",
                         ClusterApplierService.class.getCanonicalName(),
                         Level.WARN,
-                        "*cluster state applier task [test2] took [32s] above the warn threshold of *"));
+                        "*cluster state applier task [test2] took [32s] which is above the warn threshold of [*]: " +
+                            "[running task [test2]] took [*"));
         mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                         "test4",
                         ClusterApplierService.class.getCanonicalName(),
                         Level.WARN,
-                        "*cluster state applier task [test3] took [34s] above the warn threshold of *"));
+                        "*cluster state applier task [test3] took [34s] which is above the warn threshold of [*]: " +
+                            "[running task [test3]] took [*"));
 
         Logger clusterLogger = LogManager.getLogger(ClusterApplierService.class);
         Loggers.addAppender(clusterLogger, mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(4);
             final CountDownLatch processedFirstTask = new CountDownLatch(1);
-            clusterApplierService.currentTimeOverride = System.nanoTime();
+            clusterApplierService.currentTimeOverride = threadPool.relativeTimeInMillis();
             clusterApplierService.runOnApplierThread("test1",
-                currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(1).nanos(),
+                currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(1).millis(),
                 new ClusterApplyListener() {
                     @Override
                     public void onSuccess(String source) {
@@ -229,7 +219,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
             processedFirstTask.await();
             clusterApplierService.runOnApplierThread("test2",
                 currentState -> {
-                    clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(32).nanos();
+                    clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(32).millis();
                     throw new IllegalArgumentException("Testing handling of exceptions in the cluster state task");
                 },
                 new ClusterApplyListener() {
@@ -244,7 +234,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
                     }
                 });
             clusterApplierService.runOnApplierThread("test3",
-                currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(34).nanos(),
+                currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(34).millis(),
                 new ClusterApplyListener() {
                     @Override
                     public void onSuccess(String source) {
@@ -279,7 +269,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         mockAppender.assertAllExpectationsMatched();
     }
 
-    public void testLocalNodeMasterListenerCallbacks() throws Exception {
+    public void testLocalNodeMasterListenerCallbacks() {
         TimedClusterApplierService timedClusterApplierService = createTimedClusterService(false);
 
         AtomicBoolean isMaster = new AtomicBoolean();
@@ -293,11 +283,6 @@ public class ClusterApplierServiceTests extends ESTestCase {
             public void offMaster() {
                 isMaster.set(false);
             }
-
-            @Override
-            public String executorName() {
-                return ThreadPool.Names.SAME;
-            }
         });
 
         ClusterState state = timedClusterApplierService.state();
@@ -309,7 +294,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
         nodes = state.nodes();
         nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(null);
-        state = ClusterState.builder(state).blocks(ClusterBlocks.builder().addGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_WRITES))
+        state = ClusterState.builder(state).blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES))
             .nodes(nodesBuilder).build();
         setState(timedClusterApplierService, state);
         assertThat(isMaster.get(), is(false));
@@ -334,6 +319,99 @@ public class ClusterApplierServiceTests extends ESTestCase {
                     error.set(e);
                 }
             }
+        });
+
+        CountDownLatch latch = new CountDownLatch(1);
+        clusterApplierService.onNewClusterState("test", () -> ClusterState.builder(clusterApplierService.state()).build(),
+            new ClusterApplyListener() {
+
+                @Override
+                public void onSuccess(String source) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    error.compareAndSet(null, e);
+                }
+            }
+        );
+
+        latch.await();
+        assertNull(error.get());
+        assertTrue(applierCalled.get());
+    }
+
+    public void testClusterStateApplierBubblesUpExceptionsInApplier() throws InterruptedException {
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        clusterApplierService.addStateApplier(event -> {
+            throw new RuntimeException("dummy exception");
+        });
+        clusterApplierService.allowClusterStateApplicationFailure();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        clusterApplierService.onNewClusterState("test", () -> ClusterState.builder(clusterApplierService.state()).build(),
+            new ClusterApplyListener() {
+
+                @Override
+                public void onSuccess(String source) {
+                    latch.countDown();
+                    fail("should not be called");
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    assertTrue(error.compareAndSet(null, e));
+                    latch.countDown();
+                }
+            }
+        );
+
+        latch.await();
+        assertNotNull(error.get());
+        assertThat(error.get().getMessage(), containsString("dummy exception"));
+    }
+
+    public void testClusterStateApplierBubblesUpExceptionsInSettingsApplier() throws InterruptedException {
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        clusterApplierService.clusterSettings.addSettingsUpdateConsumer(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
+            v -> {});
+        clusterApplierService.allowClusterStateApplicationFailure();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        clusterApplierService.onNewClusterState("test", () -> ClusterState.builder(clusterApplierService.state())
+                .metadata(Metadata.builder(clusterApplierService.state().metadata())
+                    .persistentSettings(
+                        Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), false).build())
+                    .build())
+                .build(),
+            new ClusterApplyListener() {
+
+                @Override
+                public void onSuccess(String source) {
+                    latch.countDown();
+                    fail("should not be called");
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    assertTrue(error.compareAndSet(null, e));
+                    latch.countDown();
+                }
+            }
+        );
+
+        latch.await();
+        assertNotNull(error.get());
+        assertThat(error.get().getMessage(), containsString("illegal value can't update"));
+    }
+
+    public void testClusterStateApplierSwallowsExceptionInListener() throws InterruptedException {
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        AtomicBoolean applierCalled = new AtomicBoolean();
+        clusterApplierService.addListener(event -> {
+            assertTrue(applierCalled.compareAndSet(false, true));
+            throw new RuntimeException("dummy exception");
         });
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -405,20 +483,72 @@ public class ClusterApplierServiceTests extends ESTestCase {
         assertTrue(applierCalled.get());
     }
 
+    public void testThreadContext() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+            final Map<String, String> expectedHeaders = Collections.singletonMap("test", "test");
+            final Map<String, List<String>> expectedResponseHeaders = Collections.singletonMap("testResponse",
+                Collections.singletonList("testResponse"));
+            threadPool.getThreadContext().putHeader(expectedHeaders);
+
+            clusterApplierService.onNewClusterState("test", () -> {
+                assertTrue(threadPool.getThreadContext().isSystemContext());
+                assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getHeaders());
+                threadPool.getThreadContext().addResponseHeader("testResponse", "testResponse");
+                assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                if (randomBoolean()) {
+                    return ClusterState.builder(clusterApplierService.state()).build();
+                } else {
+                    throw new IllegalArgumentException("mock failure");
+                }
+            }, new ClusterApplyListener() {
+
+                @Override
+                public void onSuccess(String source) {
+                    assertFalse(threadPool.getThreadContext().isSystemContext());
+                    assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    assertFalse(threadPool.getThreadContext().isSystemContext());
+                    assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await();
+    }
+
     static class TimedClusterApplierService extends ClusterApplierService {
 
-        public volatile Long currentTimeOverride = null;
+        final ClusterSettings clusterSettings;
+        volatile Long currentTimeOverride = null;
+        boolean applicationMayFail;
 
         TimedClusterApplierService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
             super("test_node", settings, clusterSettings, threadPool);
+            this.clusterSettings = clusterSettings;
         }
 
         @Override
-        protected long currentTimeInNanos() {
-            if (currentTimeOverride != null) {
-                return currentTimeOverride;
-            }
-            return super.currentTimeInNanos();
+        protected long currentTimeInMillis() {
+            return Objects.requireNonNullElseGet(currentTimeOverride, super::currentTimeInMillis);
+        }
+
+        @Override
+        protected boolean applicationMayFail() {
+            return this.applicationMayFail;
+        }
+
+        void allowClusterStateApplicationFailure() {
+            this.applicationMayFail = true;
         }
     }
+
 }

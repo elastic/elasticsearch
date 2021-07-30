@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -18,7 +19,9 @@ public class GetTrialStatusResponse extends ActionResponse implements ToXContent
 
     private boolean eligibleToStartTrial;
 
-    GetTrialStatusResponse() {
+    GetTrialStatusResponse(StreamInput in) throws IOException {
+        super(in);
+        eligibleToStartTrial = in.readBoolean();
     }
 
     public GetTrialStatusResponse(boolean eligibleToStartTrial) {
@@ -27,11 +30,6 @@ public class GetTrialStatusResponse extends ActionResponse implements ToXContent
 
     boolean isEligibleToStartTrial() {
         return eligibleToStartTrial;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        eligibleToStartTrial = in.readBoolean();
     }
 
     @Override

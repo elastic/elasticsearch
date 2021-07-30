@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -32,14 +33,14 @@ import joptsimple.OptionSpec;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
@@ -68,7 +69,7 @@ import org.xml.sax.SAXException;
 /**
  * CLI tool to generate SAML Metadata for a Service Provider (realm)
  */
-public class SamlMetadataCommand extends EnvironmentAwareCommand {
+public class SamlMetadataCommand extends KeyStoreAwareCommand {
 
     static final String METADATA_SCHEMA = "saml-schema-metadata-2.0.xsd";
 
@@ -90,7 +91,7 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
     private KeyStoreWrapper keyStoreWrapper;
 
     public static void main(String[] args) throws Exception {
-        new SamlMetadataCommand().main(args, Terminal.DEFAULT);
+        exit(new SamlMetadataCommand().main(args, Terminal.DEFAULT));
     }
 
     public SamlMetadataCommand() {
@@ -224,7 +225,7 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
                     if (ContactInfo.TYPES.containsKey(type)) {
                         break;
                     } else {
-                        terminal.println("Type '" + type + "' is not valid. Valid values are "
+                        terminal.errorPrintln("Type '" + type + "' is not valid. Valid values are "
                                 + Strings.collectionToCommaDelimitedString(ContactInfo.TYPES.keySet()));
                     }
                 }
@@ -263,8 +264,8 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
             } else {
                 errorMessage = "Error building signing credentials from provided keyPair";
             }
-            terminal.println(Terminal.Verbosity.SILENT, errorMessage);
-            terminal.println("The following errors were found:");
+            terminal.errorPrintln(Terminal.Verbosity.SILENT, errorMessage);
+            terminal.errorPrintln("The following errors were found:");
             printExceptions(terminal, e);
             throw new UserException(ExitCodes.CANT_CREATE, "Unable to create metadata document");
         }
@@ -351,15 +352,16 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
             SamlUtils.validate(xmlInput, METADATA_SCHEMA);
             terminal.println(Terminal.Verbosity.VERBOSE, "The generated metadata file conforms to the SAML metadata schema");
         } catch (SAXException e) {
-            terminal.println(Terminal.Verbosity.SILENT, "Error - The generated metadata file does not conform to the SAML metadata schema");
-            terminal.println("While validating " + xml.toString() + " the follow errors were found:");
+            terminal.errorPrintln(Terminal.Verbosity.SILENT, "Error - The generated metadata file does not conform to the " +
+                "SAML metadata schema");
+            terminal.errorPrintln("While validating " + xml.toString() + " the follow errors were found:");
             printExceptions(terminal, e);
             throw new UserException(ExitCodes.CODE_ERROR, "Generated metadata is not valid");
         }
     }
 
     private void printExceptions(Terminal terminal, Throwable throwable) {
-        terminal.println(" - " + throwable.getMessage());
+        terminal.errorPrintln(" - " + throwable.getMessage());
         for (Throwable sup : throwable.getSuppressed()) {
             printExceptions(terminal, sup);
         }
@@ -414,13 +416,12 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
     /**
      * @TODO REALM-SETTINGS[TIM] This can be redone a lot now the realm settings are keyed by type
      */
-    private RealmConfig findRealm(Terminal terminal, OptionSet options, Environment env) throws UserException, IOException, Exception {
+    private RealmConfig findRealm(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
         keyStoreWrapper = keyStoreFunction.apply(env);
         final Settings settings;
         if (keyStoreWrapper != null) {
-            // TODO: We currently do not support keystore passwords
-            keyStoreWrapper.decrypt(new char[0]);
+            decryptKeyStore(keyStoreWrapper, terminal);
 
             final Settings.Builder settingsBuilder = Settings.builder();
             settingsBuilder.put(env.settings(), true);
@@ -453,10 +454,10 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
                 throw new UserException(ExitCodes.CONFIG, "There is no SAML realm configured in " + env.configFile());
             }
             if (saml.size() > 1) {
-                terminal.println("Using configuration in " + env.configFile());
-                terminal.println("Found multiple SAML realms: "
+                terminal.errorPrintln("Using configuration in " + env.configFile());
+                terminal.errorPrintln("Found multiple SAML realms: "
                         + saml.stream().map(Map.Entry::getKey).map(Object::toString).collect(Collectors.joining(", ")));
-                terminal.println("Use the -" + optionName(realmSpec) + " option to specify an explicit realm");
+                terminal.errorPrintln("Use the -" + optionName(realmSpec) + " option to specify an explicit realm");
                 throw new UserException(ExitCodes.CONFIG,
                         "Found multiple SAML realms, please specify one with '-" + optionName(realmSpec) + "'");
             }

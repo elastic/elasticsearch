@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -41,8 +30,7 @@ import static org.mockito.Mockito.when;
 
 public class SingleDimensionValuesSourceTests extends ESTestCase {
     public void testBinarySorted() {
-        MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType();
-        keyword.setName("keyword");
+        MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType("keyword");
         BinaryValuesSource source = new BinaryValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
             (b) -> {},
@@ -86,8 +74,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         );
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
 
-        MappedFieldType ip = new IpFieldMapper.IpFieldType();
-        ip.setName("ip");
+        MappedFieldType ip = new IpFieldMapper.IpFieldType("ip");
         source = new BinaryValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
             (b) -> {},
@@ -100,11 +87,11 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
     }
 
-    public void testGlobalOrdinalsSorted() {
-        final MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType();
-        keyword.setName("keyword");
-        GlobalOrdinalValuesSource source = new GlobalOrdinalValuesSource(
+    public void testOrdinalsSorted() {
+        final MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType("keyword");
+        OrdinalValuesSource source = new OrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
+            (b) -> {},
             keyword, context -> null,
             DocValueFormat.RAW,
             false,
@@ -119,8 +106,9 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader,
             new TermQuery(new Term("keyword", "toto)"))));
 
-        source = new GlobalOrdinalValuesSource(
+        source = new OrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
+            (b) -> {},
             keyword,
             context -> null,
             DocValueFormat.RAW,
@@ -132,8 +120,9 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
 
-        source = new GlobalOrdinalValuesSource(
+        source = new OrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
+            (b) -> {},
             keyword,
             context -> null,
             DocValueFormat.RAW,
@@ -144,10 +133,10 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
 
-        final MappedFieldType ip = new IpFieldMapper.IpFieldType();
-        ip.setName("ip");
-        source = new GlobalOrdinalValuesSource(
+        final MappedFieldType ip = new IpFieldMapper.IpFieldType("ip");
+        source = new OrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
+            (b) -> {},
             ip,
             context -> null,
             DocValueFormat.RAW,
@@ -161,8 +150,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
 
     public void testNumericSorted() {
         for (NumberFieldMapper.NumberType numberType : NumberFieldMapper.NumberType.values()) {
-            MappedFieldType number = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-            number.setName("number");
+            MappedFieldType number = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
             final SingleDimensionValuesSource<?> source;
             if (numberType == NumberFieldMapper.NumberType.BYTE ||
                     numberType == NumberFieldMapper.NumberType.SHORT ||

@@ -1,0 +1,261 @@
+[[modules-scripting-fields]]
+== Accessing document fields and special variables
+
+Depending on where a script is used, it will have access to certain special
+variables and document fields.
+
+[discrete]
+== Update scripts
+
+A script used in the <<docs-update,update>>,
+<<docs-update-by-query,update-by-query>>, or <<docs-reindex,reindex>>
+API will have access to the `ctx` variable which exposes:
+
+[horizontal]
+`ctx._source`::     Access to the document <<mapping-source-field,`_source` field>>.
+`ctx.op`::          The operation that should be applied to the document: `index` or `delete`.
+`ctx._index` etc::  Access to <<mapping-fields,document metadata fields>>, some of which may be read-only.
+
+[discrete]
+== Search and aggregation scripts
+
+With the exception of <<script-fields,script fields>> which are
+executed once per search hit, scripts used in search and aggregations will be
+executed once for every document which might match a query or an aggregation.
+Depending on how many documents you have, this could mean millions or billions
+of executions: these scripts need to be fast!
+
+Field values can be accessed from a script using
+<<modules-scripting-doc-vals,doc-values>>,
+<<modules-scripting-source, the `_source` field>>, or
+<<modules-scripting-stored, stored fields>>,
+each of which is explained below.
+
+[[scripting-score]]
+[discrete]
+=== Accessing the score of a document within a script
+
+Scripts used in the <<query-dsl-function-score-query,`function_score` query>>,
+in <<sort-search-results,script-based sorting>>, or in
+<<search-aggregations,aggregations>> have access to the `_score` variable which
+represents the current relevance score of a document.
+
+Here's an example of using a script in a
+<<query-dsl-function-score-query,`function_score` query>> to alter the
+relevance `_score` of each document:
+
+[source,console]
+-------------------------------------
+PUT my-index-000001/_doc/1?refresh
+{
+  "text": "quick brown fox",
+  "popularity": 1
+}
+
+PUT my-index-000001/_doc/2?refresh
+{
+  "text": "quick fox",
+  "popularity": 5
+}
+
+GET my-index-000001/_search
+{
+  "query": {
+    "function_score": {
+      "query": {
+        "match": {
+          "text": "quick brown fox"
+        }
+      },
+      "script_score": {
+        "script": {
+          "lang": "expression",
+          "source": "_score * doc['popularity']"
+        }
+      }
+    }
+  }
+}
+-------------------------------------
+
+
+[discrete]
+[[modules-scripting-doc-vals]]
+=== Doc values
+
+By far the fastest most efficient way to access a field value from a
+script is to use the `doc['field_name']` syntax, which retrieves the field
+value from <<doc-values,doc values>>. Doc values are a columnar field value
+store, enabled by default on all fields except for <<text,analyzed `text` fields>>.
+
+[source,console]
+-------------------------------
+PUT my-index-000001/_doc/1?refresh
+{
+  "cost_price": 100
+}
+
+GET my-index-000001/_search
+{
+  "script_fields": {
+    "sales_price": {
+      "script": {
+        "lang":   "expression",
+        "source": "doc['cost_price'] * markup",
+        "params": {
+          "markup": 0.2
+        }
+      }
+    }
+  }
+}
+-------------------------------
+
+Doc-values can only return "simple" field values like numbers, dates, geo-
+points, terms, etc, or arrays of these values if the field is multi-valued.
+It cannot return JSON objects.
+
+[NOTE]
+.Missing fields
+===================================================
+
+The `doc['field']` will throw an error if `field` is missing from the mappings.
+In `painless`, a check can first be done with `doc.containsKey('field')` to guard
+accessing the `doc` map. Unfortunately, there is no way to check for the
+existence of the field in mappings in an `expression` script.
+
+===================================================
+
+[NOTE]
+.Doc values and `text` fields
+===================================================
+
+The `doc['field']` syntax can also be used for <<text,analyzed `text` fields>>
+if <<fielddata,`fielddata`>> is enabled, but *BEWARE*: enabling fielddata on a
+`text` field requires loading all of the terms into the JVM heap, which can be
+very expensive both in terms of memory and CPU. It seldom makes sense to
+access `text` fields from scripts.
+
+===================================================
+
+[discrete]
+[[modules-scripting-source]]
+=== The document `_source`
+
+The document <<mapping-source-field,`_source`>> can be accessed using the
+`_source.field_name` syntax. The `_source` is loaded as a map-of-maps, so
+properties within object fields can be accessed as, for example,
+`_source.name.first`.
+
+[IMPORTANT]
+.Prefer doc-values to _source
+=========================================================
+
+Accessing the `_source` field is much slower than using doc-values. The
+_source field is optimised for returning several fields per result, while doc
+values are optimised for accessing the value of a specific field in many
+documents.
+
+It makes sense to use `_source` when generating a
+<<script-fields,script field>> for the top ten hits from a
+search result but, for other search and aggregation use cases, always prefer
+using doc values.
+=========================================================
+
+
+For instance:
+
+[source,console]
+-------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "first_name": {
+        "type": "text"
+      },
+      "last_name": {
+        "type": "text"
+      }
+    }
+  }
+}
+
+PUT my-index-000001/_doc/1?refresh
+{
+  "first_name": "Barry",
+  "last_name": "White"
+}
+
+GET my-index-000001/_search
+{
+  "script_fields": {
+    "full_name": {
+      "script": {
+        "lang": "painless",
+        "source": "params._source.first_name + ' ' + params._source.last_name"
+      }
+    }
+  }
+}
+-------------------------------
+
+[discrete]
+[[modules-scripting-stored]]
+=== Stored fields
+
+_Stored fields_ -- fields explicitly marked as
+<<mapping-store,`"store": true`>> in the mapping -- can be accessed using the
+`_fields['field_name'].value` or `_fields['field_name']` syntax:
+
+[source,console]
+-------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "full_name": {
+        "type": "text",
+        "store": true
+      },
+      "title": {
+        "type": "text",
+        "store": true
+      }
+    }
+  }
+}
+
+PUT my-index-000001/_doc/1?refresh
+{
+  "full_name": "Alice Ball",
+  "title": "Professor"
+}
+
+GET my-index-000001/_search
+{
+  "script_fields": {
+    "name_with_title": {
+      "script": {
+        "lang": "painless",
+        "source": "params._fields['title'].value + ' ' + params._fields['full_name'].value"
+      }
+    }
+  }
+}
+-------------------------------
+
+[TIP]
+.Stored vs `_source`
+=======================================================
+
+The `_source` field is just a special stored field, so the performance is
+similar to that of other stored fields. The `_source` provides access to the
+original document body that was indexed (including the ability to distinguish
+`null` values from empty fields, single-value arrays from plain scalars, etc).
+
+The only time it really makes sense to use stored fields instead of the
+`_source` field is when the `_source` is very large and it is less costly to
+access a few small stored fields instead of the entire `_source`.
+
+=======================================================

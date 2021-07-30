@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery;
@@ -24,29 +13,25 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
-import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.FaultDetection;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
-import org.elasticsearch.discovery.zen.ZenPing;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
 import org.elasticsearch.test.disruption.NetworkDisruption.DisruptedLinks;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruptionType;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -65,9 +50,15 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(DEFAULT_SETTINGS)
-                .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(DEFAULT_SETTINGS).build();
+    }
+
+    @Override
+    public Settings indexSettings() {
+        return Settings.builder().put(super.indexSettings())
+            // sync global checkpoint quickly so we can verify seq_no_stats aligned between all copies after tests.
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s").build();
     }
 
     @Override
@@ -92,7 +83,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     @Override
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
         if (scheme instanceof NetworkDisruption &&
-                ((NetworkDisruption) scheme).getNetworkLinkDisruptionType() instanceof NetworkDisruption.NetworkUnresponsive) {
+                ((NetworkDisruption) scheme).getNetworkLinkDisruptionType() == NetworkDisruption.UNRESPONSIVE) {
             // the network unresponsive disruption may leave operations in flight
             // this is because this disruption scheme swallows requests by design
             // as such, these operations will never be marked as finished
@@ -115,34 +106,16 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         InternalTestCluster internalCluster = internalCluster();
         List<String> nodes = internalCluster.startNodes(numberOfNodes);
         ensureStableCluster(numberOfNodes);
-
-        // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results
-        clearTemporalResponses();
         return nodes;
     }
 
-    protected void clearTemporalResponses() {
-        final Discovery discovery = internalCluster().getInstance(Discovery.class);
-        if (discovery instanceof TestZenDiscovery) {
-            ZenPing zenPing = ((TestZenDiscovery) discovery).getZenPing();
-            if (zenPing instanceof UnicastZenPing) {
-                ((UnicastZenPing) zenPing).clearTemporalResponses();
-            }
-        }
-    }
-
-    static final Settings DEFAULT_SETTINGS = Settings.builder()
-            .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
-            .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
-            .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
+    public static final Settings DEFAULT_SETTINGS = Settings.builder()
+            .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "5s") // for hitting simulated network failures quickly
             .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), 1) // for hitting simulated network failures quickly
-            .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
+            .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "5s") // for hitting simulated network failures quickly
             .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1) // for hitting simulated network failures quickly
-            .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
-            .put(JoinHelper.JOIN_TIMEOUT_SETTING.getKey(), "10s") // still long to induce failures but to long so test won't time out
-            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
-            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
-            .put(TransportService.TCP_CONNECT_TIMEOUT.getKey(), "10s") // Network delay disruption waits for the min between this
+            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "5s") // <-- for hitting simulated network failures quickly
+            .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "10s") // Network delay disruption waits for the min between this
             // value and the time of disruption and does not recover immediately
             // when disruption is stop. We should make sure we recover faster
             // then the default of 30s, causing ensureGreen and friends to time out
@@ -150,7 +123,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class);
     }
 
     ClusterState getNodeClusterState(String node) {
@@ -158,7 +131,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     }
 
     void assertNoMaster(final String node) throws Exception {
-        assertNoMaster(node, null, TimeValue.timeValueSeconds(10));
+        assertNoMaster(node, null, TimeValue.timeValueSeconds(30));
     }
 
     void assertNoMaster(final String node, TimeValue maxWaitTime) throws Exception {
@@ -172,8 +145,8 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
             assertNull("node [" + node + "] still has [" + nodes.getMasterNode() + "] as master", nodes.getMasterNode());
             if (expectedBlocks != null) {
                 for (ClusterBlockLevel level : expectedBlocks.levels()) {
-                    assertTrue("node [" + node + "] does have level [" + level + "] in it's blocks", state.getBlocks().hasGlobalBlock
-                            (level));
+                    assertTrue("node [" + node + "] does have level [" + level + "] in it's blocks",
+                        state.getBlocks().hasGlobalBlockWithLevel(level));
                 }
             }
         }, maxWaitTime.getMillis(), TimeUnit.MILLISECONDS);
@@ -189,7 +162,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
             logger.trace("[{}] master is [{}]", node, state.nodes().getMasterNode());
             assertThat("node [" + node + "] still has [" + masterNode + "] as master",
                     oldMasterNode, not(equalTo(masterNode)));
-        }, 10, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS);
     }
 
     void assertMaster(String masterNode, List<String> nodes) throws Exception {
@@ -215,10 +188,10 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         final NetworkLinkDisruptionType disruptionType;
         switch (randomInt(2)) {
             case 0:
-                disruptionType = new NetworkDisruption.NetworkUnresponsive();
+                disruptionType = NetworkDisruption.UNRESPONSIVE;
                 break;
             case 1:
-                disruptionType = new NetworkDisconnect();
+                disruptionType = NetworkDisruption.DISCONNECT;
                 break;
             case 2:
                 disruptionType = NetworkDisruption.NetworkDelay.random(random());
@@ -239,9 +212,9 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     NetworkDisruption addRandomDisruptionType(TwoPartitions partitions) {
         final NetworkLinkDisruptionType disruptionType;
         if (randomBoolean()) {
-            disruptionType = new NetworkDisruption.NetworkUnresponsive();
+            disruptionType = NetworkDisruption.UNRESPONSIVE;
         } else {
-            disruptionType = new NetworkDisconnect();
+            disruptionType = NetworkDisruption.DISCONNECT;
         }
         NetworkDisruption partition = new NetworkDisruption(partitions, disruptionType);
 

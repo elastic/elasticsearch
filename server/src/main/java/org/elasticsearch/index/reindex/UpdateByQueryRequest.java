@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -57,7 +46,7 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     }
 
     public UpdateByQueryRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         pipeline = in.readOptionalString();
     }
 
@@ -79,19 +68,6 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     public UpdateByQueryRequest setQuery(QueryBuilder query) {
         if (query != null) {
             getSearchRequest().source().query(query);
-        }
-        return this;
-    }
-
-    /**
-     * Set the document types for the update
-     * @deprecated Types are in the process of being removed. Instead of
-     * using a type, prefer to filter on a field of the document.
-     */
-    @Deprecated
-    public UpdateByQueryRequest setDocTypes(String... types) {
-        if (types != null) {
-            getSearchRequest().types(types);
         }
         return this;
     }
@@ -134,21 +110,6 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
      */
     public String getRouting() {
         return getSearchRequest().routing();
-    }
-
-    /**
-     * Gets the document types on which this request would be executed. Returns an empty array if all
-     * types are to be processed.
-     * @deprecated Types are in the process of being removed. Instead of
-     * using a type, prefer to filter on a field of the document.
-     */
-    @Deprecated
-    public String[] getDocTypes() {
-        if (getSearchRequest().types() != null) {
-            return getSearchRequest().types();
-        } else {
-            return new String[0];
-        }
     }
 
     /**
@@ -197,11 +158,6 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     public IndicesOptions indicesOptions() {
         assert getSearchRequest() != null;
         return getSearchRequest().indicesOptions();
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

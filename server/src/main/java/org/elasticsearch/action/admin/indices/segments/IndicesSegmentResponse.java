@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.segments;
@@ -31,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,12 +34,13 @@ import java.util.Set;
 
 public class IndicesSegmentResponse extends BroadcastResponse {
 
-    private ShardSegments[] shards;
+    private final ShardSegments[] shards;
 
     private Map<String, IndexSegments> indicesSegments;
 
-    IndicesSegmentResponse() {
-
+    IndicesSegmentResponse(StreamInput in) throws IOException {
+        super(in);
+        shards = in.readArray(ShardSegments::new, ShardSegments[]::new);
     }
 
     IndicesSegmentResponse(ShardSegments[] shards, int totalShards, int successfulShards, int failedShards,
@@ -82,27 +73,16 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         return indicesSegments;
     }
 
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shards = new ShardSegments[in.readVInt()];
-        for (int i = 0; i < shards.length; i++) {
-            shards[i] = ShardSegments.readShardSegments(in);
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(shards.length);
-        for (ShardSegments shard : shards) {
-            shard.writeTo(out);
-        }
+        out.writeArray(shards);
     }
 
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
+        assert Transports.assertNotTransportThread("segments are very numerous, too expensive to serialize on a transport thread");
+
         builder.startObject(Fields.INDICES);
 
         for (IndexSegments indexSegments : getIndices().values()) {
@@ -133,7 +113,7 @@ public class IndicesSegmentResponse extends BroadcastResponse {
                         builder.field(Fields.NUM_DOCS, segment.getNumDocs());
                         builder.field(Fields.DELETED_DOCS, segment.getDeletedDocs());
                         builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, segment.getSize());
-                        builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, new ByteSizeValue(segment.getMemoryInBytes()));
+                        builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, new ByteSizeValue(0));
                         builder.field(Fields.COMMITTED, segment.isCommitted());
                         builder.field(Fields.SEARCH, segment.isSearch());
                         if (segment.getVersion() != null) {

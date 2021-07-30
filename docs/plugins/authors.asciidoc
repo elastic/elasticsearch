@@ -1,7 +1,7 @@
 [[plugin-authors]]
 == Help for plugin authors
 
-:plugin-properties-files: {docdir}/../../buildSrc/src/main/resources
+:plugin-properties-files: {elasticsearch-root}/build-tools/src/main/resources
 
 The Elasticsearch repository contains examples of:
 
@@ -14,11 +14,11 @@ The Elasticsearch repository contains examples of:
 * a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/script-expert-scoring[Java plugin]
   which contains a script plugin.
 
-These examples provide the bare bones needed to get started.  For more
+These examples provide the bare bones needed to get started. For more
 information about how to write a plugin, we recommend looking at the plugins
 listed in this documentation for inspiration.
 
-[float]
+[discrete]
 === Plugin descriptor file
 
 All plugins must contain a file called `plugin-descriptor.properties`.
@@ -32,7 +32,7 @@ include::{plugin-properties-files}/plugin-descriptor.properties[]
 Either fill in this template yourself or, if you are using Elasticsearch's Gradle build system, you
 can fill in the necessary values in the `build.gradle` file for your plugin.
 
-[float]
+[discrete]
 ==== Mandatory elements for plugins
 
 
@@ -70,18 +70,18 @@ in the presence of plugins with the incorrect `elasticsearch.version`.
 ==============================================
 
 
-[float]
+[discrete]
 === Testing your plugin
 
 When testing a Java plugin, it will only be auto-loaded if it is in the
-`plugins/` directory.  Use `bin/elasticsearch-plugin install file:///path/to/your/plugin`
+`plugins/` directory. Use `bin/elasticsearch-plugin install file:///path/to/your/plugin`
 to install your plugin for testing.
 
 You may also load your plugin within the test framework for integration tests.
 Read more in {ref}/integration-tests.html#changing-node-configuration[Changing Node Configuration].
 
 
-[float]
+[discrete]
 [[plugin-authors-jsm]]
 === Java Security permissions
 
@@ -116,5 +116,5 @@ AccessController.doPrivileged(
 );
 --------------------------------------------------
 
-See http://www.oracle.com/technetwork/java/seccodeguide-139067.html[Secure Coding Guidelines for Java SE]
+See https://www.oracle.com/technetwork/java/seccodeguide-139067.html[Secure Coding Guidelines for Java SE]
 for more information.

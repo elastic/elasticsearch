@@ -1,210 +1,142 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.join.mapper;
 
-import org.elasticsearch.common.Strings;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.Iterator;
 
+import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
-public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
+public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(ParentJoinPlugin.class);
+    protected Collection<? extends Plugin> getPlugins() {
+        return singleton(new ParentJoinPlugin());
     }
 
     public void testSingleLevel() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("join_field")
-                    .field("type", "join")
-                    .startObject("relations")
-                        .field("parent", "child")
-                    .endObject()
-                .endObject()
-            .endObject()
-            .endObject());
-        IndexService service = createIndex("test");
-        DocumentMapper docMapper = service.mapperService().merge("type", new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
-        assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(service.mapperService()));
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("join_field");
+            b.field("type", "join").startObject("relations").field("parent", "child").endObject();
+            b.endObject();
+        }));
+        DocumentMapper docMapper = mapperService.documentMapper();
+        Joiner joiner = Joiner.getJoiner(mapperService.mappingLookup().getMatchingFieldNames("*").stream()
+            .map(mapperService.mappingLookup()::getFieldType));
+        assertNotNull(joiner);
+        assertEquals("join_field", joiner.getJoinField());
 
         // Doc without join
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "0",
-            BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()), XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(source(b -> {}));
         assertNull(doc.rootDoc().getBinaryValue("join_field"));
 
         // Doc parent
-        doc = docMapper.parse(SourceToParse.source("test", "type", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                .field("join_field", "parent")
-                .endObject()), XContentType.JSON));
+        doc = docMapper.parse(source(b -> b.field("join_field", "parent")));
         assertEquals("1", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
         assertEquals("parent", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
 
         // Doc child
-        doc = docMapper.parse(SourceToParse.source("test", "type", "2",
-            BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                .startObject("join_field")
-                    .field("name", "child")
-                    .field("parent", "1")
-                .endObject()
-                .endObject()), XContentType.JSON).routing("1"));
+        doc = docMapper.parse(source("2", b -> b.startObject("join_field").field("name", "child").field("parent", "1").endObject(), "1"));
         assertEquals("1", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
         assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
 
-        // Unkwnown join name
+        // Unknown join name
         MapperException exc = expectThrows(MapperParsingException.class,
-            () -> docMapper.parse(SourceToParse.source("test", "type", "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                    .field("join_field", "unknown")
-                    .endObject()), XContentType.JSON)));
+            () -> docMapper.parse(source(b -> b.field("join_field", "unknown"))));
         assertThat(exc.getRootCause().getMessage(), containsString("unknown join name [unknown] for field [join_field]"));
     }
 
     public void testParentIdSpecifiedAsNumber() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("join_field")
-                    .field("type", "join")
-                        .startObject("relations")
-                            .field("parent", "child")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject());
-        IndexService service = createIndex("test");
-        DocumentMapper docMapper = service.mapperService().merge("type", new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "2",
-            BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                .startObject("join_field")
-                .field("name", "child")
-                .field("parent", 1)
-                .endObject()
-                .endObject()), XContentType.JSON).routing("1"));
+        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("join_field");
+            b.field("type", "join").startObject("relations").field("parent", "child").endObject();
+            b.endObject();
+        }));
+
+        ParsedDocument doc = docMapper.parse(
+            source("2", b -> b.startObject("join_field").field("name", "child").field("parent", 1).endObject(), "1")
+        );
         assertEquals("1", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
         assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
-        doc = docMapper.parse(SourceToParse.source("test", "type", "2",
-            BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                .startObject("join_field")
-                .field("name", "child")
-                .field("parent", 1.0)
-                .endObject()
-                .endObject()), XContentType.JSON).routing("1"));
+
+        doc = docMapper.parse(source("2", b -> b.startObject("join_field").field("name", "child").field("parent", 1.0).endObject(), "1"));
         assertEquals("1.0", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
         assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
     }
 
     public void testMultipleLevels() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("join_field")
-                    .field("type", "join")
-                    .startObject("relations")
-                        .field("parent", "child")
-                        .field("child", "grand_child")
-                    .endObject()
-                .endObject()
-            .endObject()
-            .endObject());
-        IndexService service = createIndex("test");
-        DocumentMapper docMapper = service.mapperService().merge("type", new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
-        assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(service.mapperService()));
+        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("join_field");
+            b.field("type", "join");
+            b.startObject("relations").field("parent", "child").field("child", "grand_child").endObject();
+            b.endObject();
+        }));
 
         // Doc without join
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "0",
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "0",
             BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()), XContentType.JSON));
         assertNull(doc.rootDoc().getBinaryValue("join_field"));
 
         // Doc parent
-        doc = docMapper.parse(SourceToParse.source("test", "type", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                    .field("join_field", "parent")
-                .endObject()), XContentType.JSON));
+        doc = docMapper.parse(source(b -> b.field("join_field", "parent")));
         assertEquals("1", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
         assertEquals("parent", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
 
         // Doc child
-        doc = docMapper.parse(SourceToParse.source("test", "type", "2",
-            BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                .startObject("join_field")
-                    .field("name", "child")
-                    .field("parent", "1")
-                .endObject()
-                .endObject()), XContentType.JSON).routing("1"));
+        doc = docMapper.parse(source("2", b -> b.startObject("join_field").field("name", "child").field("parent", "1").endObject(), "1"));
         assertEquals("1", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
         assertEquals("2", doc.rootDoc().getBinaryValue("join_field#child").utf8ToString());
         assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
 
         // Doc child missing parent
-        MapperException exc = expectThrows(MapperParsingException.class,
-            () -> docMapper.parse(SourceToParse.source("test", "type", "2",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                    .field("join_field", "child")
-                    .endObject()), XContentType.JSON).routing("1")));
+        MapperParsingException exc = expectThrows(
+            MapperParsingException.class,
+            () -> docMapper.parse(source("2", b -> b.field("join_field", "child"), "1"))
+        );
         assertThat(exc.getRootCause().getMessage(), containsString("[parent] is missing for join field [join_field]"));
 
         // Doc child missing routing
-        exc = expectThrows(MapperParsingException.class,
-            () -> docMapper.parse(SourceToParse.source("test", "type", "2",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                    .startObject("join_field")
-                    .field("name", "child")
-                    .field("parent", "1")
-                    .endObject()
-                    .endObject()), XContentType.JSON)));
+        exc = expectThrows(
+            MapperParsingException.class,
+            () -> docMapper.parse(source(b -> b.startObject("join_field").field("name", "child").field("parent", "1").endObject()))
+        );
         assertThat(exc.getRootCause().getMessage(), containsString("[routing] is missing for join field [join_field]"));
 
         // Doc grand_child
-        doc = docMapper.parse(SourceToParse.source("test", "type", "3",
-            BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                .startObject("join_field")
-                    .field("name", "grand_child")
-                    .field("parent", "2")
-                .endObject()
-                .endObject()), XContentType.JSON).routing("1"));
+        doc = docMapper.parse(
+            source("3", b -> b.startObject("join_field").field("name", "grand_child").field("parent", "2").endObject(), "1")
+        );
         assertEquals("2", doc.rootDoc().getBinaryValue("join_field#child").utf8ToString());
         assertEquals("grand_child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
 
-        // Unkwnown join name
+        // Unknown join name
         exc = expectThrows(MapperParsingException.class,
-            () -> docMapper.parse(SourceToParse.source("test", "type", "1",
+            () -> docMapper.parse(new SourceToParse("test", "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
                     .field("join_field", "unknown")
                     .endObject()), XContentType.JSON)));
@@ -212,248 +144,232 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testUpdateRelations() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties")
-            .startObject("join_field")
-                .field("type", "join")
-                .startObject("relations")
-                    .field("parent", "child")
-                    .array("child", "grand_child1", "grand_child2")
-                .endObject()
-            .endObject()
-            .endObject().endObject());
-        IndexService indexService = createIndex("test");
-        DocumentMapper docMapper = indexService.mapperService().merge("type", new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
-        assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(indexService.mapperService()));
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("join_field");
+            {
+                b.field("type", "join");
+                b.startObject("relations");
+                {
+                    b.field("parent", "child");
+                    b.array("child", "grand_child1", "grand_child2");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
 
-        {
-            final String updateMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties")
-                .startObject("join_field")
-                    .field("type", "join")
-                    .startObject("relations")
-                        .array("child", "grand_child1", "grand_child2")
-                    .endObject()
-                .endObject()
-                .endObject().endObject());
-            IllegalStateException exc = expectThrows(IllegalStateException.class,
-                () -> indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
-                    MapperService.MergeReason.MAPPING_UPDATE));
-            assertThat(exc.getMessage(), containsString("cannot remove parent [parent] in join field [join_field]"));
-        }
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, mapping(b -> {
+            b.startObject("join_field");
+            {
+                b.field("type", "join");
+                b.startObject("relations");
+                {
+                    b.array("child", "grand_child1", "grand_child2");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertThat(exc.getMessage(), containsString("Cannot remove parent [parent]"));
 
-        {
-            final String updateMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties")
-                .startObject("join_field")
-                    .field("type", "join")
-                    .startObject("relations")
-                        .field("parent", "child")
-                        .field("child", "grand_child1")
-                    .endObject()
-                .endObject()
-                .endObject().endObject());
-            IllegalStateException exc = expectThrows(IllegalStateException.class,
-                () -> indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
-                    MapperService.MergeReason.MAPPING_UPDATE));
-            assertThat(exc.getMessage(), containsString("cannot remove child [grand_child2] in join field [join_field]"));
-        }
+        exc = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, mapping(b -> {
+            b.startObject("join_field");
+            {
+                b.field("type", "join");
+                b.startObject("relations");
+                {
+                    b.field("parent", "child");
+                    b.array("child", "grand_child1");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertThat(exc.getMessage(), containsString("Cannot remove child [grand_child2]"));
 
-        {
-            final String updateMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties")
-                .startObject("join_field")
-                    .field("type", "join")
-                    .startObject("relations")
-                        .field("uber_parent", "parent")
-                        .field("parent", "child")
-                        .array("child", "grand_child1", "grand_child2")
-                    .endObject()
-                .endObject()
-                .endObject().endObject());
-            IllegalStateException exc = expectThrows(IllegalStateException.class,
-                () -> indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
-                    MapperService.MergeReason.MAPPING_UPDATE));
-            assertThat(exc.getMessage(), containsString("cannot create child [parent] from an existing parent"));
-        }
+        exc = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, mapping(b -> {
+            b.startObject("join_field");
+            {
+                b.field("type", "join");
+                b.startObject("relations");
+                {
+                    b.field("uber_parent", "parent");
+                    b.field("parent", "child");
+                    b.array("child", "grand_child1", "grand_child2");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertThat(exc.getMessage(), containsString("Cannot create child [parent] from an existing root"));
 
-        {
-            final String updateMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties")
-                .startObject("join_field")
-                    .field("type", "join")
-                    .startObject("relations")
-                        .field("parent", "child")
-                        .array("child", "grand_child1", "grand_child2")
-                        .field("grand_child2", "grand_grand_child")
-                    .endObject()
-                .endObject()
-                .endObject().endObject());
-            IllegalStateException exc = expectThrows(IllegalStateException.class,
-                () -> indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
-                    MapperService.MergeReason.MAPPING_UPDATE));
-            assertThat(exc.getMessage(), containsString("cannot create parent [grand_child2] from an existing child]"));
-        }
+        exc = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, mapping(b -> {
+            b.startObject("join_field");
+            {
+                b.field("type", "join");
+                b.startObject("relations");
+                {
+                    b.field("parent", "child");
+                    b.array("child", "grand_child1", "grand_child2");
+                    b.field("grand_child2", "grand_grand_child");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertThat(exc.getMessage(), containsString("Cannot create parent [grand_child2] from an existing child"));
 
-        {
-            final String updateMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties")
-                .startObject("join_field")
-                    .field("type", "join")
-                    .startObject("relations")
-                        .array("parent", "child", "child2")
-                        .array("child", "grand_child1", "grand_child2")
-                    .endObject()
-                .endObject()
-                .endObject().endObject());
-            docMapper = indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
-                MapperService.MergeReason.MAPPING_UPDATE);
-            assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(indexService.mapperService()));
-            ParentJoinFieldMapper mapper = ParentJoinFieldMapper.getMapper(indexService.mapperService());
-            assertTrue(mapper.hasChild("child2"));
-            assertFalse(mapper.hasParent("child2"));
-            assertTrue(mapper.hasChild("grand_child2"));
-            assertFalse(mapper.hasParent("grand_child2"));
-        }
+        merge(mapperService, mapping(b -> {
+            b.startObject("join_field");
+            {
+                b.field("type", "join");
+                b.startObject("relations");
+                {
+                    b.array("parent", "child", "child2");
+                    b.array("child", "grand_child1", "grand_child2");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
 
-        {
-            final String updateMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties")
-                .startObject("join_field")
-                    .field("type", "join")
-                    .startObject("relations")
-                        .array("parent", "child", "child2")
-                        .array("child", "grand_child1", "grand_child2")
-                        .array("other", "child_other1", "child_other2")
-                    .endObject()
-                .endObject()
-                .endObject().endObject());
-            docMapper = indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
-                MapperService.MergeReason.MAPPING_UPDATE);
-            assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(indexService.mapperService()));
-            ParentJoinFieldMapper mapper = ParentJoinFieldMapper.getMapper(indexService.mapperService());
-            assertTrue(mapper.hasParent("other"));
-            assertFalse(mapper.hasChild("other"));
-            assertTrue(mapper.hasChild("child_other1"));
-            assertFalse(mapper.hasParent("child_other1"));
-            assertTrue(mapper.hasChild("child_other2"));
-            assertFalse(mapper.hasParent("child_other2"));
-        }
+        Joiner joiner = Joiner.getJoiner(mapperService.mappingLookup().getMatchingFieldNames("*").stream()
+            .map(mapperService.mappingLookup()::getFieldType));
+        assertNotNull(joiner);
+        assertEquals("join_field", joiner.getJoinField());
+        assertTrue(joiner.childTypeExists("child2"));
+        assertFalse(joiner.parentTypeExists("child2"));
+        assertEquals(new TermQuery(new Term("join_field", "parent")), joiner.parentFilter("child"));
+        assertEquals(new TermQuery(new Term("join_field", "parent")), joiner.parentFilter("child2"));
+        assertTrue(joiner.childTypeExists("grand_child2"));
+        assertFalse(joiner.parentTypeExists("grand_child2"));
+        assertEquals(new TermQuery(new Term("join_field", "child")), joiner.parentFilter("grand_child1"));
+        assertEquals(new TermQuery(new Term("join_field", "child")), joiner.parentFilter("grand_child2"));
+
+        merge(mapperService, mapping(b -> {
+            b.startObject("join_field");
+            {
+                b.field("type", "join");
+                b.startObject("relations");
+                {
+                    b.array("parent", "child", "child2");
+                    b.array("child", "grand_child1", "grand_child2");
+                    b.array("other", "child_other1", "child_other2");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        joiner = Joiner.getJoiner(mapperService.mappingLookup().getMatchingFieldNames("*").stream()
+            .map(mapperService.mappingLookup()::getFieldType));
+        assertNotNull(joiner);
+        assertEquals("join_field", joiner.getJoinField());
+        assertTrue(joiner.childTypeExists("child2"));
+        assertFalse(joiner.parentTypeExists("child2"));
+        assertEquals(new TermQuery(new Term("join_field", "parent")), joiner.parentFilter("child"));
+        assertEquals(new TermQuery(new Term("join_field", "parent")), joiner.parentFilter("child2"));
+        assertTrue(joiner.childTypeExists("grand_child2"));
+        assertFalse(joiner.parentTypeExists("grand_child2"));
+        assertEquals(new TermQuery(new Term("join_field", "child")), joiner.parentFilter("grand_child1"));
+        assertEquals(new TermQuery(new Term("join_field", "child")), joiner.parentFilter("grand_child2"));
+        assertTrue(joiner.parentTypeExists("other"));
+        assertFalse(joiner.childTypeExists("other"));
+        assertTrue(joiner.childTypeExists("child_other1"));
+        assertFalse(joiner.parentTypeExists("child_other1"));
+        assertTrue(joiner.childTypeExists("child_other2"));
+        assertFalse(joiner.parentTypeExists("child_other2"));
+        assertEquals(new TermQuery(new Term("join_field", "other")), joiner.parentFilter("child_other2"));
     }
 
     public void testInvalidJoinFieldInsideObject() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties")
-            .startObject("object")
-                .startObject("properties")
-                    .startObject("join_field")
-                        .field("type", "join")
-                        .startObject("relations")
-                            .field("parent", "child")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject()
-            .endObject().endObject());
-        IndexService indexService = createIndex("test");
-        MapperParsingException exc = expectThrows(MapperParsingException.class,
-            () -> indexService.mapperService().merge("type", new CompressedXContent(mapping),
-                MapperService.MergeReason.MAPPING_UPDATE));
+        MapperParsingException exc = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("object");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("join_field");
+                    b.field("type", "join").startObject("relations").field("parent", "child").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
         assertThat(exc.getRootCause().getMessage(),
             containsString("join field [object.join_field] cannot be added inside an object or in a multi-field"));
     }
 
     public void testInvalidJoinFieldInsideMultiFields() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties")
-            .startObject("number")
-                .field("type", "integer")
-                .startObject("fields")
-                    .startObject("join_field")
-                        .field("type", "join")
-                        .startObject("relations")
-                            .field("parent", "child")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject()
-            .endObject().endObject());
-        IndexService indexService = createIndex("test");
-        MapperParsingException exc = expectThrows(MapperParsingException.class,
-            () -> indexService.mapperService().merge("type", new CompressedXContent(mapping),
-                MapperService.MergeReason.MAPPING_UPDATE));
-        assertThat(exc.getRootCause().getMessage(),
-            containsString("join field [number.join_field] cannot be added inside an object or in a multi-field"));
+        MapperParsingException exc = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("number");
+            {
+                b.field("type", "integer");
+                b.startObject("fields");
+                {
+                    b.startObject("join_field");
+                    {
+                        b.field("type", "join").startObject("relations").field("parent", "child").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertThat(
+            exc.getRootCause().getMessage(),
+            containsString("join field [number.join_field] cannot be added inside an object or in a multi-field")
+        );
     }
 
     public void testMultipleJoinFields() throws Exception {
-        IndexService indexService = createIndex("test");
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("properties")
-                    .startObject("join_field")
-                        .field("type", "join")
-                        .startObject("relations")
-                            .field("parent", "child")
-                            .field("child", "grand_child")
-                        .endObject()
-                    .endObject()
-                    .startObject("another_join_field")
-                        .field("type", "join")
-                        .startObject("relations")
-                            .field("product", "item")
-                        .endObject()
-                    .endObject()
-                .endObject()
-                .endObject());
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
-            assertThat(exc.getMessage(), containsString("Field [_parent_join] is defined twice in [type]"));
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createMapperService(mapping(b -> {
+                b.startObject("join_field");
+                b.field("type", "join");
+                b.startObject("relations").field("parent", "child").field("child", "grand_child").endObject();
+                b.endObject();
+                b.startObject("another_join_field");
+                b.field("type", "join");
+                b.startObject("relations").field("product", "item").endObject().endObject();
+            })));
+            assertThat(exc.getMessage(),
+                equalTo("Only one [parent-join] field can be defined per index, got [join_field, another_join_field]"));
         }
 
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("properties")
-                    .startObject("join_field")
-                        .field("type", "join")
-                        .startObject("relations")
-                            .field("parent", "child")
-                            .field("child", "grand_child")
-                        .endObject()
-                    .endObject()
-                .endObject()
-                .endObject());
-            indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-            String updateMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("properties")
-                    .startObject("another_join_field")
-                        .field("type", "join")
-                    .endObject()
-                .endObject()
-                .endObject());
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexService.mapperService().merge("type",
-                new CompressedXContent(updateMapping), MapperService.MergeReason.MAPPING_UPDATE));
-            assertThat(exc.getMessage(), containsString("Field [_parent_join] is defined twice in [type]"));
+            MapperService mapperService = createMapperService(mapping(b -> {
+                b.startObject("join_field");
+                b.field("type", "join");
+                b.startObject("relations").field("parent", "child").field("child", "grand_child").endObject();
+                b.endObject();
+            }));
+            // Updating the mapping with another join field also fails
+            IllegalArgumentException exc = expectThrows(
+                IllegalArgumentException.class,
+                () -> merge(mapperService, mapping(b -> b.startObject("another_join_field").field("type", "join").endObject()))
+            );
+            assertThat(exc.getMessage(),
+                equalTo("Only one [parent-join] field can be defined per index, got [join_field, another_join_field]"));
         }
     }
 
     public void testEagerGlobalOrdinals() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
+        MapperService mapperService = createMapperService(mapping(b -> b
                 .startObject("join_field")
                     .field("type", "join")
                     .startObject("relations")
                         .field("parent", "child")
                         .field("child", "grand_child")
                     .endObject()
-                .endObject()
-            .endObject()
-            .endObject());
-        IndexService service = createIndex("test");
-        DocumentMapper docMapper = service.mapperService().merge("type", new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
-        assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(service.mapperService()));
-        assertFalse(service.mapperService().fullName("join_field").eagerGlobalOrdinals());
-        assertNotNull(service.mapperService().fullName("join_field#parent"));
-        assertTrue(service.mapperService().fullName("join_field#parent").eagerGlobalOrdinals());
-        assertNotNull(service.mapperService().fullName("join_field#child"));
-        assertTrue(service.mapperService().fullName("join_field#child").eagerGlobalOrdinals());
+                .endObject()));
+        assertFalse(mapperService.fieldType("join_field").eagerGlobalOrdinals());
+        assertNotNull(mapperService.fieldType("join_field#parent"));
+        assertTrue(mapperService.fieldType("join_field#parent").eagerGlobalOrdinals());
+        assertNotNull(mapperService.fieldType("join_field#child"));
+        assertTrue(mapperService.fieldType("join_field#child").eagerGlobalOrdinals());
 
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
+        merge(mapperService, mapping(b -> b
                 .startObject("join_field")
                     .field("type", "join")
                     .field("eager_global_ordinals", false)
@@ -461,15 +377,39 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                         .field("parent", "child")
                         .field("child", "grand_child")
                     .endObject()
+                .endObject()));
+        assertFalse(mapperService.fieldType("join_field").eagerGlobalOrdinals());
+        assertNotNull(mapperService.fieldType("join_field#parent"));
+        assertFalse(mapperService.fieldType("join_field#parent").eagerGlobalOrdinals());
+        assertNotNull(mapperService.fieldType("join_field#child"));
+        assertFalse(mapperService.fieldType("join_field#child").eagerGlobalOrdinals());
+    }
+
+    public void testSubFields() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> b
+            .startObject("join_field")
+                .field("type", "join")
+                .startObject("relations")
+                    .field("parent", "child")
+                    .field("child", "grand_child")
                 .endObject()
-            .endObject()
-            .endObject());
-        service.mapperService().merge("type", new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
-        assertFalse(service.mapperService().fullName("join_field").eagerGlobalOrdinals());
-        assertNotNull(service.mapperService().fullName("join_field#parent"));
-        assertFalse(service.mapperService().fullName("join_field#parent").eagerGlobalOrdinals());
-        assertNotNull(service.mapperService().fullName("join_field#child"));
-        assertFalse(service.mapperService().fullName("join_field#child").eagerGlobalOrdinals());
+            .endObject()));
+        ParentJoinFieldMapper mapper = (ParentJoinFieldMapper) mapperService.mappingLookup().getMapper("join_field");
+        assertTrue(mapper.fieldType().isSearchable());
+        assertTrue(mapper.fieldType().isAggregatable());
+
+        Iterator<Mapper> it = mapper.iterator();
+        FieldMapper next = (FieldMapper) it.next();
+        assertThat(next.name(), equalTo("join_field#parent"));
+        assertTrue(next.fieldType().isSearchable());
+        assertTrue(next.fieldType().isAggregatable());
+
+        assertTrue(it.hasNext());
+        next = (FieldMapper) it.next();
+        assertThat(next.name(), equalTo("join_field#child"));
+        assertTrue(next.fieldType().isSearchable());
+        assertTrue(next.fieldType().isAggregatable());
+
+        assertFalse(it.hasNext());
     }
 }

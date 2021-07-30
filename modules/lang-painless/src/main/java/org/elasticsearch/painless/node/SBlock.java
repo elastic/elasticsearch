@@ -1,96 +1,46 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-
-import static java.util.Collections.emptyList;
+import java.util.Objects;
 
 /**
  * Represents a set of statements as a branch of control-flow.
  */
-public final class SBlock extends AStatement {
+public class SBlock extends AStatement {
 
-    private final List<AStatement> statements;
+    private final List<AStatement> statementNodes;
 
-    public SBlock(Location location, List<AStatement> statements) {
-        super(location);
+    public SBlock(int identifier, Location location, List<AStatement> statementNodes) {
+        super(identifier, location);
 
-        this.statements = Collections.unmodifiableList(statements);
+        this.statementNodes = Collections.unmodifiableList(Objects.requireNonNull(statementNodes));
+    }
+
+    public List<AStatement> getStatementNodes() {
+        return statementNodes;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        for (AStatement statement : statements) {
-            statement.extractVariables(variables);
-        }
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitBlock(this, scope);
     }
 
     @Override
-    void analyze(Locals locals) {
-        if (statements == null || statements.isEmpty()) {
-            throw createError(new IllegalArgumentException("A block must contain at least one statement."));
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        for (AStatement statementNode: statementNodes) {
+            statementNode.visit(userTreeVisitor, scope);
         }
-
-        AStatement last = statements.get(statements.size() - 1);
-
-        for (AStatement statement : statements) {
-            // Note that we do not need to check after the last statement because
-            // there is no statement that can be unreachable after the last.
-            if (allEscape) {
-                throw createError(new IllegalArgumentException("Unreachable statement."));
-            }
-
-            statement.inLoop = inLoop;
-            statement.lastSource = lastSource && statement == last;
-            statement.lastLoop = (beginLoop || lastLoop) && statement == last;
-
-            statement.analyze(locals);
-
-            methodEscape = statement.methodEscape;
-            loopEscape = statement.loopEscape;
-            allEscape = statement.allEscape;
-            anyContinue |= statement.anyContinue;
-            anyBreak |= statement.anyBreak;
-            statementCount += statement.statementCount;
-        }
-    }
-
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        for (AStatement statement : statements) {
-            statement.continu = continu;
-            statement.brake = brake;
-            statement.write(writer, globals);
-        }
-    }
-
-    @Override
-    public String toString() {
-        return multilineToString(emptyList(), statements);
     }
 }

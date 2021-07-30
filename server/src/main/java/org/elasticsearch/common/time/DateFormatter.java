@@ -1,26 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.joda.Joda;
 import org.joda.time.DateTime;
 
 import java.time.Instant;
@@ -48,7 +36,7 @@ public interface DateFormatter {
      * Parse the given input into millis-since-epoch.
      */
     default long parseMillis(String input) {
-        return Instant.from(parse(input)).toEpochMilli();
+        return DateFormatters.from(parse(input)).toInstant().toEpochMilli();
     }
 
     /**
@@ -87,7 +75,8 @@ public interface DateFormatter {
      * Return the given millis-since-epoch formatted with this format.
      */
     default String formatMillis(long millis) {
-        return format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC));
+        ZoneId zone = zone() != null ? zone() : ZoneOffset.UTC;
+        return format(Instant.ofEpochMilli(millis).atZone(zone));
     }
 
     /**
@@ -121,27 +110,34 @@ public interface DateFormatter {
     ZoneId zone();
 
     /**
-     * Return a {@link DateMathParser} built from this formatter.
+     * Create a DateMathParser from the existing formatter
+     *
+     * @return The DateMathParser object
      */
     DateMathParser toDateMathParser();
 
     static DateFormatter forPattern(String input) {
-        return forPattern(input, Locale.ROOT);
-    }
-
-    static DateFormatter forPattern(String input, Locale locale) {
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
         }
+
+        // support the 6.x BWC compatible way of parsing java 8 dates
+        if (input.startsWith("8")) {
+            input = input.substring(1);
+        }
+
         List<DateFormatter> formatters = new ArrayList<>();
         for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
-            formatters.add(Joda.forPattern(pattern, locale));
+            if (Strings.hasLength(pattern) == false) {
+                throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
+            }
+            formatters.add(DateFormatters.forPattern(pattern));
         }
 
         if (formatters.size() == 1) {
             return formatters.get(0);
         }
-        return new DateFormatters.MergedDateFormatter(input, formatters);
 
+        return JavaDateFormatter.combined(input, formatters);
     }
 }

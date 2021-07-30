@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.search;
@@ -28,6 +17,7 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.Token;
 import org.apache.lucene.queryparser.classic.XQueryParser;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -42,22 +32,25 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.index.query.support.QueryParsers;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -66,23 +59,24 @@ import java.util.Map;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
+import static org.elasticsearch.index.search.QueryParserHelper.checkForTooManyFields;
 import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingField;
 import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingFields;
 
 /**
  * A {@link XQueryParser} that uses the {@link MapperService} in order to build smarter
  * queries based on the mapping information.
- * This class uses {@link MultiMatchQuery} to build the text query around operators and {@link XQueryParser}
+ * This class uses {@link MultiMatchQueryParser} to build the text query around operators and {@link XQueryParser}
  * to assemble the result logically.
  */
 public class QueryStringQueryParser extends XQueryParser {
     private static final String EXISTS_FIELD = "_exists_";
 
-    private final QueryShardContext context;
+    private final SearchExecutionContext context;
     private final Map<String, Float> fieldsAndWeights;
     private final boolean lenient;
 
-    private final MultiMatchQuery queryBuilder;
+    private final MultiMatchQueryParser queryBuilder;
     private MultiMatchQueryBuilder.Type type = MultiMatchQueryBuilder.Type.BEST_FIELDS;
     private Float groupTieBreaker;
 
@@ -90,10 +84,9 @@ public class QueryStringQueryParser extends XQueryParser {
     private Analyzer forceQuoteAnalyzer;
     private String quoteFieldSuffix;
     private boolean analyzeWildcard;
-    private DateTimeZone timeZone;
+    private ZoneId timeZone;
     private Fuzziness fuzziness = Fuzziness.AUTO;
     private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
-    private MappedFieldType currentFieldType;
     private MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
     private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
 
@@ -101,8 +94,8 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param context The query shard context.
      * @param defaultField The default field for query terms.
      */
-    public QueryStringQueryParser(QueryShardContext context, String defaultField) {
-        this(context, defaultField, Collections.emptyMap(), false, context.getMapperService().searchAnalyzer());
+    public QueryStringQueryParser(SearchExecutionContext context, String defaultField) {
+        this(context, defaultField, Collections.emptyMap(), false);
     }
 
     /**
@@ -110,16 +103,16 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param defaultField The default field for query terms.
      * @param lenient If set to `true` will cause format based failures (like providing text to a numeric field) to be ignored.
      */
-    public QueryStringQueryParser(QueryShardContext context, String defaultField, boolean lenient) {
-        this(context, defaultField, Collections.emptyMap(), lenient, context.getMapperService().searchAnalyzer());
+    public QueryStringQueryParser(SearchExecutionContext context, String defaultField, boolean lenient) {
+        this(context, defaultField, Collections.emptyMap(), lenient);
     }
 
     /**
      * @param context The query shard context
      * @param fieldsAndWeights The default fields and weights expansion for query terms
      */
-    public QueryStringQueryParser(QueryShardContext context, Map<String, Float> fieldsAndWeights) {
-        this(context, null, fieldsAndWeights, false, context.getMapperService().searchAnalyzer());
+    public QueryStringQueryParser(SearchExecutionContext context, Map<String, Float> fieldsAndWeights) {
+        this(context, null, fieldsAndWeights, false);
     }
 
     /**
@@ -127,31 +120,37 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param fieldsAndWeights The default fields and weights expansion for query terms.
      * @param lenient If set to `true` will cause format based failures (like providing text to a numeric field) to be ignored.
      */
-    public QueryStringQueryParser(QueryShardContext context, Map<String, Float> fieldsAndWeights, boolean lenient) {
-        this(context, null, fieldsAndWeights, lenient, context.getMapperService().searchAnalyzer());
+    public QueryStringQueryParser(SearchExecutionContext context, Map<String, Float> fieldsAndWeights, boolean lenient) {
+        this(context, null, fieldsAndWeights, lenient);
     }
 
     /**
-     * Defaults to all queryiable fields extracted from the mapping for query terms
+     * Defaults to all queryable fields extracted from the mapping for query terms
      * @param context The query shard context
      * @param lenient If set to `true` will cause format based failures (like providing text to a numeric field) to be ignored.
      */
-    public QueryStringQueryParser(QueryShardContext context, boolean lenient) {
+    public QueryStringQueryParser(SearchExecutionContext context, boolean lenient) {
         this(context, "*",
-            resolveMappingField(context, "*", 1.0f, false, false),
-            lenient, context.getMapperService().searchAnalyzer());
+            resolveMappingField(context, "*", 1.0f, false, false, null),
+            lenient);
     }
 
-    private QueryStringQueryParser(QueryShardContext context, String defaultField,
+    private QueryStringQueryParser(SearchExecutionContext context, String defaultField,
                                    Map<String, Float> fieldsAndWeights,
-                                   boolean lenient, Analyzer analyzer) {
-        super(defaultField, analyzer);
+                                   boolean lenient) {
+        super(defaultField, context.getIndexAnalyzers().getDefaultSearchAnalyzer());
         this.context = context;
         this.fieldsAndWeights = Collections.unmodifiableMap(fieldsAndWeights);
-        this.queryBuilder = new MultiMatchQuery(context);
-        queryBuilder.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.NULL);
+        this.queryBuilder = new MultiMatchQueryParser(context);
+        queryBuilder.setZeroTermsQuery(ZeroTermsQueryOption.NULL);
         queryBuilder.setLenient(lenient);
         this.lenient = lenient;
+    }
+
+    @Override
+    public void setEnablePositionIncrements(boolean enable) {
+        super.setEnablePositionIncrements(enable);
+        queryBuilder.setEnablePositionIncrements(enable);
     }
 
     @Override
@@ -228,7 +227,7 @@ public class QueryStringQueryParser extends XQueryParser {
     /**
      * @param timeZone Time Zone to be applied to any range query related to dates.
      */
-    public void setTimeZone(DateTimeZone timeZone) {
+    public void setTimeZone(ZoneId timeZone) {
         this.timeZone = timeZone;
     }
 
@@ -262,21 +261,31 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Map<String, Float> extractMultiFields(String field, boolean quoted) {
+        Map<String, Float> extractedFields;
         if (field != null) {
             boolean allFields = Regex.isMatchAllPattern(field);
             if (allFields && this.field != null && this.field.equals(field)) {
                 // "*" is the default field
-                return fieldsAndWeights;
+                extractedFields = fieldsAndWeights;
             }
             boolean multiFields = Regex.isSimpleMatchPattern(field);
             // Filters unsupported fields if a pattern is requested
             // Filters metadata fields if all fields are requested
-            return resolveMappingField(context, field, 1.0f, !allFields, !multiFields, quoted ? quoteFieldSuffix : null);
+            extractedFields = resolveMappingField(
+                context,
+                field,
+                1.0f,
+                allFields == false,
+                multiFields == false,
+                quoted ? quoteFieldSuffix : null
+            );
         } else if (quoted && quoteFieldSuffix != null) {
-            return resolveMappingFields(context, fieldsAndWeights, quoteFieldSuffix);
+            extractedFields = resolveMappingFields(context, fieldsAndWeights, quoteFieldSuffix);
         } else {
-            return fieldsAndWeights;
+            extractedFields = fieldsAndWeights;
         }
+        checkForTooManyFields(extractedFields.size(), this.context, field);
+        return extractedFields;
     }
 
     @Override
@@ -313,6 +322,10 @@ public class QueryStringQueryParser extends XQueryParser {
                         }
                     }
                     return getRangeQuery(field, null, queryText.substring(1), true, false);
+                }
+                // if we are querying a single date field, we also create a range query that leverages the time zone setting
+                if (context.getFieldType(field) instanceof DateFieldType && this.timeZone != null) {
+                    return getRangeQuery(field, queryText, queryText, true, true);
                 }
             }
         }
@@ -399,13 +412,13 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Query getRangeQuerySingle(String field, String part1, String part2,
-                                      boolean startInclusive, boolean endInclusive, QueryShardContext context) {
-        currentFieldType = context.fieldMapper(field);
-        if (currentFieldType == null) {
+                                      boolean startInclusive, boolean endInclusive, SearchExecutionContext context) {
+        MappedFieldType currentFieldType = context.getFieldType(field);
+        if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
             return newUnmappedFieldQuery(field);
         }
         try {
-            Analyzer normalizer = forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer;
+            Analyzer normalizer = forceAnalyzer == null ? currentFieldType.getTextSearchInfo().getSearchAnalyzer() : forceAnalyzer;
             BytesRef part1Binary = part1 == null ? null : normalizer.normalize(field, part1);
             BytesRef part2Binary = part2 == null ? null : normalizer.normalize(field, part2);
             Query rangeQuery = currentFieldType.rangeQuery(part1Binary, part2Binary,
@@ -424,7 +437,8 @@ public class QueryStringQueryParser extends XQueryParser {
         if (fuzzySlop.image.length() == 1) {
             return getFuzzyQuery(field, termImage, fuzziness.asDistance(termImage));
         }
-        return getFuzzyQuery(field, termImage, Fuzziness.build(fuzzySlop.image.substring(1)).asFloat());
+        float distance = Fuzziness.fromString(fuzzySlop.image.substring(1)).asDistance(termImage);
+        return getFuzzyQuery(field, termImage, distance);
     }
 
     @Override
@@ -435,7 +449,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
-            Query q = getFuzzyQuerySingle(entry.getKey(), termStr, minSimilarity);
+            Query q = getFuzzyQuerySingle(entry.getKey(), termStr, (int) minSimilarity);
             assert q != null;
             queries.add(applyBoost(q, entry.getValue()));
         }
@@ -448,16 +462,16 @@ public class QueryStringQueryParser extends XQueryParser {
         }
     }
 
-    private Query getFuzzyQuerySingle(String field, String termStr, float minSimilarity) throws ParseException {
-        currentFieldType = context.fieldMapper(field);
-        if (currentFieldType == null) {
+    private Query getFuzzyQuerySingle(String field, String termStr, int minSimilarity) throws ParseException {
+        MappedFieldType currentFieldType = context.getFieldType(field);
+        if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
             return newUnmappedFieldQuery(field);
         }
         try {
-            Analyzer normalizer = forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer;
+            Analyzer normalizer = forceAnalyzer == null ? currentFieldType.getTextSearchInfo().getSearchAnalyzer() : forceAnalyzer;
             BytesRef term = termStr == null ? null : normalizer.normalize(field, termStr);
-            return currentFieldType.fuzzyQuery(term, Fuzziness.fromEdits((int) minSimilarity),
-                getFuzzyPrefixLength(), fuzzyMaxExpansions, fuzzyTranspositions);
+            return currentFieldType.fuzzyQuery(term, Fuzziness.fromEdits(minSimilarity),
+                getFuzzyPrefixLength(), fuzzyMaxExpansions, fuzzyTranspositions, context);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
@@ -468,7 +482,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
     @Override
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
-        int numEdits = Fuzziness.build(minimumSimilarity).asDistance(term.text());
+        int numEdits = Fuzziness.fromEdits((int) minimumSimilarity).asDistance(term.text());
         FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength,
             fuzzyMaxExpansions, fuzzyTranspositions);
         QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);
@@ -501,16 +515,16 @@ public class QueryStringQueryParser extends XQueryParser {
     private Query getPrefixQuerySingle(String field, String termStr) throws ParseException {
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            currentFieldType = context.fieldMapper(field);
-            if (currentFieldType == null) {
+            MappedFieldType currentFieldType = context.getFieldType(field);
+            if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
                 return newUnmappedFieldQuery(field);
             }
-            setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
+            setAnalyzer(forceAnalyzer == null ? currentFieldType.getTextSearchInfo().getSearchAnalyzer() : forceAnalyzer);
             Query query = null;
-            if (currentFieldType instanceof StringFieldType == false) {
+            if (currentFieldType.getTextSearchInfo().isTokenized() == false) {
                 query = currentFieldType.prefixQuery(termStr, getMultiTermRewriteMethod(), context);
             } else {
-                query = getPossiblyAnalyzedPrefixQuery(currentFieldType.name(), termStr);
+                query = getPossiblyAnalyzedPrefixQuery(currentFieldType.name(), termStr, currentFieldType);
             }
             return query;
         } catch (RuntimeException e) {
@@ -523,9 +537,10 @@ public class QueryStringQueryParser extends XQueryParser {
         }
     }
 
-    private Query getPossiblyAnalyzedPrefixQuery(String field, String termStr) throws ParseException {
+    private Query getPossiblyAnalyzedPrefixQuery(String field, String termStr, MappedFieldType currentFieldType) throws ParseException {
         if (analyzeWildcard == false) {
-            return super.getPrefixQuery(field, termStr);
+            return currentFieldType.prefixQuery(getAnalyzer().normalize(field, termStr).utf8ToString(),
+                getMultiTermRewriteMethod(), context);
         }
         List<List<String> > tlist;
         // get Analyzer from superclass and tokenize the term
@@ -544,7 +559,9 @@ public class QueryStringQueryParser extends XQueryParser {
 
             while (true) {
                 try {
-                    if (!source.incrementToken()) break;
+                    if (source.incrementToken() == false) {
+                        break;
+                    }
                 } catch (IOException e) {
                     break;
                 }
@@ -568,7 +585,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
 
         if (tlist.size() == 1 && tlist.get(0).size() == 1) {
-            return super.getPrefixQuery(field, tlist.get(0).get(0));
+            return currentFieldType.prefixQuery(tlist.get(0).get(0), getMultiTermRewriteMethod(), context);
         }
 
         // build a boolean query with prefix on the last position only.
@@ -579,9 +596,9 @@ public class QueryStringQueryParser extends XQueryParser {
             Query posQuery;
             if (plist.size() == 1) {
                 if (isLastPos) {
-                    posQuery = super.getPrefixQuery(field, plist.get(0));
+                    posQuery = currentFieldType.prefixQuery(plist.get(0), getMultiTermRewriteMethod(), context);
                 } else {
-                    posQuery = newTermQuery(new Term(field, plist.get(0)));
+                    posQuery = newTermQuery(new Term(field, plist.get(0)), BoostAttribute.DEFAULT_BOOST);
                 }
             } else if (isLastPos == false) {
                 // build a synonym query for terms in the same position.
@@ -605,17 +622,16 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Query existsQuery(String fieldName) {
-        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-            (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
-        if (fieldNamesFieldType == null) {
+        if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
             return new MatchNoDocsQuery("No mappings yet");
         }
+        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
+            (FieldNamesFieldMapper.FieldNamesFieldType) context.getFieldType(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType.isEnabled() == false) {
             // The field_names_field is disabled so we switch to a wildcard query that matches all terms
             return new WildcardQuery(new Term(fieldName, "*"));
         }
-
-        return ExistsQueryBuilder.newFilter(context, fieldName);
+        return ExistsQueryBuilder.newFilter(context, fieldName, false);
     }
 
     @Override
@@ -652,16 +668,21 @@ public class QueryStringQueryParser extends XQueryParser {
             // effectively, we check if a field exists or not
             return existsQuery(field);
         }
-        String indexedNameField = field;
-        currentFieldType = null;
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            currentFieldType = queryBuilder.context.fieldMapper(field);
-            if (currentFieldType != null) {
-                setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
-                indexedNameField = currentFieldType.name();
+            MappedFieldType currentFieldType = queryBuilder.context.getFieldType(field);
+            if (currentFieldType == null) {
+                return newUnmappedFieldQuery(field);
             }
-            return super.getWildcardQuery(indexedNameField, termStr);
+            if (forceAnalyzer != null &&
+                (analyzeWildcard || currentFieldType.getTextSearchInfo().isTokenized())) {
+                setAnalyzer(forceAnalyzer);
+                return super.getWildcardQuery(currentFieldType.name(), termStr);
+            }
+            if (getAllowLeadingWildcard() == false && (termStr.startsWith("*") || termStr.startsWith("?"))) {
+                throw new ParseException("'*' or '?' not allowed as first character in WildcardQuery");
+            }
+            return currentFieldType.normalizedWildcardQuery(termStr, getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
@@ -700,16 +721,18 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Query getRegexpQuerySingle(String field, String termStr) throws ParseException {
-        currentFieldType = null;
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            currentFieldType = queryBuilder.context.fieldMapper(field);
+            MappedFieldType currentFieldType = queryBuilder.context.getFieldType(field);
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
             }
-            setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
-            Query query = super.getRegexpQuery(field, termStr);
-            return query;
+            if (forceAnalyzer != null) {
+                setAnalyzer(forceAnalyzer);
+                return super.getRegexpQuery(field, termStr);
+            }
+            return currentFieldType.regexpQuery(termStr, RegExp.ALL, 0, getMaxDeterminizedStates(),
+                getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);

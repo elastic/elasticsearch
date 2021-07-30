@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.xpack.ql.common.Failure;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.Node;
+import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
+
 import java.util.List;
 import java.util.Map;
-
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.sql.planner.Verifier.Failure;
-import org.elasticsearch.xpack.sql.tree.Node;
 
 import static java.util.stream.Collectors.toMap;
 
@@ -41,7 +42,7 @@ public class Planner {
     // verify the mapped plan
     public PhysicalPlan verifyMappingPlan(PhysicalPlan plan) {
         List<Failure> failures = Verifier.verifyMappingPlan(plan);
-        if (!failures.isEmpty()) {
+        if (failures.isEmpty() == false) {
             throw new PlanningException(failures);
         }
         return plan;
@@ -49,12 +50,12 @@ public class Planner {
 
     public Map<Node<?>, String> verifyMappingPlanFailures(PhysicalPlan plan) {
         List<Failure> failures = Verifier.verifyMappingPlan(plan);
-        return failures.stream().collect(toMap(Failure::source, Failure::message));
+        return failures.stream().collect(toMap(Failure::node, Failure::message));
     }
 
     public PhysicalPlan verifyExecutingPlan(PhysicalPlan plan) {
         List<Failure> failures = Verifier.verifyExecutingPlan(plan);
-        if (!failures.isEmpty()) {
+        if (failures.isEmpty() == false) {
             throw new PlanningException(failures);
         }
         return plan;
@@ -62,6 +63,6 @@ public class Planner {
 
     public Map<Node<?>, String> verifyExecutingPlanFailures(PhysicalPlan plan) {
         List<Failure> failures = Verifier.verifyExecutingPlan(plan);
-        return failures.stream().collect(toMap(Failure::source, Failure::message));
+        return failures.stream().collect(toMap(Failure::node, Failure::message));
     }
 }

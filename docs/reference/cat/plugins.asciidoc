@@ -1,20 +1,55 @@
 [[cat-plugins]]
-== cat plugins
+=== cat plugins API
+++++
+<titleabbrev>cat plugins</titleabbrev>
+++++
 
-The `plugins` command provides a view per node of running plugins. This information *spans nodes*.
+Returns a list of plugins running on each node of a cluster.
 
-[source,js]
+
+[[cat-plugins-api-request]]
+==== {api-request-title}
+
+`GET /_cat/plugins`
+
+[[cat-plugins-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cat-plugins-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-plugins-api-example]]
+==== {api-examples-title}
+
+[source,console]
 ------------------------------------------------------------------------------
-GET /_cat/plugins?v&s=component&h=name,component,version,description
+GET /_cat/plugins?v=true&s=component&h=name,component,version,description
 ------------------------------------------------------------------------------
-// CONSOLE
 
-Might look like:
+The API returns the following response:
 
 ["source","txt",subs="attributes,callouts"]
 ------------------------------------------------------------------------------
 name    component               version   description
-U7321H6 analysis-icu            {version_qualified} The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.
+U7321H6 analysis-icu            {version_qualified} The ICU Analysis plugin integrates the Lucene ICU module into Elasticsearch, adding ICU-related analysis components.
 U7321H6 analysis-kuromoji       {version_qualified} The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.
 U7321H6 analysis-nori           {version_qualified} The Korean (nori) Analysis plugin integrates Lucene nori analysis module into elasticsearch.
 U7321H6 analysis-phonetic       {version_qualified} The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.
@@ -25,14 +60,10 @@ U7321H6 discovery-azure-classic {version_qualified} The Azure Classic Discovery 
 U7321H6 discovery-ec2           {version_qualified} The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.
 U7321H6 discovery-gce           {version_qualified} The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.
 U7321H6 ingest-attachment       {version_qualified} Ingest processor that uses Apache Tika to extract contents
-U7321H6 ingest-geoip            {version_qualified} Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database
-U7321H6 ingest-user-agent       {version_qualified} Ingest processor that extracts information from a user agent
 U7321H6 mapper-annotated-text   {version_qualified} The Mapper Annotated_text plugin adds support for text fields with markup used to inject annotation tokens into the index.
 U7321H6 mapper-murmur3          {version_qualified} The Mapper Murmur3 plugin allows to compute hashes of a field's values at index-time and to store them in the index.
 U7321H6 mapper-size             {version_qualified} The Mapper Size plugin allows document to record their uncompressed size at index time.
 U7321H6 store-smb               {version_qualified} The Store SMB plugin adds support for SMB stores.
 U7321H6 transport-nio           {version_qualified} The nio transport.
 ------------------------------------------------------------------------------
-// TESTRESPONSE[s/([.()])/\\$1/ s/U7321H6/.+/ _cat]
-
-We can tell quickly how many plugins per node we have and which versions.
+// TESTRESPONSE[s/([.()])/\\$1/ s/U7321H6/.+/ non_json]

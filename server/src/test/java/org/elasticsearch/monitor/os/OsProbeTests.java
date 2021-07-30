@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.os;
@@ -28,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -188,22 +178,188 @@ public class OsProbeTests extends ESTestCase {
         final boolean areCgroupStatsAvailable = randomBoolean();
         final String hierarchy = randomAlphaOfLength(16);
 
-        final OsProbe probe = new OsProbe() {
+        final OsProbe probe = buildStubOsProbe(areCgroupStatsAvailable, hierarchy);
 
+        final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
+
+        if (areCgroupStatsAvailable) {
+            assertNotNull(cgroup);
+            assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
+            assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(364869866063112L));
+            assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
+            assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
+            assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
+            assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(17992L));
+            assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(1311L));
+            assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(139298645489L));
+            assertThat(cgroup.getMemoryLimitInBytes(), equalTo("18446744073709551615"));
+            assertThat(cgroup.getMemoryUsageInBytes(), equalTo("4796416"));
+        } else {
+            assertNull(cgroup);
+        }
+    }
+
+    public void testCgroupProbeWithMissingCpuAcct() {
+        assumeTrue("test runs on Linux only", Constants.LINUX);
+
+        final String hierarchy = randomAlphaOfLength(16);
+
+        // This cgroup data is missing a line about cpuacct
+        List<String> procSelfCgroupLines = getProcSelfGroupLines(hierarchy)
+            .stream()
+            .map(line -> line.replaceFirst(",cpuacct", ""))
+            .collect(Collectors.toList());
+
+        final OsProbe probe = buildStubOsProbe(true, hierarchy, procSelfCgroupLines);
+
+        final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
+
+        assertNull(cgroup);
+    }
+
+    public void testCgroupProbeWithMissingCpu() {
+        assumeTrue("test runs on Linux only", Constants.LINUX);
+
+        final String hierarchy = randomAlphaOfLength(16);
+
+        // This cgroup data is missing a line about cpu
+        List<String> procSelfCgroupLines = getProcSelfGroupLines(hierarchy)
+            .stream()
+            .map(line -> line.replaceFirst(":cpu,", ":"))
+            .collect(Collectors.toList());
+
+
+        final OsProbe probe = buildStubOsProbe(true, hierarchy, procSelfCgroupLines);
+
+        final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
+
+        assertNull(cgroup);
+    }
+
+    public void testCgroupProbeWithMissingMemory() {
+        assumeTrue("test runs on Linux only", Constants.LINUX);
+
+        final String hierarchy = randomAlphaOfLength(16);
+
+        // This cgroup data is missing a line about memory
+        List<String> procSelfCgroupLines = getProcSelfGroupLines(hierarchy)
+            .stream()
+            .filter(line -> line.contains(":memory:") == false)
+            .collect(Collectors.toList());
+
+        final OsProbe probe = buildStubOsProbe(true, hierarchy, procSelfCgroupLines);
+
+        final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
+
+        assertNull(cgroup);
+    }
+
+    public void testGetTotalMemFromProcMeminfo() throws Exception {
+        // missing MemTotal line
+        var meminfoLines = Arrays.asList(
+            "MemFree:         8467692 kB",
+            "MemAvailable:   39646240 kB",
+            "Buffers:         4699504 kB",
+            "Cached:         23290380 kB",
+            "SwapCached:            0 kB",
+            "Active:         43637908 kB",
+            "Inactive:        8130280 kB"
+        );
+        OsProbe probe = buildStubOsProbe(true, "", List.of(), meminfoLines);
+        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
+
+        // MemTotal line with invalid value
+        meminfoLines = Arrays.asList(
+            "MemTotal:        invalid kB",
+            "MemFree:         8467692 kB",
+            "MemAvailable:   39646240 kB",
+            "Buffers:         4699504 kB",
+            "Cached:         23290380 kB",
+            "SwapCached:            0 kB",
+            "Active:         43637908 kB",
+            "Inactive:        8130280 kB"
+        );
+        probe = buildStubOsProbe(true, "", List.of(), meminfoLines);
+        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
+
+        // MemTotal line with invalid unit
+        meminfoLines = Arrays.asList(
+            "MemTotal:       39646240 MB",
+            "MemFree:         8467692 kB",
+            "MemAvailable:   39646240 kB",
+            "Buffers:         4699504 kB",
+            "Cached:         23290380 kB",
+            "SwapCached:            0 kB",
+            "Active:         43637908 kB",
+            "Inactive:        8130280 kB"
+        );
+        probe = buildStubOsProbe(true, "", List.of(), meminfoLines);
+        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
+
+        // MemTotal line with random valid value
+        long memTotalInKb = randomLongBetween(1, Long.MAX_VALUE / 1024L);
+        meminfoLines = Arrays.asList(
+            "MemTotal:        " + memTotalInKb + " kB",
+            "MemFree:         8467692 kB",
+            "MemAvailable:   39646240 kB",
+            "Buffers:         4699504 kB",
+            "Cached:         23290380 kB",
+            "SwapCached:            0 kB",
+            "Active:         43637908 kB",
+            "Inactive:        8130280 kB"
+        );
+        probe = buildStubOsProbe(true, "", List.of(), meminfoLines);
+        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(memTotalInKb * 1024L));
+    }
+
+    public void testGetTotalMemoryOnDebian8() throws Exception {
+        // tests the workaround for JDK bug on debian8: https://github.com/elastic/elasticsearch/issues/67089#issuecomment-756114654
+        final OsProbe osProbe = new OsProbe();
+        assumeTrue("runs only on Debian 8", osProbe.isDebian8());
+        assertThat(osProbe.getTotalPhysicalMemorySize(), greaterThan(0L));
+    }
+
+    private static List<String> getProcSelfGroupLines(String hierarchy) {
+        return Arrays.asList(
+            "10:freezer:/",
+            "9:net_cls,net_prio:/",
+            "8:pids:/",
+            "7:blkio:/",
+            "6:memory:/" + hierarchy,
+            "5:devices:/user.slice",
+            "4:hugetlb:/",
+            "3:perf_event:/",
+            "2:cpu,cpuacct,cpuset:/" + hierarchy,
+            "1:name=systemd:/user.slice/user-1000.slice/session-2359.scope",
+            "0::/cgroup2");
+    }
+
+    private static OsProbe buildStubOsProbe(final boolean areCgroupStatsAvailable, final String hierarchy) {
+        List<String> procSelfCgroupLines = getProcSelfGroupLines(hierarchy);
+
+        return buildStubOsProbe(areCgroupStatsAvailable, hierarchy, procSelfCgroupLines);
+    }
+
+    /**
+     * Builds a test instance of OsProbe. Methods that ordinarily read from the filesystem are overridden to return values based upon
+     * the arguments to this method.
+     *
+     * @param areCgroupStatsAvailable whether or not cgroup data is available. Normally OsProbe establishes this for itself.
+     * @param hierarchy a mock value used to generate a cgroup hierarchy.
+     * @param procSelfCgroupLines the lines that will be used as the content of <code>/proc/self/cgroup</code>
+     * @param procMeminfoLines lines that will be used as the content of <code>/proc/meminfo</code>
+     * @return a test instance
+     */
+    private static OsProbe buildStubOsProbe(
+        final boolean areCgroupStatsAvailable,
+        final String hierarchy,
+        List<String> procSelfCgroupLines,
+        List<String> procMeminfoLines
+    ) {
+        return new OsProbe() {
             @Override
             List<String> readProcSelfCgroup() {
-                return Arrays.asList(
-                        "10:freezer:/",
-                        "9:net_cls,net_prio:/",
-                        "8:pids:/",
-                        "7:blkio:/",
-                        "6:memory:/" + hierarchy,
-                        "5:devices:/user.slice",
-                        "4:hugetlb:/",
-                        "3:perf_event:/",
-                        "2:cpu,cpuacct,cpuset:/" + hierarchy,
-                        "1:name=systemd:/user.slice/user-1000.slice/session-2359.scope",
-                        "0::/cgroup2");
+                return procSelfCgroupLines;
             }
 
             @Override
@@ -250,25 +406,19 @@ public class OsProbeTests extends ESTestCase {
                 return areCgroupStatsAvailable;
             }
 
+            @Override
+            List<String> readProcMeminfo() throws IOException {
+                return procMeminfoLines;
+            }
         };
+    }
 
-        final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
-
-        if (areCgroupStatsAvailable) {
-            assertNotNull(cgroup);
-            assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
-            assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(364869866063112L));
-            assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
-            assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
-            assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
-            assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(17992L));
-            assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(1311L));
-            assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(139298645489L));
-            assertThat(cgroup.getMemoryLimitInBytes(), equalTo("18446744073709551615"));
-            assertThat(cgroup.getMemoryUsageInBytes(), equalTo("4796416"));
-        } else {
-            assertNull(cgroup);
-        }
+    private static OsProbe buildStubOsProbe(
+        final boolean areCgroupStatsAvailable,
+        final String hierarchy,
+        List<String> procSelfCgroupLines
+    ) {
+        return buildStubOsProbe(areCgroupStatsAvailable, hierarchy, procSelfCgroupLines, List.of());
     }
 
 }

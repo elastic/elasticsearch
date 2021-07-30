@@ -2,16 +2,18 @@
 --
 :api: get-privileges
 :request: GetPrivilegesRequest
-:respnse: GetPrivilegesResponse
+:response: GetPrivilegesResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Get Privileges API
+=== Get Application Privileges API
+
+Retrieves application privileges.
 
 [id="{upid}-{api}-request"]
 ==== Get Privileges Request
 
-The +{request}+ supports getting privilege(s) for all or for specific applications.
+The +{request}+ supports getting privileges for all or for specific applications.
 
 ===== Specific privilege of a specific application
 

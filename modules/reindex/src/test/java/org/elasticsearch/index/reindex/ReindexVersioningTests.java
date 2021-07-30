@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -113,18 +102,18 @@ public class ReindexVersioningTests extends ReindexTestCase {
     }
 
     private void setupSourceAbsent() throws Exception {
-        indexRandom(true, client().prepareIndex("source", "test", "test").setVersionType(EXTERNAL)
+        indexRandom(true, client().prepareIndex("source").setId("test").setVersionType(EXTERNAL)
                 .setVersion(SOURCE_VERSION).setSource("foo", "source"));
 
-        assertEquals(SOURCE_VERSION, client().prepareGet("source", "test", "test").get().getVersion());
+        assertEquals(SOURCE_VERSION, client().prepareGet("source", "test").get().getVersion());
     }
 
     private void setupDest(int version) throws Exception {
         setupSourceAbsent();
-        indexRandom(true, client().prepareIndex("dest", "test", "test").setVersionType(EXTERNAL)
+        indexRandom(true, client().prepareIndex("dest").setId("test").setVersionType(EXTERNAL)
                 .setVersion(version).setSource("foo", "dest"));
 
-        assertEquals(version, client().prepareGet("dest", "test", "test").get().getVersion());
+        assertEquals(version, client().prepareGet("dest", "test").get().getVersion());
     }
 
     private void setupDestOlder() throws Exception {
@@ -136,7 +125,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
     }
 
     private void assertDest(String fooValue, int version) {
-        GetResponse get = client().prepareGet("dest", "test", "test").get();
+        GetResponse get = client().prepareGet("dest", "test").get();
         assertEquals(fooValue, get.getSource().get("foo"));
         assertEquals(version, get.getVersion());
     }

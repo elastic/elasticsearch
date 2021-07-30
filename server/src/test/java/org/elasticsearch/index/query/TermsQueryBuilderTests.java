@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -35,16 +24,16 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.indices.TermsLookup;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -82,7 +71,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                     choice.equals(GEO_POINT_ALIAS_FIELD_NAME) ||
                     choice.equals(GEO_SHAPE_FIELD_NAME) ||
                     choice.equals(INT_RANGE_FIELD_NAME) ||
-                    choice.equals(DATE_RANGE_FIELD_NAME),
+                    choice.equals(DATE_RANGE_FIELD_NAME) ||
+                    choice.equals(DATE_NANOS_FIELD_NAME), // TODO: needs testing for date_nanos type
                 () -> getRandomFieldName());
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {
@@ -91,30 +81,28 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             query = new TermsQueryBuilder(fieldName, values);
         } else {
             // right now the mock service returns us a list of strings
-            query = new TermsQueryBuilder(randomBoolean() ? randomAlphaOfLengthBetween(1,10) : STRING_FIELD_NAME, randomTermsLookup());
+            query = new TermsQueryBuilder(randomBoolean() ? randomAlphaOfLengthBetween(1,10) : TEXT_FIELD_NAME, randomTermsLookup());
         }
         return query;
     }
 
     private TermsLookup randomTermsLookup() {
-        return new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
-                termsPath).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
+        TermsLookup lookup = new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath);
+        lookup.routing(randomBoolean() ? randomAlphaOfLength(10) : null);
+        return lookup;
     }
 
     @Override
-    protected void doAssertLuceneQuery(TermsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(TermsQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         if (queryBuilder.termsLookup() == null && (queryBuilder.values() == null || queryBuilder.values().isEmpty())) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
-            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
-            assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
         } else if (queryBuilder.termsLookup() != null && randomTerms.size() == 0){
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
-            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
-            assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
         } else {
             assertThat(query, either(instanceOf(TermInSetQuery.class))
                     .or(instanceOf(PointInSetQuery.class))
-                    .or(instanceOf(ConstantScoreQuery.class)));
+                    .or(instanceOf(ConstantScoreQuery.class))
+                    .or(instanceOf(MatchNoDocsQuery.class)));
             if (query instanceof ConstantScoreQuery) {
                 assertThat(((ConstantScoreQuery) query).getQuery(), instanceOf(BooleanQuery.class));
             }
@@ -134,8 +122,13 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             }
 
             String fieldName = expectedFieldName(queryBuilder.fieldName());
-            TermInSetQuery expected = new TermInSetQuery(fieldName,
-                    terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).collect(Collectors.toList()));
+            Query expected;
+            if (context.getFieldType(fieldName) != null) {
+                expected = new TermInSetQuery(fieldName,
+                        terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).collect(Collectors.toList()));
+            } else {
+                expected = new MatchNoDocsQuery();
+            }
             assertEquals(expected, query);
         }
     }
@@ -201,7 +194,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         } catch (IOException ex) {
             throw new ElasticsearchException("boom", ex);
         }
-        return new GetResponse(new GetResult(getRequest.index(), getRequest.type(), getRequest.id(), 0, true, new BytesArray(json), null));
+        return new GetResponse(new GetResult(getRequest.index(), getRequest.id(), 0, 1, 0, true,
+            new BytesArray(json), null, null));
     }
 
     public void testNumeric() throws IOException {
@@ -209,7 +203,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new int[]{1, 3, 4});
             TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
-            assertEquals(Arrays.asList(1L, 3L, 4L), values);
+            assertEquals(Arrays.asList(1, 3, 4), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new double[]{1, 3, 4});
@@ -255,59 +249,58 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     @Override
     public void testMustRewrite() throws IOException {
-        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(STRING_FIELD_NAME, randomTermsLookup());
+        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(TEXT_FIELD_NAME, randomTermsLookup());
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-                () -> termsQueryBuilder.toQuery(createShardContext()));
+                () -> termsQueryBuilder.toQuery(createSearchExecutionContext()));
         assertEquals("query must be rewritten first", e.getMessage());
-        assertEquals(rewriteAndFetch(termsQueryBuilder, createShardContext()), new TermsQueryBuilder(STRING_FIELD_NAME,
-            randomTerms.stream().filter(x -> x != null).collect(Collectors.toList()))); // terms lookup removes null values
+
+        // terms lookup removes null values
+        List<Object> nonNullTerms = randomTerms.stream().filter(x -> x != null).collect(Collectors.toList());
+        QueryBuilder expected;
+        if (nonNullTerms.isEmpty()) {
+            expected = new MatchNoneQueryBuilder();
+        } else {
+            expected = new TermsQueryBuilder(TEXT_FIELD_NAME, nonNullTerms);
+        }
+        assertEquals(expected, rewriteAndFetch(termsQueryBuilder, createSearchExecutionContext()));
     }
 
     public void testGeo() throws Exception {
         TermsQueryBuilder query = new TermsQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
-        QueryShardContext context = createShardContext();
-        QueryShardException e = expectThrows(QueryShardException.class,
-                () -> query.toQuery(context));
-        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
-                e.getMessage());
-    }
-
-    @Override
-    protected boolean isCachable(TermsQueryBuilder queryBuilder) {
-        // even though we use a terms lookup here we do this during rewrite and that means we are cachable on toQuery
-        // that's why we return true here all the time
-        return super.isCachable(queryBuilder);
+        SearchExecutionContext context = createSearchExecutionContext();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
+        assertEquals("Geometry fields do not support exact searching, use dedicated geometry queries instead: "
+                + "[mapped_geo_point]", e.getMessage());
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {
-        QueryBuilder builder = new TermsQueryBuilder(STRING_FIELD_NAME, randomTermsLookup());
-        QueryBuilder termsQueryBuilder = Rewriteable.rewrite(builder, createShardContext());
+        QueryBuilder builder = new TermsQueryBuilder(TEXT_FIELD_NAME, randomTermsLookup());
+        QueryBuilder termsQueryBuilder = Rewriteable.rewrite(builder, createSearchExecutionContext());
         IllegalStateException ise = expectThrows(IllegalStateException.class, () -> termsQueryBuilder.writeTo(new BytesStreamOutput(10)));
         assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
-        builder = rewriteAndFetch(builder, createShardContext());
+        builder = rewriteAndFetch(builder, createSearchExecutionContext());
         builder.writeTo(new BytesStreamOutput(10));
     }
 
-    public void testConversion() {
-        List<Object> list = Arrays.asList();
-        assertSame(Collections.emptyList(), TermsQueryBuilder.convert(list));
-        assertEquals(list, TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
+    public void testRewriteIndexQueryToMatchNone() throws IOException {
+        TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", "also_does_not_exist");
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }
 
-        list = Arrays.asList("abc");
-        assertEquals(Arrays.asList(new BytesRef("abc")), TermsQueryBuilder.convert(list));
-        assertEquals(list, TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
+    public void testRewriteIndexQueryToNotMatchNone() throws IOException {
+        // At least one name is good
+        TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", getIndex().getName());
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
+        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+    }
 
-        list = Arrays.asList("abc", new BytesRef("def"));
-        assertEquals(Arrays.asList(new BytesRef("abc"), new BytesRef("def")), TermsQueryBuilder.convert(list));
-        assertEquals(Arrays.asList("abc", "def"), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
-
-        list = Arrays.asList(5, 42L);
-        assertEquals(Arrays.asList(5L, 42L), TermsQueryBuilder.convert(list));
-        assertEquals(Arrays.asList(5L, 42L), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
-
-        list = Arrays.asList(5, 42d);
-        assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convert(list));
-        assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
+    @Override
+    protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
+        QueryBuilder query = super.parseQuery(parser);
+        assertThat(query, CoreMatchers.instanceOf(TermsQueryBuilder.class));
+        return query;
     }
 }
-

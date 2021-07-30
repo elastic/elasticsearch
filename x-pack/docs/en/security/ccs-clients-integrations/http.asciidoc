@@ -1,7 +1,8 @@
 [[http-clients]]
-=== HTTP/REST Clients and Security
+=== HTTP/REST clients and security
 
-{security} works with standard HTTP {wikipedia}/Basic_access_authentication[basic authentication]
+The {es} {security-features} work with standard HTTP
+{wikipedia}/Basic_access_authentication[basic authentication]
 headers to authenticate users. Since Elasticsearch is stateless, this header must
 be sent with every request:
 
@@ -11,7 +12,11 @@ Authorization: Basic <TOKEN> <1>
 --------------------------------------------------
 <1> The `<TOKEN>` is computed as `base64(USERNAME:PASSWORD)`
 
-[float]
+Alternatively, you can use
+<<token-authentication-services,token-based authentication services>>.
+
+[discrete]
+[[http-clients-examples]]
 ==== Client examples
 
 This example uses `curl` without basic auth to create an index:
@@ -45,18 +50,43 @@ curl --user rdeniro:taxidriver -XPUT 'localhost:9200/idx'
 }
 ---------------------------------------------------------
 
-[float]
-==== Client Libraries over HTTP
+[discrete]
+[[http-clients-secondary-authorization]]
+==== Secondary authorization
 
-For more information about how to use {security} with the language specific clients
-please refer to
-https://github.com/elasticsearch/elasticsearch-ruby/tree/master/elasticsearch-transport#authentication[Ruby],
-http://elasticsearch-py.readthedocs.org/en/master/#ssl-and-authentication[Python],
-https://metacpan.org/pod/Search::Elasticsearch::Cxn::HTTPTiny#CONFIGURATION[Perl],
-http://www.elastic.co/guide/en/elasticsearch/client/php-api/current/_security.html[PHP],
-http://nest.azurewebsites.net/elasticsearch-net/security.html[.NET],
-http://www.elastic.co/guide/en/elasticsearch/client/javascript-api/current/auth-reference.html[Javascript]
+Some APIs support secondary authorization headers for situations where you want
+tasks to run with a different set of credentials. For example, you can send the
+following header in addition to the basic authentication header:
 
-////
-Groovy - TODO link
-////
+[source,shell]
+--------------------------------------------------
+es-secondary-authorization: Basic <TOKEN> <1>
+--------------------------------------------------
+<1> The `<TOKEN>` is computed as `base64(USERNAME:PASSWORD)`
+
+The `es-secondary-authorization` header has the same syntax as the
+`Authorization` header. It therefore also supports the use of
+<<token-authentication-services,token-based authentication services>>. For
+example:
+
+[source,shell]
+--------------------------------------------------
+es-secondary-authorization: ApiKey <TOKEN> <1>
+--------------------------------------------------
+<1> The `<TOKEN>` is computed as `base64(API key ID:API key)`
+
+
+[discrete]
+[[http-clients-libraries]]
+==== Client libraries over HTTP
+
+For more information about using {security-features} with the language
+specific clients, refer to:
+
+* {java-rest}/_basic_authentication.html[Java]
+* {jsclient-current}/auth-reference.html[JavaScript]
+* https://www.elastic.co/guide/en/elasticsearch/client/net-api/master/configuration-options.html[.NET]
+* https://metacpan.org/pod/Search::Elasticsearch::Cxn::HTTPTiny#CONFIGURATION[Perl]
+* https://www.elastic.co/guide/en/elasticsearch/client/php-api/master/security.html[PHP]
+* https://elasticsearch-py.readthedocs.io/en/master/#ssl-and-authentication[Python]
+* https://github.com/elasticsearch/elasticsearch-ruby/tree/master/elasticsearch-transport#authentication[Ruby]

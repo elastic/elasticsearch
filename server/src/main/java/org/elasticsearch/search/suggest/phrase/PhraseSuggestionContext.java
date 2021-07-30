@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.suggest.phrase;
 
@@ -22,7 +11,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -40,8 +29,8 @@ class PhraseSuggestionContext extends SuggestionContext {
     static final float DEFAULT_RWE_ERRORLIKELIHOOD = 0.95f;
     static final float DEFAULT_MAX_ERRORS = 0.5f;
     static final String DEFAULT_SEPARATOR = " ";
-    static final WordScorer.WordScorerFactory DEFAULT_SCORER = (IndexReader reader, Terms terms, String field, double realWordLikelyhood,
-            BytesRef separator) -> new StupidBackoffScorer(reader, terms, field, realWordLikelyhood, separator, 0.4f);
+    static final WordScorer.WordScorerFactory DEFAULT_SCORER = (IndexReader reader, Terms terms, String field, double realWordLikelihood,
+            BytesRef separator) -> new StupidBackoffScorer(reader, terms, field, realWordLikelihood, separator, 0.4f);
 
     private float maxErrors = DEFAULT_MAX_ERRORS;
     private BytesRef separator = new BytesRef(DEFAULT_SEPARATOR);
@@ -58,8 +47,8 @@ class PhraseSuggestionContext extends SuggestionContext {
     private Map<String, Object> collateScriptParams = new HashMap<>(1);
     private WordScorer.WordScorerFactory scorer = DEFAULT_SCORER;
 
-    PhraseSuggestionContext(QueryShardContext shardContext) {
-        super(PhraseSuggester.INSTANCE, shardContext);
+    PhraseSuggestionContext(SearchExecutionContext searchExecutionContext) {
+        super(PhraseSuggester.INSTANCE, searchExecutionContext);
     }
 
     public float maxErrors() {
@@ -78,7 +67,7 @@ class PhraseSuggestionContext extends SuggestionContext {
         this.separator = separator;
     }
 
-    public Float realworldErrorLikelyhood() {
+    public Float realworldErrorLikelihood() {
         return realworldErrorLikelihood;
     }
 

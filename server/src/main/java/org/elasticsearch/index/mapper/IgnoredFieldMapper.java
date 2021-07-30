@@ -1,37 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
+import java.util.Collections;
 
 /**
  * A field mapper that records fields that have been ignored because they were malformed.
@@ -45,58 +29,25 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     public static class Defaults {
         public static final String NAME = IgnoredFieldMapper.NAME;
 
-        public static final MappedFieldType FIELD_TYPE = new IgnoredFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, IgnoredFieldMapper> {
-
-        public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
-        }
-
-        @Override
-        public IgnoredFieldMapper build(BuilderContext context) {
-            return new IgnoredFieldMapper(context.indexSettings());
-        }
-    }
-
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
-                ParserContext parserContext) throws MapperParsingException {
-            return new Builder(parserContext.mapperService().fullName(NAME));
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new IgnoredFieldMapper(indexSettings);
-        }
-    }
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new IgnoredFieldMapper());
 
     public static final class IgnoredFieldType extends StringFieldType {
 
-        public IgnoredFieldType() {
-        }
+        public static final IgnoredFieldType INSTANCE = new IgnoredFieldType();
 
-        protected IgnoredFieldType(IgnoredFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public IgnoredFieldType clone() {
-            return new IgnoredFieldType(this);
+        private IgnoredFieldType() {
+            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -105,7 +56,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             // This query is not performance sensitive, it only helps assess
             // quality of the data, so we may use a slow query. It shouldn't
             // be too slow in practice since the number of unique terms in this
@@ -113,41 +64,26 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             return new TermRangeQuery(name(), null, null, true, true);
         }
 
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        }
     }
 
-    private IgnoredFieldMapper(Settings indexSettings) {
-        super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE, indexSettings);
-    }
-
-    @Override
-    public void preParse(ParseContext context) throws IOException {
-    }
-
-    @Override
-    public void postParse(ParseContext context) throws IOException {
-        super.parse(context);
+    private IgnoredFieldMapper() {
+        super(IgnoredFieldType.INSTANCE);
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
-        // done in post-parse
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    public void postParse(DocumentParserContext context) {
         for (String field : context.getIgnoredFields()) {
-            context.doc().add(new Field(NAME, field, fieldType()));
+            context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
         }
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
     }
 
 }

@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -13,19 +14,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManagerFactory;
-
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.getKeyStoreType;
-
 
 /**
  * Represents the configuration for an SSLContext
@@ -35,7 +29,7 @@ public final class SSLConfiguration {
     // These settings are never registered, but they exist so that we can parse the values defined under grouped settings. Also, some are
     // implemented as optional settings, which provides a declarative manner for fallback as we typically fallback to values from a
     // different configuration
-    static final SSLConfigurationSettings SETTINGS_PARSER = SSLConfigurationSettings.withoutPrefix();
+    static final SSLConfigurationSettings SETTINGS_PARSER = SSLConfigurationSettings.withoutPrefix(true);
 
     private final KeyConfig keyConfig;
     private final TrustConfig trustConfig;
@@ -43,6 +37,7 @@ public final class SSLConfiguration {
     private final List<String> supportedProtocols;
     private final SSLClientAuth sslClientAuth;
     private final VerificationMode verificationMode;
+    private final boolean explicitlyConfigured;
 
     /**
      * Creates a new SSLConfiguration from the given settings. There is no fallback configuration when invoking this constructor so
@@ -50,37 +45,20 @@ public final class SSLConfiguration {
      *
      * @param settings the SSL specific settings; only the settings under a *.ssl. prefix
      */
-    SSLConfiguration(Settings settings) {
-        this.keyConfig = createKeyConfig(settings, (SSLConfiguration) null);
-        this.trustConfig = createTrustConfig(settings, keyConfig, null);
+    public SSLConfiguration(Settings settings) {
+        this.keyConfig = createKeyConfig(settings);
+        this.trustConfig = createTrustConfig(settings, keyConfig);
         this.ciphers = getListOrDefault(SETTINGS_PARSER.ciphers, settings, XPackSettings.DEFAULT_CIPHERS);
         this.supportedProtocols = getListOrDefault(SETTINGS_PARSER.supportedProtocols, settings, XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS);
         this.sslClientAuth = SETTINGS_PARSER.clientAuth.get(settings).orElse(XPackSettings.CLIENT_AUTH_DEFAULT);
         this.verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElse(XPackSettings.VERIFICATION_MODE_DEFAULT);
-    }
-
-    /**
-     * Creates a new SSLConfiguration from the given settings and global/default SSLConfiguration. If the settings do not contain a value
-     * for a given aspect, the value from the global configuration will be used.
-     *
-     * @param settings               the SSL specific settings; only the settings under a *.ssl. prefix
-     * @param globalSSLConfiguration the default configuration that is used as a fallback
-     */
-    SSLConfiguration(Settings settings, SSLConfiguration globalSSLConfiguration) {
-        Objects.requireNonNull(globalSSLConfiguration);
-        this.keyConfig = createKeyConfig(settings, globalSSLConfiguration);
-        this.trustConfig = createTrustConfig(settings, keyConfig, globalSSLConfiguration);
-        this.ciphers = getListOrDefault(SETTINGS_PARSER.ciphers, settings, globalSSLConfiguration.cipherSuites());
-        this.supportedProtocols = getListOrDefault(SETTINGS_PARSER.supportedProtocols, settings,
-                globalSSLConfiguration.supportedProtocols());
-        this.sslClientAuth = SETTINGS_PARSER.clientAuth.get(settings).orElse(globalSSLConfiguration.sslClientAuth());
-        this.verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElse(globalSSLConfiguration.verificationMode());
+        this.explicitlyConfigured = settings.isEmpty() == false;
     }
 
     /**
      * The configuration for the key, if any, that will be used as part of this ssl configuration
      */
-    KeyConfig keyConfig() {
+    public KeyConfig keyConfig() {
         return keyConfig;
     }
 
@@ -131,6 +109,10 @@ public final class SSLConfiguration {
         return paths;
     }
 
+    public boolean isExplicitlyConfigured() {
+        return explicitlyConfigured;
+    }
+
     @Override
     public String toString() {
         return "SSLConfiguration{" +
@@ -146,30 +128,16 @@ public final class SSLConfiguration {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof SSLConfiguration)) return false;
+        if ((o instanceof SSLConfiguration) == false) return false;
 
         SSLConfiguration that = (SSLConfiguration) o;
 
-        if (this.keyConfig() != null ? !this.keyConfig().equals(that.keyConfig()) : that.keyConfig() != null) {
-            return false;
-        }
-        if (this.trustConfig() != null ? !this.trustConfig().equals(that.trustConfig()) : that.trustConfig() != null) {
-            return false;
-        }
-        if (this.cipherSuites() != null ? !this.cipherSuites().equals(that.cipherSuites()) : that.cipherSuites() != null) {
-            return false;
-        }
-        if (!this.supportedProtocols().equals(that.supportedProtocols())) {
-            return false;
-        }
-        if (this.verificationMode() != that.verificationMode()) {
-            return false;
-        }
-        if (this.sslClientAuth() != that.sslClientAuth()) {
-            return false;
-        }
-        return this.supportedProtocols() != null ?
-                this.supportedProtocols().equals(that.supportedProtocols()) : that.supportedProtocols() == null;
+        return Objects.equals(this.keyConfig(), that.keyConfig())
+            && Objects.equals(this.trustConfig(), that.trustConfig())
+            && Objects.equals(this.cipherSuites(), that.cipherSuites())
+            && Objects.equals(this.supportedProtocols(), that.supportedProtocols())
+            && Objects.equals(this.verificationMode(), that.verificationMode())
+            && Objects.equals(this.sslClientAuth(), that.sslClientAuth());
     }
 
     @Override
@@ -183,62 +151,36 @@ public final class SSLConfiguration {
         return result;
     }
 
-    private static KeyConfig createKeyConfig(Settings settings, SSLConfiguration global) {
+    private static KeyConfig createKeyConfig(Settings settings) {
         final String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
         final KeyConfig config = CertParsingUtils.createKeyConfig(SETTINGS_PARSER.x509KeyPair, settings, trustStoreAlgorithm);
-        if (config != null) {
-            return config;
-        }
-        if (global != null) {
-            return global.keyConfig();
-        }
-        if (System.getProperty("javax.net.ssl.keyStore") != null && System.getProperty("javax.net.ssl.keyStore").equals("NONE") == false) {
-            // TODO: we should not support loading a keystore from sysprops...
-            try (SecureString keystorePassword = new SecureString(System.getProperty("javax.net.ssl.keyStorePassword", ""))) {
-                return new StoreKeyConfig(System.getProperty("javax.net.ssl.keyStore"), KeyStore.getDefaultType(), keystorePassword,
-                    keystorePassword, System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm()),
-                    System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
-            }
-        }
-        return KeyConfig.NONE;
+        return config == null ? KeyConfig.NONE : config;
     }
 
-    private static TrustConfig createTrustConfig(Settings settings, KeyConfig keyConfig, SSLConfiguration global) {
-        final TrustConfig trustConfig = createCertChainTrustConfig(settings, keyConfig, global);
+    private static TrustConfig createTrustConfig(Settings settings, KeyConfig keyConfig) {
+        final TrustConfig trustConfig = createCertChainTrustConfig(settings, keyConfig);
         return SETTINGS_PARSER.trustRestrictionsPath.get(settings)
                 .map(path -> (TrustConfig) new RestrictedTrustConfig(path, trustConfig))
                 .orElse(trustConfig);
     }
 
-    private static TrustConfig createCertChainTrustConfig(Settings settings, KeyConfig keyConfig, SSLConfiguration global) {
+    private static TrustConfig createCertChainTrustConfig(Settings settings, KeyConfig keyConfig) {
         String trustStorePath = SETTINGS_PARSER.truststorePath.get(settings).orElse(null);
-        String trustStoreType = getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
+        String trustStoreType = SSLConfigurationSettings.getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
         List<String> caPaths = getListOrNull(SETTINGS_PARSER.caPaths, settings);
         if (trustStorePath != null && caPaths != null) {
             throw new IllegalArgumentException("you cannot specify a truststore and ca files");
         }
-        VerificationMode verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElseGet(() -> {
-            if (global != null) {
-                return global.verificationMode();
-            }
-            return XPackSettings.VERIFICATION_MODE_DEFAULT;
-        });
+
+        VerificationMode verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElse(XPackSettings.VERIFICATION_MODE_DEFAULT);
         if (verificationMode.isCertificateVerificationEnabled() == false) {
             return TrustAllConfig.INSTANCE;
         } else if (caPaths != null) {
             return new PEMTrustConfig(caPaths);
-        } else if (trustStorePath != null || trustStoreType.equalsIgnoreCase("pkcs11")) {
+        } else if (trustStorePath != null) {
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
             SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings);
             return new StoreTrustConfig(trustStorePath, trustStoreType, trustStorePassword, trustStoreAlgorithm);
-        } else if (global == null && System.getProperty("javax.net.ssl.trustStore") != null
-            && System.getProperty("javax.net.ssl.trustStore").equals("NONE") == false) {
-            try (SecureString truststorePassword = new SecureString(System.getProperty("javax.net.ssl.trustStorePassword", ""))) {
-                return new StoreTrustConfig(System.getProperty("javax.net.ssl.trustStore"), KeyStore.getDefaultType(), truststorePassword,
-                    System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
-            }
-        } else if (global != null && keyConfig == global.keyConfig()) {
-            return global.trustConfig();
         } else if (keyConfig != KeyConfig.NONE) {
             return DefaultJDKTrustConfig.merge(keyConfig, getDefaultTrustStorePassword(settings));
         } else {

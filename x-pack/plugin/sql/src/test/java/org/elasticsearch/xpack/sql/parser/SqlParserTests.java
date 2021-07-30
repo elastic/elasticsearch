@@ -1,38 +1,46 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.parser;
 
-import com.google.common.base.Joiner;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.Order;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
-import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
-import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
-import org.elasticsearch.xpack.sql.plan.logical.Filter;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.sql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.StringQueryPredicate;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.sql.plan.logical.With;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.StringJoiner;
 
 import static java.util.Collections.nCopies;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class SqlParserTests extends ESTestCase {
 
     public void testSelectStar() {
-        singleProjection(project(parseStatement("SELECT * FROM foo")), UnresolvedStar.class);
+        singleProjection(project(parseStatement("SELECT * FROM foo")), UnresolvedAlias.class);
     }
 
     private <T> T singleProjection(Project project, Class<T> type) {
@@ -42,19 +50,122 @@ public class SqlParserTests extends ESTestCase {
         return type.cast(p);
     }
 
+    public void testEscapeDoubleQuotes() {
+        Project project = project(parseStatement("SELECT bar FROM \"fo\"\"o\""));
+        assertTrue(project.child() instanceof UnresolvedRelation);
+        assertEquals("fo\"o", ((UnresolvedRelation) project.child()).table().index());
+    }
+
+    public void testEscapeSingleQuotes() {
+        Alias a = singleProjection(project(parseStatement("SELECT '''ab''c' AS \"escaped_text\"")), Alias.class);
+        assertEquals("'ab'c", ((Literal) a.child()).value());
+        assertEquals("escaped_text", a.name());
+    }
+
+    public void testEscapeSingleAndDoubleQuotes() {
+        Alias a = singleProjection(project(parseStatement("SELECT 'ab''c' AS \"escaped\"\"text\"")), Alias.class);
+        assertEquals("ab'c", ((Literal) a.child()).value());
+        assertEquals("escaped\"text", a.name());
+    }
+
     public void testSelectField() {
-        UnresolvedAttribute a = singleProjection(project(parseStatement("SELECT bar FROM foo")), UnresolvedAttribute.class);
-        assertEquals("bar", a.name());
+        UnresolvedAlias a = singleProjection(project(parseStatement("SELECT bar FROM foo")), UnresolvedAlias.class);
+        assertEquals("bar", a.sourceText());
     }
 
     public void testSelectScore() {
-        UnresolvedFunction f = singleProjection(project(parseStatement("SELECT SCORE() FROM foo")), UnresolvedFunction.class);
-        assertEquals("SCORE", f.functionName());
+        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT SCORE() FROM foo")), UnresolvedAlias.class);
+        assertEquals("SCORE()", f.sourceText());
+    }
+
+    public void testSelectCast() {
+        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT CAST(POWER(languages, 2) AS DOUBLE) FROM foo")),
+                UnresolvedAlias.class);
+        assertEquals("CAST(POWER(languages, 2) AS DOUBLE)", f.sourceText());
+    }
+
+    public void testSelectCastOperator() {
+        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT POWER(languages, 2)::DOUBLE FROM foo")), UnresolvedAlias.class);
+        assertEquals("POWER(languages, 2)::DOUBLE", f.sourceText());
+    }
+
+    public void testSelectCastWithSQLOperator() {
+        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT CONVERT(POWER(languages, 2), SQL_DOUBLE) FROM foo")),
+                UnresolvedAlias.class);
+        assertEquals("CONVERT(POWER(languages, 2), SQL_DOUBLE)", f.sourceText());
+    }
+
+    public void testSelectCastToEsType() {
+        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT CAST('0.' AS SCALED_FLOAT)")), UnresolvedAlias.class);
+        assertEquals("CAST('0.' AS SCALED_FLOAT)", f.sourceText());
+    }
+
+    public void testSelectAddWithParanthesis() {
+        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT (1 +  2)")), UnresolvedAlias.class);
+        assertEquals("(1 +  2)", f.sourceText());
     }
 
     public void testSelectRightFunction() {
-        UnresolvedFunction f = singleProjection(project(parseStatement("SELECT RIGHT()")), UnresolvedFunction.class);
-        assertEquals("RIGHT", f.functionName());
+        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT RIGHT()")), UnresolvedAlias.class);
+        assertEquals("RIGHT()", f.sourceText());
+    }
+
+    public void testLimit() {
+        LogicalPlan plan = parseStatement("SELECT * FROM test LIMIT 10");
+        assertEquals(With.class, plan.getClass());
+        LogicalPlan child = ((With) plan).child();
+        assertEquals(Limit.class, child.getClass());
+        assertEquals(10, ((Limit) child).limit().fold());
+
+        plan = parseStatement("SELECT a, count(*) cnt FROM test WHERE b = 20 GROUP BY a HAVING cnt > 10 ORDER BY 2 LIMIT 30");
+        assertEquals(With.class, plan.getClass());
+        child = ((With) plan).child();
+        assertEquals(Limit.class, child.getClass());
+        assertEquals(30, ((Limit) child).limit().fold());
+    }
+
+    public void testTop() {
+        String selectList = randomFrom(Arrays.asList("*", "a, b", "a, b, c, d.*"));
+        LogicalPlan plan = parseStatement("SELECT TOP 10 " + selectList + " FROM test");
+        assertEquals(With.class, plan.getClass());
+        LogicalPlan child = ((With) plan).child();
+        assertEquals(Limit.class, child.getClass());
+        assertEquals(10, ((Limit) child).limit().fold());
+
+        plan = parseStatement("SELECT TOP 30 a, count(*) cnt FROM test WHERE b = 20 GROUP BY a HAVING cnt > 10");
+        assertEquals(With.class, plan.getClass());
+        child = ((With) plan).child();
+        assertEquals(Limit.class, child.getClass());
+        assertEquals(30, ((Limit) child).limit().fold());
+    }
+
+    public void testUseBothTopAndLimitInvalid() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parseStatement("SELECT TOP 10 * FROM test LIMIT 20"));
+        assertEquals("line 1:28: TOP and LIMIT are not allowed in the same query - use one or the other", e.getMessage());
+        e = expectThrows(ParsingException.class,
+            () -> parseStatement("SELECT TOP 30 a, count(*) cnt FROM test WHERE b = 20 GROUP BY a HAVING cnt > 10 LIMIT 40"));
+        assertEquals("line 1:82: TOP and LIMIT are not allowed in the same query - use one or the other", e.getMessage());
+    }
+
+    public void testsSelectNonReservedKeywords() {
+        String[] reserved = new String[] {
+            "ANALYZE", "ANALYZED", "CATALOGS", "COLUMNS", "CURRENT", "DAY", "DEBUG", "EXECUTABLE", "EXPLAIN",
+            "FIRST", "FORMAT", "FULL", "FUNCTIONS", "GRAPHVIZ", "HOUR", "INTERVAL", "LAST", "LIMIT",
+            "MAPPED", "MINUTE", "MONTH", "OPTIMIZED", "PARSED", "PHYSICAL", "PLAN", "QUERY", "RLIKE",
+            "SCHEMAS", "SECOND", "SHOW", "SYS", "TABLES", "TEXT", "TOP", "TYPE", "TYPES", "VERIFY", "YEAR"};
+        StringJoiner sj = new StringJoiner(",");
+        for (String s : reserved) {
+            sj.add(s);
+        }
+
+        Project project = project(parseStatement("SELECT " + sj.toString() + " FROM foo"));
+        assertEquals(reserved.length, project.projections().size());
+
+        for (int i = 0; i < project.projections().size(); i++) {
+            NamedExpression ne = project.projections().get(i);
+            assertEquals(UnresolvedAlias.class, ne.getClass());
+            assertEquals(reserved[i], ne.sourceText());
+        }
     }
 
     public void testOrderByField() {
@@ -70,13 +181,13 @@ public class SqlParserTests extends ESTestCase {
 
     public void testOrderByScore() {
         Order.OrderDirection dir = randomFrom(Order.OrderDirection.values());
-        OrderBy ob = orderBy(parseStatement("SELECT * FROM foo ORDER BY SCORE()" + stringForDirection(dir)));
+        OrderBy ob = orderBy(parseStatement("SELECT * FROM foo ORDER BY SCORE( )" + stringForDirection(dir)));
         assertThat(ob.order(), hasSize(1));
         Order o = ob.order().get(0);
         assertEquals(dir, o.direction());
         assertThat(o.child(), instanceOf(UnresolvedFunction.class));
         UnresolvedFunction f = (UnresolvedFunction) o.child();
-        assertEquals("SCORE", f.functionName());
+        assertEquals("SCORE( )", f.sourceText());
     }
 
     public void testOrderByTwo() {
@@ -138,86 +249,44 @@ public class SqlParserTests extends ESTestCase {
         assertThat(mmqp.optionMap(), hasEntry("fuzzy_rewrite", "scoring_boolean"));
     }
 
-    public void testLimitToPreventStackOverflowFromLongListOfQuotedIdentifiers() {
-        // Create expression in the form of "t"."field","t"."field", ...
-
-        // 200 elements is ok
-        new SqlParser().createStatement("SELECT " +
-            Joiner.on(",").join(nCopies(200, "\"t\".\"field\"")) + " FROM t");
-
-        // 201 elements parser's "circuit breaker" is triggered
-        ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createStatement("SELECT " +
-            Joiner.on(",").join(nCopies(201, "\"t\".\"field\"")) + " FROM t"));
-        assertEquals("line 1:2409: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
-            e.getMessage());
-    }
-
-    public void testLimitToPreventStackOverflowFromLongListOfUnQuotedIdentifiers() {
-        // Create expression in the form of t.field,t.field, ...
-
-        // 250 elements is ok
-        new SqlParser().createStatement("SELECT " +
-            Joiner.on(",").join(nCopies(200, "t.field")) + " FROM t");
-
-        // 251 elements parser's "circuit breaker" is triggered
-        ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createStatement("SELECT " +
-            Joiner.on(",").join(nCopies(201, "t.field")) + " FROM t"));
-        assertEquals("line 1:1609: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
-            e.getMessage());
-    }
-
-    public void testLimitToPreventStackOverflowFromLargeUnaryBooleanExpression() {
-        // Create expression in the form of NOT(NOT(NOT ... (b) ...)
-
-        // 99 elements is ok
-        new SqlParser().createExpression(
-            Joiner.on("").join(nCopies(99, "NOT(")).concat("b").concat(Joiner.on("").join(nCopies(99, ")"))));
-
-        // 100 elements parser's "circuit breaker" is triggered
-        ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(
-            Joiner.on("").join(nCopies(100, "NOT(")).concat("b").concat(Joiner.on("").join(nCopies(100, ")")))));
-        assertEquals("line 1:402: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
-            e.getMessage());
-    }
-
     public void testLimitToPreventStackOverflowFromLargeBinaryBooleanExpression() {
         // Create expression in the form of a = b OR a = b OR ... a = b
 
-        // 100 elements is ok
-        new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(100, "a = b")));
+        // 1000 elements is ok
+        new SqlParser().createExpression(join(" OR ", nCopies(1000, "a = b")));
 
-        // 101 elements parser's "circuit breaker" is triggered
+        // 10000 elements cause stack overflow
         ParsingException e = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(101, "a = b"))));
-        assertEquals("line 1:902: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
-            e.getMessage());
+            new SqlParser().createExpression(join(" OR ", nCopies(10000, "a = b"))));
+        assertThat(e.getMessage(),
+            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
     }
 
     public void testLimitToPreventStackOverflowFromLargeUnaryArithmeticExpression() {
         // Create expression in the form of abs(abs(abs ... (i) ...)
 
-        // 199 elements is ok
+        // 200 elements is ok
         new SqlParser().createExpression(
-            Joiner.on("").join(nCopies(199, "abs(")).concat("i").concat(Joiner.on("").join(nCopies(199, ")"))));
+            join("", nCopies(200, "abs(")).concat("i").concat(join("", nCopies(200, ")"))));
 
-        // 200 elements parser's "circuit breaker" is triggered
+        // 5000 elements cause stack overflow
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(
-            Joiner.on("").join(nCopies(200, "abs(")).concat("i").concat(Joiner.on("").join(nCopies(200, ")")))));
-        assertEquals("line 1:802: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
-            e.getMessage());
+            join("", nCopies(5000, "abs(")).concat("i").concat(join("", nCopies(5000, ")")))));
+        assertThat(e.getMessage(),
+            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
     }
 
     public void testLimitToPreventStackOverflowFromLargeBinaryArithmeticExpression() {
         // Create expression in the form of a + a + a + ... + a
 
-        // 200 elements is ok
-        new SqlParser().createExpression(Joiner.on(" + ").join(nCopies(200, "a")));
+        // 1000 elements is ok
+        new SqlParser().createExpression(join(" + ", nCopies(1000, "a")));
 
-        // 201 elements parser's "circuit breaker" is triggered
+        // 10000 elements cause stack overflow
         ParsingException e = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(Joiner.on(" + ").join(nCopies(201, "a"))));
-        assertEquals("line 1:802: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
-            e.getMessage());
+            new SqlParser().createExpression(join(" + ", nCopies(10000, "a"))));
+        assertThat(e.getMessage(),
+            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
     }
 
     public void testLimitToPreventStackOverflowFromLargeSubselectTree() {
@@ -225,33 +294,17 @@ public class SqlParserTests extends ESTestCase {
 
         // 200 elements is ok
         new SqlParser().createStatement(
-            Joiner.on(" (").join(nCopies(200, "SELECT * FROM"))
+            join(" (", nCopies(200, "SELECT * FROM"))
                 .concat("t")
-                .concat(Joiner.on("").join(nCopies(199, ")"))));
+                .concat(join("", nCopies(199, ")"))));
 
-        // 201 elements parser's "circuit breaker" is triggered
+        // 1000 elements cause stack overflow
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createStatement(
-            Joiner.on(" (").join(nCopies(201, "SELECT * FROM"))
+            join(" (", nCopies(1000, "SELECT * FROM"))
                 .concat("t")
-                .concat(Joiner.on("").join(nCopies(200, ")")))));
-        assertEquals("line 1:3002: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
-            e.getMessage());
-    }
-
-    public void testLimitToPreventStackOverflowFromLargeComplexSubselectTree() {
-        // Test with queries in the form of `SELECT true OR true OR .. FROM (SELECT true OR true OR... FROM (... t) ...)
-
-        new SqlParser().createStatement(
-            Joiner.on(" (").join(nCopies(20, "SELECT ")).
-                concat(Joiner.on(" OR ").join(nCopies(180, "true"))).concat(" FROM")
-                .concat("t").concat(Joiner.on("").join(nCopies(19, ")"))));
-
-        ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createStatement(
-            Joiner.on(" (").join(nCopies(20, "SELECT ")).
-                concat(Joiner.on(" OR ").join(nCopies(190, "true"))).concat(" FROM")
-                .concat("t").concat(Joiner.on("").join(nCopies(19, ")")))));
-        assertEquals("line 1:1628: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
-            e.getMessage());
+                .concat(join("", nCopies(999, ")")))));
+        assertThat(e.getMessage(),
+            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
     }
 
     private LogicalPlan parseStatement(String sql) {
@@ -293,5 +346,13 @@ public class SqlParserTests extends ESTestCase {
     private String stringForDirection(Order.OrderDirection dir) {
         String dirStr = dir.toString();
         return randomBoolean() && dirStr.equals("ASC") ? "" : " " + dirStr;
+    }
+
+    private String join(String delimiter, Iterable<String> strings) {
+        StringJoiner joiner = new StringJoiner(delimiter);
+        for (String s : strings) {
+            joiner.add(s);
+        }
+        return joiner.toString();
     }
 }

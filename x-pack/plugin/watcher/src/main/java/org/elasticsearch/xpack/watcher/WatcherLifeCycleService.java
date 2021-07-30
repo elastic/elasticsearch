@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -18,16 +21,18 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -35,10 +40,12 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 
 public class WatcherLifeCycleService implements ClusterStateListener {
 
+    private static final Logger logger = LogManager.getLogger(WatcherLifeCycleService.class);
     private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STARTED);
     private final AtomicReference<List<ShardRouting>> previousShardRoutings = new AtomicReference<>(Collections.emptyList());
     private volatile boolean shutDown = false; // indicates that the node has been shutdown and we should never start watcher after this.
     private volatile WatcherService watcherService;
+    private final EnumSet<WatcherState> stopStates = EnumSet.of(WatcherState.STOPPED, WatcherState.STOPPING);
 
     WatcherLifeCycleService(ClusterService clusterService, WatcherService watcherService) {
         this.watcherService = watcherService;
@@ -57,8 +64,10 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         this.state.set(WatcherState.STOPPING);
         shutDown = true;
         clearAllocationIds();
-        watcherService.shutDown();
-        this.state.set(WatcherState.STOPPED);
+        watcherService.shutDown(() -> {
+            this.state.set(WatcherState.STOPPED);
+            logger.info("watcher has stopped and shutdown");
+        });
     }
 
     /**
@@ -82,15 +91,16 @@ public class WatcherLifeCycleService implements ClusterStateListener {
             return;
         }
 
-        if (event.state().getBlocks().hasGlobalBlock(ClusterBlockLevel.WRITE)) {
+        if (event.state().getBlocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE)) {
             pauseExecution("write level cluster block");
             return;
         }
 
         boolean isWatcherStoppedManually = isWatcherStoppedManually(event.state());
+        boolean isStoppedOrStopping = stopStates.contains(this.state.get());
         // if this is not a data node, we need to start it ourselves possibly
-        if (event.state().nodes().getLocalNode().isDataNode() == false &&
-            isWatcherStoppedManually == false && this.state.get() == WatcherState.STOPPED) {
+        if (event.state().nodes().getLocalNode().canContainData() == false &&
+            isWatcherStoppedManually == false && isStoppedOrStopping) {
             this.state.set(WatcherState.STARTING);
             watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));
             return;
@@ -99,8 +109,20 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         if (isWatcherStoppedManually) {
             if (this.state.get() == WatcherState.STARTED) {
                 clearAllocationIds();
-                watcherService.stop("watcher manually marked to shutdown by cluster state update");
-                this.state.set(WatcherState.STOPPED);
+                boolean stopping = this.state.compareAndSet(WatcherState.STARTED, WatcherState.STOPPING);
+                if (stopping) {
+                    //waiting to set state to stopped until after all currently running watches are finished
+                    watcherService.stop("watcher manually marked to shutdown by cluster state update", () -> {
+                        //only transition from stopping -> stopped (which may not be the case if restarted quickly)
+                        boolean stopped = state.compareAndSet(WatcherState.STOPPING, WatcherState.STOPPED);
+                        if (stopped) {
+                            logger.info("watcher has stopped");
+                        } else {
+                            logger.info("watcher has not been stopped. not currently in a stopping state, current state [{}]", state.get());
+                        }
+
+                    });
+                }
             }
             return;
         }
@@ -112,13 +134,13 @@ public class WatcherLifeCycleService implements ClusterStateListener {
             return;
         }
 
-        IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
-        if (watcherIndexMetaData == null) {
+        IndexMetadata watcherIndexMetadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metadata());
+        if (watcherIndexMetadata == null) {
             pauseExecution("no watcher index found");
             return;
         }
 
-        String watchIndex = watcherIndexMetaData.getIndex().getName();
+        String watchIndex = watcherIndexMetadata.getIndex().getName();
         List<ShardRouting> localShards = routingNode.shardsWithState(watchIndex, RELOCATING, STARTED);
         // no local shards, empty out watcher and dont waste resources!
         if (localShards.isEmpty()) {
@@ -142,7 +164,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
                 previousShardRoutings.set(localAffectedShardRoutings);
                 if (state.get() == WatcherState.STARTED) {
                     watcherService.reload(event.state(), "new local watcher shard allocation ids");
-                } else if (state.get() == WatcherState.STOPPED) {
+                } else if (isStoppedOrStopping) {
                     this.state.set(WatcherState.STARTING);
                     watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));
                 }
@@ -164,8 +186,8 @@ public class WatcherLifeCycleService implements ClusterStateListener {
      * check if watcher has been stopped manually via the stop API
      */
     private boolean isWatcherStoppedManually(ClusterState state) {
-        WatcherMetaData watcherMetaData = state.getMetaData().custom(WatcherMetaData.TYPE);
-        return watcherMetaData != null && watcherMetaData.manuallyStopped();
+        WatcherMetadata watcherMetadata = state.getMetadata().custom(WatcherMetadata.TYPE);
+        return watcherMetadata != null && watcherMetadata.manuallyStopped();
     }
 
     /**
@@ -183,7 +205,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         return previousShardRoutings.get();
     }
 
-    public WatcherState getState() {
-        return state.get();
+    public Supplier<WatcherState> getState(){
+        return () -> state.get();
     }
 }

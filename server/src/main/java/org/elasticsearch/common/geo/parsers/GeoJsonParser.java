@@ -1,34 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.geo.parsers;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.builders.CircleBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
@@ -41,17 +30,18 @@ import java.util.List;
  * complies with geojson specification: https://tools.ietf.org/html/rfc7946
  */
 abstract class GeoJsonParser {
-    protected static ShapeBuilder parse(XContentParser parser, GeoShapeFieldMapper shapeMapper)
+    protected static ShapeBuilder parse(XContentParser parser, AbstractShapeGeometryFieldMapper shapeMapper)
         throws IOException {
         GeoShapeType shapeType = null;
         DistanceUnit.Distance radius = null;
         CoordinateNode coordinateNode = null;
         GeometryCollectionBuilder geometryCollections = null;
 
-        ShapeBuilder.Orientation requestedOrientation =
-            (shapeMapper == null) ? ShapeBuilder.Orientation.RIGHT : shapeMapper.fieldType().orientation();
-        Explicit<Boolean> coerce = (shapeMapper == null) ? GeoShapeFieldMapper.Defaults.COERCE : shapeMapper.coerce();
-        Explicit<Boolean> ignoreZValue = (shapeMapper == null) ? GeoShapeFieldMapper.Defaults.IGNORE_Z_VALUE : shapeMapper.ignoreZValue();
+        Orientation orientation = (shapeMapper == null)
+            ? Orientation.RIGHT
+            : shapeMapper.orientation();
+        boolean coerce = shapeMapper != null && shapeMapper.coerce();
+        boolean ignoreZValue = shapeMapper == null || shapeMapper.ignoreZValue();
 
         String malformedException = null;
 
@@ -72,7 +62,7 @@ abstract class GeoJsonParser {
                         }
                     } else if (ShapeParser.FIELD_COORDINATES.match(fieldName, subParser.getDeprecationHandler())) {
                         subParser.nextToken();
-                        CoordinateNode tempNode = parseCoordinates(subParser, ignoreZValue.value());
+                        CoordinateNode tempNode = parseCoordinates(subParser, ignoreZValue);
                         if (coordinateNode != null && tempNode.numDimensions() != coordinateNode.numDimensions()) {
                             throw new ElasticsearchParseException("Exception parsing coordinates: " +
                                 "number of dimensions do not match");
@@ -102,7 +92,7 @@ abstract class GeoJsonParser {
                             malformedException = "cannot have [" + ShapeParser.FIELD_ORIENTATION + "] with type set to [" + shapeType + "]";
                         }
                         subParser.nextToken();
-                        requestedOrientation = ShapeBuilder.Orientation.fromString(subParser.text());
+                        orientation = Orientation.fromString(subParser.text());
                     } else {
                         subParser.nextToken();
                         subParser.skipChildren();
@@ -128,7 +118,7 @@ abstract class GeoJsonParser {
             return geometryCollections;
         }
 
-        return shapeType.getBuilder(coordinateNode, radius, requestedOrientation, coerce.value());
+        return shapeType.getBuilder(coordinateNode, radius, orientation, coerce);
     }
 
     /**
@@ -202,7 +192,7 @@ abstract class GeoJsonParser {
      * @return Geometry[] geometries of the GeometryCollection
      * @throws IOException Thrown if an error occurs while reading from the XContentParser
      */
-    static GeometryCollectionBuilder parseGeometries(XContentParser parser, GeoShapeFieldMapper mapper) throws
+    static GeometryCollectionBuilder parseGeometries(XContentParser parser, AbstractShapeGeometryFieldMapper mapper) throws
         IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException("geometries must be an array of geojson objects");

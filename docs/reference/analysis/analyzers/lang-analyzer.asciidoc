@@ -1,5 +1,8 @@
 [[analysis-lang-analyzer]]
-=== Language Analyzers
+=== Language analyzers
+++++
+<titleabbrev>Language</titleabbrev>
+++++
 
 A set of analyzers aimed at analyzing specific language text. The
 following types are supported:
@@ -15,6 +18,7 @@ following types are supported:
 <<danish-analyzer,`danish`>>,
 <<dutch-analyzer,`dutch`>>,
 <<english-analyzer,`english`>>,
+<<estonian-analyzer,`estonian`>>,
 <<finnish-analyzer,`finnish`>>,
 <<french-analyzer,`french`>>,
 <<galician-analyzer,`galician`>>,
@@ -47,10 +51,11 @@ the config, or by using an external stopwords file by setting
 `stopwords_path`. Check <<analysis-stop-analyzer,Stop Analyzer>> for
 more details.
 
+[[_excluding_words_from_stemming]]
 ===== Excluding words from stemming
 
 The `stem_exclusion` parameter allows you to specify an array
-of lowercase words that should not be stemmed.  Internally, this
+of lowercase words that should not be stemmed. Internally, this
 functionality is implemented by adding the
 <<analysis-keyword-marker-tokenfilter,`keyword_marker` token filter>>
 with the `keywords` set to the value of the `stem_exclusion` parameter.
@@ -76,7 +81,7 @@ the `keyword_marker` token filter from the custom analyzer configuration.
 
 The `arabic` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /arabic_example
 {
@@ -113,9 +118,9 @@ PUT /arabic_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"arabic_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: arabic_example, first: arabic, second: rebuilt_arabic}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -126,7 +131,7 @@ PUT /arabic_example
 
 The `armenian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /armenian_example
 {
@@ -161,9 +166,9 @@ PUT /armenian_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"armenian_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: armenian_example, first: armenian, second: rebuilt_armenian}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -174,7 +179,7 @@ PUT /armenian_example
 
 The `basque` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /basque_example
 {
@@ -209,9 +214,9 @@ PUT /basque_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"basque_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: basque_example, first: basque, second: rebuilt_basque}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -222,7 +227,7 @@ PUT /basque_example
 
 The `bengali` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /bengali_example
 {
@@ -260,9 +265,9 @@ PUT /bengali_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"bengali_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: bengali_example, first: bengali, second: rebuilt_bengali}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -273,7 +278,7 @@ PUT /bengali_example
 
 The `brazilian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /brazilian_example
 {
@@ -308,9 +313,9 @@ PUT /brazilian_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"brazilian_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: brazilian_example, first: brazilian, second: rebuilt_brazilian}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -321,7 +326,7 @@ PUT /brazilian_example
 
 The `bulgarian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /bulgarian_example
 {
@@ -356,9 +361,9 @@ PUT /bulgarian_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"bulgarian_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: bulgarian_example, first: bulgarian, second: rebuilt_bulgarian}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -369,7 +374,7 @@ PUT /bulgarian_example
 
 The `catalan` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /catalan_example
 {
@@ -387,7 +392,7 @@ PUT /catalan_example
         },
         "catalan_keywords": {
           "type":       "keyword_marker",
-          "keywords":   ["exemple"] <2>
+          "keywords":   ["example"] <2>
         },
         "catalan_stemmer": {
           "type":       "stemmer",
@@ -410,9 +415,9 @@ PUT /catalan_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"catalan_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: catalan_example, first: catalan, second: rebuilt_catalan}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -422,11 +427,11 @@ PUT /catalan_example
 ===== `cjk` analyzer
 
 NOTE: You may find that `icu_analyzer` in the ICU analysis plugin works better
-for CJK text than the `cjk` analyzer.  Experiment with your text and queries.
+for CJK text than the `cjk` analyzer. Experiment with your text and queries.
 
 The `cjk` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /cjk_example
 {
@@ -459,9 +464,9 @@ PUT /cjk_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"cjk_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: cjk_example, first: cjk, second: rebuilt_cjk}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters. The default stop words are
     *almost* the same as the `_english_` set, but not exactly
@@ -472,7 +477,7 @@ PUT /cjk_example
 
 The `czech` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /czech_example
 {
@@ -507,9 +512,9 @@ PUT /czech_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"czech_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: czech_example, first: czech, second: rebuilt_czech}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -520,7 +525,7 @@ PUT /czech_example
 
 The `danish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /danish_example
 {
@@ -555,9 +560,9 @@ PUT /danish_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"danish_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: danish_example, first: danish, second: rebuilt_danish}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -568,7 +573,7 @@ PUT /danish_example
 
 The `dutch` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /dutch_example
 {
@@ -613,9 +618,9 @@ PUT /dutch_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"dutch_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: dutch_example, first: dutch, second: rebuilt_dutch}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -626,7 +631,7 @@ PUT /dutch_example
 
 The `english` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /english_example
 {
@@ -666,9 +671,57 @@ PUT /english_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"english_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: english_example, first: english, second: rebuilt_english}\nendyaml\n/]
+
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> This filter should be removed unless there are words which should
+    be excluded from stemming.
+
+[[estonian-analyzer]]
+===== `estonian` analyzer
+
+The `estonian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,console]
+----------------------------------------------------
+PUT /estonian_example
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "estonian_stop": {
+          "type":       "stop",
+          "stopwords":  "_estonian_" <1>
+        },
+        "estonian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   ["näide"] <2>
+        },
+        "estonian_stemmer": {
+          "type":       "stemmer",
+          "language":   "estonian"
+        }
+      },
+      "analyzer": {
+        "rebuilt_estonian": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "estonian_stop",
+            "estonian_keywords",
+            "estonian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+// TEST[s/"estonian_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: estonian_example, first: estonian, second: rebuilt_estonian}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -679,7 +732,7 @@ PUT /english_example
 
 The `finnish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /finnish_example
 {
@@ -714,9 +767,9 @@ PUT /finnish_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"finnish_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: finnish_example, first: finnish, second: rebuilt_finnish}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -727,7 +780,7 @@ PUT /finnish_example
 
 The `french` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /french_example
 {
@@ -749,7 +802,7 @@ PUT /french_example
         },
         "french_keywords": {
           "type":       "keyword_marker",
-          "keywords":   ["Exemple"] <2>
+          "keywords":   ["Example"] <2>
         },
         "french_stemmer": {
           "type":       "stemmer",
@@ -772,9 +825,9 @@ PUT /french_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"french_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: french_example, first: french, second: rebuilt_french}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -785,7 +838,7 @@ PUT /french_example
 
 The `galician` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /galician_example
 {
@@ -820,9 +873,9 @@ PUT /galician_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"galician_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: galician_example, first: galician, second: rebuilt_galician}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -833,7 +886,7 @@ PUT /galician_example
 
 The `german` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /german_example
 {
@@ -869,9 +922,9 @@ PUT /german_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"german_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: german_example, first: german, second: rebuilt_german}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -882,7 +935,7 @@ PUT /german_example
 
 The `greek` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /greek_example
 {
@@ -921,9 +974,9 @@ PUT /greek_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"greek_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: greek_example, first: greek, second: rebuilt_greek}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -934,7 +987,7 @@ PUT /greek_example
 
 The `hindi` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /hindi_example
 {
@@ -972,9 +1025,9 @@ PUT /hindi_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"hindi_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: hindi_example, first: hindi, second: rebuilt_hindi}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -985,7 +1038,7 @@ PUT /hindi_example
 
 The `hungarian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /hungarian_example
 {
@@ -1020,9 +1073,9 @@ PUT /hungarian_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"hungarian_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: hungarian_example, first: hungarian, second: rebuilt_hungarian}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1034,7 +1087,7 @@ PUT /hungarian_example
 
 The `indonesian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /indonesian_example
 {
@@ -1069,9 +1122,9 @@ PUT /indonesian_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"indonesian_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: indonesian_example, first: indonesian, second: rebuilt_indonesian}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1082,7 +1135,7 @@ PUT /indonesian_example
 
 The `irish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /irish_example
 {
@@ -1133,9 +1186,9 @@ PUT /irish_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"irish_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: irish_example, first: irish, second: rebuilt_irish}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1146,7 +1199,7 @@ PUT /irish_example
 
 The `italian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /italian_example
 {
@@ -1192,9 +1245,9 @@ PUT /italian_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"italian_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: italian_example, first: italian, second: rebuilt_italian}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1205,7 +1258,7 @@ PUT /italian_example
 
 The `latvian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /latvian_example
 {
@@ -1240,9 +1293,9 @@ PUT /latvian_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"latvian_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: latvian_example, first: latvian, second: rebuilt_latvian}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1253,7 +1306,7 @@ PUT /latvian_example
 
 The `lithuanian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /lithuanian_example
 {
@@ -1288,9 +1341,9 @@ PUT /lithuanian_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"lithuanian_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: lithuanian_example, first: lithuanian, second: rebuilt_lithuanian}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1301,7 +1354,7 @@ PUT /lithuanian_example
 
 The `norwegian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /norwegian_example
 {
@@ -1336,9 +1389,9 @@ PUT /norwegian_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"norwegian_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: norwegian_example, first: norwegian, second: rebuilt_norwegian}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1349,7 +1402,7 @@ PUT /norwegian_example
 
 The `persian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /persian_example
 {
@@ -1358,7 +1411,7 @@ PUT /persian_example
       "char_filter": {
         "zero_width_spaces": {
             "type":       "mapping",
-            "mappings": [ "\\u200C=> "] <1>
+            "mappings": [ "\\u200C=>\\u0020"] <1>
         }
       },
       "filter": {
@@ -1384,8 +1437,8 @@ PUT /persian_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: persian_example, first: persian, second: rebuilt_persian}\nendyaml\n/]
+
 <1> Replaces zero-width non-joiners with an ASCII space.
 <2> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
@@ -1395,7 +1448,7 @@ PUT /persian_example
 
 The `portuguese` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /portuguese_example
 {
@@ -1430,9 +1483,9 @@ PUT /portuguese_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"portuguese_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: portuguese_example, first: portuguese, second: rebuilt_portuguese}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1443,7 +1496,7 @@ PUT /portuguese_example
 
 The `romanian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /romanian_example
 {
@@ -1478,9 +1531,9 @@ PUT /romanian_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"romanian_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: romanian_example, first: romanian, second: rebuilt_romanian}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1492,7 +1545,7 @@ PUT /romanian_example
 
 The `russian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /russian_example
 {
@@ -1527,9 +1580,9 @@ PUT /russian_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"russian_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: russian_example, first: russian, second: rebuilt_russian}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1540,7 +1593,7 @@ PUT /russian_example
 
 The `sorani` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /sorani_example
 {
@@ -1577,9 +1630,9 @@ PUT /sorani_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"sorani_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: sorani_example, first: sorani, second: rebuilt_sorani}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1590,7 +1643,7 @@ PUT /sorani_example
 
 The `spanish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /spanish_example
 {
@@ -1625,9 +1678,9 @@ PUT /spanish_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"spanish_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: spanish_example, first: spanish, second: rebuilt_spanish}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1638,7 +1691,7 @@ PUT /spanish_example
 
 The `swedish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /swedish_example
 {
@@ -1673,9 +1726,9 @@ PUT /swedish_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"swedish_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: swedish_example, first: swedish, second: rebuilt_swedish}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1686,7 +1739,7 @@ PUT /swedish_example
 
 The `turkish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /turkish_example
 {
@@ -1726,9 +1779,9 @@ PUT /turkish_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"turkish_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: turkish_example, first: turkish, second: rebuilt_turkish}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
@@ -1739,7 +1792,7 @@ PUT /turkish_example
 
 The `thai` analyzer could be reimplemented as a `custom` analyzer as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /thai_example
 {
@@ -1765,8 +1818,8 @@ PUT /thai_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/"thai_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: thai_example, first: thai, second: rebuilt_thai}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.

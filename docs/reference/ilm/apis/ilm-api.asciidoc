@@ -1,33 +1,34 @@
 [[index-lifecycle-management-api]]
-== Index Lifecycle Management API
+== {ilm-cap} APIs
 
-beta[]
+You use the following APIs to set up policies to automatically manage the index lifecycle.
+For more information about {ilm} ({ilm-init}), see <<index-lifecycle-management>>.
 
-You can use the following APIs to manage policies on indices.
-
-[float]
+[discrete]
 [[ilm-api-policy-endpoint]]
-=== Policy Management APIs
+=== Policy management APIs
 
-* <<ilm-put-lifecycle,Create Lifecycle Policy>>
-* <<ilm-get-lifecycle,Get Lifecycle Policy>>
-* <<ilm-delete-lifecycle,Delete Lifecycle Policy>>
+* <<ilm-put-lifecycle,Create lifecycle policy>>
+* <<ilm-get-lifecycle,Get lifecycle policy>>
+* <<ilm-delete-lifecycle,Delete lifecycle policy>>
 
-[float]
+[discrete]
 [[ilm-api-index-endpoint]]
-=== Index Management APIs
+=== Index management APIs
 
-* <<ilm-move-to-step,Move Index To Step>>
-* <<ilm-retry-policy,Retry Policy On Indices>>
+* <<ilm-move-to-step,Move index to step>>
+* <<ilm-retry-policy,Retry policy on indices>>
+* <<ilm-remove-policy,Remove policy from index>>
 
-[float]
+[discrete]
 [[ilm-api-management-endpoint]]
-=== Operation Management APIs
+=== Operation management APIs
 
-* <<ilm-get-status,Get ILM Operation Mode>>
-* <<ilm-start,Start ILM>>
-* <<ilm-stop,Stop ILM>>
+* <<ilm-get-status,Get {ilm-init} operation mode>>
+* <<ilm-start,Start {ilm-init}>>
+* <<ilm-stop,Stop {ilm-init}>>
 * <<ilm-explain-lifecycle,Explain API>>
+* <<ilm-migrate-to-data-tiers,Migrate to data tiers routing API>>
 
 
 include::put-lifecycle.asciidoc[]
@@ -42,3 +43,4 @@ include::get-status.asciidoc[]
 include::explain.asciidoc[]
 include::start.asciidoc[]
 include::stop.asciidoc[]
+include::migrate-to-data-tiers.asciidoc[]

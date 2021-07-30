@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:context="http://www.springframework.org/schema/context"
+    xmlns:util="http://www.springframework.org/schema/util" xmlns:p="http://www.springframework.org/schema/p"
+    xmlns:c="http://www.springframework.org/schema/c" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                        http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+                        http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd"
+
+    default-init-method="initialize"
+    default-destroy-method="destroy">
+
+    <!--
+    This bean defines a mapping between audit log categories and formatting strings. The default entry is
+    for compatibility with V2 audit logging.
+    -->
+    <util:map id="shibboleth.AuditFormattingMap">
+        <entry key="Shibboleth-Audit" value="%T|%b|%I|%SP|%P|%IDP|%bb|%III|%u|%ac|%attr|%n|%i|%X" />
+    </util:map>
+
+    <!-- Override the format of date/time fields in the log and/or convert to default time zone. -->
+    <!--
+    <bean id="shibboleth.AuditDateTimeFormat" class="java.lang.String" c:_0="YYYY-MM-dd'T'HH:mm:ss.SSSZZ" />
+    <util:constant id="shibboleth.AuditDefaultTimeZone" static-field="java.lang.Boolean.TRUE" />
+    -->
+
+    <!-- Allows auditing to be disabled selectively for particular profiles/flows. -->
+    <util:list id="shibboleth.AuditSuppressedProfiles">
+        <value>http://shibboleth.net/ns/profiles/status</value>
+        <value>http://shibboleth.net/ns/profiles/mdquery</value>
+    </util:list>
+
+</beans>

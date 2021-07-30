@@ -1,15 +1,15 @@
 {
   "index_patterns": [ ".monitoring-es-${monitoring.template.version}-*" ],
-  "version": 7000099,
+  "version": 7140099,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 0,
     "index.auto_expand_replicas": "0-1",
-    "index.format": 6,
+    "index.format": 7,
     "index.codec": "best_compression"
   },
   "mappings": {
-    "doc": {
+    "_doc": {
       "date_detection": false,
       "dynamic": false,
       "properties": {
@@ -84,6 +84,25 @@
                           "type": "long"
                         }
                       }
+                    },
+                    "bulk": {
+                      "properties": {
+                        "total_operations": {
+                          "type": "long"
+                        },
+                        "total_time_in_millis": {
+                          "type": "long"
+                        },
+                        "total_size_in_bytes": {
+                          "type": "long"
+                        },
+                        "avg_time_in_millis": {
+                          "type": "long"
+                        },
+                        "avg_size_in_bytes": {
+                          "type": "long"
+                        }
+                      }
                     }
                   }
                 },
@@ -112,6 +131,25 @@
                           "type": "long"
                         },
                         "query_time_in_millis": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "bulk": {
+                      "properties": {
+                        "total_operations": {
+                          "type": "long"
+                        },
+                        "total_time_in_millis": {
+                          "type": "long"
+                        },
+                        "total_size_in_bytes": {
+                          "type": "long"
+                        },
+                        "avg_time_in_millis": {
+                          "type": "long"
+                        },
+                        "avg_size_in_bytes": {
                           "type": "long"
                         }
                       }
@@ -258,6 +296,25 @@
                       "type": "long"
                     }
                   }
+                },
+                "bulk": {
+                  "properties": {
+                    "total_operations": {
+                      "type": "long"
+                    },
+                    "total_time_in_millis": {
+                      "type": "long"
+                    },
+                    "total_size_in_bytes": {
+                      "type": "long"
+                    },
+                    "avg_time_in_millis": {
+                      "type": "long"
+                    },
+                    "avg_size_in_bytes": {
+                      "type": "long"
+                    }
+                  }
                 }
               }
             },
@@ -389,6 +446,25 @@
                 "refresh": {
                   "properties": {
                     "total_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "bulk": {
+                  "properties": {
+                    "total_operations": {
+                      "type": "long"
+                    },
+                    "total_time_in_millis": {
+                      "type": "long"
+                    },
+                    "total_size_in_bytes": {
+                      "type": "long"
+                    },
+                    "avg_time_in_millis": {
+                      "type": "long"
+                    },
+                    "avg_size_in_bytes": {
                       "type": "long"
                     }
                   }
@@ -557,6 +633,25 @@
                 "store": {
                   "properties": {
                     "size_in_bytes": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "bulk": {
+                  "properties": {
+                    "total_operations": {
+                      "type": "long"
+                    },
+                    "total_time_in_millis": {
+                      "type": "long"
+                    },
+                    "total_size_in_bytes": {
+                      "type": "long"
+                    },
+                    "avg_time_in_millis": {
+                      "type": "long"
+                    },
+                    "avg_size_in_bytes": {
                       "type": "long"
                     }
                   }
@@ -974,6 +1069,9 @@
             "follower_settings_version": {
               "type": "long"
             },
+            "follower_aliases_version": {
+              "type": "long"
+            },
             "total_read_time_millis": {
               "type": "long"
             },
@@ -1028,6 +1126,17 @@
             },
             "time_since_last_read_millis": {
               "type": "long"
+            },
+            "fatal_exception": {
+              "type": "object",
+              "properties": {
+                "type" : {
+                  "type": "keyword"
+                },
+                "reason": {
+                  "type": "text"
+                }
+              }
             }
           }
         },
@@ -1048,6 +1157,9 @@
                 "leader_index": {
                   "type": "keyword"
                 },
+                "timestamp": {
+                  "type": "long"
+                },
                 "auto_follow_exception": {
                   "type": "object",
                   "properties": {
@@ -1058,6 +1170,76 @@
                       "type": "text"
                     }
                   }
+                }
+              }
+            },
+            "auto_followed_clusters": {
+              "type": "nested",
+              "properties": {
+                "cluster_name": {
+                  "type": "keyword"
+                },
+                "time_since_last_check_millis": {
+                  "type": "long"
+                },
+                "last_seen_metadata_version": {
+                  "type": "long"
+                }
+              }
+            }
+          }
+        },
+        "enrich_coordinator_stats" : {
+          "properties": {
+            "node_id": {
+              "type": "keyword"
+            },
+            "queue_size": {
+              "type": "integer"
+            },
+            "remote_requests_current" : {
+              "type": "long"
+            },
+            "remote_requests_total" : {
+              "type": "long"
+            },
+            "executed_searches_total" : {
+              "type": "long"
+            }
+          }
+        },
+        "enrich_executing_policy_stats": {
+          "properties": {
+            "name": {
+              "type": "keyword"
+            },
+            "task": {
+              "type": "object",
+              "properties": {
+                "node": {
+                  "type": "keyword"
+                },
+                "id": {
+                  "type": "long"
+                },
+                "type": {
+                  "type": "keyword"
+                },
+                "action": {
+                  "type": "keyword"
+                },
+                "description": {
+                  "type": "keyword"
+                },
+                "start_time_in_millis": {
+                  "type": "date",
+                  "format": "epoch_millis"
+                },
+                "running_time_in_nanos": {
+                  "type": "long"
+                },
+                "cancellable": {
+                  "type": "boolean"
                 }
               }
             }

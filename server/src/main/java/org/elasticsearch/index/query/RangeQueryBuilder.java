@@ -1,45 +1,33 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.DateTimeException;
+import java.time.ZoneId;
 import java.util.Objects;
 
 /**
@@ -64,19 +52,12 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     private static final ParseField RELATION_FIELD = new ParseField("relation");
 
     private final String fieldName;
-
     private Object from;
-
     private Object to;
-
-    private DateTimeZone timeZone;
-
+    private ZoneId timeZone;
     private boolean includeLower = DEFAULT_INCLUDE_LOWER;
-
     private boolean includeUpper = DEFAULT_INCLUDE_UPPER;
-
-    private DateFormatter format;
-
+    private String format;
     private ShapeRelation relation;
 
     /**
@@ -101,15 +82,12 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         to = in.readGenericValue();
         includeLower = in.readBoolean();
         includeUpper = in.readBoolean();
-        timeZone = in.readOptionalTimeZone();
-        String formatString = in.readOptionalString();
-        if (formatString != null) {
-            format = DateFormatter.forPattern(formatString);
-        }
+        timeZone = in.readOptionalZoneId();
+        format = in.readOptionalString();
         String relationString = in.readOptionalString();
         if (relationString != null) {
             relation = ShapeRelation.getRelationByName(relationString);
-            if (relation != null && !isRelationAllowed(relation)) {
+            if (relation != null && isRelationAllowed(relation) == false) {
                 throw new IllegalArgumentException(
                     "[range] query does not support relation [" + relationString + "]");
             }
@@ -129,12 +107,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         out.writeGenericValue(this.to);
         out.writeBoolean(this.includeLower);
         out.writeBoolean(this.includeUpper);
-        out.writeOptionalTimeZone(timeZone);
-        String formatString = null;
-        if (this.format != null) {
-            formatString = this.format.pattern();
-        }
-        out.writeOptionalString(formatString);
+        out.writeOptionalZoneId(timeZone);
+        out.writeOptionalString(format);
         String relationString = null;
         if (this.relation != null) {
             relationString = this.relation.getRelationName();
@@ -267,7 +241,11 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (timeZone == null) {
             throw new IllegalArgumentException("timezone cannot be null");
         }
-        this.timeZone = DateTimeZone.forID(timeZone);
+        try {
+            this.timeZone = ZoneId.of(timeZone);
+        } catch (DateTimeException e) {
+            throw new IllegalArgumentException(e);
+        }
         return this;
     }
 
@@ -275,10 +253,10 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * In case of date field, gets the from/to fields timezone adjustment
      */
     public String timeZone() {
-        return this.timeZone == null ? null : this.timeZone.getID();
+        return this.timeZone == null ? null : this.timeZone.getId();
     }
 
-    DateTimeZone getDateTimeZone() { // for testing
+    ZoneId getDateTimeZone() { // for testing
         return timeZone;
     }
 
@@ -289,7 +267,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (format == null) {
             throw new IllegalArgumentException("format cannot be null");
         }
-        this.format = DateFormatter.forPattern(format);
+        // this just ensure that the pattern is actually valid, no need to keep it here
+        DateFormatter.forPattern(format);
+        this.format = format;
         return this;
     }
 
@@ -297,12 +277,12 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * Gets the format field to parse the from/to fields
      */
     public String format() {
-        return this.format == null ? null : this.format.pattern();
+        return format;
     }
 
     DateMathParser getForceDateParser() { // pkg private for testing
-        if (this.format != null) {
-            return this.format.toDateMathParser();
+        if (Strings.hasText(format)) {
+            return DateFormatter.forPattern(this.format).toDateMathParser();
         }
         return null;
     }
@@ -319,7 +299,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (this.relation == null) {
             throw new IllegalArgumentException(relation + " is not a valid relation");
         }
-        if (!isRelationAllowed(this.relation)) {
+        if (isRelationAllowed(this.relation) == false) {
             throw new IllegalArgumentException("[range] query does not support relation [" + relation + "]");
         }
         return this;
@@ -334,10 +314,10 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         builder.field(INCLUDE_LOWER_FIELD.getPreferredName(), includeLower);
         builder.field(INCLUDE_UPPER_FIELD.getPreferredName(), includeUpper);
         if (timeZone != null) {
-            builder.field(TIME_ZONE_FIELD.getPreferredName(), timeZone.getID());
+            builder.field(TIME_ZONE_FIELD.getPreferredName(), timeZone.getId());
         }
-        if (format != null) {
-            builder.field(FORMAT_FIELD.getPreferredName(), format.pattern());
+        if (Strings.hasText(format)) {
+            builder.field(FORMAT_FIELD.getPreferredName(), format);
         }
         if (relation != null) {
             builder.field(RELATION_FIELD.getPreferredName(), relation.getRelationName());
@@ -438,36 +418,44 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     // Overridable for testing only
     protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
-        // If the context is null we are not on the shard and cannot
-        // rewrite so just pretend there is an intersection so that the rewrite is a noop
-        if (shardContext == null || shardContext.getIndexReader() == null) {
-            return MappedFieldType.Relation.INTERSECTS;
+        CoordinatorRewriteContext coordinatorRewriteContext = queryRewriteContext.convertToCoordinatorRewriteContext();
+        if (coordinatorRewriteContext != null) {
+            final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
+            if (fieldType instanceof DateFieldMapper.DateFieldType) {
+                final DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) fieldType;
+                if (coordinatorRewriteContext.hasTimestampData() == false) {
+                    return MappedFieldType.Relation.DISJOINT;
+                }
+                long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
+                long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
+                DateMathParser dateMathParser = getForceDateParser();
+                return dateFieldType.isFieldWithinQuery(minTimestamp, maxTimestamp, from, to, includeLower,
+                    includeUpper, timeZone, dateMathParser, queryRewriteContext);
+            }
         }
-        final MapperService mapperService = shardContext.getMapperService();
-        final MappedFieldType fieldType = mapperService.fullName(fieldName);
-        if (fieldType == null) {
-            // no field means we have no values
-            return MappedFieldType.Relation.DISJOINT;
-        } else {
+
+        SearchExecutionContext searchExecutionContext = queryRewriteContext.convertToSearchExecutionContext();
+        if (searchExecutionContext != null) {
+            final MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
+            if (fieldType == null) {
+                return MappedFieldType.Relation.DISJOINT;
+            }
+            if (searchExecutionContext.getIndexReader() == null) {
+                // No reader, this may happen e.g. for percolator queries.
+                return MappedFieldType.Relation.INTERSECTS;
+            }
+
             DateMathParser dateMathParser = getForceDateParser();
-            return fieldType.isFieldWithinQuery(shardContext.getIndexReader(), from, to, includeLower,
+            return fieldType.isFieldWithinQuery(searchExecutionContext.getIndexReader(), from, to, includeLower,
                     includeUpper, timeZone, dateMathParser, queryRewriteContext);
         }
+
+        // Not on the shard, we have no way to know what the relation is.
+        return MappedFieldType.Relation.INTERSECTS;
     }
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        // Percolator queries get rewritten and pre-processed at index time.
-        // If a range query has a date range using 'now' and 'now' gets resolved at index time then
-        // the pre-processing uses that to pre-process. This can then lead to mismatches at query time.
-        if (queryRewriteContext.convertNowRangeToMatchAll()) {
-            if ((from() != null && from().toString().contains("now")) ||
-                (to() != null && to().toString().contains("now"))) {
-                return new MatchAllQueryBuilder();
-            }
-        }
-
         final MappedFieldType.Relation relation = getRelation(queryRewriteContext);
         switch (relation) {
         case DISJOINT:
@@ -491,61 +479,45 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (from == null && to == null) {
-            /**
+            /*
              * Open bounds on both side, we can rewrite to an exists query
              * if the {@link FieldNamesFieldMapper} is enabled.
              */
-            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-                (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
-            if (fieldNamesFieldType == null) {
+            if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
                 return new MatchNoDocsQuery("No mappings yet");
             }
+            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
+                (FieldNamesFieldMapper.FieldNamesFieldType) context.getFieldType(FieldNamesFieldMapper.NAME);
             // Exists query would fail if the fieldNames field is disabled.
             if (fieldNamesFieldType.isEnabled()) {
-                return ExistsQueryBuilder.newFilter(context, fieldName);
+                return ExistsQueryBuilder.newFilter(context, fieldName, false);
             }
         }
-        Query query = null;
-        MappedFieldType mapper = context.fieldMapper(this.fieldName);
-        if (mapper != null) {
-            DateMathParser forcedDateParser = getForceDateParser();
-            query = mapper.rangeQuery(
-                    from, to, includeLower, includeUpper,
-                    relation, timeZone, forcedDateParser, context);
-        } else {
-            if (timeZone != null) {
-                throw new QueryShardException(context, "[range] time_zone can not be applied to non unmapped field ["
-                        + fieldName + "]");
-            }
+        MappedFieldType mapper = context.getFieldType(this.fieldName);
+        if (mapper == null) {
+            throw new IllegalStateException("Rewrite first");
         }
-
-        if (query == null) {
-            query = new TermRangeQuery(this.fieldName,
-                    BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to),
-                    includeLower, includeUpper);
-        }
-        return query;
+        DateMathParser forcedDateParser = getForceDateParser();
+        return mapper.rangeQuery(
+                from, to, includeLower, includeUpper,
+                relation, timeZone, forcedDateParser, context);
     }
 
     @Override
     protected int doHashCode() {
-        String timeZoneId = timeZone == null ? null : timeZone.getID();
-        String formatString = format == null ? null : format.pattern();
-        return Objects.hash(fieldName, from, to, timeZoneId, includeLower, includeUpper, formatString);
+        return Objects.hash(fieldName, from, to, timeZone, includeLower, includeUpper, format);
     }
 
     @Override
     protected boolean doEquals(RangeQueryBuilder other) {
-        String timeZoneId = timeZone == null ? null : timeZone.getID();
-        String formatString = format == null ? null : format.pattern();
         return Objects.equals(fieldName, other.fieldName) &&
                Objects.equals(from, other.from) &&
                Objects.equals(to, other.to) &&
-               Objects.equals(timeZoneId, other.timeZone()) &&
+               Objects.equals(timeZone, other.timeZone) &&
                Objects.equals(includeLower, other.includeLower) &&
                Objects.equals(includeUpper, other.includeUpper) &&
-               Objects.equals(formatString, other.format());
+               Objects.equals(format, other.format);
     }
 }

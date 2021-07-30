@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.kerberos;
@@ -16,8 +17,8 @@ import org.apache.kerby.kerberos.kerb.server.SimpleKdcServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -34,6 +35,9 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ServerSocketFactory;
+
+import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Utility wrapper around Apache {@link SimpleKdcServer} backed by Unboundid
@@ -90,7 +94,7 @@ public class SimpleKdcLdapServer {
         AccessController.doPrivileged(new PrivilegedExceptionAction<Void>() {
             @Override
             public Void run() throws Exception {
-                init();
+                assertBusy(() -> assertTrue("Failed to initialize SimpleKdcLdapServer", init()));
                 return null;
             }
         });
@@ -98,14 +102,33 @@ public class SimpleKdcLdapServer {
     }
 
     @SuppressForbidden(reason = "Uses Apache Kdc which requires usage of java.io.File in order to create a SimpleKdcServer")
-    private void init() throws Exception {
-        // start ldap server
-        createLdapServiceAndStart();
-        // create ldap backend conf
-        createLdapBackendConf();
-        // Kdc Server
-        simpleKdc = new SimpleKdcServer(this.workDir.toFile(), new KrbConfig());
-        prepareKdcServerAndStart();
+    private boolean init() {
+        boolean initialized = false;
+        try {
+            // start ldap server
+            createLdapServiceAndStart();
+            // create ldap backend conf
+            createLdapBackendConf();
+            // Kdc Server
+            simpleKdc = new SimpleKdcServer(this.workDir.toFile(), new KrbConfig());
+            prepareKdcServerAndStart();
+            initialized = true;
+        } catch (Exception e) {
+            if (simpleKdc != null) {
+                try {
+                    simpleKdc.stop();
+                } catch (KrbException krbException) {
+                    logger.debug("error occurred while cleaning up after init failure for SimpleKdcLdapServer");
+                }
+            }
+            if (ldapServer != null) {
+                ldapServer.shutDown(true);
+            }
+            ldapPort = 0;
+            kdcPort = 0;
+            initialized = false;
+        }
+        return initialized;
     }
 
     private void createLdapServiceAndStart() throws Exception {
@@ -197,7 +220,7 @@ public class SimpleKdcLdapServer {
 
     /**
      * Stop Simple Kdc Server
-     * 
+     *
      * @throws PrivilegedActionException when privileged action threw exception
      */
     public synchronized void stop() throws PrivilegedActionException {
@@ -229,12 +252,14 @@ public class SimpleKdcLdapServer {
         if (transport != null && transport.trim().equalsIgnoreCase("TCP")) {
             try (ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(0, 1,
                     InetAddress.getByName("127.0.0.1"))) {
+                serverSocket.setReuseAddress(true);
                 return serverSocket.getLocalPort();
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to get a TCP server socket point");
             }
         } else if (transport != null && transport.trim().equalsIgnoreCase("UDP")) {
             try (DatagramSocket socket = new DatagramSocket(0, InetAddress.getByName("127.0.0.1"))) {
+                socket.setReuseAddress(true);
                 return socket.getLocalPort();
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to get a UDP server socket point");

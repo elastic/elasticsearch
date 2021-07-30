@@ -1,70 +1,47 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.fielddata;
 
+import org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.PermissionCollection;
-import java.security.Permissions;
-import java.security.PrivilegedAction;
-import java.security.ProtectionDomain;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.function.BiConsumer;
-
-import static org.hamcrest.Matchers.contains;
 
 public class ScriptDocValuesGeoPointsTests extends ESTestCase {
 
-    private static MultiGeoPointValues wrap(final GeoPoint... points) {
+    private static MultiGeoPointValues wrap(GeoPoint[][] points) {
         return new MultiGeoPointValues() {
-            int docID = -1;
+            GeoPoint[] current;
             int i;
 
             @Override
             public GeoPoint nextValue() {
-                if (docID != 0) {
-                    fail();
-                }
-                return points[i++];
+                return current[i++];
             }
 
             @Override
             public boolean advanceExact(int docId) {
-                docID = docId;
-                return points.length > 0;
+                if (docId < points.length) {
+                    current = points[docId];
+                } else {
+                    current = new GeoPoint[0];
+                }
+                i = 0;
+                return current.length > 0;
             }
 
             @Override
             public int docValueCount() {
-                if (docID != 0) {
-                    return 0;
-                }
-                return points.length;
+                return current.length;
             }
         };
     }
@@ -83,61 +60,31 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
         final double lon1 = randomLon();
         final double lon2 = randomLon();
 
-        Set<String> warnings = new HashSet<>();
-        Set<String> keys = new HashSet<>();
+        GeoPoint[][] points = {{new GeoPoint(lat1, lon1), new GeoPoint(lat2, lon2)}};
+        final MultiGeoPointValues values = wrap(points);
+        final ScriptDocValues.GeoPoints script = new ScriptDocValues.GeoPoints(values);
 
-        final MultiGeoPointValues values = wrap(new GeoPoint(lat1, lon1), new GeoPoint(lat2, lon2));
-        final ScriptDocValues.GeoPoints script = geoPointsWrap(values, (deprecationKey, deprecationMessage)  -> {
-            keys.add(deprecationKey);
-            warnings.add(deprecationMessage);
-
-            // Create a temporary directory to prove we are running with the server's permissions.
-            createTempDir();
-        });
         script.setNextDocId(1);
         assertEquals(true, script.isEmpty());
         script.setNextDocId(0);
         assertEquals(false, script.isEmpty());
         assertEquals(new GeoPoint(lat1, lon1), script.getValue());
-        assertEquals(Arrays.asList(new GeoPoint(lat1, lon1), new GeoPoint(lat2, lon2)), script.getValues());
         assertEquals(lat1, script.getLat(), 0);
         assertEquals(lon1, script.getLon(), 0);
         assertTrue(Arrays.equals(new double[] {lat1, lat2}, script.getLats()));
         assertTrue(Arrays.equals(new double[] {lon1, lon2}, script.getLons()));
-
-        /*
-         * Invoke getValues() without any permissions to verify it still works.
-         * This is done using the callback created above, which creates a temp
-         * directory, which is not possible with "noPermission".
-         */
-        PermissionCollection noPermissions = new Permissions();
-        AccessControlContext noPermissionsAcc = new AccessControlContext(
-            new ProtectionDomain[] {
-                new ProtectionDomain(null, noPermissions)
-            }
-        );
-        AccessController.doPrivileged(new PrivilegedAction<Void>(){
-            public Void run() {
-                script.getValues();
-                return null;
-            }
-        }, noPermissionsAcc);
-
-        assertThat(warnings, contains(
-            "Deprecated getValues used, the field is a list and should be accessed directly."
-           + " For example, use doc['foo'] instead of doc['foo'].values."));
-        assertThat(keys, contains("ScriptDocValues#getValues"));
-
     }
 
     public void testGeoDistance() throws IOException {
         final double lat = randomLat();
         final double lon = randomLon();
-        final MultiGeoPointValues values = wrap(new GeoPoint(lat, lon));
+        GeoPoint[][] points = {{new GeoPoint(lat, lon)}};
+        final MultiGeoPointValues values = wrap(points);
         final ScriptDocValues.GeoPoints script = new ScriptDocValues.GeoPoints(values);
         script.setNextDocId(0);
 
-        final ScriptDocValues.GeoPoints emptyScript = new ScriptDocValues.GeoPoints(wrap());
+        GeoPoint[][] points2 = {new GeoPoint[0]};
+        final ScriptDocValues.GeoPoints emptyScript = new ScriptDocValues.GeoPoints(wrap(points2));
         emptyScript.setNextDocId(0);
 
         final double otherLat = randomLat();
@@ -156,8 +103,33 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
         assertEquals(42, emptyScript.planeDistanceWithDefault(otherLat, otherLon, 42), 0);
     }
 
-    private GeoPoints geoPointsWrap(MultiGeoPointValues in, BiConsumer<String, String> deprecationHandler) {
-        return new GeoPoints(in, deprecationHandler);
+    public void testMissingValues() throws IOException {
+        GeoPoint[][] points = new GeoPoint[between(3, 10)][];
+        for (int d = 0; d < points.length; d++) {
+            points[d] = new GeoPoint[randomBoolean() ? 0 : between(1, 10)];
+            for (int i = 0; i< points[d].length; i++) {
+                points[d][i] =  new GeoPoint(randomLat(), randomLon());
+            }
+        }
+        final ScriptDocValues.GeoPoints geoPoints = new GeoPoints(wrap(points));
+        for (int d = 0; d < points.length; d++) {
+            geoPoints.setNextDocId(d);
+            if (points[d].length > 0) {
+                assertEquals(points[d][0], geoPoints.getValue());
+            } else {
+                Exception e = expectThrows(IllegalStateException.class, () -> geoPoints.getValue());
+                assertEquals("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
+                e = expectThrows(IllegalStateException.class, () -> geoPoints.get(0));
+                assertEquals("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
+            }
+            assertEquals(points[d].length, geoPoints.size());
+            for (int i = 0; i < points[d].length; i++) {
+                assertEquals(points[d][i], geoPoints.get(i));
+            }
+        }
     }
+
 
 }

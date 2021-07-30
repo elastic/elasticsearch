@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.sql.Date;
 import java.util.Locale;
 
 import javax.mail.Message;
@@ -90,7 +92,7 @@ public enum Profile {
                 alternative.addBodyPart(html);
             }
 
-            if (!email.attachments.isEmpty()) {
+            if (email.attachments.isEmpty() == false) {
                 for (Attachment attachment : email.attachments.values()) {
                     if (attachment.isInline()) {
                         related.addBodyPart(attachment.bodyPart());
@@ -182,7 +184,7 @@ public enum Profile {
         if (email.priority != null) {
             email.priority.applyTo(message);
         }
-        message.setSentDate(email.sentDate.toDate());
+        message.setSentDate(Date.from(email.sentDate.toInstant()));
         message.setRecipients(Message.RecipientType.TO, email.to.toArray());
         if (email.cc != null) {
             message.setRecipients(Message.RecipientType.CC, email.cc.toArray());

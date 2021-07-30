@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.support.replication;
 
@@ -29,10 +18,10 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -41,25 +30,29 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportMessageListener;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -70,14 +63,17 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUID;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
@@ -85,6 +81,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 
 /**
@@ -117,7 +116,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         clusterService = createClusterService(threadPool);
 
         final ClusterState.Builder state = ClusterState.builder(clusterService.state());
-        Set<DiscoveryNode.Role> roles = new HashSet<>(Arrays.asList(DiscoveryNode.Role.values()));
+        Set<DiscoveryNodeRole> roles = new HashSet<>(DiscoveryNodeRole.roles());
         DiscoveryNode node1 = new DiscoveryNode("_name1", "_node1", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("_name2", "_node2", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
         state.nodes(DiscoveryNodes.builder()
@@ -144,17 +143,17 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             indexDoc(primary, "_doc", id, "{\"value\":" + id + "}");
         }
 
-        IndexMetaData indexMetaData = IndexMetaData.builder(shardId.getIndexName())
+        IndexMetadata indexMetadata = IndexMetadata.builder(shardId.getIndexName())
             .settings(indexSettings)
             .primaryTerm(shardId.id(), primary.getOperationPrimaryTerm())
-            .putMapping("_doc","{ \"properties\": { \"value\":  { \"type\": \"short\"}}}")
+            .putMapping("{ \"properties\": { \"value\":  { \"type\": \"short\"}}}")
             .build();
-        state.metaData(MetaData.builder().put(indexMetaData, false).generateClusterUuidIfNeeded());
+        state.metadata(Metadata.builder().put(indexMetadata, false).generateClusterUuidIfNeeded());
 
-        replica = newShard(primary.shardId(), false, node2.getId(), indexMetaData, null);
+        replica = newShard(primary.shardId(), false, node2.getId(), indexMetadata, null);
         recoverReplica(replica, primary, true);
 
-        IndexRoutingTable.Builder routing = IndexRoutingTable.builder(indexMetaData.getIndex());
+        IndexRoutingTable.Builder routing = IndexRoutingTable.builder(indexMetadata.getIndex());
         routing.addIndexShard(new IndexShardRoutingTable.Builder(shardId)
             .addShard(primary.routingEntry())
             .build());
@@ -163,7 +162,41 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         setState(clusterService, state.build());
 
         final Settings transportSettings = Settings.builder().put("node.name", node1.getId()).build();
-        transportService = MockTransportService.createNewService(transportSettings, Version.CURRENT, threadPool, null);
+
+        MockTransport transport = new MockTransport() {
+            @Override
+            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+                assertThat(action, allOf(startsWith("cluster:admin/test/"), endsWith("[r]")));
+                assertThat(node, equalTo(node2));
+                // node2 doesn't really exist, but we are performing some trickery in mockIndicesService() to pretend that node1 holds both
+                // the primary and the replica, so redirect the request back to node1.
+                transportService.sendRequest(transportService.getLocalNode(), action, request,
+                    new TransportResponseHandler<TransportReplicationAction.ReplicaResponse>() {
+                        @Override
+                        public TransportReplicationAction.ReplicaResponse read(StreamInput in) throws IOException {
+                            return new TransportReplicationAction.ReplicaResponse(in);
+                        }
+
+                        @SuppressWarnings("unchecked")
+                        private TransportResponseHandler<TransportReplicationAction.ReplicaResponse> getResponseHandler() {
+                            return (TransportResponseHandler<TransportReplicationAction.ReplicaResponse>)
+                                getResponseHandlers().onResponseReceived(requestId, TransportMessageListener.NOOP_LISTENER);
+                        }
+
+                        @Override
+                        public void handleResponse(TransportReplicationAction.ReplicaResponse response) {
+                            getResponseHandler().handleResponse(response);
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            getResponseHandler().handleException(exp);
+                        }
+                    });
+            }
+        };
+        transportService = transport.createTransportService(transportSettings, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            bta -> node1, null, emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
         shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
@@ -198,13 +231,16 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             final PlainActionFuture<Response> listener = new PlainActionFuture<>();
             futures[threadId] = listener;
 
-            final TestAction singlePermitAction = new SinglePermitWithBlocksAction(Settings.EMPTY, "internalSinglePermit[" + threadId + "]",
+            final TestAction singlePermitAction = new SinglePermitWithBlocksAction(Settings.EMPTY,
+                "cluster:admin/test/single_permit[" + threadId + "]",
                 transportService, clusterService, shardStateAction, threadPool, shardId, primary, replica, globalBlock);
             actions[threadId] = singlePermitAction;
 
             Thread thread = new Thread(() -> {
+                final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
+                    = new TransportReplicationAction.ConcreteShardRequest<>(request(), allocationId(), primaryTerm());
                 TransportReplicationAction.AsyncPrimaryAction asyncPrimaryAction =
-                    singlePermitAction.new AsyncPrimaryAction(request(), allocationId(), primaryTerm(), transportChannel(listener), null) {
+                    singlePermitAction.new AsyncPrimaryAction(primaryRequest, listener, null) {
                         @Override
                         protected void doRun() throws Exception {
                             if (delayed) {
@@ -249,16 +285,19 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         logger.trace("now starting the operation that acquires all permits and sets the block in the cluster state");
 
         // An action which acquires all operation permits during execution and set a block
-        final TestAction allPermitsAction = new AllPermitsThenBlockAction(Settings.EMPTY, "internalAllPermits", transportService,
-            clusterService, shardStateAction, threadPool, shardId, primary, replica);
+        final TestAction allPermitsAction = new AllPermitsThenBlockAction(Settings.EMPTY, "cluster:admin/test/all_permits",
+            transportService, clusterService, shardStateAction, threadPool, shardId, primary, replica);
 
         final PlainActionFuture<Response> allPermitFuture = new PlainActionFuture<>();
         Thread thread = new Thread(() -> {
+            final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
+                = new TransportReplicationAction.ConcreteShardRequest<>(request(), allocationId(), primaryTerm());
             TransportReplicationAction.AsyncPrimaryAction asyncPrimaryAction =
-                allPermitsAction.new AsyncPrimaryAction(request(), allocationId(), primaryTerm(), transportChannel(allPermitFuture), null) {
+                allPermitsAction.new AsyncPrimaryAction(primaryRequest, allPermitFuture, null) {
                     @Override
                     void runWithPrimaryShardReference(final TransportReplicationAction.PrimaryShardReference reference) {
-                        assertEquals("All permits must be acquired", 0, reference.indexShard.getActiveOperationsCount());
+                        assertEquals("All permits must be acquired",
+                            IndexShard.OPERATIONS_BLOCKED, reference.indexShard.getActiveOperationsCount());
                         assertSame(primary, reference.indexShard);
 
                         final ClusterState clusterState = clusterService.state();
@@ -295,6 +334,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         }
 
         final Response allPermitsResponse = allPermitFuture.get();
+
         assertSuccessfulOperation(allPermitsAction, allPermitsResponse);
 
         for (int i = 0; i < numOperations; i++) {
@@ -341,7 +381,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
     }
 
     private Request request() {
-        return new Request().setShardId(primary.shardId());
+        return new Request(primary.shardId());
     }
 
     /**
@@ -353,22 +393,25 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         protected final ShardId shardId;
         protected final IndexShard primary;
         protected final IndexShard replica;
-        protected final SetOnce<Boolean> executedOnPrimary = new SetOnce<>();
-        protected final SetOnce<Boolean> executedOnReplica = new SetOnce<>();
+        final SetOnce<Boolean> executedOnPrimary;
+        final SetOnce<Boolean> executedOnReplica = new SetOnce<>();
 
         TestAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
-                   ShardStateAction shardStateAction, ThreadPool threadPool, ShardId shardId, IndexShard primary, IndexShard replica) {
-            super(settings, actionName, transportService, clusterService, null, threadPool, shardStateAction,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(), Request::new, Request::new, ThreadPool.Names.SAME);
+                   ShardStateAction shardStateAction, ThreadPool threadPool, ShardId shardId, IndexShard primary, IndexShard replica,
+                   SetOnce<Boolean> executedOnPrimary) {
+            super(settings, actionName, transportService, clusterService, mockIndicesService(shardId, executedOnPrimary, primary, replica),
+                threadPool, shardStateAction,
+                new ActionFilters(new HashSet<>()), Request::new, Request::new, ThreadPool.Names.SAME);
             this.shardId = Objects.requireNonNull(shardId);
             this.primary = Objects.requireNonNull(primary);
             assertEquals(shardId, primary.shardId());
             this.replica = Objects.requireNonNull(replica);
             assertEquals(shardId, replica.shardId());
+            this.executedOnPrimary = executedOnPrimary;
         }
 
         @Override
-        protected Response newResponseInstance() {
+        protected Response newResponseInstance(StreamInput in) {
             return new Response();
         }
 
@@ -377,63 +420,36 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         }
 
         @Override
-        protected PrimaryResult<Request, Response> shardOperationOnPrimary(Request shardRequest, IndexShard shard) throws Exception {
+        protected void shardOperationOnPrimary(Request shardRequest, IndexShard shard,
+                ActionListener<PrimaryResult<Request, Response>> listener) {
             executedOnPrimary.set(true);
             // The TransportReplicationAction.getIndexShard() method is overridden for testing purpose but we double check here
             // that the permit has been acquired on the primary shard
             assertSame(primary, shard);
-            return new PrimaryResult<>(shardRequest, new Response());
+            listener.onResponse(new PrimaryResult<>(shardRequest, new Response()));
         }
 
         @Override
-        protected ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard shard) throws Exception {
+        protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
+            assertEquals("Replica is always assigned to node 2 in this test", clusterService.state().nodes().get("_node2").getId(),
+                replica.routingEntry().currentNodeId());
             executedOnReplica.set(true);
             // The TransportReplicationAction.getIndexShard() method is overridden for testing purpose but we double check here
             // that the permit has been acquired on the replica shard
-            assertSame(replica, shard);
-            return new ReplicaResult();
+            assertSame(replica, replica);
+            listener.onResponse(new ReplicaResult());
         }
+    }
 
-        @Override
-        protected IndexShard getIndexShard(final ShardId shardId) {
-            if (this.shardId.equals(shardId) == false) {
-                throw new AssertionError("shard id differs from " + shardId);
-            }
-            return (executedOnPrimary.get() == null) ? primary : replica;
-        }
+    private static IndicesService mockIndicesService(ShardId shardId, SetOnce<Boolean> executedOnPrimary, IndexShard primary,
+                                                     IndexShard replica) {
+        final IndexService indexService = mock(IndexService.class);
+        when(indexService.getShard(shardId.id())).then(invocation -> (executedOnPrimary.get() == null) ? primary : replica);
 
-        @Override
-        protected void sendReplicaRequest(final ConcreteReplicaRequest<Request> replicaRequest,
-                                          final DiscoveryNode node,
-                                          final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
-            assertEquals("Replica is always assigned to node 2 in this test", clusterService.state().nodes().get("_node2"), node);
-            ReplicaOperationTransportHandler replicaOperationTransportHandler = new ReplicaOperationTransportHandler();
-            try {
-                replicaOperationTransportHandler.messageReceived(replicaRequest, new TransportChannel() {
-                    @Override
-                    public String getProfileName() {
-                        return null;
-                    }
+        final IndicesService indicesService = mock(IndicesService.class);
+        when(indicesService.indexServiceSafe(shardId.getIndex())).then(invocation -> indexService);
 
-                    @Override
-                    public String getChannelType() {
-                        return null;
-                    }
-
-                    @Override
-                    public void sendResponse(TransportResponse response) throws IOException {
-                        listener.onResponse((ReplicationOperation.ReplicaResponse) response);
-                    }
-
-                    @Override
-                    public void sendResponse(Exception exception) throws IOException {
-                        listener.onFailure(exception);
-                    }
-                }, null);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        }
+        return indicesService;
     }
 
     /**
@@ -449,7 +465,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         SinglePermitWithBlocksAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
                                      ShardStateAction shardStateAction, ThreadPool threadPool,
                                      ShardId shardId, IndexShard primary, IndexShard replica, boolean globalBlock) {
-            super(settings, actionName, transportService, clusterService, shardStateAction, threadPool, shardId, primary, replica);
+            super(settings, actionName, transportService, clusterService, shardStateAction, threadPool, shardId, primary, replica,
+                new SetOnce<>());
             this.globalBlock = globalBlock;
         }
 
@@ -459,22 +476,23 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         }
 
         @Override
-        protected ClusterBlockLevel indexBlockLevel() {
+        public ClusterBlockLevel indexBlockLevel() {
             return globalBlock == false ? ClusterBlockLevel.WRITE : super.indexBlockLevel();
         }
 
         @Override
-        protected PrimaryResult<Request, Response> shardOperationOnPrimary(Request shardRequest, IndexShard shard) throws Exception {
+        protected void shardOperationOnPrimary(Request shardRequest, IndexShard shard,
+                ActionListener<PrimaryResult<Request, Response>> listener) {
             assertNoBlocks("block must not exist when executing the operation on primary shard: it should have been blocked before");
             assertThat(shard.getActiveOperationsCount(), greaterThan(0));
-            return super.shardOperationOnPrimary(shardRequest, shard);
+            super.shardOperationOnPrimary(shardRequest, shard, listener);
         }
 
         @Override
-        protected ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard shard) throws Exception {
+        protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
             assertNoBlocks("block must not exist when executing the operation on replica shard: it should have been blocked before");
-            assertThat(shard.getActiveOperationsCount(), greaterThan(0));
-            return super.shardOperationOnReplica(shardRequest, shard);
+            assertThat(replica.getActiveOperationsCount(), greaterThan(0));
+            super.shardOperationOnReplica(shardRequest, replica, listener);
         }
 
         private void assertNoBlocks(final String error) {
@@ -494,7 +512,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         AllPermitsThenBlockAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
                                      ShardStateAction shardStateAction, ThreadPool threadPool,
                                      ShardId shardId, IndexShard primary, IndexShard replica) {
-            super(settings, actionName, transportService, clusterService, shardStateAction, threadPool, shardId, primary, replica);
+            super(settings, actionName, transportService, clusterService, shardStateAction, threadPool, shardId, primary, replica,
+                new SetOnce<>());
         }
 
         @Override
@@ -509,19 +528,28 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         }
 
         @Override
-        protected PrimaryResult<Request, Response> shardOperationOnPrimary(Request shardRequest, IndexShard shard) throws Exception {
-            assertEquals("All permits must be acquired", 0, shard.getActiveOperationsCount());
-            return super.shardOperationOnPrimary(shardRequest, shard);
+        protected void shardOperationOnPrimary(Request shardRequest, IndexShard shard,
+                ActionListener<PrimaryResult<Request, Response>> listener) {
+            assertEquals("All permits must be acquired", IndexShard.OPERATIONS_BLOCKED, shard.getActiveOperationsCount());
+            super.shardOperationOnPrimary(shardRequest, shard, listener);
         }
 
         @Override
-        protected ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard shard) throws Exception {
-            assertEquals("All permits must be acquired", 0, shard.getActiveOperationsCount());
-            return super.shardOperationOnReplica(shardRequest, shard);
+        protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
+            assertEquals("All permits must be acquired", IndexShard.OPERATIONS_BLOCKED, replica.getActiveOperationsCount());
+            super.shardOperationOnReplica(shardRequest, replica, listener);
         }
     }
 
     static class Request extends ReplicationRequest<Request> {
+        Request(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        Request(ShardId shardId) {
+            super(shardId);
+        }
+
         @Override
         public String toString() {
             return getTestClass().getName() + ".Request";
@@ -529,33 +557,5 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
     }
 
     static class Response extends ReplicationResponse {
-    }
-
-    /**
-     * Transport channel that is needed for replica operation testing.
-     */
-    public TransportChannel transportChannel(final PlainActionFuture<Response> listener) {
-        return new TransportChannel() {
-
-            @Override
-            public String getProfileName() {
-                return "";
-            }
-
-            @Override
-            public void sendResponse(TransportResponse response) throws IOException {
-                listener.onResponse(((Response) response));
-            }
-
-            @Override
-            public void sendResponse(Exception exception) throws IOException {
-                listener.onFailure(exception);
-            }
-
-            @Override
-            public String getChannelType() {
-                return "replica_test";
-            }
-        };
     }
 }

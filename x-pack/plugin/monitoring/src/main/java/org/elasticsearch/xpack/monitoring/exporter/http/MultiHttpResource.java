@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -19,7 +20,7 @@ import java.util.List;
  * <p>
  * By telling the {@code MultiHttpResource} to become dirty, it effectively marks all of its sub-resources dirty as well.
  * <p>
- * Sub-resources should be the sole responsibility of the the {@code MultiHttpResource}; there should not be something using them directly
+ * Sub-resources should be the sole responsibility of the {@code MultiHttpResource}; there should not be something using them directly
  * if they are included in a {@code MultiHttpResource}.
  */
 public class MultiHttpResource extends HttpResource {
@@ -60,23 +61,22 @@ public class MultiHttpResource extends HttpResource {
      * Check and publish all {@linkplain #resources sub-resources}.
      */
     @Override
-    protected void doCheckAndPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    protected void doCheckAndPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         logger.trace("checking sub-resources existence and publishing on the [{}]", resourceOwnerName);
 
         final Iterator<HttpResource> iterator = resources.iterator();
 
         // short-circuits on the first failure, thus marking the whole thing dirty
-        iterator.next().checkAndPublish(client, new ActionListener<Boolean>() {
+        iterator.next().checkAndPublish(client, new ActionListener<>() {
 
             @Override
-            public void onResponse(final Boolean success) {
+            public void onResponse(final ResourcePublishResult publishResult) {
                 // short-circuit on the first failure
-                if (success && iterator.hasNext()) {
+                if (publishResult.isSuccess() && iterator.hasNext()) {
                     iterator.next().checkAndPublish(client, this);
                 } else {
-                    logger.trace("all sub-resources exist [{}] on the [{}]", success, resourceOwnerName);
-
-                    listener.onResponse(success);
+                    logger.trace("all sub-resources exist [{}] on the [{}]", publishResult.isSuccess(), resourceOwnerName);
+                    listener.onResponse(publishResult);
                 }
             }
 

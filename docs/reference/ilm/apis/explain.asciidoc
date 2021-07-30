@@ -1,46 +1,65 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-explain-lifecycle]]
-=== Explain Lifecycle API
+=== Explain lifecycle API
 ++++
-<titleabbrev>Explain Lifecycle</titleabbrev>
+<titleabbrev>Explain lifecycle</titleabbrev>
 ++++
 
-beta[]
+Retrieves the current lifecycle status for one or more indices. For data
+streams, the API retrieves the current lifecycle status for the stream's backing
+indices.
 
-Shows an index's current lifecycle status.
+[[ilm-explain-lifecycle-request]]
+==== {api-request-title}
 
-==== Request
+`GET <target>/_ilm/explain`
 
-`GET <index>/_ilm/explain`
+[[ilm-explain-lifecycle-prereqs]]
+==== {api-prereq-title}
 
-==== Description
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage_ilm` or both privileges on the indices being
+managed to use this API. For more information, see <<security-privileges>>.
+
+[[ilm-explain-lifecycle-desc]]
+==== {api-description-title}
 
 Retrieves information about the index's current lifecycle state, such as
 the currently executing phase, action, and step. Shows when the index entered
 each one, the definition of the running phase, and information
 about any failures.
 
-==== Path Parameters
+[[ilm-explain-lifecycle-path-params]]
+==== {api-path-parms-title}
 
-`index` (required)::
-  (string) Identifier for the index.
+`<target>`::
+(Required, string) Comma-separated list of data streams, indices, and aliases to
+target. Supports wildcards (`*`).To target all data streams and indices, use `*`
+or `_all`.
 
-==== Request Parameters
+[[ilm-explain-lifecycle-query-params]]
+==== {api-query-parms-title}
 
-include::{docdir}/rest-api/timeoutparms.asciidoc[]
+`only_managed`::
+  (Optional, Boolean) Filters the returned indices to only indices that are managed by
+  {ilm-init}.
 
-==== Authorization
+`only_errors`::
+  (Optional, Boolean) Filters the returned indices to only indices that are managed by
+  {ilm-init} and are in an error state, either due to an encountering an error while
+  executing the policy, or attempting to use a policy that does not exist.
 
-include::ilm-index-mgt-privilege.asciidoc[]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Examples
+[[ilm-explain-lifecycle-example]]
+==== {api-examples-title}
 
-The following example retrieves the lifecycle state of `my_index`:
+The following example retrieves the lifecycle state of `my-index-000001`:
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -64,7 +83,7 @@ PUT _ilm/policy/my_policy
   }
 }
 
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "index.lifecycle.name": "my_policy",
@@ -74,56 +93,56 @@ PUT my_index
 
 GET /_cluster/health?wait_for_status=green&timeout=10s
 --------------------------------------------------
-// CONSOLE
 // TEST
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET my_index/_ilm/explain
+GET my-index-000001/_ilm/explain
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-When management of the index is first taken over by ILM, `explain` shows
+When management of the index is first taken over by {ilm-init}, `explain` shows
 that the index is managed and in the `new` phase:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
-    "my_index": {
-      "index": "my_index",
+    "my-index-000001": {
+      "index": "my-index-000001",
       "managed": true, <1>
       "policy": "my_policy", <2>
       "lifecycle_date_millis": 1538475653281, <3>
+      "age": "15s", <4>
       "phase": "new",
-      "phase_time_millis": 1538475653317, <4>
+      "phase_time_millis": 1538475653317, <5>
       "action": "complete",
-      "action_time_millis": 1538475653317, <5>
+      "action_time_millis": 1538475653317, <6>
       "step": "complete",
-      "step_time_millis": 1538475653317 <6>
+      "step_time_millis": 1538475653317 <7>
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
-<1> Shows if the index is being managed by ILM. If the index is not managed by
-ILM the other fields will not be shown
-<2> The name of the policy which ILM is using for this index
+
+<1> Shows if the index is being managed by {ilm-init}. If the index is not managed by
+{ilm-init} the other fields will not be shown
+<2> The name of the policy which {ilm-init} is using for this index
 <3> The timestamp used for the `min_age`
-<4> When the index entered the current phase
-<5> When the index entered the current action
-<6> When the index entered the current step
+<4> The age of the index (used for calculating when to enter the next phase)
+<5> When the index entered the current phase
+<6> When the index entered the current action
+<7> When the index entered the current step
 
 Once the policy is running on the index, the response includes a
 `phase_execution` object that shows the definition of the current phase.
 Changes to the underlying policy will not affect this index until the current
 phase completes.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
@@ -133,6 +152,7 @@ phase completes.
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
       "lifecycle_date": "2018-10-15T13:45:21.981Z",
+      "age": "25.14s",
       "phase": "hot",
       "phase_time_millis": 1538475653317,
       "phase_time": "2018-10-15T13:45:22.577Z",
@@ -160,18 +180,18 @@ phase completes.
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
+
 <1> The JSON phase definition loaded from the specified policy when the index
 entered this phase
 <2> The version of the policy that was loaded
 <3> The date the loaded policy was last modified
 <4> The epoch time when the loaded policy was last modified
 
-If {ILM} is waiting for a step to complete, the response includes status
+If {ilm-init} is waiting for a step to complete, the response includes status
 information for the step that's being performed on the index.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
@@ -181,6 +201,7 @@ information for the step that's being performed on the index.
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
       "lifecycle_date": "2018-10-15T13:45:21.981Z",
+      "age": "4.12m",
       "phase": "warm",
       "phase_time_millis": 1538475653317,
       "phase_time": "2018-10-15T13:45:22.577Z",
@@ -194,7 +215,7 @@ information for the step that's being performed on the index.
         "message": "Waiting for all shard copies to be active",
         "shards_left_to_allocate": -1,
         "all_shards_active": false,
-        "actual_replicas": 2
+        "number_of_replicas": 2
       },
       "phase_execution": {
         "policy": "my_lifecycle3",
@@ -222,16 +243,19 @@ information for the step that's being performed on the index.
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
+
 <1> Status of the step that's in progress.
 
 If the index is in the ERROR step, something went wrong while executing a
-step in the policy and and you will need to take action for the index to proceed
-to the next step. To help you diagnose the problem, the explain response shows
-the step that failed and the step info provides information about the error.
+step in the policy and you will need to take action for the index to proceed
+to the next step. Some steps are safe to automatically be retried in certain
+circumstances. To help you diagnose the problem, the explain response shows
+the step that failed, the step info which provides information about the error,
+and information about the retry attempts executed for the failed step if it's
+the case.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
@@ -241,6 +265,7 @@ the step that failed and the step info provides information about the error.
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
       "lifecycle_date": "2018-10-15T13:45:21.981Z",
+      "age": "50.1d",
       "phase": "hot",
       "phase_time_millis": 1538475653317,
       "phase_time": "2018-10-15T13:45:22.577Z",
@@ -250,10 +275,12 @@ the step that failed and the step info provides information about the error.
       "step": "ERROR",
       "step_time_millis": 1538475653317,
       "step_time": "2018-10-15T13:45:22.577Z",
-      "failed_step": "attempt-rollover", <1>
-      "step_info": { <2>
-        "type": "resource_already_exists_exception",
-        "reason": "index [test-000057/H7lF9n36Rzqa-KfKcnGQMg] already exists",
+      "failed_step": "check-rollover-ready", <1>
+      "is_auto_retryable_error": true, <2>
+      "failed_step_retry_count": 1, <3>
+      "step_info": { <4>
+        "type": "cluster_block_exception",
+        "reason": "index [test-000057/H7lF9n36Rzqa-KfKcnGQMg] blocked by: [FORBIDDEN/5/index read-only (api)",
         "index_uuid": "H7lF9n36Rzqa-KfKcnGQMg",
         "index": "test-000057"
       },
@@ -275,7 +302,11 @@ the step that failed and the step info provides information about the error.
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
+
 <1> The step that caused the error
-<2> What went wrong
+<2> Indicates if retrying the failed step can overcome the error. If this
+is true, {ilm-init} will retry the failed step automatically.
+<3> Shows the number of attempted automatic retries to execute the failed
+step.
+<4> What went wrong

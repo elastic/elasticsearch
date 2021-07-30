@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery.gce;
@@ -107,10 +96,10 @@ public class GceDiscoveryTests extends ESTestCase {
     }
 
     protected List<TransportAddress> buildDynamicNodes(GceInstancesServiceImpl gceInstancesService, Settings nodeSettings) {
-        GceUnicastHostsProvider provider = new GceUnicastHostsProvider(nodeSettings, gceInstancesService,
+        GceSeedHostsProvider provider = new GceSeedHostsProvider(nodeSettings, gceInstancesService,
             transportService, new NetworkService(Collections.emptyList()));
 
-        List<TransportAddress> dynamicHosts = provider.buildDynamicHosts(null);
+        List<TransportAddress> dynamicHosts = provider.getSeedAddresses(null);
         logger.info("--> addresses found: {}", dynamicHosts);
         return dynamicHosts;
     }
@@ -129,7 +118,7 @@ public class GceDiscoveryTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
                 .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
                 .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putList(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch")
+                .putList(GceSeedHostsProvider.TAGS_SETTING.getKey(), "elasticsearch")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
         List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
@@ -140,7 +129,7 @@ public class GceDiscoveryTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
                 .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
                 .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putList(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
+                .putList(GceSeedHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
         List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
@@ -161,7 +150,7 @@ public class GceDiscoveryTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
                 .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
                 .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putList(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch")
+                .putList(GceSeedHostsProvider.TAGS_SETTING.getKey(), "elasticsearch")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
         List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
@@ -172,7 +161,7 @@ public class GceDiscoveryTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
                 .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
                 .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
-                .putList(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
+                .putList(GceSeedHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
                 .build();
         mock = new GceInstancesServiceMock(nodeSettings);
         List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);

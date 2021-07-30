@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket;
 
@@ -23,6 +12,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
@@ -34,17 +25,22 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 
-import static org.mockito.Mockito.when;
+import static org.hamcrest.Matchers.equalTo;
 
 public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
@@ -67,9 +63,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         Query rewrittenQuery = indexSearcher.rewrite(termQuery);
         TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
 
-        SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings());
-        when(searchContext.query()).thenReturn(rewrittenQuery);
-        BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(searchContext, false) {
+        BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(rewrittenQuery, indexSearcher, false) {
             @Override
             public ScoreMode scoreMode() {
                 return ScoreMode.COMPLETE;
@@ -80,7 +74,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         collector.preCollection();
         indexSearcher.search(termQuery, collector);
         collector.postCollection();
-        collector.replay(0);
+        collector.prepareSelectedBuckets(0);
 
         assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
@@ -88,13 +82,13 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         }
 
         topDocs = indexSearcher.search(new MatchAllDocsQuery(), numDocs);
-        collector = new BestBucketsDeferringCollector(searchContext, true);
+        collector = new BestBucketsDeferringCollector(rewrittenQuery, indexSearcher, true);
         deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
         collector.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), collector);
         collector.postCollection();
-        collector.replay(0);
+        collector.prepareSelectedBuckets(0);
 
         assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
@@ -133,4 +127,126 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         };
     }
 
+    public void testBucketMergeNoDelete() throws Exception {
+        testCase((deferringCollector, delegate) -> new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                assert owningBucketOrd == 0; // Only collects at top level
+                delegate.collect(doc, doc);
+                if (doc == 7) {
+                    deferringCollector.rewriteBuckets(oldBucket -> 0);
+                }
+            }
+        }, (deferringCollector, finalCollector) -> {
+            deferringCollector.prepareSelectedBuckets(0, 8, 9);
+
+            equalTo(Map.of(0L, List.of(0, 1, 2, 3, 4, 5, 6, 7), 1L, List.of(8), 2L, List.of(9)));
+        });
+    }
+
+    public void testBucketMergeAndDelete() throws Exception {
+        testCase((deferringCollector, delegate) -> new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                assert owningBucketOrd == 0; // Only collects at top level
+                delegate.collect(doc, doc);
+                if (doc == 7) {
+                    deferringCollector.rewriteBuckets(oldBucket -> oldBucket > 3 ? 0 : -1);
+                }
+            }
+        }, (deferringCollector, finalCollector) -> {
+            deferringCollector.prepareSelectedBuckets(0, 8, 9);
+
+            assertThat(finalCollector.collection, equalTo(Map.of(0L, List.of(4, 5, 6, 7), 1L, List.of(8), 2L, List.of(9))));
+        });
+    }
+
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/60021")
+    public void testBucketMergeAndDeleteLastEntry() throws Exception {
+        testCase((deferringCollector, delegate) -> new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                assert owningBucketOrd == 0; // Only collects at top level
+                delegate.collect(doc, doc);
+                if (doc == 7) {
+                    deferringCollector.rewriteBuckets(oldBucket -> oldBucket <= 3 ? 0 : -1);
+                }
+            }
+        }, (deferringCollector, finalCollector) -> {
+            deferringCollector.prepareSelectedBuckets(0, 8, 9);
+
+            assertThat(finalCollector.collection, equalTo(Map.of(0L, List.of(0, 1, 2, 3), 1L, List.of(8), 2L, List.of(9))));
+        });
+    }
+
+    private void testCase(
+        BiFunction<BestBucketsDeferringCollector, LeafBucketCollector, LeafBucketCollector> leafCollector,
+        CheckedBiConsumer<BestBucketsDeferringCollector, CollectingBucketCollector, IOException> verify
+    ) throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < 10; i++) {
+                    indexWriter.addDocument(new Document());
+                }
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+
+                Query query = new MatchAllDocsQuery();
+                BestBucketsDeferringCollector deferringCollector = new BestBucketsDeferringCollector(query, indexSearcher, false);
+
+                CollectingBucketCollector finalCollector = new CollectingBucketCollector();
+                deferringCollector.setDeferredCollector(Collections.singleton(finalCollector));
+                deferringCollector.preCollection();
+                indexSearcher.search(query, new BucketCollector() {
+                    @Override
+                    public ScoreMode scoreMode() {
+                        return ScoreMode.COMPLETE_NO_SCORES;
+                    }
+
+                    @Override
+                    public void preCollection() throws IOException {}
+
+                    @Override
+                    public void postCollection() throws IOException {}
+
+                    @Override
+                    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+                        LeafBucketCollector delegate = deferringCollector.getLeafCollector(ctx);
+                        return leafCollector.apply(deferringCollector, delegate);
+                    }
+                });
+                deferringCollector.postCollection();
+                verify.accept(deferringCollector, finalCollector);
+            }
+        }
+    }
+
+    private class CollectingBucketCollector extends BucketCollector {
+        final Map<Long, List<Integer>> collection = new HashMap<>();
+
+        @Override
+        public ScoreMode scoreMode() {
+            return ScoreMode.COMPLETE_NO_SCORES;
+        }
+
+        @Override
+        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+            return new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    collection.computeIfAbsent(owningBucketOrd, k -> new ArrayList<>()).add(doc);
+                }
+            };
+        }
+
+        @Override
+        public void preCollection() throws IOException {}
+
+        @Override
+        public void postCollection() throws IOException {
+
+        }
+    }
 }

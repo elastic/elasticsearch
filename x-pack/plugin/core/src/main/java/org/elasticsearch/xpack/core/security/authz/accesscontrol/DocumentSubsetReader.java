@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -16,11 +17,13 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.CombinedBitSet;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -31,11 +34,11 @@ import java.util.concurrent.ExecutionException;
 /**
  * A reader that only exposes documents via {@link #getLiveDocs()} that matches with the provided role query.
  */
-public final class DocumentSubsetReader extends FilterLeafReader {
+public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader {
 
-    public static DocumentSubsetDirectoryReader wrap(DirectoryReader in, BitsetFilterCache bitsetFilterCache,
+    public static DocumentSubsetDirectoryReader wrap(DirectoryReader in, DocumentSubsetBitsetCache bitsetCache,
             Query roleQuery) throws IOException {
-        return new DocumentSubsetDirectoryReader(in, bitsetFilterCache, roleQuery);
+        return new DocumentSubsetDirectoryReader(in, bitsetCache, roleQuery);
     }
 
     /**
@@ -51,10 +54,12 @@ public final class DocumentSubsetReader extends FilterLeafReader {
     /**
      * Compute the number of live documents. This method is SLOW.
      */
-    private static int computeNumDocs(LeafReader reader, Query roleQuery, BitSet roleQueryBits) {
+    private static int computeNumDocs(LeafReader reader, BitSet roleQueryBits) {
         final Bits liveDocs = reader.getLiveDocs();
         if (roleQueryBits == null) {
             return 0;
+        } else if (roleQueryBits instanceof MatchAllRoleBitSet) {
+            return reader.numDocs();
         } else if (liveDocs == null) {
             // slow
             return roleQueryBits.cardinality();
@@ -81,7 +86,7 @@ public final class DocumentSubsetReader extends FilterLeafReader {
     private static int getNumDocs(LeafReader reader, Query roleQuery, BitSet roleQueryBits) throws IOException, ExecutionException {
         IndexReader.CacheHelper cacheHelper = reader.getReaderCacheHelper(); // this one takes deletes into account
         if (cacheHelper == null) {
-            throw new IllegalStateException("Reader " + reader + " does not support caching");
+            return computeNumDocs(reader, roleQueryBits);
         }
         final boolean[] added = new boolean[] { false };
         Cache<Query, Integer> perReaderCache = NUM_DOCS_CACHE.computeIfAbsent(cacheHelper.getKey(),
@@ -103,27 +108,27 @@ public final class DocumentSubsetReader extends FilterLeafReader {
                 throw e;
             }
         }
-        return perReaderCache.computeIfAbsent(roleQuery, q -> computeNumDocs(reader, roleQuery, roleQueryBits));
+        return perReaderCache.computeIfAbsent(roleQuery, q -> computeNumDocs(reader, roleQueryBits));
     }
 
     public static final class DocumentSubsetDirectoryReader extends FilterDirectoryReader {
 
         private final Query roleQuery;
-        private final BitsetFilterCache bitsetFilterCache;
+        private final DocumentSubsetBitsetCache bitsetCache;
 
-        DocumentSubsetDirectoryReader(final DirectoryReader in, final BitsetFilterCache bitsetFilterCache, final Query roleQuery)
-                throws IOException {
+        DocumentSubsetDirectoryReader(final DirectoryReader in, final DocumentSubsetBitsetCache bitsetCache,
+                                      final Query roleQuery) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
                     try {
-                        return new DocumentSubsetReader(reader, bitsetFilterCache, roleQuery);
+                        return new DocumentSubsetReader(reader, bitsetCache, roleQuery);
                     } catch (Exception e) {
                         throw ExceptionsHelper.convertToElastic(e);
                     }
                 }
             });
-            this.bitsetFilterCache = bitsetFilterCache;
+            this.bitsetCache = bitsetCache;
             this.roleQuery = roleQuery;
 
             verifyNoOtherDocumentSubsetDirectoryReaderIsWrapped(in);
@@ -131,7 +136,7 @@ public final class DocumentSubsetReader extends FilterLeafReader {
 
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new DocumentSubsetDirectoryReader(in, bitsetFilterCache, roleQuery);
+            return new DocumentSubsetDirectoryReader(in, bitsetCache, roleQuery);
         }
 
         private static void verifyNoOtherDocumentSubsetDirectoryReaderIsWrapped(DirectoryReader reader) {
@@ -152,43 +157,58 @@ public final class DocumentSubsetReader extends FilterLeafReader {
         }
     }
 
-    private final BitSet roleQueryBits;
-    private final int numDocs;
+    private final DocumentSubsetBitsetCache bitsetCache;
+    private final Query roleQuery;
+    // we don't use a volatile here because the bitset is resolved before numDocs in the synchronized block
+    // so any thread that see numDocs != -1 should also see the true value of the roleQueryBits (happens-before).
+    private BitSet roleQueryBits;
+    private volatile int numDocs = -1;
 
-    private DocumentSubsetReader(final LeafReader in, BitsetFilterCache bitsetFilterCache, final Query roleQuery) throws Exception {
+    private DocumentSubsetReader(final LeafReader in, DocumentSubsetBitsetCache bitsetCache, final Query roleQuery) {
         super(in);
-        this.roleQueryBits = bitsetFilterCache.getBitSetProducer(roleQuery).getBitSet(in.getContext());
-        this.numDocs = getNumDocs(in, roleQuery, roleQueryBits);
+        this.bitsetCache = bitsetCache;
+        this.roleQuery = roleQuery;
+    }
+
+    /**
+     * Resolve the role query and the number of docs lazily
+     */
+    private void computeNumDocsIfNeeded() {
+        if (numDocs == -1) {
+            synchronized (this) {
+                if (numDocs == -1) {
+                    try {
+                        roleQueryBits = bitsetCache.getBitSet(roleQuery, in.getContext());
+                        numDocs = getNumDocs(in, roleQuery, roleQueryBits);
+                    } catch (Exception e) {
+                        throw new ElasticsearchException("Failed to load role query", e);
+                    }
+                }
+            }
+        }
     }
 
     @Override
     public Bits getLiveDocs() {
+        computeNumDocsIfNeeded();
         final Bits actualLiveDocs = in.getLiveDocs();
         if (roleQueryBits == null) {
-            // If we would a <code>null</code> liveDocs then that would mean that no docs are marked as deleted,
-            // but that isn't the case. No docs match with the role query and therefor all docs are marked as deleted
+            // If we would return a <code>null</code> liveDocs then that would mean that no docs are marked as deleted,
+            // but that isn't the case. No docs match with the role query and therefore all docs are marked as deleted
             return new Bits.MatchNoBits(in.maxDoc());
+        } else if (roleQueryBits instanceof MatchAllRoleBitSet) {
+            return actualLiveDocs;
         } else if (actualLiveDocs == null) {
             return roleQueryBits;
         } else {
             // apply deletes when needed:
-            return new Bits() {
-
-                @Override
-                public boolean get(int index) {
-                    return roleQueryBits.get(index) && actualLiveDocs.get(index);
-                }
-
-                @Override
-                public int length() {
-                    return roleQueryBits.length();
-                }
-            };
+            return new CombinedBitSet(roleQueryBits, actualLiveDocs);
         }
     }
 
     @Override
     public int numDocs() {
+        computeNumDocsIfNeeded();
         return numDocs;
     }
 
@@ -209,12 +229,8 @@ public final class DocumentSubsetReader extends FilterLeafReader {
         return null;
     }
 
-    BitSet getRoleQueryBits() {
-        return roleQueryBits;
+    @Override
+    protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+        return reader;
     }
-
-    Bits getWrappedLiveDocs() {
-        return in.getLiveDocs();
-    }
-
 }

@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
@@ -29,24 +30,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> {
+public class FollowStatsAction extends ActionType<FollowStatsAction.StatsResponses> {
 
     public static final String NAME = "cluster:monitor/ccr/follow_stats";
 
     public static final FollowStatsAction INSTANCE = new FollowStatsAction();
 
     private FollowStatsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public StatsResponses newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<StatsResponses> getResponseReader() {
-        return StatsResponses::new;
+        super(NAME, FollowStatsAction.StatsResponses::new);
     }
 
     public static class StatsResponses extends BaseTasksResponse implements ToXContentObject {

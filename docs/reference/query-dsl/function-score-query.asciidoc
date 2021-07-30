@@ -1,5 +1,8 @@
 [[query-dsl-function-score-query]]
-=== Function Score Query
+=== Function score query
+++++
+<titleabbrev>Function score</titleabbrev>
+++++
 
 The `function_score` allows you to modify the score of documents that are
 retrieved by a query. This can be useful if, for example, a score
@@ -12,22 +15,21 @@ by the query.
 
 `function_score` can be used with only one function like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-            "query": { "match_all": {} },
-            "boost": "5",
-            "random_score": {}, <1>
-            "boost_mode":"multiply"
-        }
+  "query": {
+    "function_score": {
+      "query": { "match_all": {} },
+      "boost": "5",
+      "random_score": {}, <1>
+      "boost_mode": "multiply"
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 <1> See <<score-functions>> for a list of supported functions.
 
@@ -35,35 +37,34 @@ Furthermore, several functions can be combined. In this case one can
 optionally choose to apply the function only if a document matches a
 given filtering query
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-          "query": { "match_all": {} },
-          "boost": "5", <1>
-          "functions": [
-              {
-                  "filter": { "match": { "test": "bar" } },
-                  "random_score": {}, <2>
-                  "weight": 23
-              },
-              {
-                  "filter": { "match": { "test": "cat" } },
-                  "weight": 42
-              }
-          ],
-          "max_boost": 42,
-          "score_mode": "max",
-          "boost_mode": "multiply",
-          "min_score" : 42
+  "query": {
+    "function_score": {
+      "query": { "match_all": {} },
+      "boost": "5", <1>
+      "functions": [
+        {
+          "filter": { "match": { "test": "bar" } },
+          "random_score": {}, <2>
+          "weight": 23
+        },
+        {
+          "filter": { "match": { "test": "cat" } },
+          "weight": 42
         }
+      ],
+      "max_boost": 42,
+      "score_mode": "max",
+      "boost_mode": "multiply",
+      "min_score": 42
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 <1> Boost for the whole query.
 <2> See <<score-functions>> for a list of supported functions.
@@ -132,29 +133,35 @@ the scoring of it optionally with a computation derived from other numeric
 field values in the doc using a script expression. Here is a
 simple sample:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-            "query": {
-                "match": { "message": "elasticsearch" }
-            },
-            "script_score" : {
-                "script" : {
-                  "source": "Math.log(2 + doc['likes'].value)"
-                }
-            }
+  "query": {
+    "function_score": {
+      "query": {
+        "match": { "message": "elasticsearch" }
+      },
+      "script_score": {
+        "script": {
+          "source": "Math.log(2 + doc['my-int'].value)"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-NOTE: Scores produced by the `script_score` function must be non-negative,
-otherwise an error will be thrown.
+[IMPORTANT]
+====
+In {es}, all document scores are positive 32-bit floating point numbers.
+
+If the `script_score` function produces a score with greater precision, it is
+converted to the nearest 32-bit float. 
+
+Similarly, scores must be non-negative. Otherwise, {es} returns an error.
+====
 
 On top of the different scripting field values and expression, the
 `_score` script parameter can be used to retrieve the score based on the
@@ -164,30 +171,29 @@ Scripts compilation is cached for faster execution. If the script has
 parameters that it needs to take into account, it is preferable to reuse the
 same script, and provide parameters to it:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-            "query": {
-                "match": { "message": "elasticsearch" }
-            },
-            "script_score" : {
-                "script" : {
-                    "params": {
-                        "a": 5,
-                        "b": 1.2
-                    },
-                    "source": "params.a / Math.pow(params.b, doc['likes'].value)"
-                }
-            }
+  "query": {
+    "function_score": {
+      "query": {
+        "match": { "message": "elasticsearch" }
+      },
+      "script_score": {
+        "script": {
+          "params": {
+            "a": 5,
+            "b": 1.2
+          },
+          "source": "params.a / Math.pow(params.b, doc['my-int'].value)"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Note that unlike the `custom_score` query, the
 score of the query is multiplied with the result of the script scoring. If
@@ -231,22 +237,21 @@ NOTE: It was possible to set a seed without setting a field, but this has been
 deprecated as this requires loading fielddata on the `_id` field which consumes
 a lot of memory.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-            "random_score": {
-                "seed": 10,
-                "field": "_seq_no"
-            }
-        }
+  "query": {
+    "function_score": {
+      "random_score": {
+        "seed": 10,
+        "field": "_seq_no"
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[function-field-value-factor]]
 ==== Field Value factor
@@ -256,32 +261,31 @@ influence the score. It's similar to using the `script_score` function, however,
 it avoids the overhead of scripting. If used on a multi-valued field, only the
 first value of the field is used in calculations.
 
-As an example, imagine you have a document indexed with a numeric `likes`
+As an example, imagine you have a document indexed with a numeric `my-int`
 field and wish to influence the score of a document with this field, an example
 doing so would look like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-            "field_value_factor": {
-                "field": "likes",
-                "factor": 1.2,
-                "modifier": "sqrt",
-                "missing": 1
-            }
-        }
+  "query": {
+    "function_score": {
+      "field_value_factor": {
+        "field": "my-int",
+        "factor": 1.2,
+        "modifier": "sqrt",
+        "missing": 1
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Which will translate into the following formula for scoring:
 
-`sqrt(1.2 * doc['likes'].value)`
+`sqrt(1.2 * doc['my-int'].value)`
 
 There are a number of options for the `field_value_factor` function:
 
@@ -305,15 +309,19 @@ There are a number of options for the `field_value_factor` function:
 | Modifier | Meaning
 
 | `none` | Do not apply any multiplier to the field value
-| `log` | Take the https://en.wikipedia.org/wiki/Common_logarithm[common logarithm] of the field value
+| `log` | Take the {wikipedia}/Common_logarithm[common logarithm] of the field value.
+          Because this function will return a negative value and cause an error if used on values
+          between 0 and 1, it is recommended to use `log1p` instead.
 | `log1p` | Add 1 to the field value and take the common logarithm
 | `log2p` | Add 2 to the field value and take the common logarithm
-| `ln` | Take the https://en.wikipedia.org/wiki/Natural_logarithm[natural logarithm] of the field value
+| `ln` | Take the {wikipedia}/Natural_logarithm[natural logarithm] of the field value.
+         Because this function will return a negative value and cause an error if used on values
+         between 0 and 1, it is recommended to use `ln1p` instead.
 | `ln1p` | Add 1 to the field value and take the natural logarithm
 | `ln2p` | Add 2 to the field value and take the natural logarithm
 | `square` | Square the field value (multiply it by itself)
-| `sqrt` | Take the https://en.wikipedia.org/wiki/Square_root[square root] of the field value
-| `reciprocal` | https://en.wikipedia.org/wiki/Multiplicative_inverse[Reciprocate] the field value, same as `1/x` where `x` is the field's value
+| `sqrt` | Take the {wikipedia}/Square_root[square root] of the field value
+| `reciprocal` | {wikipedia}/Multiplicative_inverse[Reciprocate] the field value, same as `1/x` where `x` is the field's value
 |=======================================================================
 
 `missing`::
@@ -321,14 +329,17 @@ There are a number of options for the `field_value_factor` function:
     Value used if the document doesn't have that field. The modifier
     and factor are still applied to it as though it were read from the document.
 
+NOTE: Scores produced by the `field_value_score` function must be
+non-negative, otherwise an error will be thrown. The `log` and `ln` modifiers
+will produce negative values if used on values between 0 and 1. Be sure to limit
+the values of the field with a range filter to avoid this, or use `log1p` and
+`ln1p`.
 
- Keep in mind that taking the log() of 0, or the square root of a negative number
- is an illegal operation, and an exception will be thrown. Be sure to limit the
- values of the field with a range filter to avoid this, or use `log1p` and
- `ln1p`.
+NOTE: Keep in mind that taking the log() of 0, or the square root of a
+negative number is an illegal operation, and an exception will be thrown. Be
+sure to limit the values of the field with a range filter to avoid this, or use
+`log1p` and `ln1p`.
 
- NOTE: Scores produced by the `field_value_score` function must be non-negative,
- otherwise an error will be thrown.
 
 [[function-decay]]
 ==== Decay functions
@@ -365,26 +376,26 @@ this case. If your field is a date field, you can set `scale` and `offset` as
 days, weeks, and so on. Example:
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-            "gauss": {
-                "date": {
-                      "origin": "2013-09-17", <1>
-                      "scale": "10d",
-                      "offset": "5d", <2>
-                      "decay" : 0.5 <2>
-                }
-            }
+  "query": {
+    "function_score": {
+      "gauss": {
+        "@timestamp": {
+          "origin": "2013-09-17", <1>
+          "scale": "10d",
+          "offset": "5d",         <2>
+          "decay": 0.5            <2>
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
+
 <1> The date format of the origin depends on the <<mapping-date-format,`format`>> defined in
     your mapping. If you do not define the origin, the current time is used.
 <2> The `offset` and `decay` parameters are optional.
@@ -404,7 +415,7 @@ GET /_search
 
 `offset`::
     If an `offset` is defined, the decay function will only compute the
-    decay function for documents with a distance greater that the defined
+    decay function for documents with a distance greater than the defined
     `offset`. The default is 0.
 
 `decay`::
@@ -525,7 +536,7 @@ In this case your *origin* for the location field is the town center
 and the *scale* is ~2km.
 
 If your budget is low, you would probably prefer something cheap above
-something expensive.  For the price field, the *origin* would be 0 Euros
+something expensive. For the price field, the *origin* would be 0 Euros
 and the *scale* depends on how much you are willing to pay, for example 20 Euros.
 
 In this example, the fields might be called "price" for the price of the
@@ -563,41 +574,40 @@ and for `location`:
 Suppose you want to multiply these two functions on the original score,
 the request would look like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-          "functions": [
-            {
-              "gauss": {
-                "price": {
-                  "origin": "0",
-                  "scale": "20"
-                }
-              }
-            },
-            {
-              "gauss": {
-                "location": {
-                  "origin": "11, 12",
-                  "scale": "2km"
-                }
-              }
+  "query": {
+    "function_score": {
+      "functions": [
+        {
+          "gauss": {
+            "price": {
+              "origin": "0",
+              "scale": "20"
             }
-          ],
-          "query": {
-            "match": {
-              "properties": "balcony"
+          }
+        },
+        {
+          "gauss": {
+            "location": {
+              "origin": "11, 12",
+              "scale": "2km"
             }
-          },
-          "score_mode": "multiply"
+          }
         }
+      ],
+      "query": {
+        "match": {
+          "properties": "balcony"
+        }
+      },
+      "score_mode": "multiply"
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 Next, we show how the computed score looks like for each of the three
 possible decay functions.

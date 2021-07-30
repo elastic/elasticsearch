@@ -3,16 +3,13 @@
 [[sql-client-apps-dbeaver]]
 === DBeaver
 
-beta[]
+You can use the {es} JDBC driver to access {es} data from DBeaver.
 
-[quote, https://dbeaver.io/]
-____
-https://dbeaver.io/[DBeaver] DBeaver is free and open source universal database tool for developers and database administrators.
-____
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 
 ==== Prerequisites
 
-* DBeaver version 5.1.4 or higher
+* https://dbeaver.io/[DBeaver] version 6.0.0 or higher
 * {es-sql} <<sql-jdbc, JDBC driver>>
 
 ==== New Connection

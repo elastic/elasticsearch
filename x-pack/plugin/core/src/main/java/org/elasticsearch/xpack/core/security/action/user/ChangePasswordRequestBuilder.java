@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ValidationException;
@@ -29,7 +31,7 @@ import java.nio.CharBuffer;
  * Request to change a user's password.
  */
 public class ChangePasswordRequestBuilder
-        extends ActionRequestBuilder<ChangePasswordRequest, ChangePasswordResponse>
+        extends ActionRequestBuilder<ChangePasswordRequest, ActionResponse.Empty>
         implements WriteRequestBuilder<ChangePasswordRequestBuilder> {
 
     public ChangePasswordRequestBuilder(ElasticsearchClient client) {
@@ -42,7 +44,7 @@ public class ChangePasswordRequestBuilder
     }
 
     public static char[] validateAndHashPassword(SecureString password, Hasher hasher) {
-        Validation.Error error = Validation.Users.validatePassword(password.getChars());
+        Validation.Error error = Validation.Users.validatePassword(password);
         if (error != null) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationError(error.toString());

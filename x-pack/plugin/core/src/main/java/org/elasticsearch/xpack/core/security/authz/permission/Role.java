@@ -1,32 +1,40 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.Nullable;
+import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
-public final class Role {
+public class Role {
 
     public static final Role EMPTY = Role.builder("__empty").build();
 
@@ -73,20 +81,104 @@ public final class Role {
     }
 
     /**
+     * @return A predicate that will match all the indices that this role
+     * has the privilege for executing the given action on.
+     */
+    public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
+        return indices.allowedIndicesMatcher(action);
+    }
+
+    public Automaton allowedActionsMatcher(String index) {
+        return indices.allowedActionsMatcher(index);
+    }
+
+    public boolean checkRunAs(String runAsName) {
+        return runAs.check(runAsName);
+    }
+
+    /**
+     * Check if indices permissions allow for the given action
+     *
+     * @param action indices action
+     * @return {@code true} if action is allowed else returns {@code false}
+     */
+    public boolean checkIndicesAction(String action) {
+        return indices.check(action);
+    }
+
+
+    /**
+     * For given index patterns and index privileges determines allowed privileges and creates an instance of {@link ResourcePrivilegesMap}
+     * holding a map of resource to {@link ResourcePrivileges} where resource is index pattern and the map of index privilege to whether it
+     * is allowed or not.
+     *
+     * @param checkForIndexPatterns check permission grants for the set of index patterns
+     * @param allowRestrictedIndices if {@code true} then checks permission grants even for restricted indices by index matching
+     * @param checkForPrivileges check permission grants for the set of index privileges
+     * @return an instance of {@link ResourcePrivilegesMap}
+     */
+    public ResourcePrivilegesMap checkIndicesPrivileges(Set<String> checkForIndexPatterns, boolean allowRestrictedIndices,
+                                                        Set<String> checkForPrivileges) {
+        return indices.checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges);
+    }
+
+    /**
+     * Check if cluster permissions allow for the given action in the context of given
+     * authentication.
+     *
+     * @param action cluster action
+     * @param request {@link TransportRequest}
+     * @param authentication {@link Authentication}
+     * @return {@code true} if action is allowed else returns {@code false}
+     */
+    public boolean checkClusterAction(String action, TransportRequest request, Authentication authentication) {
+        return cluster.check(action, request, authentication);
+    }
+
+    /**
+     * Check if cluster permissions grants the given cluster privilege
+     *
+     * @param clusterPrivilege cluster privilege
+     * @return {@code true} if cluster privilege is allowed else returns {@code false}
+     */
+    public boolean grants(ClusterPrivilege clusterPrivilege) {
+        return cluster.implies(clusterPrivilege.buildPermission(ClusterPermission.builder()).build());
+    }
+
+    /**
+     * For a given application, checks for the privileges for resources and returns an instance of {@link ResourcePrivilegesMap} holding a
+     * map of resource to {@link ResourcePrivileges} where the resource is application resource and the map of application privilege to
+     * whether it is allowed or not.
+     *
+     * @param applicationName checks privileges for the provided application name
+     * @param checkForResources check permission grants for the set of resources
+     * @param checkForPrivilegeNames check permission grants for the set of privilege names
+     * @param storedPrivileges stored {@link ApplicationPrivilegeDescriptor} for an application against which the access checks are
+     * performed
+     * @return an instance of {@link ResourcePrivilegesMap}
+     */
+    public ResourcePrivilegesMap checkApplicationResourcePrivileges(final String applicationName, Set<String> checkForResources,
+                                                                    Set<String> checkForPrivilegeNames,
+                                                                    Collection<ApplicationPrivilegeDescriptor> storedPrivileges) {
+        return application.checkResourcePrivileges(applicationName, checkForResources, checkForPrivilegeNames, storedPrivileges);
+    }
+
+    /**
      * Returns whether at least one group encapsulated by this indices permissions is authorized to execute the
      * specified action with the requested indices/aliases. At the same time if field and/or document level security
      * is configured for any group also the allowed fields and role queries are resolved.
      */
-    public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData,
+    public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases,
+                                          Map<String, IndexAbstraction> aliasAndIndexLookup,
                                           FieldPermissionsCache fieldPermissionsCache) {
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = indices.authorize(
-            action, requestedIndicesOrAliases, metaData, fieldPermissionsCache
+            action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache
         );
 
         // At least one role / indices permission set need to match with all the requested indices/aliases:
         boolean granted = true;
         for (Map.Entry<String, IndicesAccessControl.IndexAccessControl> entry : indexPermissions.entrySet()) {
-            if (!entry.getValue().isGranted()) {
+            if (entry.getValue().isGranted() == false) {
                 granted = false;
                 break;
             }
@@ -97,7 +189,7 @@ public final class Role {
     public static class Builder {
 
         private final String[] names;
-        private ClusterPermission cluster = ClusterPermission.SimpleClusterPermission.NONE;
+        private ClusterPermission cluster = ClusterPermission.NONE;
         private RunAsPermission runAs = RunAsPermission.NONE;
         private List<IndicesPermission.Group> groups = new ArrayList<>();
         private List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
@@ -122,30 +214,18 @@ public final class Role {
             }
         }
 
-        public Builder cluster(Set<String> privilegeNames, Iterable<ConditionalClusterPrivilege> conditionalClusterPrivileges) {
+        public Builder cluster(Set<String> privilegeNames, Iterable<ConfigurableClusterPrivilege> configurableClusterPrivileges) {
+            ClusterPermission.Builder builder = ClusterPermission.builder();
             List<ClusterPermission> clusterPermissions = new ArrayList<>();
             if (privilegeNames.isEmpty() == false) {
-                clusterPermissions.add(new ClusterPermission.SimpleClusterPermission(ClusterPrivilege.get(privilegeNames)));
+                for (String name : privilegeNames) {
+                    builder = ClusterPrivilegeResolver.resolve(name).buildPermission(builder);
+                }
             }
-            for (ConditionalClusterPrivilege ccp : conditionalClusterPrivileges) {
-                clusterPermissions.add(new ClusterPermission.ConditionalClusterPermission(ccp));
+            for (ConfigurableClusterPrivilege ccp : configurableClusterPrivileges) {
+                builder = ccp.buildPermission(builder);
             }
-            if (clusterPermissions.isEmpty()) {
-                this.cluster = ClusterPermission.SimpleClusterPermission.NONE;
-            } else if (clusterPermissions.size() == 1) {
-                this.cluster = clusterPermissions.get(0);
-            } else {
-                this.cluster = new ClusterPermission.CompositeClusterPermission(clusterPermissions);
-            }
-            return this;
-        }
-
-        /**
-         * @deprecated Use {@link #cluster(Set, Iterable)}
-         */
-        @Deprecated
-        public Builder cluster(ClusterPrivilege privilege) {
-            cluster = new ClusterPermission.SimpleClusterPermission(privilege);
+            this.cluster = builder.build();
             return this;
         }
 
@@ -155,12 +235,13 @@ public final class Role {
         }
 
         public Builder add(IndexPrivilege privilege, String... indices) {
-            groups.add(new IndicesPermission.Group(privilege, FieldPermissions.DEFAULT, null, indices));
+            groups.add(new IndicesPermission.Group(privilege, FieldPermissions.DEFAULT, null, false, indices));
             return this;
         }
 
-        public Builder add(FieldPermissions fieldPermissions, Set<BytesReference> query, IndexPrivilege privilege, String... indices) {
-            groups.add(new IndicesPermission.Group(privilege, fieldPermissions, query, indices));
+        public Builder add(FieldPermissions fieldPermissions, Set<BytesReference> query, IndexPrivilege privilege,
+                boolean allowRestrictedIndices, String... indices) {
+            groups.add(new IndicesPermission.Group(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
             return this;
         }
 
@@ -189,11 +270,8 @@ public final class Role {
                         new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields()));
                 }
                 final Set<BytesReference> query = privilege.getQuery() == null ? null : Collections.singleton(privilege.getQuery());
-                list.add(new IndicesPermission.Group(IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
-                    fieldPermissions,
-                    query,
-                    privilege.getIndices()));
-
+                list.add(new IndicesPermission.Group(IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())), fieldPermissions,
+                        query, privilege.allowRestrictedIndices(), privilege.getIndices()));
             }
             return list;
         }
@@ -206,4 +284,5 @@ public final class Role {
             ), Sets.newHashSet(arp.getResources()));
         }
     }
+
 }

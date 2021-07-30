@@ -1,35 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class TranslogStats implements Streamable, ToXContentFragment {
+public class TranslogStats implements Writeable, ToXContentFragment {
 
     private long translogSizeInBytes;
     private int numberOfOperations;
@@ -38,6 +26,14 @@ public class TranslogStats implements Streamable, ToXContentFragment {
     private long earliestLastModifiedAge;
 
     public TranslogStats() {
+    }
+
+    public TranslogStats(StreamInput in) throws IOException {
+        numberOfOperations = in.readVInt();
+        translogSizeInBytes = in.readVLong();
+        uncommittedOperations = in.readVInt();
+        uncommittedSizeInBytes = in.readVLong();
+        earliestLastModifiedAge = in.readVLong();
     }
 
     public TranslogStats(int numberOfOperations, long translogSizeInBytes, int uncommittedOperations, long uncommittedSizeInBytes,
@@ -73,8 +69,12 @@ public class TranslogStats implements Streamable, ToXContentFragment {
         this.translogSizeInBytes += translogStats.translogSizeInBytes;
         this.uncommittedOperations += translogStats.uncommittedOperations;
         this.uncommittedSizeInBytes += translogStats.uncommittedSizeInBytes;
-        this.earliestLastModifiedAge =
-            Math.min(this.earliestLastModifiedAge, translogStats.earliestLastModifiedAge);
+        if (this.earliestLastModifiedAge == 0) {
+            this.earliestLastModifiedAge = translogStats.earliestLastModifiedAge;
+        } else {
+            this.earliestLastModifiedAge =
+                Math.min(this.earliestLastModifiedAge, translogStats.earliestLastModifiedAge);
+        }
     }
 
     public long getTranslogSizeInBytes() {
@@ -115,31 +115,11 @@ public class TranslogStats implements Streamable, ToXContentFragment {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        numberOfOperations = in.readVInt();
-        translogSizeInBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            uncommittedOperations = in.readVInt();
-            uncommittedSizeInBytes = in.readVLong();
-        } else {
-            uncommittedOperations = numberOfOperations;
-            uncommittedSizeInBytes = translogSizeInBytes;
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            earliestLastModifiedAge = in.readVLong();
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(numberOfOperations);
         out.writeVLong(translogSizeInBytes);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            out.writeVInt(uncommittedOperations);
-            out.writeVLong(uncommittedSizeInBytes);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeVLong(earliestLastModifiedAge);
-        }
+        out.writeVInt(uncommittedOperations);
+        out.writeVLong(uncommittedSizeInBytes);
+        out.writeVLong(earliestLastModifiedAge);
     }
 }

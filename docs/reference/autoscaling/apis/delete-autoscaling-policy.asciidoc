@@ -1,0 +1,87 @@
+[role="xpack"]
+[testenv="enterprise"]
+[[autoscaling-delete-autoscaling-policy]]
+=== Delete autoscaling policy API
+++++
+<titleabbrev>Delete autoscaling policy</titleabbrev>
+++++
+
+NOTE: {cloud-only}
+
+Delete autoscaling policy.
+
+[[autoscaling-delete-autoscaling-policy-request]]
+==== {api-request-title}
+
+//////////////////////////
+[source,console]
+--------------------------------------------------
+PUT /_autoscaling/policy/my_autoscaling_policy
+{
+  "roles": [],
+  "deciders": {
+    "fixed": {
+    }
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/<name>
+--------------------------------------------------
+// TEST[s/<name>/my_autoscaling_policy/]
+
+[[autoscaling-delete-autoscaling-policy-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_autoscaling` <<privileges-list-cluster,cluster privilege>> to use this
+API.
+
+* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
+users can use this API.
+
+[[autoscaling-delete-autoscaling-policy-desc]]
+==== {api-description-title}
+
+This API deletes an autoscaling policy with the provided name.
+
+[[autoscaling-delete-autoscaling-policy-examples]]
+==== {api-examples-title}
+
+This example deletes an autoscaling policy named `my_autoscaling_policy`.
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/my_autoscaling_policy
+--------------------------------------------------
+// TEST
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+
+This example deletes all autoscaling policies.
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/*
+--------------------------------------------------
+// TEST
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------

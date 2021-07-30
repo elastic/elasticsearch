@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.multi_node;
 
@@ -16,7 +17,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GlobalCheckpointSyncActionIT extends ESRestTestCase {
@@ -73,7 +73,7 @@ public class GlobalCheckpointSyncActionIT extends ESRestTestCase {
                     builder.field("foo", i);
                 }
                 builder.endObject();
-                Request indexRequest = new Request("PUT", "/test-index/test-type/" + i);
+                Request indexRequest = new Request("PUT", "/test-index/_doc/" + i);
                 indexRequest.setJsonEntity(Strings.toString(builder));
                 client().performRequest(indexRequest);
             }

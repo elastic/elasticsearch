@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -15,9 +16,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -70,7 +71,7 @@ public abstract class PublishableHttpResource extends HttpResource {
     /**
      * The default parameters to use for any request.
      */
-    protected final Map<String, String> parameters;
+    protected final Map<String, String> defaultParameters;
 
     /**
      * Create a new {@link PublishableHttpResource} that {@linkplain #isDirty() is dirty}.
@@ -102,9 +103,9 @@ public abstract class PublishableHttpResource extends HttpResource {
             parameters.putAll(baseParameters);
             parameters.put("master_timeout", masterTimeout.toString());
 
-            this.parameters = Collections.unmodifiableMap(parameters);
+            this.defaultParameters = Collections.unmodifiableMap(parameters);
         } else {
-            this.parameters = baseParameters;
+            this.defaultParameters = baseParameters;
         }
     }
 
@@ -113,8 +114,8 @@ public abstract class PublishableHttpResource extends HttpResource {
      *
      * @return Never {@code null}.
      */
-    public Map<String, String> getParameters() {
-        return parameters;
+    public Map<String, String> getDefaultParameters() {
+        return defaultParameters;
     }
 
     /**
@@ -124,11 +125,11 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param listener Returns {@code true} if the resource is available for use. {@code false} to stop.
      */
     @Override
-    protected final void doCheckAndPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    protected final void doCheckAndPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         doCheck(client, ActionListener.wrap(exists -> {
             if (exists) {
                 // it already exists, so we can skip publishing it
-                listener.onResponse(true);
+                listener.onResponse(ResourcePublishResult.ready());
             } else {
                 doPublish(client, listener);
             }
@@ -221,7 +222,8 @@ public abstract class PublishableHttpResource extends HttpResource {
         logger.trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
         final Request request = new Request("GET", resourceBasePath + "/" + resourceName);
-        addParameters(request);
+        addDefaultParameters(request);
+
         // avoid exists and DNE parameters from being an exception by default
         final Set<Integer> expectedResponseCodes = Sets.union(exists, doesNotExist);
         request.addParameter("ignore", expectedResponseCodes.stream().map(i -> i.toString()).collect(Collectors.joining(",")));
@@ -289,7 +291,7 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param client The REST client to make the request(s).
      * @param listener Returns {@code true} if the resource is available to use. Otherwise {@code false}.
      */
-    protected abstract void doPublish(RestClient client, ActionListener<Boolean> listener);
+    protected abstract void doPublish(RestClient client, ActionListener<ResourcePublishResult> listener);
 
     /**
      * Upload the {@code resourceName} to the {@code resourceBasePath} endpoint.
@@ -299,16 +301,18 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param logger The logger to use for status messages.
      * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template").
      * @param resourceName The name of the resource (e.g., "template123").
+     * @param parameters Map of query string parameters, if any.
      * @param body The {@link HttpEntity} that makes up the body of the request.
      * @param resourceType The type of resource (e.g., "monitoring template").
      * @param resourceOwnerName The user-recognizeable resource owner.
      * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
      */
     protected void putResource(final RestClient client,
-                               final ActionListener<Boolean> listener,
+                               final ActionListener<ResourcePublishResult> listener,
                                final Logger logger,
                                final String resourceBasePath,
                                final String resourceName,
+                               final Map<String, String> parameters,
                                final java.util.function.Supplier<HttpEntity> body,
                                final String resourceType,
                                final String resourceOwnerName,
@@ -317,7 +321,8 @@ public abstract class PublishableHttpResource extends HttpResource {
 
 
         final Request request = new Request("PUT", resourceBasePath + "/" + resourceName);
-        addParameters(request);
+        addDefaultParameters(request);
+        addParameters(request, parameters);
         request.setEntity(body.get());
 
         client.performRequestAsync(request, new ResponseListener() {
@@ -330,7 +335,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                 if (statusCode == RestStatus.OK.getStatus() || statusCode == RestStatus.CREATED.getStatus()) {
                     logger.debug("{} [{}] uploaded to the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
-                    listener.onResponse(true);
+                    listener.onResponse(ResourcePublishResult.ready());
                 } else {
                     onFailure(new RuntimeException("[" + resourceBasePath + "/" + resourceName + "] responded with [" + statusCode + "]"));
                 }
@@ -376,9 +381,9 @@ public abstract class PublishableHttpResource extends HttpResource {
         logger.trace("deleting {} [{}] from the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
         final Request request = new Request("DELETE", resourceBasePath + "/" + resourceName);
-        addParameters(request);
+        addDefaultParameters(request);
 
-        if (false == parameters.containsKey("ignore")) {
+        if (false == defaultParameters.containsKey("ignore")) {
             // avoid 404 being an exception by default
             request.addParameter("ignore", Integer.toString(RestStatus.NOT_FOUND.getStatus()));
         }
@@ -463,7 +468,11 @@ public abstract class PublishableHttpResource extends HttpResource {
         return true;
     }
 
-    private void addParameters(final Request request) {
+    private void addDefaultParameters(final Request request) {
+        this.addParameters(request, defaultParameters);
+    }
+
+    private void addParameters(final Request request, final Map<String, String> parameters) {
         for (final Map.Entry<String, String> param : parameters.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());
         }

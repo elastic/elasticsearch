@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.support;
 
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
@@ -87,28 +88,6 @@ public class WatcherDateTimeUtilsTests extends ESTestCase {
         TimeValue parsed = WatcherDateTimeUtils.parseTimeValue(parser, "test");
         assertThat(parsed, notNullValue());
         assertThat(parsed.millis(), is(values.get(key).millis()));
-    }
-
-    public void testParseTimeValueStringNegative() throws Exception {
-        int value = -1 * randomIntBetween(2, 200);
-        Map<String, TimeValue> values = new HashMap<>();
-        values.put(value + "s", TimeValue.timeValueSeconds(value));
-        values.put(value + "m", TimeValue.timeValueMinutes(value));
-        values.put(value + "h", TimeValue.timeValueHours(value));
-
-        String key = randomFrom(values.keySet().toArray(new String[values.size()]));
-
-        XContentParser parser = createParser(jsonBuilder().startObject().field("value", key).endObject());
-        parser.nextToken(); // start object
-        parser.nextToken(); // field name
-        parser.nextToken(); // value
-
-        try {
-            WatcherDateTimeUtils.parseTimeValue(parser, "test");
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("failed to parse time unit"));
-        }
     }
 
     public void testParseTimeValueNull() throws Exception {

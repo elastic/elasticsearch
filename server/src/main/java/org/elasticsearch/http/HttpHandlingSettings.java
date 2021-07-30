@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http;
@@ -29,6 +18,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUN
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
 
@@ -43,11 +33,12 @@ public class HttpHandlingSettings {
     private final int compressionLevel;
     private final boolean detailedErrorsEnabled;
     private final int pipeliningMaxEvents;
+    private final long readTimeoutMillis;
     private boolean corsEnabled;
 
     public HttpHandlingSettings(int maxContentLength, int maxChunkSize, int maxHeaderSize, int maxInitialLineLength,
                                 boolean resetCookies, boolean compression, int compressionLevel, boolean detailedErrorsEnabled,
-                                int pipeliningMaxEvents, boolean corsEnabled) {
+                                int pipeliningMaxEvents, long readTimeoutMillis, boolean corsEnabled) {
         this.maxContentLength = maxContentLength;
         this.maxChunkSize = maxChunkSize;
         this.maxHeaderSize = maxHeaderSize;
@@ -57,6 +48,7 @@ public class HttpHandlingSettings {
         this.compressionLevel = compressionLevel;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
         this.pipeliningMaxEvents = pipeliningMaxEvents;
+        this.readTimeoutMillis = readTimeoutMillis;
         this.corsEnabled = corsEnabled;
     }
 
@@ -70,6 +62,7 @@ public class HttpHandlingSettings {
             SETTING_HTTP_COMPRESSION_LEVEL.get(settings),
             SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings),
             SETTING_PIPELINING_MAX_EVENTS.get(settings),
+            SETTING_HTTP_READ_TIMEOUT.get(settings).getMillis(),
             SETTING_CORS_ENABLED.get(settings));
     }
 
@@ -107,6 +100,10 @@ public class HttpHandlingSettings {
 
     public int getPipeliningMaxEvents() {
         return pipeliningMaxEvents;
+    }
+
+    public long getReadTimeoutMillis() {
+        return readTimeoutMillis;
     }
 
     public boolean isCorsEnabled() {

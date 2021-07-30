@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.dfs;
@@ -31,6 +20,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
 
@@ -43,16 +34,31 @@ public class DfsSearchResult extends SearchPhaseResult {
     private ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
     private int maxDoc;
 
-    public DfsSearchResult() {
-    }
-
     public DfsSearchResult(StreamInput in) throws IOException {
-        readFrom(in);
+        super(in);
+        contextId = new ShardSearchContextId(in);
+        int termsSize = in.readVInt();
+        if (termsSize == 0) {
+            terms = EMPTY_TERMS;
+        } else {
+            terms = new Term[termsSize];
+            for (int i = 0; i < terms.length; i++) {
+                terms[i] = new Term(in.readString(), in.readBytesRef());
+            }
+        }
+        this.termStatistics = readTermStats(in, terms);
+        fieldStatistics = readFieldStats(in);
+
+        maxDoc = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        }
     }
 
-    public DfsSearchResult(long id, SearchShardTarget shardTarget) {
+    public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
         this.setSearchShardTarget(shardTarget);
-        this.requestId = id;
+        this.contextId = contextId;
+        setShardSearchRequest(shardSearchRequest);
     }
 
     public DfsSearchResult maxDoc(int maxDoc) {
@@ -88,29 +94,8 @@ public class DfsSearchResult extends SearchPhaseResult {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        requestId = in.readLong();
-        int termsSize = in.readVInt();
-        if (termsSize == 0) {
-            terms = EMPTY_TERMS;
-        } else {
-            terms = new Term[termsSize];
-            for (int i = 0; i < terms.length; i++) {
-                terms[i] = new Term(in.readString(), in.readBytesRef());
-            }
-        }
-        this.termStatistics = readTermStats(in, terms);
-        readFieldStats(in, fieldStatistics);
-
-
-        maxDoc = in.readVInt();
-    }
-
-  @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeLong(requestId);
+        contextId.writeTo(out);
         out.writeVInt(terms.length);
         for (Term term : terms) {
             out.writeString(term.field());
@@ -119,6 +104,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         writeTermStats(out, termStatistics);
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeOptionalWriteable(getShardSearchRequest());
+        }
     }
 
     public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String,
@@ -130,16 +118,10 @@ public class DfsSearchResult extends SearchPhaseResult {
             CollectionStatistics statistics = c.value;
             assert statistics.maxDoc() >= 0;
             out.writeVLong(statistics.maxDoc());
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                // stats are always positive numbers
-                out.writeVLong(statistics.docCount());
-                out.writeVLong(statistics.sumTotalTermFreq());
-                out.writeVLong(statistics.sumDocFreq());
-            } else {
-                out.writeVLong(addOne(statistics.docCount()));
-                out.writeVLong(addOne(statistics.sumTotalTermFreq()));
-                out.writeVLong(addOne(statistics.sumDocFreq()));
-            }
+            // stats are always positive numbers
+            out.writeVLong(statistics.docCount());
+            out.writeVLong(statistics.sumTotalTermFreq());
+            out.writeVLong(statistics.sumDocFreq());
         }
     }
 
@@ -161,40 +143,24 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
-        return readFieldStats(in, null);
-    }
-
-    public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in,
-            ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
+    static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
         final int numFieldStatistics = in.readVInt();
-        if (fieldStatistics == null) {
-            fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);
-        }
+        ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);
         for (int i = 0; i < numFieldStatistics; i++) {
             final String field = in.readString();
             assert field != null;
             final long maxDoc = in.readVLong();
-            final long docCount;
-            final long sumTotalTermFreq;
-            final long sumDocFreq;
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                // stats are always positive numbers
-                docCount = in.readVLong();
-                sumTotalTermFreq = in.readVLong();
-                sumDocFreq = in.readVLong();
-            } else {
-                docCount = subOne(in.readVLong());
-                sumTotalTermFreq = subOne(in.readVLong());
-                sumDocFreq = subOne(in.readVLong());
-            }
+            // stats are always positive numbers
+            final long docCount = in.readVLong();
+            final long sumTotalTermFreq = in.readVLong();
+            final long sumDocFreq = in.readVLong();
             CollectionStatistics stats = new CollectionStatistics(field, maxDoc, docCount, sumTotalTermFreq, sumDocFreq);
             fieldStatistics.put(field, stats);
         }
         return fieldStatistics;
     }
 
-    public static TermStatistics[] readTermStats(StreamInput in, Term[] terms) throws IOException {
+    static TermStatistics[] readTermStats(StreamInput in, Term[] terms) throws IOException {
         int termsStatsSize = in.readVInt();
         final TermStatistics[] termStatistics;
         if (termsStatsSize == 0) {
@@ -216,7 +182,6 @@ public class DfsSearchResult extends SearchPhaseResult {
         return termStatistics;
     }
 
-
     /*
      * optional statistics are set to -1 in lucene by default.
      * Since we are using var longs to encode values we add one to each value
@@ -227,7 +192,6 @@ public class DfsSearchResult extends SearchPhaseResult {
         return value + 1;
     }
 
-
     /*
      * See #addOne this just subtracting one and asserts that the actual value
      * is positive.
@@ -236,5 +200,4 @@ public class DfsSearchResult extends SearchPhaseResult {
         assert value >= 0;
         return value - 1;
     }
-
 }

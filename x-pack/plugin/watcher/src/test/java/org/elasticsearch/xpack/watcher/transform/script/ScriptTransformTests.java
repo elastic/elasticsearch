@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transform.script;
 
@@ -16,14 +17,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
-import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.Watcher;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -188,25 +184,6 @@ public class ScriptTransformTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("script_lang not supported [not_a_valid_lang]"));
     }
 
-    public void testParamsCtxDeprecated() throws Exception {
-        WatchExecutionContext watcherContext = mock(WatchExecutionContext.class);
-        when(watcherContext.id()).thenReturn(mock(Wid.class));
-        when(watcherContext.watch()).thenReturn(mock(Watch.class));
-        when(watcherContext.triggerEvent()).thenReturn(mock(TriggerEvent.class));
-        DateTime now = DateTime.now(DateTimeZone.UTC);
-        when(watcherContext.executionTime()).thenReturn(now);
-        Payload payload = mock(Payload.class);
-        WatcherTransformScript watcherScript = new WatcherTransformScript(Collections.emptyMap(), watcherContext, payload) {
-            @Override
-            public Object execute() {
-                return getParams().get("ctx");
-            }
-        };
-        assertThat(watcherScript.execute(), is(watcherScript.getCtx()));
-        assertWarnings("Accessing variable [ctx] via [params.ctx] from within a watcher_transform script " +
-            "is deprecated in favor of directly accessing [ctx].");
-    }
-
     static String scriptTypeField(ScriptType type) {
         switch (type) {
             case INLINE: return "source";
@@ -220,7 +197,7 @@ public class ScriptTransformTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
                 .build();
-        Map<String, ScriptContext> contexts = new HashMap<>(ScriptModule.CORE_CONTEXTS);
+        Map<String, ScriptContext<?>> contexts = new HashMap<>(ScriptModule.CORE_CONTEXTS);
         contexts.put(WatcherTransformScript.CONTEXT.name, WatcherTransformScript.CONTEXT);
         contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         return new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());

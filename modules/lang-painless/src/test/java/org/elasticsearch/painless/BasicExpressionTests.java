@@ -5,22 +5,11 @@ import java.util.Collections;
 import static java.util.Collections.singletonMap;
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 public class BasicExpressionTests extends ScriptTestCase {
@@ -191,11 +180,11 @@ public class BasicExpressionTests extends ScriptTestCase {
         assertNull(         exec("def    a = null;  return a?.length()"));
         assertEquals(3,     exec("def    a = 'foo'; return a?.length()"));
         //   Read shortcut
-        assertMustBeNullable(    "org.elasticsearch.painless.FeatureTest a = null; return a?.x");
+        assertMustBeNullable(    "org.elasticsearch.painless.FeatureTestObject a = null; return a?.x");
         assertMustBeNullable(
-                "org.elasticsearch.painless.FeatureTest a = new org.elasticsearch.painless.FeatureTest(); return a?.x");
+                "org.elasticsearch.painless.FeatureTestObject a = new org.elasticsearch.painless.FeatureTestObject(); return a?.x");
         assertNull(         exec("def    a = null;  return a?.x"));
-        assertEquals(0,     exec("def    a = new org.elasticsearch.painless.FeatureTest(); return a?.x"));
+        assertEquals(0,     exec("def    a = new org.elasticsearch.painless.FeatureTestObject(); return a?.x"));
 
         // Maps
         //   Call
@@ -222,7 +211,7 @@ public class BasicExpressionTests extends ScriptTestCase {
         assertEquals(2, exec("def a = new int[] {2, 3};   return a?.length"));
 
         // Results from maps (should just work but let's test anyway)
-        FeatureTest t = new FeatureTest();
+        FeatureTestObject t = new FeatureTestObject();
         assertNull(     exec("Map a = ['thing': params.t]; return a.other?.getX()", singletonMap("t", t), true));
         assertNull(     exec("Map a = ['thing': params.t]; return a.other?.x",      singletonMap("t", t), true));
         assertNull(     exec("def a = ['thing': params.t]; return a.other?.getX()", singletonMap("t", t), true));
@@ -254,8 +243,8 @@ public class BasicExpressionTests extends ScriptTestCase {
                   + "return a.missing_length", true));
 
         // Writes, all unsupported at this point
-//        assertEquals(null, exec("org.elasticsearch.painless.FeatureTest a = null; return a?.x"));            // Read field
-//        assertEquals(null, exec("org.elasticsearch.painless.FeatureTest a = null; a?.x = 7; return a?.x"));  // Write field
+//        assertEquals(null, exec("org.elasticsearch.painless.FeatureTestObject a = null; return a?.x"));            // Read field
+//        assertEquals(null, exec("org.elasticsearch.painless.FeatureTestObject a = null; a?.x = 7; return a?.x"));  // Write field
 //        assertEquals(null, exec("Map a = null; a?.other = 'wow'; return a?.other")); // Write shortcut
 //        assertEquals(null, exec("def a = null; a?.other = 'cat'; return a?.other")); // Write shortcut
 //        assertEquals(null, exec("Map a = ['thing': 'bar']; a.other?.cat = 'no'; return a.other?.cat"));

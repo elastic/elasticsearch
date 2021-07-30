@@ -1,164 +1,260 @@
 [[query-dsl-range-query]]
-=== Range Query
+=== Range query
+++++
+<titleabbrev>Range</titleabbrev>
+++++
 
-Matches documents with fields that have terms within a certain range.
-The type of the Lucene query depends on the field type, for `string`
-fields, the `TermRangeQuery`, while for number/date fields, the query is
-a `NumericRangeQuery`. The following example returns all documents where
-`age` is between `10` and `20`:
+Returns documents that contain terms within a provided range.
 
-[source,js]
---------------------------------------------------
-GET _search
+[[range-query-ex-request]]
+==== Example request
+
+The following search returns documents where the `age` field contains a term
+between `10` and `20`.
+
+[source,console]
+----
+GET /_search
 {
-    "query": {
-        "range" : {
-            "age" : {
-                "gte" : 10,
-                "lte" : 20,
-                "boost" : 2.0
-            }
-        }
+  "query": {
+    "range": {
+      "age": {
+        "gte": 10,
+        "lte": 20,
+        "boost": 2.0
+      }
     }
+  }
 }
---------------------------------------------------
-// CONSOLE 
+----
 
-The `range` query accepts the following parameters:
+[[range-query-top-level-params]]
+==== Top-level parameters for `range`
 
-[horizontal]
-`gte`:: 	Greater-than or equal to
-`gt`::  	Greater-than
-`lte`:: 	Less-than or equal to
-`lt`::  	Less-than
-`boost`:: 	Sets the boost value of the query, defaults to `1.0`
+`<field>`::
++
+--
+(Required, object) Field you wish to search.
+--
 
+[[range-query-field-params]]
+==== Parameters for `<field>`
 
-[[ranges-on-dates]]
-==== Ranges on date fields
-
-When running `range` queries on fields of type <<date,`date`>>, ranges can be
-specified using <<date-math>>:
-
-[source,js]
---------------------------------------------------
-GET _search
-{
-    "query": {
-        "range" : {
-            "date" : {
-                "gte" : "now-1d/d",
-                "lt" :  "now/d"
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-===== Date math and rounding
-
-When using <<date-math,date math>> to round dates to the nearest day, month,
-hour, etc, the rounded dates depend on whether the ends of the ranges are
-inclusive or exclusive.
-
-Rounding up moves to the last millisecond of the rounding scope, and rounding
-down to the first millisecond of the rounding scope. For example:
-
-[horizontal]
 `gt`::
-
-    Greater than the date rounded up: `2014-11-18||/M` becomes
-    `2014-11-30T23:59:59.999`, ie excluding the entire month.
+(Optional) Greater than.
 
 `gte`::
-
-    Greater than or equal to the date rounded down: `2014-11-18||/M` becomes
-    `2014-11-01`, ie including the entire month.
+(Optional) Greater than or equal to.
 
 `lt`::
-
-    Less than the date rounded down: `2014-11-18||/M` becomes `2014-11-01`, ie
-    excluding the entire month.
+(Optional) Less than.
 
 `lte`::
+(Optional) Less than or equal to.
 
-    Less than or equal to the date rounded up: `2014-11-18||/M` becomes
-    `2014-11-30T23:59:59.999`, ie including the entire month.
+`format`::
++
+--
+(Optional, string) Date format used to convert `date` values in the query.
 
-===== Date format in range queries
+By default, {es} uses the <<mapping-date-format,date `format`>> provided in the
+`<field>`'s mapping. This value overrides that mapping format.
 
-Formatted dates will be parsed using the <<mapping-date-format,`format`>>
-specified on the <<date,`date`>> field by default, but it can be overridden by
-passing the `format` parameter to the `range` query:
+For valid syntax, see <<mapping-date-format,`format`>>.
 
-[source,js]
---------------------------------------------------
-GET _search
-{
-    "query": {
-        "range" : {
-            "born" : {
-                "gte": "01/01/2012",
-                "lte": "2013",
-                "format": "dd/MM/yyyy||yyyy"
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE 
+WARNING: If a format or date value is incomplete, the range query replaces any
+missing components with default values. See <<missing-date-components>>.
 
-Note that if the date misses some of the year, month and day coordinates, the
-missing parts are filled with the start of
-https://en.wikipedia.org/wiki/Unix_time[unix time], which is January 1st, 1970.
-This means, that when e.g. specifying `dd` as the format, a value like `"gte" : 10`
-will translate to `1970-01-10T00:00:00.000Z`.
-
-===== Time zone in range queries
-
-Dates can be converted from another timezone to UTC either by specifying the
-time zone in the date value itself (if the <<mapping-date-format, `format`>>
-accepts it), or it can be specified as the `time_zone` parameter:
-
-[source,js]
---------------------------------------------------
-GET _search
-{
-    "query": {
-        "range" : {
-            "timestamp" : {
-                "gte": "2015-01-01 00:00:00", <1>
-                "lte": "now", <2>
-                "time_zone": "+01:00"
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-<1> This date will be converted to `2014-12-31T23:00:00 UTC`.
-<2> `now` is not affected by the `time_zone` parameter (dates must be stored as UTC).
+--
 
 [[querying-range-fields]]
-==== Querying range fields
+`relation`::
++
+--
+(Optional, string) Indicates how the range query matches values for `range`
+fields. Valid values are:
 
-`range` queries can be used on fields of type <<range,`range`>>, allowing to
-match a range specified in the query with a range field value in the document.
-The `relation` parameter controls how these two ranges are matched:
-
-[horizontal]
-`WITHIN`::
-
-    Matches documents who's range field is entirely within the query's range.
+`INTERSECTS` (Default)::
+Matches documents with a range field value that intersects the query's range.
 
 `CONTAINS`::
+Matches documents with a range field value that entirely contains the query's range.
 
-    Matches documents who's range field entirely contains the query's range.
+`WITHIN`::
+Matches documents with a range field value entirely within the query's range.
+--
 
-`INTERSECTS`::
+`time_zone`::
++
+--
+(Optional, string)
+{wikipedia}/List_of_UTC_time_offsets[Coordinated Universal
+Time (UTC) offset] or
+{wikipedia}/List_of_tz_database_time_zones[IANA time zone]
+used to convert `date` values in the query to UTC.
 
-    Matches documents who's range field intersects the query's range.
-    This is the default value when querying range fields.
+Valid values are ISO 8601 UTC offsets, such as `+01:00` or -`08:00`, and IANA
+time zone IDs, such as `America/Los_Angeles`.
 
-For examples, see <<range,`range`>> mapping type.
+For an example query using the `time_zone` parameter, see
+<<range-query-time-zone,Time zone in `range` queries>>.
+
+[NOTE]
+====
+The `time_zone` parameter does **not** affect the <<date-math,date math>> value
+of `now`. `now` is always the current system time in UTC.
+
+However, the `time_zone` parameter does convert dates calculated using `now` and
+<<date-math,date math rounding>>. For example, the `time_zone` parameter will
+convert a value of `now/d`.
+====
+--
+
+`boost`::
++
+--
+(Optional, float) Floating point number used to decrease or increase the
+<<relevance-scores,relevance scores>> of a query. Defaults to `1.0`.
+
+You can use the `boost` parameter to adjust relevance scores for searches
+containing two or more queries.
+
+Boost values are relative to the default value of `1.0`. A boost value between
+`0` and `1.0` decreases the relevance score. A value greater than `1.0`
+increases the relevance score.
+--
+
+[[range-query-notes]]
+==== Notes
+
+[[ranges-on-text-and-keyword]]
+===== Using the `range` query with `text` and `keyword` fields
+Range queries on <<text, `text`>> or <<keyword, `keyword`>> fields will not be executed if
+<<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>> is set to false.
+
+[[ranges-on-dates]]
+===== Using the `range` query with `date` fields
+
+When the `<field>` parameter is a <<date,`date`>> field data type, you can use
+<<date-math,date math>> with the following parameters:
+
+* `gt`
+* `gte`
+* `lt`
+* `lte`
+
+For example, the following search returns documents where the `timestamp` field
+contains a date between today and yesterday.
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "range": {
+      "timestamp": {
+        "gte": "now-1d/d",
+        "lt": "now/d"
+      }
+    }
+  }
+}
+----
+
+[[missing-date-components]]
+====== Missing date components
+
+For range queries and <<search-aggregations-bucket-daterange-aggregation,date
+range>> aggregations, {es} replaces missing date components with the following
+values. Missing year components are not replaced.
+
+[source,text]
+----
+MONTH_OF_YEAR:    01
+DAY_OF_MONTH:     01
+HOUR_OF_DAY:      23
+MINUTE_OF_HOUR:   59
+SECOND_OF_MINUTE: 59
+NANO_OF_SECOND:   999_999_999
+----
+
+For example, if the format is `yyyy-MM`, {es} converts a `gt` value of `2099-12`
+to `2099-12-01T23:59:59.999_999_999Z`. This date uses the provided year (`2099`)
+and month (`12`) but uses the default day (`01`), hour (`23`), minute (`59`),
+second (`59`), and nanosecond (`999_999_999`).
+
+[[numeric-date]]
+====== Numeric date range value
+
+When no date format is specified and the range query is targeting a date field, numeric
+values are interpreted representing milliseconds-since-the-epoch. If you want the value
+to represent a year, e.g. 2020, you need to pass it as a String value (e.g. "2020") that
+will be parsed according to the default format or the set format.
+
+[[range-query-date-math-rounding]]
+====== Date math and rounding
+{es} rounds <<date-math,date math>> values in parameters as follows:
+
+`gt`::
++
+--
+Rounds up to the first millisecond not covered by the rounded date.
+
+For example, `2014-11-18||/M` rounds up to `2014-12-01T00:00:00.000`, excluding
+the entire month of November.
+--
+
+`gte`::
++
+--
+Rounds down to the first millisecond.
+
+For example, `2014-11-18||/M` rounds down to `2014-11-01T00:00:00.000`, including
+the entire month.
+--
+
+`lt`::
++
+--
+Rounds down to the last millisecond before the rounded value.
+
+For example, `2014-11-18||/M` rounds down to `2014-10-31T23:59:59.999`, excluding
+the entire month of November.
+--
+
+`lte`::
++
+--
+Rounds up to the latest millisecond in the rounding interval.
+
+For example, `2014-11-18||/M` rounds up to `2014-11-30T23:59:59.999`, including
+the entire month.
+--
+
+[[range-query-time-zone]]
+===== Example query using `time_zone` parameter
+
+You can use the `time_zone` parameter to convert `date` values to UTC using a
+UTC offset. For example:
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "range": {
+      "timestamp": {
+        "time_zone": "+01:00",        <1>
+        "gte": "2020-01-01T00:00:00", <2>
+        "lte": "now"                  <3>
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+<1> Indicates that `date` values use a UTC offset of `+01:00`.
+<2> With a UTC offset of `+01:00`, {es} converts this date to
+`2019-12-31T23:00:00 UTC`.
+<3> The `time_zone` parameter does not affect the `now` value.

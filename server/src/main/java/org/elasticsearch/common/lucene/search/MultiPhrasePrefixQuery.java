@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.lucene.search;
@@ -39,15 +28,20 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Objects;
 
 public class MultiPhrasePrefixQuery extends Query {
 
-    private String field;
+    private final String field;
     private ArrayList<Term[]> termArrays = new ArrayList<>();
     private ArrayList<Integer> positions = new ArrayList<>();
     private int maxExpansions = Integer.MAX_VALUE;
 
     private int slop = 0;
+
+    public MultiPhrasePrefixQuery(String field) {
+        this.field = Objects.requireNonNull(field);
+    }
 
     /**
      * Sets the phrase slop for this query.
@@ -102,9 +96,6 @@ public class MultiPhrasePrefixQuery extends Query {
      * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term, int)
      */
     public void add(Term[] terms, int position) {
-        if (termArrays.size() == 0)
-            field = terms[0].field();
-
         for (int i = 0; i < terms.length; i++) {
             if (terms[i].field() != field) {
                 throw new IllegalArgumentException(
@@ -197,7 +188,7 @@ public class MultiPhrasePrefixQuery extends Query {
             }
 
             for (BytesRef term = termsEnum.term(); term != null; term = termsEnum.next()) {
-                if (!StringHelper.startsWith(term, prefix.bytes())) {
+                if (StringHelper.startsWith(term, prefix.bytes()) == false) {
                     break;
                 }
 
@@ -212,7 +203,7 @@ public class MultiPhrasePrefixQuery extends Query {
     @Override
     public final String toString(String f) {
         StringBuilder buffer = new StringBuilder();
-        if (field == null || !field.equals(f)) {
+        if (field.equals(f) == false) {
             buffer.append(field);
             buffer.append(":");
         }
@@ -302,8 +293,7 @@ public class MultiPhrasePrefixQuery extends Query {
         while (iterator1.hasNext()) {
             Term[] termArray1 = iterator1.next();
             Term[] termArray2 = iterator2.next();
-            if (!(termArray1 == null ? termArray2 == null : Arrays.equals(termArray1,
-                    termArray2))) {
+            if ((termArray1 == null ? termArray2 == null : Arrays.equals(termArray1, termArray2)) == false) {
                 return false;
             }
         }

@@ -1,29 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
-import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
-import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -31,27 +30,16 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * The rest action to de/activate a watch
  */
-public class RestActivateWatchAction extends WatcherRestHandler {
+public class RestActivateWatchAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestActivateWatchAction.class));
-
-    public RestActivateWatchAction(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/watch/{id}/_activate", this,
-            POST, URI_BASE + "/watcher/watch/{id}/_activate", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_watcher/watch/{id}/_activate", this,
-            PUT, URI_BASE + "/watcher/watch/{id}/_activate", deprecationLogger);
-
-        final DeactivateRestHandler deactivateRestHandler = new DeactivateRestHandler(settings);
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/watch/{id}/_deactivate", deactivateRestHandler,
-            POST, URI_BASE + "/watcher/watch/{id}/_deactivate", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_watcher/watch/{id}/_deactivate", deactivateRestHandler,
-            PUT, URI_BASE + "/watcher/watch/{id}/_deactivate", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(POST, "/_watcher/watch/{id}/_activate")
+                .replaces(POST, "/_xpack/watcher/watch/{id}/_activate", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_watcher/watch/{id}/_activate")
+                .replaces(PUT, "/_xpack/watcher/watch/{id}/_activate", RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -60,23 +48,30 @@ public class RestActivateWatchAction extends WatcherRestHandler {
     }
 
     @Override
-    public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String watchId = request.param("id");
         return channel ->
-                client.activateWatch(new ActivateWatchRequest(watchId, true), new RestBuilderListener<ActivateWatchResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(ActivateWatchResponse response, XContentBuilder builder) throws Exception {
-                        return new BytesRestResponse(RestStatus.OK, builder.startObject()
-                                .field(WatchField.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
-                                .endObject());
-                    }
-                });
+                client.execute(ActivateWatchAction.INSTANCE, new ActivateWatchRequest(watchId, true),
+                    new RestBuilderListener<ActivateWatchResponse>(channel) {
+                        @Override
+                        public RestResponse buildResponse(ActivateWatchResponse response, XContentBuilder builder) throws Exception {
+                            return new BytesRestResponse(RestStatus.OK, builder.startObject()
+                                    .field(WatchField.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
+                                    .endObject());
+                        }
+                    });
     }
 
-    private static class DeactivateRestHandler extends WatcherRestHandler {
+    public static class DeactivateRestHandler extends BaseRestHandler {
 
-        DeactivateRestHandler(Settings settings) {
-            super(settings);
+        @Override
+        public List<Route> routes() {
+            return List.of(
+                Route.builder(POST, "/_watcher/watch/{id}/_deactivate")
+                    .replaces(POST, "/_xpack/watcher/watch/{id}/_deactivate", RestApiVersion.V_7).build(),
+                Route.builder(PUT, "/_watcher/watch/{id}/_deactivate")
+                    .replaces(PUT, "/_xpack/watcher/watch/{id}/_deactivate", RestApiVersion.V_7).build()
+            );
         }
 
         @Override
@@ -85,17 +80,18 @@ public class RestActivateWatchAction extends WatcherRestHandler {
         }
 
         @Override
-        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
+        public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
             String watchId = request.param("id");
             return channel ->
-                    client.activateWatch(new ActivateWatchRequest(watchId, false), new RestBuilderListener<ActivateWatchResponse>(channel) {
-                        @Override
-                        public RestResponse buildResponse(ActivateWatchResponse response, XContentBuilder builder) throws Exception {
-                            return new BytesRestResponse(RestStatus.OK, builder.startObject()
-                                    .field(WatchField.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
-                                    .endObject());
-                        }
-                    });
+                    client.execute(ActivateWatchAction.INSTANCE, new ActivateWatchRequest(watchId, false),
+                        new RestBuilderListener<ActivateWatchResponse>(channel) {
+                            @Override
+                            public RestResponse buildResponse(ActivateWatchResponse response, XContentBuilder builder) throws Exception {
+                                return new BytesRestResponse(RestStatus.OK, builder.startObject()
+                                        .field(WatchField.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
+                                        .endObject());
+                            }
+                        });
         }
     }
 

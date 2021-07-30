@@ -1,22 +1,12 @@
-import org.elasticsearch.gradle.LoggedExec
-
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+import org.elasticsearch.gradle.internal.info.BuildParams
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    testCompile project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    testCompile project(path: xpackModule('ml'), configuration: 'runtime')
-    testCompile project(path: xpackModule('ml'), configuration: 'testArtifacts')
-}
-
-integTestRunner {
-    /*
-     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
-     * other if we allow them to set the number of available processors as it's set-once in Netty.
-     */
-    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('ml'))))
+  javaRestTestImplementation project(path: ':modules:ingest-common')
+  javaRestTestImplementation project(path: xpackModule('data-streams'))
+  javaRestTestImplementation project(path: xpackModule('transform'))
 }
 
 // location for keys and certificates
@@ -24,50 +14,48 @@ File keystoreDir = new File(project.buildDir, 'keystore')
 File nodeKey = file("$keystoreDir/testnode.pem")
 File nodeCert = file("$keystoreDir/testnode.crt")
 // Add key and certs to test classpath: it expects it there
-task copyKeyCerts(type: Copy) {
-    from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
-        include 'testnode.crt', 'testnode.pem'
-    }
-    into keystoreDir
+tasks.register("copyKeyCerts", Copy) {
+  from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
+    include 'testnode.crt', 'testnode.pem'
+  }
+  into keystoreDir
 }
 // Add keys and cets to test classpath: it expects it there
-sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(copyKeyCerts)
+sourceSets.javaRestTest.resources.srcDir(keystoreDir)
+tasks.named("processJavaRestTestResources").configure { dependsOn("copyKeyCerts") }
 
-integTestCluster {
-    dependsOn copyKeyCerts
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.ml.enabled', 'true'
-    setting 'logger.org.elasticsearch.xpack.ml.datafeed', 'TRACE'
-    setting 'xpack.monitoring.enabled', 'false'
-    setting 'xpack.security.authc.token.enabled', 'true'
-    setting 'xpack.security.transport.ssl.enabled', 'true'
-    setting 'xpack.security.transport.ssl.key', nodeKey.name
-    setting 'xpack.security.transport.ssl.certificate', nodeCert.name
-    setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
-    setting 'xpack.security.audit.enabled', 'true'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.ml.min_disk_space_off_heap', '200mb'
+tasks.named("javaRestTest").configure {
+  dependsOn "copyKeyCerts"
+}
 
-    keystoreSetting 'bootstrap.password', 'x-pack-test-password'
-    keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+testClusters.all {
+  numberOfNodes = 3
+  testDistribution = 'DEFAULT'
 
-    numNodes = 3
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.monitoring.elasticsearch.collection.enabled', 'false'
+  setting 'xpack.ml.enabled', 'true'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.transport.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.key', nodeKey.name
+  setting 'xpack.security.transport.ssl.certificate', nodeCert.name
+  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+  setting 'xpack.security.audit.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.ml.min_disk_space_off_heap', '200mb'
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'slm.history_index_enabled', 'false'
+  // To spice things up a bit, one of the nodes is not an ML node
+  nodes.'javaRestTest-0'.setting 'node.roles', '["master","data","ingest"]'
+  nodes.'javaRestTest-1'.setting 'node.roles', '["master","data","ingest","ml"]'
+  nodes.'javaRestTest-2'.setting 'node.roles', '["master","data","ingest","ml"]'
 
-    setupCommand 'setupDummyUser',
-            'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+  keystore 'bootstrap.password', 'x-pack-test-password'
+  keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
-    extraConfigFile nodeKey.name, nodeKey
-    extraConfigFile nodeCert.name, nodeCert
+  user username: "x_pack_rest_user", password: "x-pack-test-password"
 
-    waitCondition = { node, ant ->
-        File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-                dest: tmpFile.toString(),
-                username: 'x_pack_rest_user',
-                password: 'x-pack-test-password',
-                ignoreerrors: true,
-                retries: 10)
-        return tmpFile.exists()
-    }
+  extraConfigFile nodeKey.name, nodeKey
+  extraConfigFile nodeCert.name, nodeCert
 }

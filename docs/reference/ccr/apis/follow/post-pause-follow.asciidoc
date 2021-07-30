@@ -1,16 +1,46 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-post-pause-follow]]
-=== Pause Follower API
+=== Pause follower API
 ++++
-<titleabbrev>Pause Follower</titleabbrev>
+<titleabbrev>Pause follower</titleabbrev>
 ++++
-
-beta[]
 
 Pauses a follower index.
 
-==== Description
+[[ccr-post-pause-follow-request]]
+==== {api-request-title}
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index" : "leader_index"
+}
+--------------------------------------------------
+// TESTSETUP
+// TEST[setup:remote_cluster_and_leader_index]
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+POST /<follower_index>/_ccr/pause_follow
+--------------------------------------------------
+// TEST[s/<follower_index>/follower_index/]
+
+[[ccr-post-pause-follow-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ccr` cluster
+privileges on the cluster that contains the follower index. For more information,
+see <<security-privileges>>.
+
+[[ccr-post-pause-follow-desc]]
+==== {api-description-title}
 
 This API pauses a follower index. When this API returns, the follower index will
 not fetch any additional operations from the leader index. You can resume
@@ -18,61 +48,28 @@ following with the <<ccr-post-resume-follow,resume follower API>>. Pausing and
 resuming a follower index can be used to change the configuration of the
 following task.
 
-==== Request
+[[ccr-post-pause-follow-path-parms]]
+==== {api-path-parms-title}
 
-//////////////////////////
+`<follower_index>`::
+  (Required, string) The name of the follower index.
 
-[source,js]
---------------------------------------------------
-PUT /follower_index/_ccr/follow
-{
-  "remote_cluster" : "remote_cluster",
-  "leader_index" : "leader_index"
-}
---------------------------------------------------
-// CONSOLE
-// TESTSETUP
-// TEST[setup:remote_cluster_and_leader_index]
-
-//////////////////////////
-
-[source,js]
---------------------------------------------------
-POST /<follower_index>/_ccr/pause_follow
---------------------------------------------------
-// CONSOLE
-// TEST[s/<follower_index>/follower_index/]
-
-==== Path Parameters
-
-`follower_index` (required)::
-  (string) the name of the follower index
-
-
-==== Authorization
-
-If the {es} {security-features} are enabled, you must have `manage_ccr` cluster
-privileges on the cluster that contains the follower index. For more information,
-see {stack-ov}/security-privileges.html[Security privileges].
-
-
-==== Example
+[[ccr-post-pause-follow-examples]]
+==== {api-examples-title}
 
 This example pauses a follower index named `follower_index`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /follower_index/_ccr/pause_follow
 --------------------------------------------------
-// CONSOLE
 // TEST
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged" : true
 }
 --------------------------------------------------
-// TESTRESPONSE

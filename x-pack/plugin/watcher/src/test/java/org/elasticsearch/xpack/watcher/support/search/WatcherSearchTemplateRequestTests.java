@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
@@ -15,6 +16,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class WatcherSearchTemplateRequestTests extends ESTestCase {
 
@@ -28,7 +30,26 @@ public class WatcherSearchTemplateRequestTests extends ESTestCase {
         assertTemplate(source, "custom-script", "painful", singletonMap("bar", "baz"));
     }
 
-    private void assertTemplate(String source, String expectedScript, String expectedLang, Map<String, Object> expectedParams) {
+    public void testDefaultHitCountsDefaults() throws IOException {
+        assertHitCount("{}", true);
+    }
+
+    public void testDefaultHitCountsConfigured() throws IOException {
+        boolean hitCountsAsInt = randomBoolean();
+        String source = "{ \"rest_total_hits_as_int\" : " + hitCountsAsInt  + " }";
+        assertHitCount(source, hitCountsAsInt);
+    }
+
+    private void assertHitCount(String source, boolean expectedHitCountAsInt) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            parser.nextToken();
+            WatcherSearchTemplateRequest request = WatcherSearchTemplateRequest.fromXContent(parser, SearchType.QUERY_THEN_FETCH);
+            assertThat(request.isRestTotalHitsAsint(), is(expectedHitCountAsInt));
+        }
+    }
+
+    private void assertTemplate(String source, String expectedScript, String expectedLang, Map<String, Object> expectedParams)
+        throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             parser.nextToken();
             WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, randomFrom(SearchType.values()));
@@ -36,8 +57,6 @@ public class WatcherSearchTemplateRequestTests extends ESTestCase {
             assertThat(result.getTemplate().getIdOrCode(), equalTo(expectedScript));
             assertThat(result.getTemplate().getLang(), equalTo(expectedLang));
             assertThat(result.getTemplate().getParams(), equalTo(expectedParams));
-        } catch (IOException e) {
-            fail("Failed to parse watch search request: " + e.getMessage());
         }
     }
 }

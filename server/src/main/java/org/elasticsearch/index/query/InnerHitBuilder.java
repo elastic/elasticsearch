@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,12 +22,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.collapse.CollapseBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,7 +37,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParser.Token.END_OBJECT;
 
@@ -68,10 +57,13 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         PARSER.declareInt(InnerHitBuilder::setSize, SearchSourceBuilder.SIZE_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setExplain, SearchSourceBuilder.EXPLAIN_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setVersion, SearchSourceBuilder.VERSION_FIELD);
+        PARSER.declareBoolean(InnerHitBuilder::setSeqNoAndPrimaryTerm, SearchSourceBuilder.SEQ_NO_PRIMARY_TERM_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setTrackScores, SearchSourceBuilder.TRACK_SCORES_FIELD);
         PARSER.declareStringArray(InnerHitBuilder::setStoredFieldNames, SearchSourceBuilder.STORED_FIELDS_FIELD);
         PARSER.declareObjectArray(InnerHitBuilder::setDocValueFields,
                 (p,c) -> FieldAndFormat.fromXContent(p), SearchSourceBuilder.DOCVALUE_FIELDS_FIELD);
+        PARSER.declareObjectArray(InnerHitBuilder::setFetchFields,
+            (p,c) -> FieldAndFormat.fromXContent(p), SearchSourceBuilder.FETCH_FIELDS_FIELD);
         PARSER.declareField((p, i, c) -> {
             try {
                 Set<ScriptField> scriptFields = new HashSet<>();
@@ -117,7 +109,6 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
         }, COLLAPSE_FIELD, ObjectParser.ValueType.OBJECT);
     }
-
     private String name;
     private boolean ignoreUnmapped;
 
@@ -125,6 +116,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     private int size = 3;
     private boolean explain;
     private boolean version;
+    private boolean seqNoAndPrimaryTerm;
     private boolean trackScores;
 
     private StoredFieldsContext storedFieldsContext;
@@ -134,6 +126,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     private Set<ScriptField> scriptFields;
     private HighlightBuilder highlightBuilder;
     private FetchSourceContext fetchSourceContext;
+    private List<FieldAndFormat> fetchFields;
     private CollapseBuilder innerCollapseBuilder = null;
 
     public InnerHitBuilder() {
@@ -155,20 +148,10 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         size = in.readVInt();
         explain = in.readBoolean();
         version = in.readBoolean();
+        seqNoAndPrimaryTerm = in.readBoolean();
         trackScores = in.readBoolean();
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
-        if (in.getVersion().before(Version.V_6_4_0)) {
-            List<String> fieldList = (List<String>) in.readGenericValue();
-            if (fieldList == null) {
-                docValueFields = null;
-            } else {
-                docValueFields = fieldList.stream()
-                        .map(field -> new FieldAndFormat(field, null))
-                        .collect(Collectors.toList());
-            }
-        } else {
-            docValueFields = in.readBoolean() ? in.readList(FieldAndFormat::new) : null;
-        }
+        docValueFields = in.readBoolean() ? in.readList(FieldAndFormat::new) : null;
         if (in.readBoolean()) {
             int size = in.readVInt();
             scriptFields = new HashSet<>(size);
@@ -185,8 +168,12 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
             }
         }
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            this.innerCollapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);
+        this.innerCollapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);
+
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            if (in.readBoolean()) {
+                fetchFields = in.readList(FieldAndFormat::new);
+            }
         }
     }
 
@@ -198,17 +185,12 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         out.writeVInt(size);
         out.writeBoolean(explain);
         out.writeBoolean(version);
+        out.writeBoolean(seqNoAndPrimaryTerm);
         out.writeBoolean(trackScores);
         out.writeOptionalWriteable(storedFieldsContext);
-        if (out.getVersion().before(Version.V_6_4_0)) {
-            out.writeGenericValue(docValueFields == null
-                    ? null
-                    : docValueFields.stream().map(ff -> ff.field).collect(Collectors.toList()));
-        } else {
-            out.writeBoolean(docValueFields != null);
-            if (docValueFields != null) {
-                out.writeList(docValueFields);
-            }
+        out.writeBoolean(docValueFields != null);
+        if (docValueFields != null) {
+            out.writeList(docValueFields);
         }
         boolean hasScriptFields = scriptFields != null;
         out.writeBoolean(hasScriptFields);
@@ -230,8 +212,13 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
             }
         }
         out.writeOptionalWriteable(highlightBuilder);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeOptionalWriteable(innerCollapseBuilder);
+        out.writeOptionalWriteable(innerCollapseBuilder);
+
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeBoolean(fetchFields != null);
+            if (fetchFields != null) {
+                out.writeList(fetchFields);
+            }
         }
     }
 
@@ -298,6 +285,15 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         return this;
     }
 
+    public boolean isSeqNoAndPrimaryTerm() {
+        return seqNoAndPrimaryTerm;
+    }
+
+    public InnerHitBuilder setSeqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+        this.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
+        return this;
+    }
+
     public boolean isTrackScores() {
         return trackScores;
     }
@@ -306,28 +302,6 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         this.trackScores = trackScores;
         return this;
     }
-
-    /**
-     * Gets the stored fields to load and return.
-     *
-     * @deprecated Use {@link InnerHitBuilder#getStoredFieldsContext()} instead.
-     */
-    @Deprecated
-    public List<String> getFieldNames() {
-        return storedFieldsContext == null ? null : storedFieldsContext.fieldNames();
-    }
-
-    /**
-     * Sets the stored fields to load and return.
-     * If none are specified, the source of the document will be returned.
-     *
-     * @deprecated Use {@link InnerHitBuilder#setStoredFieldNames(List)} instead.
-     */
-    @Deprecated
-    public InnerHitBuilder setFieldNames(List<String> fieldNames) {
-        return setStoredFieldNames(fieldNames);
-    }
-
 
     /**
      * Gets the stored fields context.
@@ -368,7 +342,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
      * Adds a field to load from the docvalue and return.
      */
     public InnerHitBuilder addDocValueField(String field, String format) {
-        if (docValueFields == null) {
+        if (docValueFields == null || docValueFields.isEmpty()) {
             docValueFields = new ArrayList<>();
         }
         docValueFields.add(new FieldAndFormat(field, format));
@@ -380,6 +354,51 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
      */
     public InnerHitBuilder addDocValueField(String field) {
         return addDocValueField(field, null);
+    }
+
+    /**
+     * Gets the fields to load and return as part of the search request.
+     */
+    public List<FieldAndFormat> getFetchFields() {
+        return fetchFields;
+    }
+
+    /**
+     * Sets the stored fields to load and return as part of the search request.
+     */
+    public InnerHitBuilder setFetchFields(List<FieldAndFormat> fetchFields) {
+        this.fetchFields = fetchFields;
+        return this;
+    }
+
+    /**
+     * Adds a field to load and return as part of the search request.
+     */
+    public InnerHitBuilder addFetchField(String name) {
+        return addFetchField(name, null);
+    }
+
+    /**
+     * Adds a field to load and return as part of the search request.
+     * @param name the field name.
+     * @param format an optional format string used when formatting values, for example a date format.
+     */
+    public InnerHitBuilder addFetchField(String name, @Nullable String format) {
+        return addFetchField(name, format, null);
+    }
+
+    /**
+     * Adds a field to load and return as part of the search request.
+     * @param name the field name.
+     * @param format an optional format string used when formatting values, for example a date format.
+     * @param includeUnmapped whether unmapped fields should be returned as well
+     */
+    public InnerHitBuilder addFetchField(String name, @Nullable String format, Boolean includeUnmapped) {
+        if (fetchFields == null || fetchFields.isEmpty()) {
+            fetchFields = new ArrayList<>();
+        }
+        fetchFields.add(new FieldAndFormat(name, format, includeUnmapped));
+        return this;
     }
 
     public Set<ScriptField> getScriptFields() {
@@ -457,6 +476,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         builder.field(SearchSourceBuilder.FROM_FIELD.getPreferredName(), from);
         builder.field(SearchSourceBuilder.SIZE_FIELD.getPreferredName(), size);
         builder.field(SearchSourceBuilder.VERSION_FIELD.getPreferredName(), version);
+        builder.field(SearchSourceBuilder.SEQ_NO_PRIMARY_TERM_FIELD.getPreferredName(), seqNoAndPrimaryTerm);
         builder.field(SearchSourceBuilder.EXPLAIN_FIELD.getPreferredName(), explain);
         builder.field(SearchSourceBuilder.TRACK_SCORES_FIELD.getPreferredName(), trackScores);
         if (fetchSourceContext != null) {
@@ -468,14 +488,14 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         if (docValueFields != null) {
             builder.startArray(SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.getPreferredName());
             for (FieldAndFormat docValueField : docValueFields) {
-                if (docValueField.format == null) {
-                    builder.value(docValueField.field);
-                } else {
-                    builder.startObject()
-                        .field("field", docValueField.field)
-                        .field("format", docValueField.format)
-                        .endObject();
-                }
+                docValueField.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+        if (fetchFields != null) {
+            builder.startArray(SearchSourceBuilder.FETCH_FIELDS_FIELD.getPreferredName());
+            for (FieldAndFormat docValueField : fetchFields) {
+                docValueField.toXContent(builder, params);
             }
             builder.endArray();
         }
@@ -507,28 +527,30 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         InnerHitBuilder that = (InnerHitBuilder) o;
-        return Objects.equals(name, that.name) &&
-                Objects.equals(ignoreUnmapped, that.ignoreUnmapped) &&
-                Objects.equals(from, that.from) &&
-                Objects.equals(size, that.size) &&
-                Objects.equals(explain, that.explain) &&
-                Objects.equals(version, that.version) &&
-                Objects.equals(trackScores, that.trackScores) &&
-                Objects.equals(storedFieldsContext, that.storedFieldsContext) &&
-                Objects.equals(docValueFields, that.docValueFields) &&
-                Objects.equals(scriptFields, that.scriptFields) &&
-                Objects.equals(fetchSourceContext, that.fetchSourceContext) &&
-                Objects.equals(sorts, that.sorts) &&
-                Objects.equals(highlightBuilder, that.highlightBuilder) &&
-                Objects.equals(innerCollapseBuilder, that.innerCollapseBuilder);
+        return ignoreUnmapped == that.ignoreUnmapped &&
+            from == that.from &&
+            size == that.size &&
+            explain == that.explain &&
+            version == that.version &&
+            seqNoAndPrimaryTerm == that.seqNoAndPrimaryTerm &&
+            trackScores == that.trackScores &&
+            Objects.equals(name, that.name) &&
+            Objects.equals(storedFieldsContext, that.storedFieldsContext) &&
+            Objects.equals(query, that.query) &&
+            Objects.equals(sorts, that.sorts) &&
+            Objects.equals(docValueFields, that.docValueFields) &&
+            Objects.equals(scriptFields, that.scriptFields) &&
+            Objects.equals(highlightBuilder, that.highlightBuilder) &&
+            Objects.equals(fetchSourceContext, that.fetchSourceContext) &&
+            Objects.equals(fetchFields, that.fetchFields) &&
+            Objects.equals(innerCollapseBuilder, that.innerCollapseBuilder);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, ignoreUnmapped, from, size, explain, version, trackScores,
-                storedFieldsContext, docValueFields, scriptFields, fetchSourceContext, sorts, highlightBuilder, innerCollapseBuilder);
+        return Objects.hash(name, ignoreUnmapped, from, size, explain, version, seqNoAndPrimaryTerm, trackScores, storedFieldsContext,
+            query, sorts, docValueFields, scriptFields, highlightBuilder, fetchSourceContext, fetchFields, innerCollapseBuilder);
     }
 
     public static InnerHitBuilder fromXContent(XContentParser parser) throws IOException {

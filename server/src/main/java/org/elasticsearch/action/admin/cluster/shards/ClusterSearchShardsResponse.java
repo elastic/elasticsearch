@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.shards;
@@ -29,14 +18,9 @@ import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 public class ClusterSearchShardsResponse extends ActionResponse implements ToXContentObject {
-
-    public static final ClusterSearchShardsResponse EMPTY = new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
-            new DiscoveryNode[0], Collections.emptyMap());
 
     private final ClusterSearchShardsGroup[] groups;
     private final DiscoveryNode[] nodes;
@@ -44,44 +28,16 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
 
     public ClusterSearchShardsResponse(StreamInput in) throws IOException {
         super(in);
-        groups = new ClusterSearchShardsGroup[in.readVInt()];
-        for (int i = 0; i < groups.length; i++) {
-            groups[i] = ClusterSearchShardsGroup.readSearchShardsGroupResponse(in);
-        }
-        nodes = new DiscoveryNode[in.readVInt()];
-        for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = new DiscoveryNode(in);
-        }
-        int size = in.readVInt();
-        indicesAndFilters = new HashMap<>();
-        for (int i = 0; i < size; i++) {
-            String index = in.readString();
-            AliasFilter aliasFilter = new AliasFilter(in);
-            indicesAndFilters.put(index, aliasFilter);
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        groups = in.readArray(ClusterSearchShardsGroup::new, ClusterSearchShardsGroup[]::new);
+        nodes = in.readArray(DiscoveryNode::new, DiscoveryNode[]::new);
+        indicesAndFilters = in.readMap(StreamInput::readString, AliasFilter::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(groups.length);
-        for (ClusterSearchShardsGroup response : groups) {
-            response.writeTo(out);
-        }
-        out.writeVInt(nodes.length);
-        for (DiscoveryNode node : nodes) {
-            node.writeTo(out);
-        }
-        out.writeVInt(indicesAndFilters.size());
-        for (Map.Entry<String, AliasFilter> entry : indicesAndFilters.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
-        }
+        out.writeArray(groups);
+        out.writeArray(nodes);
+        out.writeMap(indicesAndFilters, StreamOutput::writeString, (o, s) -> s.writeTo(o));
     }
 
     public ClusterSearchShardsResponse(ClusterSearchShardsGroup[] groups, DiscoveryNode[] nodes,

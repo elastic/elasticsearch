@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -28,6 +28,9 @@ import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.AuthCache;
 import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.entity.GzipCompressingEntity;
+import org.apache.http.client.entity.GzipDecompressingEntity;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpOptions;
@@ -46,17 +49,21 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
-import org.elasticsearch.client.DeadHostState.TimeSupplier;
+import org.apache.http.protocol.HTTP;
 
 import javax.net.ssl.SSLHandshakeException;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -70,12 +77,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.zip.GZIPOutputStream;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.singletonList;
 
 /**
@@ -103,7 +110,6 @@ public class RestClient implements Closeable {
     // We don't rely on default headers supported by HttpAsyncClient as those cannot be replaced.
     // These are package private for tests.
     final List<Header> defaultHeaders;
-    private final long maxRetryTimeoutMillis;
     private final String pathPrefix;
     private final AtomicInteger lastNodeIndex = new AtomicInteger(0);
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
@@ -111,17 +117,63 @@ public class RestClient implements Closeable {
     private final NodeSelector nodeSelector;
     private volatile NodeTuple<List<Node>> nodeTuple;
     private final WarningsHandler warningsHandler;
+    private final boolean compressionEnabled;
 
-    RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders, List<Node> nodes, String pathPrefix,
-            FailureListener failureListener, NodeSelector nodeSelector, boolean strictDeprecationMode) {
+    RestClient(CloseableHttpAsyncClient client, Header[] defaultHeaders, List<Node> nodes, String pathPrefix,
+            FailureListener failureListener, NodeSelector nodeSelector, boolean strictDeprecationMode,
+            boolean compressionEnabled) {
         this.client = client;
-        this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
         this.pathPrefix = pathPrefix;
         this.nodeSelector = nodeSelector;
         this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
+        this.compressionEnabled = compressionEnabled;
         setNodes(nodes);
+    }
+
+    /**
+     * Returns a new {@link RestClientBuilder} to help with {@link RestClient} creation.
+     * Creates a new builder instance and sets the nodes that the client will send requests to.
+     *
+     * @param cloudId a valid elastic cloud cloudId that will route to a cluster. The cloudId is located in
+     *                the user console https://cloud.elastic.co and will resemble a string like the following
+     *                optionalHumanReadableName:dXMtZWFzdC0xLmF3cy5mb3VuZC5pbyRlbGFzdGljc2VhcmNoJGtpYmFuYQ==
+     */
+    public static RestClientBuilder builder(String cloudId) {
+        // there is an optional first portion of the cloudId that is a human readable string, but it is not used.
+        if (cloudId.contains(":")) {
+            if (cloudId.indexOf(":") == cloudId.length() - 1) {
+                throw new IllegalStateException("cloudId " + cloudId + " must begin with a human readable identifier followed by a colon");
+            }
+            cloudId = cloudId.substring(cloudId.indexOf(":") + 1);
+        }
+
+        String decoded = new String(Base64.getDecoder().decode(cloudId), UTF_8);
+        // once decoded the parts are separated by a $ character.
+        // they are respectively domain name and optional port, elasticsearch id, kibana id
+        String[] decodedParts = decoded.split("\\$");
+        if (decodedParts.length != 3) {
+            throw new IllegalStateException("cloudId " + cloudId + " did not decode to a cluster identifier correctly");
+        }
+
+        // domain name and optional port
+        String[] domainAndMaybePort = decodedParts[0].split(":", 2);
+        String domain = domainAndMaybePort[0];
+        int port;
+
+        if (domainAndMaybePort.length == 2) {
+            try {
+                port = Integer.parseInt(domainAndMaybePort[1]);
+            } catch (NumberFormatException nfe) {
+                throw new IllegalStateException("cloudId " + cloudId + " does not contain a valid port number");
+            }
+        } else {
+            port = 443;
+        }
+
+        String url = decodedParts[1]  + "." + domain;
+        return builder(new HttpHost(url, port, "https"));
     }
 
     /**
@@ -144,7 +196,11 @@ public class RestClient implements Closeable {
      * @see Node#Node(HttpHost)
      */
     public static RestClientBuilder builder(HttpHost... hosts) {
-        return new RestClientBuilder(hostsToNodes(hosts));
+        if (hosts == null || hosts.length == 0) {
+            throw new IllegalArgumentException("hosts must not be null nor empty");
+        }
+        List<Node> nodes = Arrays.stream(hosts).map(Node::new).collect(Collectors.toList());
+        return new RestClientBuilder(nodes);
     }
 
     /**
@@ -168,23 +224,20 @@ public class RestClient implements Closeable {
         this.blacklist.clear();
     }
 
-    private static List<Node> hostsToNodes(HttpHost[] hosts) {
-        if (hosts == null || hosts.length == 0) {
-            throw new IllegalArgumentException("hosts must not be null nor empty");
-        }
-        List<Node> nodes = new ArrayList<>(hosts.length);
-        for (HttpHost host : hosts) {
-            nodes.add(new Node(host));
-        }
-        return nodes;
-    }
-
     /**
      * Get the list of nodes that the client knows about. The list is
      * unmodifiable.
      */
     public List<Node> getNodes() {
         return nodeTuple.nodes;
+    }
+
+    /**
+     * check client running status
+     * @return client running status
+     */
+    public boolean isRunning() {
+        return client.isRunning();
     }
 
     /**
@@ -213,9 +266,76 @@ public class RestClient implements Closeable {
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
      */
     public Response performRequest(Request request) throws IOException {
-        SyncResponseListener listener = new SyncResponseListener(maxRetryTimeoutMillis);
-        performRequestAsyncNoCatch(request, listener);
-        return listener.get();
+        InternalRequest internalRequest = new InternalRequest(request);
+        return performRequest(nextNodes(), internalRequest, null);
+    }
+
+    private Response performRequest(final NodeTuple<Iterator<Node>> nodeTuple,
+                                    final InternalRequest request,
+                                    Exception previousException) throws IOException {
+        RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
+        HttpResponse httpResponse;
+        try {
+            httpResponse = client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, null).get();
+        } catch(Exception e) {
+            RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, e);
+            onFailure(context.node);
+            Exception cause = extractAndWrapCause(e);
+            addSuppressedException(previousException, cause);
+            if (nodeTuple.nodes.hasNext()) {
+                return performRequest(nodeTuple, request, cause);
+            }
+            if (cause instanceof IOException) {
+                throw (IOException) cause;
+            }
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            throw new IllegalStateException("unexpected exception type: must be either RuntimeException or IOException", cause);
+        }
+        ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node, httpResponse);
+        if (responseOrResponseException.responseException == null) {
+            return responseOrResponseException.response;
+        }
+        addSuppressedException(previousException, responseOrResponseException.responseException);
+        if (nodeTuple.nodes.hasNext()) {
+            return performRequest(nodeTuple, request, responseOrResponseException.responseException);
+        }
+        throw responseOrResponseException.responseException;
+    }
+
+    private ResponseOrResponseException convertResponse(InternalRequest request, Node node, HttpResponse httpResponse) throws IOException {
+        RequestLogger.logResponse(logger, request.httpRequest, node.getHost(), httpResponse);
+        int statusCode = httpResponse.getStatusLine().getStatusCode();
+
+        HttpEntity entity = httpResponse.getEntity();
+        if (entity != null) {
+            Header header = entity.getContentEncoding();
+            if (header != null && "gzip".equals(header.getValue())) {
+                // Decompress and cleanup response headers
+                httpResponse.setEntity(new GzipDecompressingEntity(entity));
+                httpResponse.removeHeaders(HTTP.CONTENT_ENCODING);
+                httpResponse.removeHeaders(HTTP.CONTENT_LEN);
+            }
+        }
+
+        Response response = new Response(request.httpRequest.getRequestLine(), node.getHost(), httpResponse);
+        if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
+            onResponse(node);
+            if (request.warningsHandler.warningsShouldFailRequest(response.getWarnings())) {
+                throw new WarningFailureException(response);
+            }
+            return new ResponseOrResponseException(response);
+        }
+        ResponseException responseException = new ResponseException(response);
+        if (isRetryStatus(statusCode)) {
+            //mark host dead and retry against next one
+            onFailure(node);
+            return new ResponseOrResponseException(responseException);
+        }
+        //mark host alive and don't retry, as the error should be a request problem
+        onResponse(node);
+        throw responseException;
     }
 
     /**
@@ -234,144 +354,65 @@ public class RestClient implements Closeable {
      * @param responseListener the {@link ResponseListener} to notify when the
      *      request is completed or fails
      */
-    public void performRequestAsync(Request request, ResponseListener responseListener) {
+    public Cancellable performRequestAsync(Request request, ResponseListener responseListener) {
         try {
-            performRequestAsyncNoCatch(request, responseListener);
+            FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
+            InternalRequest internalRequest = new InternalRequest(request);
+            performRequestAsync(nextNodes(), internalRequest, failureTrackingResponseListener);
+            return internalRequest.cancellable;
         } catch (Exception e) {
             responseListener.onFailure(e);
+            return Cancellable.NO_OP;
         }
     }
 
-    void performRequestAsyncNoCatch(Request request, ResponseListener listener) throws IOException {
-        Map<String, String> requestParams = new HashMap<>(request.getParameters());
-        //ignore is a special parameter supported by the clients, shouldn't be sent to es
-        String ignoreString = requestParams.remove("ignore");
-        Set<Integer> ignoreErrorCodes;
-        if (ignoreString == null) {
-            if (HttpHead.METHOD_NAME.equals(request.getMethod())) {
-                //404 never causes error if returned for a HEAD request
-                ignoreErrorCodes = Collections.singleton(404);
-            } else {
-                ignoreErrorCodes = Collections.emptySet();
-            }
-        } else {
-            String[] ignoresArray = ignoreString.split(",");
-            ignoreErrorCodes = new HashSet<>();
-            if (HttpHead.METHOD_NAME.equals(request.getMethod())) {
-                //404 never causes error if returned for a HEAD request
-                ignoreErrorCodes.add(404);
-            }
-            for (String ignoreCode : ignoresArray) {
-                try {
-                    ignoreErrorCodes.add(Integer.valueOf(ignoreCode));
-                } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("ignore value should be a number, found [" + ignoreString + "] instead", e);
-                }
-            }
-        }
-        URI uri = buildUri(pathPrefix, request.getEndpoint(), requestParams);
-        HttpRequestBase httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity());
-        setHeaders(httpRequest, request.getOptions().getHeaders());
-        FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(listener);
-        long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextNode(), httpRequest, ignoreErrorCodes,
-                request.getOptions().getWarningsHandler() == null ? warningsHandler : request.getOptions().getWarningsHandler(),
-                request.getOptions().getHttpAsyncResponseConsumerFactory(), failureTrackingResponseListener);
-    }
-
-    private void performRequestAsync(final long startTime, final NodeTuple<Iterator<Node>> nodeTuple, final HttpRequestBase request,
-                                     final Set<Integer> ignoreErrorCodes,
-                                     final WarningsHandler thisWarningsHandler,
-                                     final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
+    private void performRequestAsync(final NodeTuple<Iterator<Node>> nodeTuple,
+                                     final InternalRequest request,
                                      final FailureTrackingResponseListener listener) {
-        final Node node = nodeTuple.nodes.next();
-        //we stream the request body if the entity allows for it
-        final HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(node.getHost(), request);
-        final HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer =
-            httpAsyncResponseConsumerFactory.createHttpAsyncResponseConsumer();
-        final HttpClientContext context = HttpClientContext.create();
-        context.setAuthCache(nodeTuple.authCache);
-        client.execute(requestProducer, asyncResponseConsumer, context, new FutureCallback<HttpResponse>() {
-            @Override
-            public void completed(HttpResponse httpResponse) {
-                try {
-                    RequestLogger.logResponse(logger, request, node.getHost(), httpResponse);
-                    int statusCode = httpResponse.getStatusLine().getStatusCode();
-                    Response response = new Response(request.getRequestLine(), node.getHost(), httpResponse);
-                    if (isSuccessfulResponse(statusCode) || ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
-                        onResponse(node);
-                        if (thisWarningsHandler.warningsShouldFailRequest(response.getWarnings())) {
-                            listener.onDefinitiveFailure(new ResponseException(response));
+        request.cancellable.runIfNotCancelled(() -> {
+            final RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
+            client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, new FutureCallback<HttpResponse>() {
+                @Override
+                public void completed(HttpResponse httpResponse) {
+                    try {
+                        ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node, httpResponse);
+                        if (responseOrResponseException.responseException == null) {
+                            listener.onSuccess(responseOrResponseException.response);
                         } else {
-                            listener.onSuccess(response);
+                            if (nodeTuple.nodes.hasNext()) {
+                                listener.trackFailure(responseOrResponseException.responseException);
+                                performRequestAsync(nodeTuple, request, listener);
+                            } else {
+                                listener.onDefinitiveFailure(responseOrResponseException.responseException);
+                            }
                         }
-                    } else {
-                        ResponseException responseException = new ResponseException(response);
-                        if (isRetryStatus(statusCode)) {
-                            //mark host dead and retry against next one
-                            onFailure(node);
-                            retryIfPossible(responseException);
+                    } catch(Exception e) {
+                        listener.onDefinitiveFailure(e);
+                    }
+                }
+
+                @Override
+                public void failed(Exception failure) {
+                    try {
+                        RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, failure);
+                        onFailure(context.node);
+                        if (nodeTuple.nodes.hasNext()) {
+                            listener.trackFailure(failure);
+                            performRequestAsync(nodeTuple, request, listener);
                         } else {
-                            //mark host alive and don't retry, as the error should be a request problem
-                            onResponse(node);
-                            listener.onDefinitiveFailure(responseException);
+                            listener.onDefinitiveFailure(failure);
                         }
+                    } catch(Exception e) {
+                        listener.onDefinitiveFailure(e);
                     }
-                } catch(Exception e) {
-                    listener.onDefinitiveFailure(e);
                 }
-            }
 
-            @Override
-            public void failed(Exception failure) {
-                try {
-                    RequestLogger.logFailedRequest(logger, request, node, failure);
-                    onFailure(node);
-                    retryIfPossible(failure);
-                } catch(Exception e) {
-                    listener.onDefinitiveFailure(e);
+                @Override
+                public void cancelled() {
+                    listener.onDefinitiveFailure(Cancellable.newCancellationException());
                 }
-            }
-
-            private void retryIfPossible(Exception exception) {
-                if (nodeTuple.nodes.hasNext()) {
-                    //in case we are retrying, check whether maxRetryTimeout has been reached
-                    long timeElapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-                    long timeout = maxRetryTimeoutMillis - timeElapsedMillis;
-                    if (timeout <= 0) {
-                        IOException retryTimeoutException = new IOException(
-                                "request retries exceeded max retry timeout [" + maxRetryTimeoutMillis + "]", exception);
-                        listener.onDefinitiveFailure(retryTimeoutException);
-                    } else {
-                        listener.trackFailure(exception);
-                        request.reset();
-                        performRequestAsync(startTime, nodeTuple, request, ignoreErrorCodes,
-                                thisWarningsHandler, httpAsyncResponseConsumerFactory, listener);
-                    }
-                } else {
-                    listener.onDefinitiveFailure(exception);
-                }
-            }
-
-            @Override
-            public void cancelled() {
-                listener.onDefinitiveFailure(new ExecutionException("request was cancelled", null));
-            }
+            });
         });
-    }
-
-    private void setHeaders(HttpRequest httpRequest, Collection<Header> requestHeaders) {
-        // request headers override default headers, so we don't add default headers if they exist as request headers
-        final Set<String> requestNames = new HashSet<>(requestHeaders.size());
-        for (Header requestHeader : requestHeaders) {
-            httpRequest.addHeader(requestHeader);
-            requestNames.add(requestHeader.getName());
-        }
-        for (Header defaultHeader : defaultHeaders) {
-            if (requestNames.contains(defaultHeader.getName()) == false) {
-                httpRequest.addHeader(defaultHeader);
-            }
-        }
     }
 
     /**
@@ -383,7 +424,7 @@ public class RestClient implements Closeable {
      * that is closest to being revived.
      * @throws IOException if no nodes are available
      */
-    private NodeTuple<Iterator<Node>> nextNode() throws IOException {
+    private NodeTuple<Iterator<Node>> nextNodes() throws IOException {
         NodeTuple<List<Node>> nodeTuple = this.nodeTuple;
         Iterable<Node> hosts = selectNodes(nodeTuple, blacklist, lastNodeIndex, nodeSelector);
         return new NodeTuple<>(hosts.iterator(), nodeTuple.authCache);
@@ -398,19 +439,15 @@ public class RestClient implements Closeable {
         /*
          * Sort the nodes into living and dead lists.
          */
-        List<Node> livingNodes = new ArrayList<>(nodeTuple.nodes.size() - blacklist.size());
+        List<Node> livingNodes = new ArrayList<>(Math.max(0, nodeTuple.nodes.size() - blacklist.size()));
         List<DeadNode> deadNodes = new ArrayList<>(blacklist.size());
         for (Node node : nodeTuple.nodes) {
             DeadHostState deadness = blacklist.get(node.getHost());
-            if (deadness == null) {
+            if (deadness == null || deadness.shallBeRetried()) {
                 livingNodes.add(node);
-                continue;
+            } else {
+                deadNodes.add(new DeadNode(node, deadness));
             }
-            if (deadness.shallBeRetried()) {
-                livingNodes.add(node);
-                continue;
-            }
-            deadNodes.add(new DeadNode(node, deadness));
         }
 
         if (false == livingNodes.isEmpty()) {
@@ -448,12 +485,7 @@ public class RestClient implements Closeable {
              * to compare many things. This saves us a sort on the unfiltered
              * list.
              */
-            nodeSelector.select(new Iterable<Node>() {
-                @Override
-                public Iterator<Node> iterator() {
-                    return new DeadNodeIteratorAdapter(selectedDeadNodes.iterator());
-                }
-            });
+            nodeSelector.select(() -> new DeadNodeIteratorAdapter(selectedDeadNodes.iterator()));
             if (false == selectedDeadNodes.isEmpty()) {
                 return singletonList(Collections.min(selectedDeadNodes).node);
             }
@@ -480,7 +512,7 @@ public class RestClient implements Closeable {
     private void onFailure(Node node) {
         while(true) {
             DeadHostState previousDeadHostState =
-                blacklist.putIfAbsent(node.getHost(), new DeadHostState(TimeSupplier.DEFAULT));
+                blacklist.putIfAbsent(node.getHost(), new DeadHostState(DeadHostState.DEFAULT_TIME_SUPPLIER));
             if (previousDeadHostState == null) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("added [" + node + "] to blacklist");
@@ -517,41 +549,43 @@ public class RestClient implements Closeable {
         return false;
     }
 
-    private static Exception addSuppressedException(Exception suppressedException, Exception currentException) {
+    private static void addSuppressedException(Exception suppressedException, Exception currentException) {
         if (suppressedException != null) {
             currentException.addSuppressed(suppressedException);
         }
-        return currentException;
     }
 
-    private static HttpRequestBase createHttpRequest(String method, URI uri, HttpEntity entity) {
+    private static HttpRequestBase createHttpRequest(String method, URI uri, HttpEntity entity, boolean compressionEnabled) {
         switch(method.toUpperCase(Locale.ROOT)) {
             case HttpDeleteWithEntity.METHOD_NAME:
-                return addRequestBody(new HttpDeleteWithEntity(uri), entity);
+                return addRequestBody(new HttpDeleteWithEntity(uri), entity, compressionEnabled);
             case HttpGetWithEntity.METHOD_NAME:
-                return addRequestBody(new HttpGetWithEntity(uri), entity);
+                return addRequestBody(new HttpGetWithEntity(uri), entity, compressionEnabled);
             case HttpHead.METHOD_NAME:
-                return addRequestBody(new HttpHead(uri), entity);
+                return addRequestBody(new HttpHead(uri), entity, compressionEnabled);
             case HttpOptions.METHOD_NAME:
-                return addRequestBody(new HttpOptions(uri), entity);
+                return addRequestBody(new HttpOptions(uri), entity, compressionEnabled);
             case HttpPatch.METHOD_NAME:
-                return addRequestBody(new HttpPatch(uri), entity);
+                return addRequestBody(new HttpPatch(uri), entity, compressionEnabled);
             case HttpPost.METHOD_NAME:
                 HttpPost httpPost = new HttpPost(uri);
-                addRequestBody(httpPost, entity);
+                addRequestBody(httpPost, entity, compressionEnabled);
                 return httpPost;
             case HttpPut.METHOD_NAME:
-                return addRequestBody(new HttpPut(uri), entity);
+                return addRequestBody(new HttpPut(uri), entity, compressionEnabled);
             case HttpTrace.METHOD_NAME:
-                return addRequestBody(new HttpTrace(uri), entity);
+                return addRequestBody(new HttpTrace(uri), entity, compressionEnabled);
             default:
                 throw new UnsupportedOperationException("http method not supported: " + method);
         }
     }
 
-    private static HttpRequestBase addRequestBody(HttpRequestBase httpRequest, HttpEntity entity) {
+    private static HttpRequestBase addRequestBody(HttpRequestBase httpRequest, HttpEntity entity, boolean compressionEnabled) {
         if (entity != null) {
             if (httpRequest instanceof HttpEntityEnclosingRequestBase) {
+                if (compressionEnabled) {
+                    entity = new ContentCompressingEntity(entity);
+                }
                 ((HttpEntityEnclosingRequestBase)httpRequest).setEntity(entity);
             } else {
                 throw new UnsupportedOperationException(httpRequest.getMethod() + " with body is not supported");
@@ -618,115 +652,8 @@ public class RestClient implements Closeable {
          * Tracks an exception, which caused a retry hence we should not return yet to the caller
          */
         void trackFailure(Exception exception) {
-            this.exception = addSuppressedException(this.exception, exception);
-        }
-    }
-
-    /**
-     * Listener used in any sync performRequest calls, it waits for a response or an exception back up to a timeout
-     */
-    static class SyncResponseListener implements ResponseListener {
-        private final CountDownLatch latch = new CountDownLatch(1);
-        private final AtomicReference<Response> response = new AtomicReference<>();
-        private final AtomicReference<Exception> exception = new AtomicReference<>();
-
-        private final long timeout;
-
-        SyncResponseListener(long timeout) {
-            assert timeout > 0;
-            this.timeout = timeout;
-        }
-
-        @Override
-        public void onSuccess(Response response) {
-            Objects.requireNonNull(response, "response must not be null");
-            boolean wasResponseNull = this.response.compareAndSet(null, response);
-            if (wasResponseNull == false) {
-                throw new IllegalStateException("response is already set");
-            }
-
-            latch.countDown();
-        }
-
-        @Override
-        public void onFailure(Exception exception) {
-            Objects.requireNonNull(exception, "exception must not be null");
-            boolean wasExceptionNull = this.exception.compareAndSet(null, exception);
-            if (wasExceptionNull == false) {
-                throw new IllegalStateException("exception is already set");
-            }
-            latch.countDown();
-        }
-
-        /**
-         * Waits (up to a timeout) for some result of the request: either a response, or an exception.
-         */
-        Response get() throws IOException {
-            try {
-                //providing timeout is just a safety measure to prevent everlasting waits
-                //the different client timeouts should already do their jobs
-                if (latch.await(timeout, TimeUnit.MILLISECONDS) == false) {
-                    throw new IOException("listener timeout after waiting for [" + timeout + "] ms");
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException("thread waiting for the response was interrupted", e);
-            }
-
-            Exception exception = this.exception.get();
-            Response response = this.response.get();
-            if (exception != null) {
-                if (response != null) {
-                    IllegalStateException e = new IllegalStateException("response and exception are unexpectedly set at the same time");
-                    e.addSuppressed(exception);
-                    throw e;
-                }
-                /*
-                 * Wrap and rethrow whatever exception we received, copying the type
-                 * where possible so the synchronous API looks as much as possible
-                 * like the asynchronous API. We wrap the exception so that the caller's
-                 * signature shows up in any exception we throw.
-                 */
-                if (exception instanceof ResponseException) {
-                    throw new ResponseException((ResponseException) exception);
-                }
-                if (exception instanceof ConnectTimeoutException) {
-                    ConnectTimeoutException e = new ConnectTimeoutException(exception.getMessage());
-                    e.initCause(exception);
-                    throw e;
-                }
-                if (exception instanceof SocketTimeoutException) {
-                    SocketTimeoutException e = new SocketTimeoutException(exception.getMessage());
-                    e.initCause(exception);
-                    throw e;
-                }
-                if (exception instanceof ConnectionClosedException) {
-                    ConnectionClosedException e = new ConnectionClosedException(exception.getMessage());
-                    e.initCause(exception);
-                    throw e;
-                }
-                if (exception instanceof SSLHandshakeException) {
-                    SSLHandshakeException e = new SSLHandshakeException(exception.getMessage());
-                    e.initCause(exception);
-                    throw e;
-                }
-                if (exception instanceof ConnectException) {
-                    ConnectException e = new ConnectException(exception.getMessage());
-                    e.initCause(exception);
-                    throw e;
-                }
-                if (exception instanceof IOException) {
-                    throw new IOException(exception.getMessage(), exception);
-                }
-                if (exception instanceof RuntimeException){
-                    throw new RuntimeException(exception.getMessage(), exception);
-                }
-                throw new RuntimeException("error while performing request", exception);
-            }
-
-            if (response == null) {
-                throw new IllegalStateException("response not set and no exception caught either");
-            }
-            return response;
+            addSuppressedException(this.exception, exception);
+            this.exception = exception;
         }
     }
 
@@ -803,6 +730,200 @@ public class RestClient implements Closeable {
         @Override
         public void remove() {
             itr.remove();
+        }
+    }
+
+    private class InternalRequest {
+        private final Request request;
+        private final Set<Integer> ignoreErrorCodes;
+        private final HttpRequestBase httpRequest;
+        private final Cancellable cancellable;
+        private final WarningsHandler warningsHandler;
+
+        InternalRequest(Request request) {
+            this.request = request;
+            Map<String, String> params = new HashMap<>(request.getParameters());
+            params.putAll(request.getOptions().getParameters());
+            //ignore is a special parameter supported by the clients, shouldn't be sent to es
+            String ignoreString = params.remove("ignore");
+            this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
+            URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
+            this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity(), compressionEnabled);
+            this.cancellable = Cancellable.fromRequest(httpRequest);
+            setHeaders(httpRequest, request.getOptions().getHeaders());
+            setRequestConfig(httpRequest, request.getOptions().getRequestConfig());
+            this.warningsHandler = request.getOptions().getWarningsHandler() == null ?
+                RestClient.this.warningsHandler : request.getOptions().getWarningsHandler();
+        }
+
+        private void setHeaders(HttpRequest httpRequest, Collection<Header> requestHeaders) {
+            // request headers override default headers, so we don't add default headers if they exist as request headers
+            final Set<String> requestNames = new HashSet<>(requestHeaders.size());
+            for (Header requestHeader : requestHeaders) {
+                httpRequest.addHeader(requestHeader);
+                requestNames.add(requestHeader.getName());
+            }
+            for (Header defaultHeader : defaultHeaders) {
+                if (requestNames.contains(defaultHeader.getName()) == false) {
+                    httpRequest.addHeader(defaultHeader);
+                }
+            }
+            if (compressionEnabled) {
+                httpRequest.addHeader("Accept-Encoding", "gzip");
+            }
+        }
+
+        private void setRequestConfig(HttpRequestBase httpRequest, RequestConfig requestConfig) {
+            if (requestConfig != null) {
+                httpRequest.setConfig(requestConfig);
+            }
+        }
+
+        RequestContext createContextForNextAttempt(Node node, AuthCache authCache) {
+            this.httpRequest.reset();
+            return new RequestContext(this, node, authCache);
+        }
+    }
+
+    private static class RequestContext {
+        private final Node node;
+        private final HttpAsyncRequestProducer requestProducer;
+        private final HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer;
+        private final HttpClientContext context;
+
+        RequestContext(InternalRequest request, Node node, AuthCache authCache) {
+            this.node = node;
+            //we stream the request body if the entity allows for it
+            this.requestProducer = HttpAsyncMethods.create(node.getHost(), request.httpRequest);
+            this.asyncResponseConsumer =
+                request.request.getOptions().getHttpAsyncResponseConsumerFactory().createHttpAsyncResponseConsumer();
+            this.context = HttpClientContext.create();
+            context.setAuthCache(authCache);
+        }
+    }
+
+    private static Set<Integer> getIgnoreErrorCodes(String ignoreString, String requestMethod) {
+        Set<Integer> ignoreErrorCodes;
+        if (ignoreString == null) {
+            if (HttpHead.METHOD_NAME.equals(requestMethod)) {
+                //404 never causes error if returned for a HEAD request
+                ignoreErrorCodes = Collections.singleton(404);
+            } else {
+                ignoreErrorCodes = Collections.emptySet();
+            }
+        } else {
+            String[] ignoresArray = ignoreString.split(",");
+            ignoreErrorCodes = new HashSet<>();
+            if (HttpHead.METHOD_NAME.equals(requestMethod)) {
+                //404 never causes error if returned for a HEAD request
+                ignoreErrorCodes.add(404);
+            }
+            for (String ignoreCode : ignoresArray) {
+                try {
+                    ignoreErrorCodes.add(Integer.valueOf(ignoreCode));
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("ignore value should be a number, found [" + ignoreString + "] instead", e);
+                }
+            }
+        }
+        return ignoreErrorCodes;
+    }
+
+    private static class ResponseOrResponseException {
+        private final Response response;
+        private final ResponseException responseException;
+
+        ResponseOrResponseException(Response response) {
+            this.response = Objects.requireNonNull(response);
+            this.responseException = null;
+        }
+
+        ResponseOrResponseException(ResponseException responseException) {
+            this.responseException = Objects.requireNonNull(responseException);
+            this.response = null;
+        }
+    }
+
+    /**
+     * Wrap the exception so the caller's signature shows up in the stack trace, taking care to copy the original type and message
+     * where possible so async and sync code don't have to check different exceptions.
+     */
+    private static Exception extractAndWrapCause(Exception exception) {
+        if (exception instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("thread waiting for the response was interrupted", exception);
+        }
+        if (exception instanceof ExecutionException) {
+            ExecutionException executionException = (ExecutionException)exception;
+            Throwable t = executionException.getCause() == null ? executionException : executionException.getCause();
+            if (t instanceof Error) {
+                throw (Error)t;
+            }
+            exception = (Exception)t;
+        }
+        if (exception instanceof ConnectTimeoutException) {
+            ConnectTimeoutException e = new ConnectTimeoutException(exception.getMessage());
+            e.initCause(exception);
+            return e;
+        }
+        if (exception instanceof SocketTimeoutException) {
+            SocketTimeoutException e = new SocketTimeoutException(exception.getMessage());
+            e.initCause(exception);
+            return e;
+        }
+        if (exception instanceof ConnectionClosedException) {
+            ConnectionClosedException e = new ConnectionClosedException(exception.getMessage());
+            e.initCause(exception);
+            return e;
+        }
+        if (exception instanceof SSLHandshakeException) {
+            SSLHandshakeException e = new SSLHandshakeException(exception.getMessage());
+            e.initCause(exception);
+            return e;
+        }
+        if (exception instanceof ConnectException) {
+            ConnectException e = new ConnectException(exception.getMessage());
+            e.initCause(exception);
+            return e;
+        }
+        if (exception instanceof IOException) {
+            return new IOException(exception.getMessage(), exception);
+        }
+        if (exception instanceof RuntimeException){
+            return new RuntimeException(exception.getMessage(), exception);
+        }
+        return new RuntimeException("error while performing request", exception);
+    }
+
+    /**
+     * A gzip compressing entity that also implements {@code getContent()}.
+     */
+    public static class ContentCompressingEntity extends GzipCompressingEntity {
+
+        public ContentCompressingEntity(HttpEntity entity) {
+            super(entity);
+        }
+
+        @Override
+        public InputStream getContent() throws IOException {
+            ByteArrayInputOutputStream out = new ByteArrayInputOutputStream(1024);
+            try (GZIPOutputStream gzipOut = new GZIPOutputStream(out)) {
+                wrappedEntity.writeTo(gzipOut);
+            }
+            return out.asInput();
+        }
+    }
+
+    /**
+     * A ByteArrayOutputStream that can be turned into an input stream without copying the underlying buffer.
+     */
+    private static class ByteArrayInputOutputStream extends ByteArrayOutputStream {
+        ByteArrayInputOutputStream(int size) {
+            super(size);
+        }
+
+        public InputStream asInput() {
+            return new ByteArrayInputStream(this.buf, 0, this.count);
         }
     }
 }

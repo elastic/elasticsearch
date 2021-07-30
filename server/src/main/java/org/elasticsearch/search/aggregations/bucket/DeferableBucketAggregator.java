@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -22,73 +11,77 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 public abstract class DeferableBucketAggregator extends BucketsAggregator {
+    /**
+     * Wrapper that records collections. Non-null if any aggregations have
+     * been deferred.
+     */
+    private DeferringBucketCollector deferringCollector;
+    private List<String> deferredAggregationNames;
 
-    private DeferringBucketCollector recordingWrapper;
-
-    protected DeferableBucketAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+    protected DeferableBucketAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
+            Map<String, Object> metadata) throws IOException {
+        // Assumes that we're collecting MANY buckets.
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
     }
 
     @Override
     protected void doPreCollection() throws IOException {
-        List<BucketCollector> collectors = new ArrayList<>();
-        List<BucketCollector> deferredCollectors = new ArrayList<>();
+        List<BucketCollector> collectors = new ArrayList<>(subAggregators.length);
+        List<BucketCollector> deferredAggregations = null;
         for (int i = 0; i < subAggregators.length; ++i) {
             if (shouldDefer(subAggregators[i])) {
-                if (recordingWrapper == null) {
-                    recordingWrapper = getDeferringCollector();
+                if (deferringCollector == null) {
+                    deferringCollector = buildDeferringCollector();
+                    deferredAggregations = new ArrayList<>(subAggregators.length);
+                    deferredAggregationNames = new ArrayList<>(subAggregators.length);
                 }
-                deferredCollectors.add(subAggregators[i]);
-                subAggregators[i] = recordingWrapper.wrap(subAggregators[i]);
+                deferredAggregations.add(subAggregators[i]);
+                deferredAggregationNames.add(subAggregators[i].name());
+                subAggregators[i] = deferringCollector.wrap(subAggregators[i]);
             } else {
                 collectors.add(subAggregators[i]);
             }
         }
-        if (recordingWrapper != null) {
-            recordingWrapper.setDeferredCollector(deferredCollectors);
-            collectors.add(recordingWrapper);
+        if (deferringCollector != null) {
+            deferringCollector.setDeferredCollector(deferredAggregations);
+            collectors.add(deferringCollector);
         }
-        collectableSubAggregators = MultiBucketCollector.wrap(collectors);
+        collectableSubAggregators = MultiBucketCollector.wrap(false, collectors);
     }
 
-    public static boolean descendsFromGlobalAggregator(Aggregator parent) {
-        while (parent != null) {
-            if (parent.getClass() == GlobalAggregator.class) {
-                return true;
-            }
-            parent = parent.parent();
-        }
-        return false;
+    /**
+     * Get the deferring collector.
+     */
+    protected DeferringBucketCollector deferringCollector() {
+        return deferringCollector;
     }
 
-    public DeferringBucketCollector getDeferringCollector() {
-        // Default impl is a collector that selects the best buckets
-        // but an alternative defer policy may be based on best docs.
-        return new BestBucketsDeferringCollector(context(), descendsFromGlobalAggregator(parent()));
+    /**
+     * Build the {@link DeferringBucketCollector}. The default implementation
+     * replays all hits against the buckets selected by
+     * {#link {@link DeferringBucketCollector#prepareSelectedBuckets(long...)}.
+     */
+    protected DeferringBucketCollector buildDeferringCollector() {
+        return new BestBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
     }
 
     /**
      * This method should be overridden by subclasses that want to defer
      * calculation of a child aggregation until a first pass is complete and a
-     * set of buckets has been pruned. Deferring collection will require the
-     * recording of all doc/bucketIds from the first pass and then the sub class
-     * should call {@link #runDeferredCollections(long...)} for the selected set
-     * of buckets that survive the pruning.
+     * set of buckets has been pruned.
      *
-     * @param aggregator
-     *            the child aggregator
+     * @param aggregator the child aggregator
      * @return true if the aggregator should be deferred until a first pass at
      *         collection has completed
      */
@@ -96,12 +89,18 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
         return false;
     }
 
-    protected final void runDeferredCollections(long... bucketOrds) throws IOException {
-        // Being lenient here - ignore calls where there are no deferred
-        // collections to playback
-        if (recordingWrapper != null) {
-            recordingWrapper.replay(bucketOrds);
+    @Override
+    protected final void prepareSubAggs(long[] bucketOrdsToCollect) throws IOException {
+        if (deferringCollector != null) {
+            deferringCollector.prepareSelectedBuckets(bucketOrdsToCollect);
         }
     }
 
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        if (deferredAggregationNames != null) {
+            add.accept("deferred_aggregators", deferredAggregationNames);
+        }
+        super.collectDebugInfo(add);
+    }
 }

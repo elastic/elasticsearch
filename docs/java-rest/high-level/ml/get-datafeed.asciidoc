@@ -3,35 +3,40 @@
 :request: GetDatafeedRequest
 :response: GetDatafeedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Get Datafeed API
+=== Get datafeeds API
 
-The Get Datafeed API provides the ability to get {ml} datafeeds in the cluster.
-It accepts a +{request}+ object and responds
-with a +{response}+ object.
+Retrieves configuration information about {ml} datafeeds in the cluster.
+It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Get Datafeed Request
+==== Get datafeeds request
 
-A +{request}+ object gets can have any number of `datafeedId` entries.
-However, they all must be non-null. An empty list is the same as requesting for all datafeeds.
+A +{request}+ object gets can have any number of `datafeedId` entries. However,
+they all must be non-null. An empty list is the same as requesting for all
+datafeeds.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Constructing a new request referencing existing `datafeedIds`, can contain wildcards
+<1> Constructing a new request referencing existing `datafeedIds`. It can
+contain wildcards.
 <2> Whether to ignore if a wildcard expression matches no datafeeds.
- (This includes `_all` string or when no datafeeds have been specified)
+ (This includes `_all` string or when no datafeeds have been specified).
+<3> Optional boolean value for requesting the datafeed in a format that can
+then be put into another cluster. Certain fields that can only be set when
+the datafeed is created are removed.
 
 [id="{upid}-{api}-response"]
-==== Get Datafeed Response
+==== Get datafeeds response
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The count of retrieved datafeeds
-<2> The retrieved datafeeds
+<1> The count of retrieved datafeeds.
+<2> The retrieved datafeeds.
 
 include::../execution.asciidoc[]

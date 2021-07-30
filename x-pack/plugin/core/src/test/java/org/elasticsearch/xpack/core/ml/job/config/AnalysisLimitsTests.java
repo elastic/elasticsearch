@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -21,6 +22,8 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLimits> {
 
@@ -49,7 +52,8 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
-        assertThat(ExceptionsHelper.detailedMessage(e), containsString("model_memory_limit must be at least 1 MiB. Value = -1"));
+        assertThat(e.getCause(), notNullValue());
+        assertThat(e.getCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = -1"));
     }
 
     public void testParseModelMemoryLimitGivenZero() throws IOException {
@@ -57,7 +61,8 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
-        assertThat(ExceptionsHelper.detailedMessage(e), containsString("model_memory_limit must be at least 1 MiB. Value = 0"));
+        assertThat(e.getCause(), notNullValue());
+        assertThat(e.getCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = 0"));
     }
 
     public void testParseModelMemoryLimitGivenPositiveNumber() throws IOException {
@@ -75,7 +80,10 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
-        assertThat(ExceptionsHelper.detailedMessage(e), containsString("Values less than -1 bytes are not supported: -4mb"));
+        // the root cause is wrapped in an intermediate ElasticsearchParseException
+        assertThat(e.getCause(), instanceOf(ElasticsearchParseException.class));
+        assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getCause().getMessage(), containsString("Values less than -1 bytes are not supported: -4mb"));
     }
 
     public void testParseModelMemoryLimitGivenZeroString() throws IOException {
@@ -83,7 +91,8 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
-        assertThat(ExceptionsHelper.detailedMessage(e), containsString("model_memory_limit must be at least 1 MiB. Value = 0"));
+        assertThat(e.getCause(), notNullValue());
+        assertThat(e.getCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = 0"));
     }
 
     public void testParseModelMemoryLimitGivenLessThanOneMBString() throws IOException {
@@ -91,7 +100,8 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
-        assertThat(ExceptionsHelper.detailedMessage(e), containsString("model_memory_limit must be at least 1 MiB. Value = 0"));
+        assertThat(e.getCause(), notNullValue());
+        assertThat(e.getCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = 0"));
     }
 
     public void testParseModelMemoryLimitGivenStringMultipleOfMBs() throws IOException {
@@ -167,6 +177,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         new AnalysisLimits(1L, 1L);
     }
 
+    @Override
     protected AnalysisLimits mutateInstance(AnalysisLimits instance) throws IOException {
         Long memoryModelLimit = instance.getModelMemoryLimit();
         Long categorizationExamplesLimit = instance.getCategorizationExamplesLimit();
@@ -197,5 +208,5 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
             throw new AssertionError("Illegal randomisation branch");
         }
         return new AnalysisLimits(memoryModelLimit, categorizationExamplesLimit);
-    };
+    }
 }

@@ -1,74 +1,67 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.profile;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This class is the internal representation of a profiled Query, corresponding
  * to a single node in the query tree.  It is built after the query has finished executing
  * and is merely a structured representation, rather than the entity that collects the timing
  * profile (see InternalProfiler for that)
- *
+ * <p>
  * Each InternalProfileResult has a List of InternalProfileResults, which will contain
  * "children" queries if applicable
  */
 public final class ProfileResult implements Writeable, ToXContentObject {
-
     static final ParseField TYPE = new ParseField("type");
     static final ParseField DESCRIPTION = new ParseField("description");
+    static final ParseField BREAKDOWN = new ParseField("breakdown");
+    static final ParseField DEBUG = new ParseField("debug");
     static final ParseField NODE_TIME = new ParseField("time");
     static final ParseField NODE_TIME_RAW = new ParseField("time_in_nanos");
     static final ParseField CHILDREN = new ParseField("children");
-    static final ParseField BREAKDOWN = new ParseField("breakdown");
 
     private final String type;
     private final String description;
-    private final Map<String, Long> timings;
+    private final Map<String, Long> breakdown;
+    private final Map<String, Object> debug;
     private final long nodeTime;
     private final List<ProfileResult> children;
 
-    public ProfileResult(String type, String description, Map<String, Long> timings, List<ProfileResult> children) {
+    public ProfileResult(String type, String description, Map<String, Long> breakdown, Map<String, Object> debug,
+            long nodeTime, List<ProfileResult> children) {
         this.type = type;
         this.description = description;
-        this.timings = Objects.requireNonNull(timings, "required timings argument missing");
-        this.children = children;
-        this.nodeTime = getTotalTime(timings);
+        this.breakdown = Objects.requireNonNull(breakdown, "required breakdown argument missing");
+        this.debug = debug == null ? Map.of() : debug;
+        this.children = children == null ? List.of() : children;
+        this.nodeTime = nodeTime;
     }
 
     /**
@@ -78,19 +71,13 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         this.type = in.readString();
         this.description = in.readString();
         this.nodeTime = in.readLong();
-
-        int timingsSize = in.readVInt();
-        this.timings = new HashMap<>(timingsSize);
-        for (int i = 0; i < timingsSize; ++i) {
-            timings.put(in.readString(), in.readLong());
+        breakdown = in.readMap(StreamInput::readString, StreamInput::readLong);
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            debug = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
+        } else {
+            debug = Map.of();
         }
-
-        int size = in.readVInt();
-        this.children = new ArrayList<>(size);
-
-        for (int i = 0; i < size; i++) {
-            children.add(new ProfileResult(in));
-        }
+        children = in.readList(ProfileResult::new);
     }
 
     @Override
@@ -98,15 +85,11 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         out.writeString(type);
         out.writeString(description);
         out.writeLong(nodeTime);            // not Vlong because can be negative
-        out.writeVInt(timings.size());
-        for (Map.Entry<String, Long> entry : timings.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeLong(entry.getValue());
+        out.writeMap(breakdown, StreamOutput::writeString, StreamOutput::writeLong);
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeMap(debug, StreamOutput::writeString, StreamOutput::writeGenericValue);
         }
-        out.writeVInt(children.size());
-        for (ProfileResult child : children) {
-            child.writeTo(out);
-        }
+        out.writeList(children);
     }
 
     /**
@@ -117,17 +100,24 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     }
 
     /**
-     * Retrieve the name of the query (e.g. "TermQuery")
+     * Retrieve the name of the entry (e.g. "TermQuery" or "LongTermsAggregator")
      */
     public String getQueryName() {
         return type;
     }
 
     /**
-     * Returns the timing breakdown for this particular query node
+     * The timing breakdown for this node.
      */
     public Map<String, Long> getTimeBreakdown() {
-        return Collections.unmodifiableMap(timings);
+        return Collections.unmodifiableMap(breakdown);
+    }
+
+    /**
+     * The debug information about the profiled execution.
+     */
+    public Map<String, Object> getDebugInfo() {
+        return Collections.unmodifiableMap(debug);
     }
 
     /**
@@ -155,79 +145,35 @@ public final class ProfileResult implements Writeable, ToXContentObject {
             builder.field(NODE_TIME.getPreferredName(), new TimeValue(getTime(), TimeUnit.NANOSECONDS).toString());
         }
         builder.field(NODE_TIME_RAW.getPreferredName(), getTime());
-        builder.field(BREAKDOWN.getPreferredName(), timings);
+        builder.field(BREAKDOWN.getPreferredName(), breakdown);
+        if (false == debug.isEmpty()) {
+            builder.field(DEBUG.getPreferredName(), debug);
+        }
 
-        if (!children.isEmpty()) {
-            builder = builder.startArray(CHILDREN.getPreferredName());
+        if (false == children.isEmpty()) {
+            builder.startArray(CHILDREN.getPreferredName());
             for (ProfileResult child : children) {
                 builder = child.toXContent(builder, params);
             }
-            builder = builder.endArray();
+            builder.endArray();
         }
 
-        builder = builder.endObject();
-        return builder;
+        return builder.endObject();
     }
 
-    public static ProfileResult fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
-        String currentFieldName = null;
-        String type = null, description = null;
-        Map<String, Long> timings =  new HashMap<>();
-        List<ProfileResult> children = new ArrayList<>();
-        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    type = parser.text();
-                } else if (DESCRIPTION.match(currentFieldName, parser.getDeprecationHandler())) {
-                    description = parser.text();
-                } else if (NODE_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
-                    // skip, total time is calculate by adding up 'timings' values in ProfileResult ctor
-                    parser.text();
-                } else if (NODE_TIME_RAW.match(currentFieldName, parser.getDeprecationHandler())) {
-                    // skip, total time is calculate by adding up 'timings' values in ProfileResult ctor
-                    parser.longValue();
-                } else {
-                    parser.skipChildren();
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (BREAKDOWN.match(currentFieldName, parser.getDeprecationHandler())) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-                        String name = parser.currentName();
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, parser.nextToken(), parser::getTokenLocation);
-                        long value = parser.longValue();
-                        timings.put(name, value);
-                    }
-                } else {
-                    parser.skipChildren();
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if (CHILDREN.match(currentFieldName, parser.getDeprecationHandler())) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        children.add(ProfileResult.fromXContent(parser));
-                    }
-                } else {
-                    parser.skipChildren();
-                }
-            }
-        }
-        return new ProfileResult(type, description, timings, children);
+    private static final InstantiatingObjectParser<ProfileResult, Void> PARSER;
+    static {
+        InstantiatingObjectParser.Builder<ProfileResult, Void> parser =
+                InstantiatingObjectParser.builder("profile_result", true, ProfileResult.class);
+        parser.declareString(constructorArg(), TYPE);
+        parser.declareString(constructorArg(), DESCRIPTION);
+        parser.declareObject(constructorArg(), (p, c) -> p.map(), BREAKDOWN);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), DEBUG);
+        parser.declareLong(constructorArg(), NODE_TIME_RAW);
+        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> fromXContent(p), CHILDREN);
+        PARSER = parser.build();
     }
-
-    /**
-     * @param timings a map of breakdown timing for the node
-     * @return The total time at this node
-     */
-    private static long getTotalTime(Map<String, Long> timings) {
-        long nodeTime = 0;
-        for (long time : timings.values()) {
-            nodeTime += time;
-        }
-        return nodeTime;
+    public static ProfileResult fromXContent(XContentParser p) throws IOException {
+        return PARSER.parse(p, null);
     }
-
 }

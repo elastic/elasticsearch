@@ -1,38 +1,32 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
+import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -47,18 +41,25 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
  * clients against against an elasticsearch cluster.
+ *
+ * The suite timeout is extended to account for projects with a large number of tests.
  */
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     /**
@@ -81,8 +82,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     private static final String REST_TESTS_VALIDATE_SPEC = "tests.rest.validate_spec";
 
-    private static final String TESTS_PATH = "/rest-api-spec/test";
-    private static final String SPEC_PATH = "/rest-api-spec/api";
+    private static final String TESTS_PATH = "rest-api-spec/test";
+    private static final String SPEC_PATH = "rest-api-spec/api";
 
     /**
      * This separator pattern matches ',' except it is preceded by a '\'.
@@ -124,10 +125,18 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
             final Version esVersion = versionVersionTuple.v1();
             final Version masterVersion = versionVersionTuple.v2();
-            logger.info("initializing client, minimum es version [{}], master version, [{}], hosts {}", esVersion, masterVersion, hosts);
-            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
-            restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
-            adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
+            final String os = readOsFromNodesInfo(adminClient());
+
+            logger.info(
+                "initializing client, minimum es version [{}], master version, [{}], hosts {}, os [{}]",
+                esVersion,
+                masterVersion,
+                hosts,
+                os
+            );
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion, os);
+            restTestExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, randomizeContentType());
+            adminExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, false);
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
             for (final String entry : blacklist) {
@@ -153,8 +162,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             final RestClient restClient,
             final List<HttpHost> hosts,
             final Version esVersion,
-            final Version masterVersion) {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
+            final Version masterVersion,
+            final String os) {
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, os, this::getClientBuilderWithSniffedHosts);
     }
 
     @AfterClass
@@ -230,21 +240,23 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     // pkg private for tests
     static Map<String, Set<Path>> loadSuites(String... paths) throws Exception {
         Map<String, Set<Path>> files = new HashMap<>();
-        Path root = PathUtils.get(ESClientYamlSuiteTestCase.class.getResource(TESTS_PATH).toURI());
-        for (String strPath : paths) {
-            Path path = root.resolve(strPath);
-            if (Files.isDirectory(path)) {
-                Files.walk(path).forEach(file -> {
-                    if (file.toString().endsWith(".yml")) {
-                        addSuite(root, file, files);
-                    } else if (file.toString().endsWith(".yaml")) {
-                        throw new IllegalArgumentException("yaml files are no longer supported: " + file);
-                    }
-                });
-            } else {
-                path = root.resolve(strPath + ".yml");
-                assert Files.exists(path);
-                addSuite(root, path, files);
+        Path[] roots = ClasspathUtils.findFilePaths(ESClientYamlSuiteTestCase.class.getClassLoader(), TESTS_PATH);
+        for (Path root : roots) {
+            for (String strPath : paths) {
+                Path path = root.resolve(strPath);
+                if (Files.isDirectory(path)) {
+                    Files.walk(path).forEach(file -> {
+                        if (file.toString().endsWith(".yml")) {
+                            addSuite(root, file, files);
+                        } else if (file.toString().endsWith(".yaml")) {
+                            throw new IllegalArgumentException("yaml files are no longer supported: " + file);
+                        }
+                    });
+                } else {
+                    path = root.resolve(strPath + ".yml");
+                    assert Files.exists(path);
+                    addSuite(root, path, files);
+                }
             }
         }
         return files;
@@ -263,7 +275,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
         String property = System.getProperty(propertyName);
-        if (!Strings.hasLength(property)) {
+        if (Strings.hasLength(property) == false) {
             return defaultValue == null ? Strings.EMPTY_ARRAY : new String[]{defaultValue};
         } else {
             return property.split(PATHS_SEPARATOR);
@@ -279,9 +291,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (validateSpec) {
             StringBuilder errorMessage = new StringBuilder();
             for (ClientYamlSuiteRestApi restApi : restSpec.getApis()) {
-                if (restApi.getMethods().contains("GET") && restApi.isBodySupported()) {
-                    if (!restApi.getMethods().contains("POST")) {
-                        errorMessage.append("\n- ").append(restApi.getName()).append(" supports GET with a body but doesn't support POST");
+                if (restApi.isBodySupported()) {
+                    for (ClientYamlSuiteRestApi.Path path : restApi.getPaths()) {
+                        List<String> methodsList = Arrays.asList(path.getMethods());
+                        if (methodsList.contains("GET") && restApi.isBodySupported()) {
+                            if (methodsList.contains("POST") == false) {
+                                errorMessage.append("\n- ").append(restApi.getName())
+                                    .append(" supports GET with a body but doesn't support POST");
+                            }
+                        }
                     }
                 }
             }
@@ -291,10 +309,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
-    private static Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
+    private Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
         // we simply go to the _cat/nodes API and parse all versions in the cluster
-        Request request = new Request("GET", "/_cat/nodes");
+        final Request request = new Request("GET", "/_cat/nodes");
         request.addParameter("h", "version,master");
+        request.setOptions(getCatNodesVersionMasterRequestOptions());
         Response response = restClient.performRequest(request);
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
         String nodesCatResponse = restTestResponse.getBodyAsString();
@@ -319,24 +338,36 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return new Tuple<>(version, masterVersion);
     }
 
-    private static Version readVersionsFromInfo(RestClient restClient, int numHosts) throws IOException {
-        Version version = null;
-        for (int i = 0; i < numHosts; i++) {
-            //we don't really use the urls here, we rely on the client doing round-robin to touch all the nodes in the cluster
-            Response response = restClient.performRequest(new Request("GET", "/"));
-            ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
-            Object latestVersion = restTestResponse.evaluate("version.number");
-            if (latestVersion == null) {
-                throw new RuntimeException("elasticsearch version not found in the response");
-            }
-            final Version currentVersion = Version.fromString(latestVersion.toString());
-            if (version == null) {
-                version = currentVersion;
-            } else if (version.onOrAfter(currentVersion)) {
-                version = currentVersion;
-            }
+    private String readOsFromNodesInfo(RestClient restClient) throws IOException {
+        final Request request = new Request("GET", "/_nodes/os");
+        Response response = restClient.performRequest(request);
+        ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
+        SortedSet<String> osPrettyNames = new TreeSet<>();
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> nodes = (Map<String, Object>) restTestResponse.evaluate("nodes");
+
+        for (Entry<String, Object> node : nodes.entrySet()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> nodeInfo = (Map<String, Object>) node.getValue();
+
+            osPrettyNames.add((String) XContentMapValues.extractValue("os.pretty_name", nodeInfo));
         }
-        return version;
+
+        assert osPrettyNames.isEmpty() == false : "no os found";
+
+        // Although in theory there should only be one element as all nodes are running on the same machine,
+        // in reality there can be two in mixed version clusters if different Java versions report the OS
+        // name differently. This has been observed to happen on Windows, where Java needs to be updated to
+        // recognize new Windows versions, and until this update has been done the newest version of Windows
+        // is reported as the previous one. In this case taking the last alphabetically is likely to be most
+        // accurate, for example if "Windows Server 2016" and "Windows Server 2019" are reported by different
+        // Java versions then Windows Server 2019 is likely to be correct.
+        return osPrettyNames.last();
+    }
+
+    protected RequestOptions getCatNodesVersionMasterRequestOptions() {
+        return RequestOptions.DEFAULT;
     }
 
     public void test() throws IOException {
@@ -356,6 +387,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         //skip test if test section is disabled
         assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
             testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        //skip test if os is excluded
+        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.os()));
 
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
@@ -366,10 +400,20 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
             final Request request = new Request("PUT", "/_template/global");
             request.setJsonEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}");
+            // Because this has not yet transitioned to a composable template, it's possible that
+            // this can overlap an installed composable template since this is a global (*)
+            // template. In order to avoid this failing the test, we override the warnings handler
+            // to be permissive in this case. This can be removed once all tests use composable
+            // templates instead of legacy templates
+            RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+            builder.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            request.setOptions(builder.build());
             adminClient().performRequest(request);
         }
+        assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
+            inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140"));
 
-        if (!testCandidate.getSetupSection().isEmpty()) {
+        if (testCandidate.getSetupSection().isEmpty() == false) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
             for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
                 executeSection(executableSection);

@@ -1,18 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,31 +28,27 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.Response> {
+public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAction.Response> {
 
     public static final RevertModelSnapshotAction INSTANCE = new RevertModelSnapshotAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/revert";
 
     private RevertModelSnapshotAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
         public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
         public static final ParseField DELETE_INTERVENING = new ParseField("delete_intervening_results");
+        private static final ParseField FORCE = new ParseField("force");
 
-        private static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
-
+        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
             PARSER.declareString((request, snapshotId) -> request.snapshotId = snapshotId, SNAPSHOT_ID);
             PARSER.declareBoolean(Request::setDeleteInterveningResults, DELETE_INTERVENING);
+            PARSER.declareBoolean(Request::setForce, FORCE);
         }
 
         public static Request parseRequest(String jobId, String snapshotId, XContentParser parser) {
@@ -70,8 +65,21 @@ public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.
         private String jobId;
         private String snapshotId;
         private boolean deleteInterveningResults;
+        private boolean force;
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            snapshotId = in.readString();
+            deleteInterveningResults = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+                force = in.readBoolean();
+            } else {
+                force = false;
+            }
         }
 
         public Request(String jobId, String snapshotId) {
@@ -95,17 +103,17 @@ public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.
             this.deleteInterveningResults = deleteInterveningResults;
         }
 
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
+        public boolean isForce() {
+            return force;
+        }
+
+        public void setForce(boolean force) {
+            this.force = force;
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            snapshotId = in.readString();
-            deleteInterveningResults = in.readBoolean();
+        public ActionRequestValidationException validate() {
+            return null;
         }
 
         @Override
@@ -114,6 +122,9 @@ public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.
             out.writeString(jobId);
             out.writeString(snapshotId);
             out.writeBoolean(deleteInterveningResults);
+            if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+                out.writeBoolean(force);
+            }
         }
 
         @Override
@@ -122,13 +133,14 @@ public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.
             builder.field(Job.ID.getPreferredName(), jobId);
             builder.field(SNAPSHOT_ID.getPreferredName(), snapshotId);
             builder.field(DELETE_INTERVENING.getPreferredName(), deleteInterveningResults);
+            builder.field(FORCE.getPreferredName(), force);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, snapshotId, deleteInterveningResults);
+            return Objects.hash(jobId, snapshotId, deleteInterveningResults, force);
         }
 
         @Override
@@ -140,15 +152,10 @@ public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(snapshotId, other.snapshotId)
-                    && Objects.equals(deleteInterveningResults, other.deleteInterveningResults);
-        }
-    }
-
-    static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
+            return Objects.equals(jobId, other.jobId)
+                    && Objects.equals(snapshotId, other.snapshotId)
+                    && Objects.equals(deleteInterveningResults, other.deleteInterveningResults)
+                    && force == other.force;
         }
     }
 
@@ -157,9 +164,11 @@ public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.
         private static final ParseField MODEL = new ParseField("model");
         private ModelSnapshot model;
 
-        public Response() {
-
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            model = new ModelSnapshot(in);
         }
+
 
         public Response(ModelSnapshot modelSnapshot) {
             model = modelSnapshot;
@@ -170,22 +179,7 @@ public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            if (in.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag was removed
-                in.readBoolean();
-            }
-            model = new ModelSnapshot(in);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            if (out.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag is no longer supported
-                out.writeBoolean(true);
-            }
             model.writeTo(out);
         }
 

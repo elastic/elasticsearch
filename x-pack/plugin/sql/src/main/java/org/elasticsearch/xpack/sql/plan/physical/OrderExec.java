@@ -1,23 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
+import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+
 import java.util.List;
 import java.util.Objects;
-
-import org.elasticsearch.xpack.sql.expression.Order;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class OrderExec extends UnaryExec implements Unexecutable {
 
     private final List<Order> order;
 
-    public OrderExec(Location location, PhysicalPlan child, List<Order> order) {
-        super(location, child);
+    public OrderExec(Source source, PhysicalPlan child, List<Order> order) {
+        super(source, child);
         this.order = order;
     }
 
@@ -28,7 +29,7 @@ public class OrderExec extends UnaryExec implements Unexecutable {
 
     @Override
     protected OrderExec replaceChild(PhysicalPlan newChild) {
-        return new OrderExec(location(), newChild, order);
+        return new OrderExec(source(), newChild, order);
     }
 
     public List<Order> order() {

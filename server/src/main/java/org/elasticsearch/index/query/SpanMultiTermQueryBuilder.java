@@ -1,48 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.TermStates;
 import org.apache.lucene.queries.SpanMatchNoDocsQuery;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
-import org.apache.lucene.search.ScoringRewrite;
 import org.apache.lucene.search.TopTermsRewrite;
-import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -50,8 +27,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -138,126 +113,58 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         return new SpanMultiTermQueryBuilder(subQuery).queryName(queryName).boost(boost);
     }
 
-    static class TopTermSpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrapper.SpanRewriteMethod {
-        private final long maxExpansions;
-
-        TopTermSpanBooleanQueryRewriteWithMaxClause() {
-            this.maxExpansions = BooleanQuery.getMaxClauseCount();
-        }
-
-        @Override
-        public SpanQuery rewrite(IndexReader reader, MultiTermQuery query) throws IOException {
-            final MultiTermQuery.RewriteMethod delegate = new ScoringRewrite<List<SpanQuery>>() {
-                @Override
-                protected List<SpanQuery> getTopLevelBuilder() {
-                    return new ArrayList();
-                }
-
-                @Override
-                protected Query build(List<SpanQuery> builder) {
-                    return new SpanOrQuery((SpanQuery[]) builder.toArray(new SpanQuery[builder.size()]));
-                }
-
-                @Override
-                protected void checkMaxClauseCount(int count) {
-                    if (count > maxExpansions) {
-                        throw new RuntimeException("[" + query.toString() + " ] " +
-                            "exceeds maxClauseCount [ Boolean maxClauseCount is set to " + BooleanQuery.getMaxClauseCount() + "]");
-                    }
-                }
-
-                @Override
-                protected void addClause(List<SpanQuery> topLevel, Term term, int docCount, float boost, TermStates states) {
-                    SpanTermQuery q = new SpanTermQuery(term, states);
-                    topLevel.add(q);
-                }
-            };
-            return (SpanQuery) delegate.rewrite(reader, query);
-        }
-    }
-
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
-        Query subQuery = multiTermQueryBuilder.toQuery(context);
-        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        while (true) {
-            if (subQuery instanceof ConstantScoreQuery) {
-                subQuery = ((ConstantScoreQuery) subQuery).getQuery();
-                boost = 1;
-            } else if (subQuery instanceof BoostQuery) {
-                BoostQuery boostQuery = (BoostQuery) subQuery;
-                subQuery = boostQuery.getQuery();
-                boost *= boostQuery.getBoost();
-            } else {
-                break;
-            }
-        }
-        // no MultiTermQuery extends SpanQuery, so SpanBoostQuery is not supported here
-        assert subQuery instanceof SpanBoostQuery == false;
-
-        if (subQuery instanceof MatchNoDocsQuery) {
-            return new SpanMatchNoDocsQuery(multiTermQueryBuilder.fieldName(), subQuery.toString());
-        }
-
-        final SpanQuery spanQuery;
-        if (subQuery instanceof TermQuery) {
-            /**
-             * Text fields that index prefixes can rewrite prefix queries
-             * into term queries. See {@link TextFieldMapper.TextFieldType#prefixQuery}.
-             */
-            if (multiTermQueryBuilder.getClass() != PrefixQueryBuilder.class) {
-                throw new UnsupportedOperationException("unsupported inner query generated by " +
-                    multiTermQueryBuilder.getClass().getName() + ", should be " + MultiTermQuery.class.getName()
-                    + " but was " + subQuery.getClass().getName());
-            }
-
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        // We do the rewrite in toQuery to not have to deal with the case when a multi-term builder rewrites to a non-multi-term
+        // builder.
+        QueryBuilder multiTermQueryBuilder = Rewriteable.rewrite(this.multiTermQueryBuilder, context);
+        if (multiTermQueryBuilder instanceof MatchNoneQueryBuilder) {
+            return new SpanMatchNoDocsQuery(this.multiTermQueryBuilder.fieldName(), "Inner query rewrote to match_none");
+        } else if (multiTermQueryBuilder instanceof PrefixQueryBuilder) {
             PrefixQueryBuilder prefixBuilder = (PrefixQueryBuilder) multiTermQueryBuilder;
-            MappedFieldType fieldType = context.fieldMapper(prefixBuilder.fieldName());
-            String fieldName = fieldType != null ? fieldType.name() : prefixBuilder.fieldName();
-
-            if (context.getIndexSettings().getIndexVersionCreated().before(Version.V_6_4_0)) {
-                /**
-                 * Indices created in this version do not index positions on the prefix field
-                 * so we cannot use it to match positional queries. Instead, we explicitly create the prefix
-                 * query on the main field to avoid the rewrite.
-                 */
-                PrefixQuery prefixQuery = new PrefixQuery(new Term(fieldName, prefixBuilder.value()));
-                if (prefixBuilder.rewrite() != null) {
-                    MultiTermQuery.RewriteMethod rewriteMethod =
-                        QueryParsers.parseRewriteMethod(prefixBuilder.rewrite(), null, LoggingDeprecationHandler.INSTANCE);
-                    prefixQuery.setRewriteMethod(rewriteMethod);
-                }
-                subQuery = prefixQuery;
-                spanQuery = new SpanMultiTermQueryWrapper<>(prefixQuery);
-            } else {
-                /**
-                 * Prefixes are indexed in a different field so we mask the term query with the original field
-                 * name. This is required because span_near and span_or queries don't work across different field.
-                 * The masking is safe because the prefix field is indexed using the same content than the original field
-                 * and the prefix analyzer preserves positions.
-                 */
-                SpanTermQuery spanTermQuery = new SpanTermQuery(((TermQuery) subQuery).getTerm());
-                spanQuery = new FieldMaskingSpanQuery(spanTermQuery, fieldName);
+            MappedFieldType fieldType = context.getFieldType(prefixBuilder.fieldName());
+            if (fieldType == null) {
+                throw new IllegalStateException("Rewrite first");
             }
+            final SpanMultiTermQueryWrapper.SpanRewriteMethod spanRewriteMethod;
+            if (prefixBuilder.rewrite() != null) {
+                MultiTermQuery.RewriteMethod rewriteMethod =
+                    QueryParsers.parseRewriteMethod(prefixBuilder.rewrite(), null, LoggingDeprecationHandler.INSTANCE);
+                if (rewriteMethod instanceof TopTermsRewrite) {
+                    TopTermsRewrite<?> innerRewrite = (TopTermsRewrite<?>) rewriteMethod;
+                    spanRewriteMethod = new SpanMultiTermQueryWrapper.TopTermsSpanBooleanQueryRewrite(innerRewrite.getSize());
+                } else {
+                    spanRewriteMethod = new SpanBooleanQueryRewriteWithMaxClause();
+                }
+            } else {
+                spanRewriteMethod = new SpanBooleanQueryRewriteWithMaxClause();
+            }
+            return fieldType.spanPrefixQuery(prefixBuilder.value(), spanRewriteMethod, context);
         } else {
-            if (subQuery instanceof MultiTermQuery == false) {
+            Query subQuery = multiTermQueryBuilder.toQuery(context);
+            while (true) {
+                if (subQuery instanceof ConstantScoreQuery) {
+                    subQuery = ((ConstantScoreQuery) subQuery).getQuery();
+                } else if (subQuery instanceof BoostQuery) {
+                    BoostQuery boostQuery = (BoostQuery) subQuery;
+                    subQuery = boostQuery.getQuery();
+                } else {
+                    break;
+                }
+            }
+            if (subQuery instanceof MatchNoDocsQuery) {
+                return new SpanMatchNoDocsQuery(this.multiTermQueryBuilder.fieldName(), subQuery.toString());
+            } else if (subQuery instanceof MultiTermQuery == false) {
                 throw new UnsupportedOperationException("unsupported inner query, should be "
                     + MultiTermQuery.class.getName() + " but was " + subQuery.getClass().getName());
             }
-            spanQuery = new SpanMultiTermQueryWrapper<>((MultiTermQuery) subQuery);
-        }
-        if (subQuery instanceof MultiTermQuery) {
             MultiTermQuery multiTermQuery = (MultiTermQuery) subQuery;
-            SpanMultiTermQueryWrapper<?> wrapper = (SpanMultiTermQueryWrapper<?>) spanQuery;
+            SpanMultiTermQueryWrapper<?> wrapper = new SpanMultiTermQueryWrapper<>(multiTermQuery);
             if (multiTermQuery.getRewriteMethod() instanceof TopTermsRewrite == false) {
-                wrapper.setRewriteMethod(new TopTermSpanBooleanQueryRewriteWithMaxClause());
+                wrapper.setRewriteMethod(new SpanBooleanQueryRewriteWithMaxClause());
             }
+            return wrapper;
         }
-        if (boost != AbstractQueryBuilder.DEFAULT_BOOST) {
-            return new SpanBoostQuery(spanQuery, boost);
-        }
-
-        return spanQuery;
     }
 
     @Override

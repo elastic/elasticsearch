@@ -1,16 +1,248 @@
 [[analysis-edgengram-tokenfilter]]
-=== Edge NGram Token Filter
+=== Edge n-gram token filter
+++++
+<titleabbrev>Edge n-gram</titleabbrev>
+++++
 
-A token filter of type `edgeNGram`.
+Forms an {wikipedia}/N-gram[n-gram] of a specified length from
+the beginning of a token.
 
-The following are settings that can be set for a `edgeNGram` token
-filter type:
+For example, you can use the `edge_ngram` token filter to change `quick` to
+`qu`.
 
-[cols="<,<",options="header",]
-|======================================================
-|Setting |Description
-|`min_gram` |Defaults to `1`.
-|`max_gram` |Defaults to `2`.
-|`side` |deprecated. Either `front` or `back`. Defaults to `front`.
-|======================================================
+When not customized, the filter creates 1-character edge n-grams by default.
 
+This filter uses Lucene's
+{lucene-analysis-docs}/ngram/EdgeNGramTokenFilter.html[EdgeNGramTokenFilter].
+
+[NOTE]
+====
+The `edge_ngram` filter is similar to the <<analysis-ngram-tokenizer,`ngram`
+token filter>>. However, the `edge_ngram` only outputs n-grams that start at the
+beginning of a token. These edge n-grams are useful for
+<<search-as-you-type,search-as-you-type>> queries.
+====
+
+[[analysis-edgengram-tokenfilter-analyze-ex]]
+==== Example
+
+The following <<indices-analyze,analyze API>> request uses the `edge_ngram`
+filter to convert `the quick brown fox jumps` to 1-character and 2-character
+edge n-grams:
+
+[source,console]
+--------------------------------------------------
+GET _analyze
+{
+  "tokenizer": "standard",
+  "filter": [
+    { "type": "edge_ngram",
+      "min_gram": 1,
+      "max_gram": 2
+    }
+  ],
+  "text": "the quick brown fox jumps"
+}
+--------------------------------------------------
+
+The filter produces the following tokens:
+
+[source,text]
+--------------------------------------------------
+[ t, th, q, qu, b, br, f, fo, j, ju ]
+--------------------------------------------------
+
+/////////////////////
+[source,console-result]
+--------------------------------------------------
+{
+  "tokens" : [
+    {
+      "token" : "t",
+      "start_offset" : 0,
+      "end_offset" : 3,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "th",
+      "start_offset" : 0,
+      "end_offset" : 3,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "q",
+      "start_offset" : 4,
+      "end_offset" : 9,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    },
+    {
+      "token" : "qu",
+      "start_offset" : 4,
+      "end_offset" : 9,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    },
+    {
+      "token" : "b",
+      "start_offset" : 10,
+      "end_offset" : 15,
+      "type" : "<ALPHANUM>",
+      "position" : 2
+    },
+    {
+      "token" : "br",
+      "start_offset" : 10,
+      "end_offset" : 15,
+      "type" : "<ALPHANUM>",
+      "position" : 2
+    },
+    {
+      "token" : "f",
+      "start_offset" : 16,
+      "end_offset" : 19,
+      "type" : "<ALPHANUM>",
+      "position" : 3
+    },
+    {
+      "token" : "fo",
+      "start_offset" : 16,
+      "end_offset" : 19,
+      "type" : "<ALPHANUM>",
+      "position" : 3
+    },
+    {
+      "token" : "j",
+      "start_offset" : 20,
+      "end_offset" : 25,
+      "type" : "<ALPHANUM>",
+      "position" : 4
+    },
+    {
+      "token" : "ju",
+      "start_offset" : 20,
+      "end_offset" : 25,
+      "type" : "<ALPHANUM>",
+      "position" : 4
+    }
+  ]
+}
+--------------------------------------------------
+/////////////////////
+
+[[analysis-edgengram-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+
+The following <<indices-create-index,create index API>> request uses the
+`edge_ngram` filter to configure a new
+<<analysis-custom-analyzer,custom analyzer>>.
+
+[source,console]
+--------------------------------------------------
+PUT edge_ngram_example
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "standard_edge_ngram": {
+          "tokenizer": "standard",
+          "filter": [ "edge_ngram" ]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[[analysis-edgengram-tokenfilter-configure-parms]]
+==== Configurable parameters
+
+`max_gram`::
++
+--
+(Optional, integer)
+Maximum character length of a gram. For custom token filters, defaults to `2`.
+For the built-in `edge_ngram` filter, defaults to `1`.
+
+See <<analysis-edgengram-tokenfilter-max-gram-limits>>.
+--
+
+`min_gram`::
+(Optional, integer)
+Minimum character length of a gram. Defaults to `1`.
+
+`preserve_original`::
+(Optional, Boolean)
+Emits original token when set to `true`. Defaults to `false`.
+
+`side`::
++
+--
+(Optional, string)
+Deprecated. Indicates whether to truncate tokens from the `front` or `back`.
+Defaults to `front`.
+
+Instead of using the `back` value, you can use the
+<<analysis-reverse-tokenfilter,`reverse`>> token filter before and after the
+`edge_ngram` filter to achieve the same results.
+--
+
+[[analysis-edgengram-tokenfilter-customize]]
+==== Customize
+
+To customize the `edge_ngram` filter, duplicate it to create the basis
+for a new custom token filter. You can modify the filter using its configurable
+parameters.
+
+For example, the following request creates a custom `edge_ngram`
+filter that forms n-grams between 3-5 characters.
+
+[source,console]
+--------------------------------------------------
+PUT edge_ngram_custom_example
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "default": {
+          "tokenizer": "whitespace",
+          "filter": [ "3_5_edgegrams" ]
+        }
+      },
+      "filter": {
+        "3_5_edgegrams": {
+          "type": "edge_ngram",
+          "min_gram": 3,
+          "max_gram": 5
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[[analysis-edgengram-tokenfilter-max-gram-limits]]
+==== Limitations of the `max_gram` parameter
+
+The `edge_ngram` filter's `max_gram` value limits the character length of
+tokens. When the `edge_ngram` filter is used with an index analyzer, this
+means search terms longer than the `max_gram` length may not match any indexed
+terms.
+
+For example, if the `max_gram` is `3`, searches for `apple` won't match the
+indexed term `app`.
+
+To account for this, you can use the
+<<analysis-truncate-tokenfilter,`truncate`>> filter with a search analyzer
+to shorten search terms to the `max_gram` character length. However, this could
+return irrelevant results.
+
+For example, if the `max_gram` is `3` and search terms are truncated to three
+characters, the search term `apple` is shortened to `app`. This means searches
+for `apple` return any indexed terms matching `app`, such as `apply`, `snapped`,
+and `apple`.
+
+We recommend testing both approaches to see which best fits your
+use case and desired search experience.

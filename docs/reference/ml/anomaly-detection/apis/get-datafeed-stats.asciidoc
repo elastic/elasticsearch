@@ -1,0 +1,212 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-get-datafeed-stats]]
+= Get {dfeed} statistics API
+
+[subs="attributes"]
+++++
+<titleabbrev>Get {dfeed} statistics</titleabbrev>
+++++
+
+Retrieves usage information for {dfeeds}.
+
+[[ml-get-datafeed-stats-request]]
+== {api-request-title}
+
+`GET _ml/datafeeds/<feed_id>/_stats` +
+
+`GET _ml/datafeeds/<feed_id>,<feed_id>/_stats` +
+
+`GET _ml/datafeeds/_stats`  +
+
+`GET _ml/datafeeds/_all/_stats`
+
+[[ml-get-datafeed-stats-prereqs]]
+== {api-prereq-title}
+
+Requires the `monitor_ml` cluster privilege. This privilege is included in the
+`machine_learning_user` built-in role.
+
+[[ml-get-datafeed-stats-desc]]
+== {api-description-title}
+
+You can get statistics for multiple {dfeeds} in a single API request by using a
+comma-separated list of {dfeeds} or a wildcard expression. You can get
+statistics for all {dfeeds} by using `_all`, by specifying `*` as the
+`<feed_id>`, or by omitting the `<feed_id>`.
+
+If the {dfeed} is stopped, the only information you receive is the
+`datafeed_id` and the `state`.
+
+IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
+
+[[ml-get-datafeed-stats-path-parms]]
+== {api-path-parms-title}
+
+`<feed_id>`::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
++
+--
+If you do not specify one of these options, the API returns information about
+all {dfeeds}.
+--
+
+[[ml-get-datafeed-stats-query-parms]]
+== {api-query-parms-title}
+
+`allow_no_match`::
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
+
+[role="child_attributes"]
+[[ml-get-datafeed-stats-results]]
+== {api-response-body-title}
+
+The API returns an array of {dfeed} count objects. All of these properties are
+informational; you cannot update their values.
+
+`assignment_explanation`::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=assignment-explanation-datafeeds]
+
+`datafeed_id`::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+
+`node`::
+(object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-datafeeds]
++
+--
+[%collapsible%open]
+====
+`attributes`:::
+(object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
+
+`ephemeral_id`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
+
+`id`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-id]
+
+`name`:::
+(string)
+The node name. For example, `0-o0tOo`.
+
+`transport_address`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
+====
+--
+
+`running_state`::
+(object) An object containing the running state for this {dfeed}. It is only
+provided if the {dfeed} is started.
++
+--
+[%collapsible%open]
+====
+`real_time_configured`:::
+(boolean) Indicates if the {dfeed} is "real-time"; meaning that the {dfeed}
+has no configured `end` time.
+
+`real_time_running`:::
+(boolean) Indicates whether the {dfeed} has finished running on the available
+past data. For {dfeeds} without a configured `end` time, this means that
+the {dfeed} is now running on "real-time" data.
+====
+--
+
+`state`::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=state-datafeed]
+
+`timing_stats`::
+(object) An object that provides statistical information about timing aspect of
+this {dfeed}.
++
+--
+[%collapsible%open]
+====
+`average_search_time_per_bucket_ms`:::
+(double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-bucket-avg]
+
+`bucket_count`:::
+(long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-count]
+
+`exponential_average_search_time_per_hour_ms`:::
+(double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-exp-avg-hour]
+
+`job_id`:::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`search_count`:::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-count]
+
+`total_search_time_ms`:::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-time]
+====
+--
+
+
+[[ml-get-datafeed-stats-response-codes]]
+== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request.
+
+[[ml-get-datafeed-stats-example]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET _ml/datafeeds/datafeed-high_sum_total_sales/_stats
+--------------------------------------------------
+// TEST[skip:Kibana sample data started datafeed]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+  "count" : 1,
+  "datafeeds" : [
+    {
+      "datafeed_id" : "datafeed-high_sum_total_sales",
+      "state" : "started",
+      "node" : {
+        "id" : "7bmMXyWCRs-TuPfGJJ_yMw",
+        "name" : "node-0",
+        "ephemeral_id" : "hoXMLZB0RWKfR9UPPUCxXX",
+        "transport_address" : "127.0.0.1:9300",
+        "attributes" : {
+          "ml.machine_memory" : "17179869184",
+          "ml.max_open_jobs" : "512"
+        }
+      },
+      "assignment_explanation" : "",
+      "timing_stats" : {
+        "job_id" : "high_sum_total_sales",
+        "search_count" : 7,
+        "bucket_count" : 743,
+        "total_search_time_ms" : 134.0,
+        "average_search_time_per_bucket_ms" : 0.180349932705249,
+        "exponential_average_search_time_per_hour_ms" : 11.514712961628677
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"7bmMXyWCRs-TuPfGJJ_yMw"/$body.$_path/]
+// TESTRESPONSE[s/"node-0"/$body.$_path/]
+// TESTRESPONSE[s/"hoXMLZB0RWKfR9UPPUCxXX"/$body.$_path/]
+// TESTRESPONSE[s/"127.0.0.1:9300"/$body.$_path/]
+// TESTRESPONSE[s/"17179869184"/$body.datafeeds.0.node.attributes.ml\\.machine_memory/]

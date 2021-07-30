@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -33,7 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Represents the Rollup capabilities for a specific job on a single rollup index
@@ -45,15 +34,12 @@ public class RollupJobCaps implements ToXContentObject {
     private static final ParseField FIELDS = new ParseField("fields");
     private static final String NAME = "rollup_job_caps";
 
-    public static final ConstructingObjectParser<RollupJobCaps, Void> PARSER = new ConstructingObjectParser<>(NAME,
+    public static final ConstructingObjectParser<RollupJobCaps, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
         a -> {
             @SuppressWarnings("unchecked")
             List<Tuple<String, RollupFieldCaps>> caps = (List<Tuple<String, RollupFieldCaps>>) a[3];
-            if (caps.isEmpty()) {
-                return new RollupJobCaps((String) a[0], (String) a[1], (String) a[2], Collections.emptyMap());
-            }
-            Map<String, RollupFieldCaps> mapCaps = new HashMap<>(caps.size());
-            caps.forEach(c -> mapCaps.put(c.v1(), c.v2()));
+            Map<String, RollupFieldCaps> mapCaps =
+                new HashMap<>(caps.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
             return new RollupJobCaps((String) a[0], (String) a[1], (String) a[2], mapCaps);
         });
 
@@ -140,16 +126,6 @@ public class RollupJobCaps implements ToXContentObject {
         private static final String NAME = "rollup_field_caps";
         private final List<Map<String, Object>> aggs;
 
-        public static final Function<String, ConstructingObjectParser<RollupFieldCaps, Void>> PARSER = fieldName -> {
-            @SuppressWarnings("unchecked")
-            ConstructingObjectParser<RollupFieldCaps, Void> parser
-                = new ConstructingObjectParser<>(NAME, a -> new RollupFieldCaps((List<Map<String, Object>>) a[0]));
-
-            parser.declareObjectArray(ConstructingObjectParser.constructorArg(),
-                (p, c) -> p.map(), new ParseField(fieldName));
-            return parser;
-        };
-
         RollupFieldCaps(final List<Map<String, Object>> aggs) {
             this.aggs = Collections.unmodifiableList(Objects.requireNonNull(aggs));
         }
@@ -170,12 +146,11 @@ public class RollupJobCaps implements ToXContentObject {
             List<Map<String, Object>> aggs = new ArrayList<>();
             if (parser.nextToken().equals(XContentParser.Token.START_ARRAY)) {
                 while (parser.nextToken().equals(XContentParser.Token.START_OBJECT)) {
-                    aggs.add(Collections.unmodifiableMap(parser.map()));
+                    aggs.add(parser.map());
                 }
             }
-            return new RollupFieldCaps(Collections.unmodifiableList(aggs));
+            return new RollupFieldCaps(aggs);
         }
-
 
         @Override
         public boolean equals(Object other) {

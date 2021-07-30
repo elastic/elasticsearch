@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
@@ -18,17 +17,12 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateCalendarJobAction extends Action<PutCalendarAction.Response> {
+public class UpdateCalendarJobAction extends ActionType<PutCalendarAction.Response> {
     public static final UpdateCalendarJobAction INSTANCE = new UpdateCalendarJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/jobs/update";
 
     private UpdateCalendarJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PutCalendarAction.Response newResponse() {
-        return new PutCalendarAction.Response();
+        super(NAME, PutCalendarAction.Response::new);
     }
 
     public static class Request extends ActionRequest {
@@ -37,7 +31,11 @@ public class UpdateCalendarJobAction extends Action<PutCalendarAction.Response> 
         private String jobIdsToAddExpression;
         private String jobIdsToRemoveExpression;
 
-        public Request() {
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            calendarId = in.readString();
+            jobIdsToAddExpression = in.readOptionalString();
+            jobIdsToRemoveExpression = in.readOptionalString();
         }
 
         /**
@@ -68,14 +66,6 @@ public class UpdateCalendarJobAction extends Action<PutCalendarAction.Response> 
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            calendarId = in.readString();
-            jobIdsToAddExpression = in.readOptionalString();
-            jobIdsToRemoveExpression = in.readOptionalString();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(calendarId);
@@ -99,13 +89,6 @@ public class UpdateCalendarJobAction extends Action<PutCalendarAction.Response> 
             Request other = (Request) obj;
             return Objects.equals(calendarId, other.calendarId) && Objects.equals(jobIdsToAddExpression, other.jobIdsToAddExpression)
                     && Objects.equals(jobIdsToRemoveExpression, other.jobIdsToRemoveExpression);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, PutCalendarAction.Response> {
-
-        public RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
         }
     }
 }

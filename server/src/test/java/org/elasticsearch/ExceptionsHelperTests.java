@@ -1,29 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.commons.codec.DecoderException;
+import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
@@ -34,9 +25,9 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 
+import java.io.IOException;
 import java.util.Optional;
 
-import static org.elasticsearch.ExceptionsHelper.MAX_ITERATIONS;
 import static org.elasticsearch.ExceptionsHelper.maybeError;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -62,7 +53,7 @@ public class ExceptionsHelperTests extends ESTestCase {
         for (int i = 0; i < depth; i++) {
             final int length = randomIntBetween(1, 4);
             for (int j = 0; j < length; j++) {
-                if (!fatal && rarely()) {
+                if (fatal == false && rarely()) {
                     error = new Error();
                     cause.addSuppressed(error);
                     fatal = true;
@@ -70,7 +61,7 @@ public class ExceptionsHelperTests extends ESTestCase {
                     cause.addSuppressed(new Exception());
                 }
             }
-            if (!fatal && rarely()) {
+            if (fatal == false && rarely()) {
                 cause = error = new Error(cause);
                 fatal = true;
             } else {
@@ -80,26 +71,21 @@ public class ExceptionsHelperTests extends ESTestCase {
         if (fatal) {
             assertError(cause, error);
         } else {
-            assertFalse(maybeError(cause, logger).isPresent());
+            assertFalse(maybeError(cause).isPresent());
         }
 
-        assertFalse(maybeError(new Exception(new DecoderException()), logger).isPresent());
-
-        Throwable chain = outOfMemoryError;
-        for (int i = 0; i < MAX_ITERATIONS; i++) {
-            chain = new Exception(chain);
-        }
-        assertFalse(maybeError(chain, logger).isPresent());
+        assertFalse(maybeError(new Exception(new DecoderException())).isPresent());
     }
 
     private void assertError(final Throwable cause, final Error error) {
-        final Optional<Error> maybeError = maybeError(cause, logger);
+        final Optional<Error> maybeError = maybeError(cause);
         assertTrue(maybeError.isPresent());
         assertThat(maybeError.get(), equalTo(error));
     }
 
     public void testStatus() {
         assertThat(ExceptionsHelper.status(new IllegalArgumentException("illegal")), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ExceptionsHelper.status(new JsonParseException(null, "illegal")), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ExceptionsHelper.status(new EsRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
@@ -137,7 +123,7 @@ public class ExceptionsHelperTests extends ESTestCase {
 
     private static SearchShardTarget createSearchShardTarget(String nodeId, int shardId, String index, String clusterAlias) {
         return new SearchShardTarget(nodeId,
-            new ShardId(new Index(index, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
+            new ShardId(new Index(index, IndexMetadata.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
     }
 
     public void testGroupByNullTarget() {
@@ -182,5 +168,57 @@ public class ExceptionsHelperTests extends ESTestCase {
 
         ShardOperationFailedException[] groupBy = ExceptionsHelper.groupBy(failures);
         assertThat(groupBy.length, equalTo(2));
+    }
+
+    public void testUnwrapCorruption() {
+        final Throwable corruptIndexException = new CorruptIndexException("corrupt", "resource");
+        assertThat(ExceptionsHelper.unwrapCorruption(corruptIndexException), equalTo(corruptIndexException));
+
+        final Throwable corruptionAsCause = new RuntimeException(corruptIndexException);
+        assertThat(ExceptionsHelper.unwrapCorruption(corruptionAsCause), equalTo(corruptIndexException));
+
+        final Throwable corruptionSuppressed = new RuntimeException();
+        corruptionSuppressed.addSuppressed(corruptIndexException);
+        assertThat(ExceptionsHelper.unwrapCorruption(corruptionSuppressed), equalTo(corruptIndexException));
+
+        final Throwable corruptionSuppressedOnCause = new RuntimeException(new RuntimeException());
+        corruptionSuppressedOnCause.getCause().addSuppressed(corruptIndexException);
+        assertThat(ExceptionsHelper.unwrapCorruption(corruptionSuppressedOnCause), equalTo(corruptIndexException));
+
+        final Throwable corruptionCauseOnSuppressed = new RuntimeException();
+        corruptionCauseOnSuppressed.addSuppressed(new RuntimeException(corruptIndexException));
+        assertThat(ExceptionsHelper.unwrapCorruption(corruptionCauseOnSuppressed), equalTo(corruptIndexException));
+
+        assertThat(ExceptionsHelper.unwrapCorruption(new RuntimeException()), nullValue());
+        assertThat(ExceptionsHelper.unwrapCorruption(new RuntimeException(new RuntimeException())), nullValue());
+
+        final Throwable withSuppressedException = new RuntimeException();
+        withSuppressedException.addSuppressed(new RuntimeException());
+        assertThat(ExceptionsHelper.unwrapCorruption(withSuppressedException), nullValue());
+    }
+
+    public void testSuppressedCycle() {
+        RuntimeException e1 = new RuntimeException();
+        RuntimeException e2 = new RuntimeException();
+        e1.addSuppressed(e2);
+        e2.addSuppressed(e1);
+        ExceptionsHelper.unwrapCorruption(e1);
+
+        final CorruptIndexException corruptIndexException = new CorruptIndexException("corrupt", "resource");
+        RuntimeException e3 = new RuntimeException(corruptIndexException);
+        e3.addSuppressed(e1);
+        assertThat(ExceptionsHelper.unwrapCorruption(e3), equalTo(corruptIndexException));
+
+        RuntimeException e4 = new RuntimeException(e1);
+        e4.addSuppressed(corruptIndexException);
+        assertThat(ExceptionsHelper.unwrapCorruption(e4), equalTo(corruptIndexException));
+    }
+
+    public void testCauseCycle() {
+        RuntimeException e1 = new RuntimeException();
+        RuntimeException e2 = new RuntimeException(e1);
+        e1.initCause(e2);
+        ExceptionsHelper.unwrap(e1, IOException.class);
+        ExceptionsHelper.unwrapCorruption(e1);
     }
 }

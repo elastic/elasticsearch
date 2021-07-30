@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc;
 
@@ -10,25 +11,26 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.hamcrest.Matchers;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class RealmSettingsTests extends ESTestCase {
-    private static final List<String> CACHE_HASHING_ALGOS = Arrays.stream(Hasher.values()).map(Hasher::name).collect(Collectors.toList());
+    private static final List<String> CACHE_HASHING_ALGOS = Hasher.getAvailableAlgoCacheHash();
 
     public void testRealmWithBlankTypeDoesNotValidate() throws Exception {
         final Settings.Builder builder = baseSettings(false);
@@ -87,6 +89,21 @@ public class RealmSettingsTests extends ESTestCase {
                 .put(pkiRealm("pki5", false).build())
                 .build();
         assertSuccess(settings);
+    }
+
+    public void testSettingsWithKeystoreOnlyRealmDoesNotValidate() throws Exception {
+        final String securePasswordKey = RealmSettings.getFullSettingKey(
+            new RealmConfig.RealmIdentifier("ldap", "ldap_1"), PoolingSessionFactorySettings.SECURE_BIND_PASSWORD);
+        final Settings.Builder builder = Settings.builder()
+            .put(ldapRealm("ldap-1", randomBoolean(), randomBoolean()).build());
+        SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
+            secureSettings.setString(securePasswordKey, "secret-password");
+        });
+        final Settings settings = builder.build();
+        final SettingsException exception = expectThrows(SettingsException.class, () -> RealmSettings.getRealmSettings(settings));
+        assertThat(exception.getMessage(), containsString("elasticsearch.keystore"));
+        assertThat(exception.getMessage(), containsString("elasticsearch.yml"));
+        assertThat(exception.getMessage(), containsString(securePasswordKey));
     }
 
     private Settings.Builder nativeRealm(String name) {
@@ -168,7 +185,7 @@ public class RealmSettingsTests extends ESTestCase {
                 .put("unmapped_groups_as_roles", randomBoolean())
                 .put("files.role_mapping", "x-pack/" + randomAlphaOfLength(8) + ".yml")
                 .put("timeout.tcp_connect", randomPositiveTimeValue())
-                .put("timeout.tcp_read", randomPositiveTimeValue())
+                .put("timeout.response", randomPositiveTimeValue())
                 .put("timeout.ldap_search", randomPositiveTimeValue());
         if (configureSSL) {
             configureSsl("ssl.", builder, randomBoolean(), randomBoolean());
@@ -193,6 +210,9 @@ public class RealmSettingsTests extends ESTestCase {
             builder.put("truststore.algorithm", randomAlphaOfLengthBetween(6, 10));
         } else {
             builder.putList("certificate_authorities", generateRandomStringArray(5, 32, false, false));
+        }
+        if (randomBoolean()) {
+            builder.put("delegation.enabled", randomBoolean());
         }
         return builder;
     }
@@ -279,12 +299,7 @@ public class RealmSettingsTests extends ESTestCase {
         } catch (RuntimeException e) {
             fail("Settings do not validate: " + e);
         }
-    }
-
-    private void assertErrorWithCause(String realmType, String realmName, String message, Settings settings) {
-        final IllegalArgumentException exception = assertError(realmType, realmName, settings);
-        assertThat(exception.getCause(), notNullValue());
-        assertThat(exception.getCause().getMessage(), containsString(message));
+        assertThat(RealmSettings.getRealmSettings(settings), Matchers.not(Matchers.anEmptyMap()));
     }
 
     private void assertErrorWithMessage(String realmType, String realmName, String message, Settings settings) {

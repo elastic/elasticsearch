@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 public class ChainIT extends ESCCRRestTestCase {
 
@@ -20,17 +23,12 @@ public class ChainIT extends ESCCRRestTestCase {
             String mapping = "";
             if (randomBoolean()) { // randomly do source filtering on indexing
                 mapping =
-                        "\"_doc\": {" +
-                                "  \"_source\": {" +
-                                "    \"includes\": [\"field\"]," +
-                                "    \"excludes\": [\"filtered_field\"]" +
-                                "   }"+
-                                "}";
+                    "\"_source\": {" +
+                    "  \"includes\": [\"field\"]," +
+                    "  \"excludes\": [\"filtered_field\"]" +
+                    "}";
             }
-            Settings indexSettings = Settings.builder()
-                    .put("index.soft_deletes.enabled", true)
-                    .build();
-            createIndex(leaderIndexName, indexSettings, mapping);
+            createIndex(leaderIndexName, Settings.EMPTY, mapping);
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
                 index(client(), leaderIndexName, Integer.toString(i), "field", i, "filtered_field", "true");
@@ -69,6 +67,14 @@ public class ChainIT extends ESCCRRestTestCase {
         } else {
             fail("unexpected target cluster [" + targetCluster + "]");
         }
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
     }
 
 }

@@ -1,30 +1,73 @@
 [[modules-discovery]]
-== Discovery
+== Discovery and cluster formation
 
-The discovery module is responsible for discovering nodes within a
-cluster, as well as electing a master node.
+The discovery and cluster formation processes are responsible for discovering
+nodes, electing a master, forming a cluster, and publishing the cluster state
+each time it changes.
 
-Note, Elasticsearch is a peer to peer based system, nodes communicate
-with one another directly if operations are delegated / broadcast. All
-the main APIs (index, delete, search) do not communicate with the master
-node. The responsibility of the master node is to maintain the global
-cluster state, and act if nodes join or leave the cluster by reassigning
-shards. Each time a cluster state is changed, the state is made known to
-the other nodes in the cluster (the manner depends on the actual
-discovery implementation).
+The following processes and settings are part of discovery and cluster
+formation:
 
-[float]
-=== Settings
+<<modules-discovery-hosts-providers>>::
 
-The `cluster.name` allows to create separated clusters from one another.
-The default value for the cluster name is `elasticsearch`, though it is
-recommended to change this to reflect the logical group name of the
-cluster running.
+    Discovery is the process where nodes find each other when the master is
+    unknown, such as when a node has just started up or when the previous
+    master has failed.
 
-include::discovery/azure.asciidoc[]
+<<modules-discovery-quorums>>::
 
-include::discovery/ec2.asciidoc[]
+    How {es} uses a quorum-based voting mechanism to
+    make decisions even if some nodes are unavailable.
 
-include::discovery/gce.asciidoc[]
+<<modules-discovery-voting>>::
 
-include::discovery/zen.asciidoc[]
+    How {es} automatically updates voting configurations as nodes leave and join
+    a cluster.
+
+<<modules-discovery-bootstrap-cluster>>::
+
+    Bootstrapping a cluster is required when an {es} cluster starts up
+    for the very first time. In <<dev-vs-prod-mode,development mode>>, with no
+    discovery settings configured, this is automatically performed by the nodes
+    themselves. As this auto-bootstrapping is
+    <<modules-discovery-quorums,inherently unsafe>>, running a node in
+    <<dev-vs-prod-mode,production mode>> requires bootstrapping to be
+    explicitly configured via the
+    <<modules-discovery-bootstrap-cluster,`cluster.initial_master_nodes`
+    setting>>.
+
+<<modules-discovery-adding-removing-nodes,Adding and removing master-eligible nodes>>::
+
+    It is recommended to have a small and fixed number of master-eligible nodes
+    in a cluster, and to scale the cluster up and down by adding and removing
+    master-ineligible nodes only. However there are situations in which it may
+    be desirable to add or remove some master-eligible nodes to or from a
+    cluster. This section describes the process for adding or removing
+    master-eligible nodes, including the extra steps that need to be performed
+    when removing more than half of the master-eligible nodes at the same time.
+
+<<cluster-state-publishing>>::
+
+    Cluster state publishing is the process by which the elected master node
+    updates the cluster state on all the other nodes in the cluster.
+
+<<cluster-fault-detection>>::
+
+    {es} performs health checks to detect and remove faulty nodes.
+
+<<modules-discovery-settings,Settings>>::
+
+    There are settings that enable users to influence the discovery, cluster
+    formation, master election and fault detection processes.
+
+include::discovery/discovery.asciidoc[]
+
+include::discovery/quorums.asciidoc[]
+
+include::discovery/voting.asciidoc[]
+
+include::discovery/bootstrapping.asciidoc[]
+
+include::discovery/publishing.asciidoc[]
+
+include::discovery/fault-detection.asciidoc[]

@@ -1,29 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.snapshots.blobstore;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
 import java.io.IOException;
@@ -37,19 +27,21 @@ import java.util.Map;
 import static java.util.Collections.unmodifiableMap;
 
 /**
- * Contains information about all snapshot for the given shard in repository
+ * Contains information about all snapshots for the given shard in repository
  * <p>
  * This class is used to find files that were already snapshotted and clear out files that no longer referenced by any
- * snapshots
+ * snapshots.
  */
 public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, ToXContentFragment {
+
+    public static final BlobStoreIndexShardSnapshots EMPTY = new BlobStoreIndexShardSnapshots(Collections.emptyList());
 
     private final List<SnapshotFiles> shardSnapshots;
     private final Map<String, FileInfo> files;
     private final Map<String, List<FileInfo>> physicalFiles;
 
     public BlobStoreIndexShardSnapshots(List<SnapshotFiles> shardSnapshots) {
-        this.shardSnapshots = Collections.unmodifiableList(new ArrayList<>(shardSnapshots));
+        this.shardSnapshots = List.copyOf(shardSnapshots);
         // Map between blob names and file info
         Map<String, FileInfo> newFiles = new HashMap<>();
         // Map between original physical names and file info
@@ -65,17 +57,12 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
             // the first loop de-duplicates fileInfo objects that were loaded from different snapshots but refer to
             // the same blob
             for (FileInfo fileInfo : snapshot.indexFiles()) {
-                List<FileInfo> physicalFileList = physicalFiles.get(fileInfo.physicalName());
-                if (physicalFileList == null) {
-                    physicalFileList = new ArrayList<>();
-                    physicalFiles.put(fileInfo.physicalName(), physicalFileList);
-                }
-                physicalFileList.add(newFiles.get(fileInfo.name()));
+                physicalFiles.computeIfAbsent(fileInfo.physicalName(), k -> new ArrayList<>()).add(newFiles.get(fileInfo.name()));
             }
         }
         Map<String, List<FileInfo>> mapBuilder = new HashMap<>();
         for (Map.Entry<String, List<FileInfo>> entry : physicalFiles.entrySet()) {
-            mapBuilder.put(entry.getKey(), Collections.unmodifiableList(new ArrayList<>(entry.getValue())));
+            mapBuilder.put(entry.getKey(), List.copyOf(entry.getValue()));
         }
         this.physicalFiles = unmodifiableMap(mapBuilder);
         this.files = unmodifiableMap(newFiles);
@@ -87,19 +74,36 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         Map<String, List<FileInfo>> physicalFiles = new HashMap<>();
         for (SnapshotFiles snapshot : shardSnapshots) {
             for (FileInfo fileInfo : snapshot.indexFiles()) {
-                List<FileInfo> physicalFileList = physicalFiles.get(fileInfo.physicalName());
-                if (physicalFileList == null) {
-                    physicalFileList = new ArrayList<>();
-                    physicalFiles.put(fileInfo.physicalName(), physicalFileList);
-                }
-                physicalFileList.add(files.get(fileInfo.name()));
+                physicalFiles.computeIfAbsent(fileInfo.physicalName(), k -> new ArrayList<>()).add(files.get(fileInfo.name()));
             }
         }
         Map<String, List<FileInfo>> mapBuilder = new HashMap<>();
         for (Map.Entry<String, List<FileInfo>> entry : physicalFiles.entrySet()) {
-            mapBuilder.put(entry.getKey(), Collections.unmodifiableList(new ArrayList<>(entry.getValue())));
+            mapBuilder.put(entry.getKey(), List.copyOf(entry.getValue()));
         }
         this.physicalFiles = unmodifiableMap(mapBuilder);
+    }
+
+    /**
+     * Create a new instance that has a new snapshot by name {@code target} added which shares all files with the snapshot of name
+     * {@code source}.
+     *
+     * @param source source snapshot name
+     * @param target target snapshot name
+     * @return new instance with added cloned snapshot
+     */
+    public BlobStoreIndexShardSnapshots withClone(String source, String target) {
+        SnapshotFiles sourceFiles = null;
+        for (SnapshotFiles shardSnapshot : shardSnapshots) {
+            if (shardSnapshot.snapshot().equals(source)) {
+                sourceFiles = shardSnapshot;
+                break;
+            }
+        }
+        if (sourceFiles == null) {
+            throw new IllegalArgumentException("unknown source [" + source + "]");
+        }
+        return new BlobStoreIndexShardSnapshots(CollectionUtils.appendToCopy(shardSnapshots, sourceFiles.withSnapshotName(target)));
     }
 
     /**
@@ -143,6 +147,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
 
     static final class ParseFields {
         static final ParseField FILES = new ParseField("files");
+        static final ParseField SHARD_STATE_ID = new ParseField("shard_state_id");
         static final ParseField SNAPSHOTS = new ParseField("snapshots");
     }
 
@@ -203,7 +208,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         // First we list all blobs with their file infos:
         builder.startArray(Fields.FILES);
         for (Map.Entry<String, FileInfo> entry : files.entrySet()) {
-            FileInfo.toXContent(entry.getValue(), builder, params);
+            FileInfo.toXContent(entry.getValue(), builder);
         }
         builder.endArray();
         // Then we list all snapshots with list of all blobs that are used by the snapshot
@@ -215,6 +220,9 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 builder.value(fileInfo.name());
             }
             builder.endArray();
+            if (snapshot.shardStateIdentifier() != null) {
+                builder.field(ParseFields.SHARD_STATE_ID.getPreferredName(), snapshot.shardStateIdentifier());
+            }
             builder.endObject();
         }
         builder.endObject();
@@ -227,53 +235,44 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
             token = parser.nextToken();
         }
         Map<String, List<String>> snapshotsMap = new HashMap<>();
+        Map<String, String> historyUUIDs = new HashMap<>();
         Map<String, FileInfo> files = new HashMap<>();
-        if (token == XContentParser.Token.START_OBJECT) {
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token != XContentParser.Token.FIELD_NAME) {
-                    throw new ElasticsearchParseException("unexpected token [{}]", token);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+            String currentFieldName = parser.currentName();
+            token = parser.nextToken();
+            if (token == XContentParser.Token.START_ARRAY) {
+                if (ParseFields.FILES.match(currentFieldName, parser.getDeprecationHandler()) == false) {
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
-                String currentFieldName = parser.currentName();
-                token = parser.nextToken();
-                if (token == XContentParser.Token.START_ARRAY) {
-                    if (ParseFields.FILES.match(currentFieldName, parser.getDeprecationHandler()) == false) {
-                        throw new ElasticsearchParseException("unknown array [{}]", currentFieldName);
-                    }
-                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        FileInfo fileInfo = FileInfo.fromXContent(parser);
-                        files.put(fileInfo.name(), fileInfo);
-                    }
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (ParseFields.SNAPSHOTS.match(currentFieldName, parser.getDeprecationHandler()) == false) {
-                        throw new ElasticsearchParseException("unknown object [{}]", currentFieldName);
-                    }
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    FileInfo fileInfo = FileInfo.fromXContent(parser);
+                    files.put(fileInfo.name(), fileInfo);
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (ParseFields.SNAPSHOTS.match(currentFieldName, parser.getDeprecationHandler()) == false) {
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                    String snapshot = parser.currentName();
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token != XContentParser.Token.FIELD_NAME) {
-                            throw new ElasticsearchParseException("unknown object [{}]", currentFieldName);
-                        }
-                        String snapshot = parser.currentName();
-                        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                            throw new ElasticsearchParseException("unknown object [{}]", currentFieldName);
-                        }
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                currentFieldName = parser.currentName();
-                                if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                                    if (ParseFields.FILES.match(currentFieldName, parser.getDeprecationHandler()) == false) {
-                                        throw new ElasticsearchParseException("unknown array [{}]", currentFieldName);
-                                    }
-                                    List<String> fileNames = new ArrayList<>();
-                                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                        fileNames.add(parser.text());
-                                    }
-                                    snapshotsMap.put(snapshot, fileNames);
-                                }
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                            if (ParseFields.FILES.match(currentFieldName, parser.getDeprecationHandler())
+                                && parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                                snapshotsMap.put(snapshot, XContentParserUtils.parseList(parser, XContentParser::text));
+                            } else if (ParseFields.SHARD_STATE_ID.match(currentFieldName, parser.getDeprecationHandler())) {
+                                parser.nextToken();
+                                historyUUIDs.put(snapshot, parser.text());
                             }
                         }
                     }
-                } else {
-                    throw new ElasticsearchParseException("unexpected token [{}]", token);
                 }
+            } else {
+                XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
             }
         }
 
@@ -285,7 +284,9 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 assert fileInfo != null;
                 fileInfosBuilder.add(fileInfo);
             }
-            snapshots.add(new SnapshotFiles(entry.getKey(), Collections.unmodifiableList(fileInfosBuilder)));
+            snapshots.add(
+                new SnapshotFiles(entry.getKey(), Collections.unmodifiableList(fileInfosBuilder), historyUUIDs.get(entry.getKey()))
+            );
         }
         return new BlobStoreIndexShardSnapshots(files, Collections.unmodifiableList(snapshots));
     }

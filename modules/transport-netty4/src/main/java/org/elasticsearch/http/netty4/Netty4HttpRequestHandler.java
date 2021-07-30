@@ -1,35 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.netty4;
 
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.FullHttpRequest;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.http.HttpPipelinedRequest;
 
 @ChannelHandler.Sharable
-class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest<FullHttpRequest>> {
+class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
 
     private final Netty4HttpServerTransport serverTransport;
 
@@ -38,41 +24,21 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> msg) throws Exception {
-        Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
-        FullHttpRequest request = msg.getRequest();
-
+    protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest httpRequest) {
+        final Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
+        boolean success = false;
         try {
-            final FullHttpRequest copiedRequest =
-                new DefaultFullHttpRequest(
-                    request.protocolVersion(),
-                    request.method(),
-                    request.uri(),
-                    Unpooled.copiedBuffer(request.content()),
-                    request.headers(),
-                    request.trailingHeaders());
-
-            Netty4HttpRequest httpRequest = new Netty4HttpRequest(copiedRequest, msg.getSequence());
-
-            if (request.decoderResult().isFailure()) {
-                Throwable cause = request.decoderResult().cause();
-                if (cause instanceof Error) {
-                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    serverTransport.incomingRequestError(httpRequest, channel, new Exception(cause));
-                } else {
-                    serverTransport.incomingRequestError(httpRequest, channel, (Exception) cause);
-                }
-            } else {
-                serverTransport.incomingRequest(httpRequest, channel);
-            }
+            serverTransport.incomingRequest(httpRequest, channel);
+            success = true;
         } finally {
-            // As we have copied the buffer, we can release the request
-            request.release();
+            if (success == false) {
+                httpRequest.release();
+            }
         }
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         ExceptionsHelper.maybeDieOnAnotherThread(cause);
         Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
         if (cause instanceof Error) {

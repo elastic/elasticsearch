@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.search;
 
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -31,18 +21,22 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
+
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 /** Utility class to filter parent and children clauses when building nested
  * queries. */
 public final class NestedHelper {
 
-    private final MapperService mapperService;
+    private final Function<String, ObjectMapper> objectMapperLookup;
+    private final Predicate<String> isMappedFieldPredicate;
 
-    public NestedHelper(MapperService mapperService) {
-        this.mapperService = mapperService;
+    public NestedHelper(Function<String, ObjectMapper> objectMapperLookup, Predicate<String> isMappedFieldPredicate) {
+        this.objectMapperLookup = objectMapperLookup;
+        this.isMappedFieldPredicate = isMappedFieldPredicate;
     }
 
     /** Returns true if the given query might match nested documents. */
@@ -103,13 +97,13 @@ public final class NestedHelper {
             // we might add a nested filter when it is nor required.
             return true;
         }
-        if (mapperService.fullName(field) == null) {
+        if (isMappedFieldPredicate.test(field) == false) {
             // field does not exist
             return false;
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
-            ObjectMapper mapper = mapperService.getObjectMapper(parent);
-            if (mapper != null && mapper.nested().isNested()) {
+            ObjectMapper mapper = objectMapperLookup.apply(parent);
+            if (mapper != null && mapper.isNested()) {
                 return true;
             }
         }
@@ -172,16 +166,17 @@ public final class NestedHelper {
             // we might add a nested filter when it is nor required.
             return true;
         }
-        if (mapperService.fullName(field) == null) {
+        if (isMappedFieldPredicate.test(field) == false) {
             return false;
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
-            ObjectMapper mapper = mapperService.getObjectMapper(parent);
-            if (mapper!= null && mapper.nested().isNested()) {
+            ObjectMapper mapper = objectMapperLookup.apply(parent);
+            if (mapper != null && mapper.isNested()) {
+                NestedObjectMapper nestedMapper = (NestedObjectMapper) mapper;
                 if (mapper.fullPath().equals(nestedPath)) {
                     // If the mapper does not include in its parent or in the root object then
                     // the query might only match nested documents with the given path
-                    return mapper.nested().isIncludeInParent() || mapper.nested().isIncludeInRoot();
+                    return nestedMapper.isIncludeInParent() || nestedMapper.isIncludeInRoot();
                 } else {
                     // the first parent nested mapper does not have the expected path
                     // It might be misconfiguration or a sub nested mapper
@@ -192,7 +187,7 @@ public final class NestedHelper {
         return true; // the field is not a sub field of the nested path
     }
 
-    private static String parentObject(String field) {
+    public static String parentObject(String field) {
         int lastDot = field.lastIndexOf('.');
         if (lastDot == -1) {
             return null;

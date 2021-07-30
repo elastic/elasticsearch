@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -14,6 +15,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.tasks.Task;
@@ -23,8 +25,6 @@ import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
-
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -39,8 +39,7 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
     public TransportDeleteCalendarAction(TransportService transportService,
                                          ActionFilters actionFilters, Client client, JobManager jobManager,
                                          JobResultsProvider jobResultsProvider) {
-        super(DeleteCalendarAction.NAME, transportService, actionFilters,
-            (Supplier<DeleteCalendarAction.Request>) DeleteCalendarAction.Request::new);
+        super(DeleteCalendarAction.NAME, transportService, actionFilters, DeleteCalendarAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
@@ -61,8 +60,11 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
                                     listener.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
                                     return;
                                 }
-                                jobManager.updateProcessOnCalendarChanged(calendar.getJobIds());
-                                listener.onResponse(new AcknowledgedResponse(true));
+
+                                jobManager.updateProcessOnCalendarChanged(calendar.getJobIds(), ActionListener.wrap(
+                                        r -> listener.onResponse(AcknowledgedResponse.TRUE),
+                                        listener::onFailure
+                                ));
                             },
                             listener::onFailure));
                 },
@@ -73,8 +75,8 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
     }
 
     private DeleteByQueryRequest buildDeleteByQuery(String calendarId) {
-        DeleteByQueryRequest request = new DeleteByQueryRequest(MlMetaIndex.INDEX_NAME);
-        request.setSlices(5);
+        DeleteByQueryRequest request = new DeleteByQueryRequest(MlMetaIndex.indexName());
+        request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         request.setRefresh(true);
 
         QueryBuilder query = QueryBuilders.termsQuery(Calendar.ID.getPreferredName(), calendarId);

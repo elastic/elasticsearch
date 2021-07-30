@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -37,29 +26,39 @@ import org.elasticsearch.common.settings.Setting;
 public class MaxRetryAllocationDecider extends AllocationDecider {
 
     public static final Setting<Integer> SETTING_ALLOCATION_MAX_RETRY = Setting.intSetting("index.allocation.max_retries", 5, 0,
-        Setting.Property.Dynamic, Setting.Property.IndexScope);
+        Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.NotCopyableOnResize);
 
     public static final String NAME = "max_retry";
+
+    private static final Decision YES_NO_FAILURES = Decision.single(Decision.Type.YES, NAME, "shard has no previous failures");
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-        final Decision decision;
-        if (unassignedInfo != null && unassignedInfo.getNumFailedAllocations() > 0) {
-            final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
-            final int maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(indexMetaData.getSettings());
-            if (unassignedInfo.getNumFailedAllocations() >= maxRetry) {
-                decision = allocation.decision(Decision.NO, NAME, "shard has exceeded the maximum number of retries [%d] on " +
-                    "failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [%s]",
-                    maxRetry, unassignedInfo.toString());
-            } else {
-                decision = allocation.decision(Decision.YES, NAME, "shard has failed allocating [%d] times but [%d] retries are allowed",
-                    unassignedInfo.getNumFailedAllocations(), maxRetry);
-            }
-        } else {
-            decision = allocation.decision(Decision.YES, NAME, "shard has no previous failures");
+        final int numFailedAllocations = unassignedInfo == null ? 0 : unassignedInfo.getNumFailedAllocations();
+        if (numFailedAllocations > 0) {
+            return decisionWithFailures(shardRouting, allocation, unassignedInfo, numFailedAllocations);
         }
-        return decision;
+        return YES_NO_FAILURES;
+    }
+
+    private static Decision decisionWithFailures(ShardRouting shardRouting, RoutingAllocation allocation, UnassignedInfo unassignedInfo,
+                                                 int numFailedAllocations) {
+        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        final int maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(indexMetadata.getSettings());
+        final Decision res = numFailedAllocations >= maxRetry ? Decision.NO : Decision.YES;
+        return allocation.debugDecision() ? debugDecision(res, unassignedInfo, numFailedAllocations, maxRetry) : res;
+    }
+
+    private static Decision debugDecision(Decision decision, UnassignedInfo unassignedInfo, int numFailedAllocations, int maxRetry) {
+        if (decision.type() == Decision.Type.YES) {
+            return Decision.single(Decision.Type.NO, NAME, "shard has exceeded the maximum number of retries [%d] on " +
+                            "failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [%s]",
+                    maxRetry, unassignedInfo.toString());
+        } else {
+            return Decision.single(Decision.Type.YES, NAME, "shard has failed allocating [%d] times but [%d] retries are allowed",
+                    numFailedAllocations, maxRetry);
+        }
     }
 
     @Override

@@ -1,23 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
+
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.script.DynamicMap;
+import org.elasticsearch.script.IngestConditionalScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,63 +26,101 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
-import org.elasticsearch.script.IngestConditionalScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
 
-public class ConditionalProcessor extends AbstractProcessor {
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+
+public class ConditionalProcessor extends AbstractProcessor implements WrappingProcessor {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
+    private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of(
+            "_type", value -> {
+                deprecationLogger.deprecate(DeprecationCategory.INDICES, "conditional-processor__type",
+                        "[types removal] Looking up doc types [_type] in scripts is deprecated.");
+                return value;
+            });
 
     static final String TYPE = "conditional";
 
     private final Script condition;
-
     private final ScriptService scriptService;
-
     private final Processor processor;
     private final IngestMetric metric;
     private final LongSupplier relativeTimeProvider;
+    private final IngestConditionalScript precompiledConditionScript;
 
-    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor) {
-        this(tag, script, scriptService, processor, System::nanoTime);
+    ConditionalProcessor(String tag, String description, Script script, ScriptService scriptService, Processor processor) {
+        this(tag, description, script, scriptService, processor, System::nanoTime);
     }
 
-    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor, LongSupplier relativeTimeProvider) {
-        super(tag);
+    ConditionalProcessor(String tag, String description, Script script, ScriptService scriptService, Processor processor,
+                         LongSupplier relativeTimeProvider) {
+        super(tag, description);
         this.condition = script;
         this.scriptService = scriptService;
         this.processor = processor;
         this.metric = new IngestMetric();
         this.relativeTimeProvider = relativeTimeProvider;
+
+        try {
+            final IngestConditionalScript.Factory factory = scriptService.compile(script, IngestConditionalScript.CONTEXT);
+            if (ScriptType.INLINE.equals(script.getType())) {
+                precompiledConditionScript = factory.newInstance(script.getParams());
+            } else {
+                // stored script, so will have to compile at runtime
+                precompiledConditionScript = null;
+            }
+        } catch (ScriptException e) {
+            throw newConfigurationException(TYPE, tag, null, e);
+        }
+    }
+
+    @Override
+    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        final boolean matches;
+        try {
+            matches = evaluate(ingestDocument);
+        } catch (Exception e) {
+            handler.accept(null, e);
+            return;
+        }
+
+        if (matches) {
+            final long startTimeInNanos = relativeTimeProvider.getAsLong();
+            metric.preIngest();
+            processor.execute(ingestDocument, (result, e) -> {
+                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                metric.postIngest(ingestTimeInNanos);
+                if (e != null) {
+                    metric.ingestFailed();
+                    handler.accept(null, e);
+                } else {
+                    handler.accept(result, null);
+                }
+            });
+        } else {
+            handler.accept(ingestDocument, null);
+        }
     }
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        if (evaluate(ingestDocument)) {
-            long startTimeInNanos = relativeTimeProvider.getAsLong();
-            try {
-                metric.preIngest();
-                return processor.execute(ingestDocument);
-            } catch (Exception e) {
-                metric.ingestFailed();
-                throw e;
-            } finally {
-                long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
-                metric.postIngest(ingestTimeInMillis);
-            }
-        }
-        return ingestDocument;
+        throw new UnsupportedOperationException("this method should not get executed");
     }
 
     boolean evaluate(IngestDocument ingestDocument) {
-        IngestConditionalScript script =
-            scriptService.compile(condition, IngestConditionalScript.CONTEXT).newInstance(condition.getParams());
-        return script.execute(new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata()));
+        IngestConditionalScript script = precompiledConditionScript;
+        if (script == null) {
+            IngestConditionalScript.Factory factory = scriptService.compile(condition, IngestConditionalScript.CONTEXT);
+            script = factory.newInstance(condition.getParams());
+        }
+        return script.execute(new UnmodifiableIngestData(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS)));
     }
 
-    Processor getProcessor() {
+    public Processor getInnerProcessor() {
         return processor;
     }
 
@@ -97,6 +133,11 @@ public class ConditionalProcessor extends AbstractProcessor {
         return TYPE;
     }
 
+    public String getCondition(){
+        return condition.getIdOrCode();
+    }
+
+    @SuppressWarnings("unchecked")
     private static Object wrapUnmodifiable(Object raw) {
         // Wraps all mutable types that the JSON parser can create by immutable wrappers.
         // Any inputs not wrapped are assumed to be immutable
@@ -263,6 +304,7 @@ public class ConditionalProcessor extends AbstractProcessor {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public <T> T[] toArray(final T[] a) {
             Object[] raw = data.toArray(new Object[0]);
             T[] wrapped = (T[]) Arrays.copyOf(raw, a.length, a.getClass());

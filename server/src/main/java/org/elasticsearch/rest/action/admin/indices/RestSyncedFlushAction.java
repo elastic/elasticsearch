@@ -1,51 +1,53 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSyncedFlushAction extends BaseRestHandler {
-    public RestSyncedFlushAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(POST, "/_flush/synced", this);
-        controller.registerHandler(POST, "/{index}/_flush/synced", this);
 
-        controller.registerHandler(GET, "/_flush/synced", this);
-        controller.registerHandler(GET, "/{index}/_flush/synced", this);
+    private static final String DEPRECATION_MESSAGE =
+    "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.";
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(GET, "/_flush/synced")
+                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/_flush/synced")
+                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, "/{index}/_flush/synced")
+                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/_flush/synced")
+                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build());
     }
 
     @Override
@@ -55,17 +57,33 @@ public class RestSyncedFlushAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.lenientExpandOpen());
-        SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        syncedFlushRequest.indicesOptions(indicesOptions);
-        return channel -> client.admin().indices().syncedFlush(syncedFlushRequest, new RestBuilderListener<SyncedFlushResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(SyncedFlushResponse results, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                results.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(results.restStatus(), builder);
-            }
-        });
+        final FlushRequest flushRequest = new FlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        flushRequest.indicesOptions(IndicesOptions.fromRequest(request, flushRequest.indicesOptions()));
+        return channel -> client.admin().indices().flush(flushRequest, new SimulateSyncedFlushResponseListener(channel));
+    }
+
+    static final class SimulateSyncedFlushResponseListener extends RestBuilderListener<FlushResponse> {
+
+        SimulateSyncedFlushResponseListener(RestChannel channel) {
+            super(channel);
+        }
+
+        @Override
+        public RestResponse buildResponse(FlushResponse flushResponse, XContentBuilder builder) throws Exception {
+            builder.startObject();
+            buildSyncedFlushResponse(builder, flushResponse);
+            builder.endObject();
+            final RestStatus restStatus = flushResponse.getFailedShards() == 0 ? RestStatus.OK : RestStatus.CONFLICT;
+            return new BytesRestResponse(restStatus, builder);
+        }
+
+        private void buildSyncedFlushResponse(XContentBuilder builder, FlushResponse flushResponse) throws IOException {
+            builder.startObject("_shards");
+            builder.field("total", flushResponse.getTotalShards());
+            builder.field("successful", flushResponse.getSuccessfulShards());
+            builder.field("failed", flushResponse.getFailedShards());
+            // can't serialize the detail of each index as we don't have the shard count per index.
+            builder.endObject();
+        }
     }
 }

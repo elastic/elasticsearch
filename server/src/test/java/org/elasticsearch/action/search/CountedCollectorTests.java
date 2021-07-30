@@ -1,28 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -32,10 +24,10 @@ import java.util.concurrent.Executor;
 
 public class CountedCollectorTests extends ESTestCase {
     public void testCollect() throws InterruptedException {
-        AtomicArray<SearchPhaseResult> results = new AtomicArray<>(randomIntBetween(1, 100));
+        ArraySearchPhaseResults<SearchPhaseResult> consumer = new ArraySearchPhaseResults<>(randomIntBetween(1, 100));
         List<Integer> state = new ArrayList<>();
-        int numResultsExpected = randomIntBetween(1, results.length());
-        MockSearchPhaseContext context = new MockSearchPhaseContext(results.length());
+        int numResultsExpected = randomIntBetween(1, consumer.getAtomicArray().length());
+        MockSearchPhaseContext context = new MockSearchPhaseContext(consumer.getAtomicArray().length());
         CountDownLatch latch = new CountDownLatch(1);
         boolean maybeFork = randomBoolean();
         Executor executor = (runnable) -> {
@@ -46,7 +38,7 @@ public class CountedCollectorTests extends ESTestCase {
                 runnable.run();
             }
         };
-        CountedCollector<SearchPhaseResult> collector = new CountedCollector<>(r -> results.set(r.getShardIndex(), r), numResultsExpected,
+        CountedCollector<SearchPhaseResult> collector = new CountedCollector<>(consumer, numResultsExpected,
             latch::countDown, context);
         for (int i = 0; i < numResultsExpected; i++) {
             int shardID = i;
@@ -58,16 +50,17 @@ public class CountedCollectorTests extends ESTestCase {
                 case 1:
                     state.add(1);
                     executor.execute(() -> {
-                        DfsSearchResult dfsSearchResult = new DfsSearchResult(shardID, null);
+                        DfsSearchResult dfsSearchResult = new DfsSearchResult(
+                            new ShardSearchContextId(UUIDs.randomBase64UUID(), shardID), null, null);
                         dfsSearchResult.setShardIndex(shardID);
                         dfsSearchResult.setSearchShardTarget(new SearchShardTarget("foo",
-                            new Index("bar", "baz"), shardID, null));
+                            new ShardId("bar", "baz", shardID), null, OriginalIndices.NONE));
                         collector.onResult(dfsSearchResult);});
                     break;
                 case 2:
                     state.add(2);
-                    executor.execute(() -> collector.onFailure(shardID, new SearchShardTarget("foo", new Index("bar", "baz"),
-                        shardID, null), new RuntimeException("boom")));
+                    executor.execute(() -> collector.onFailure(shardID, new SearchShardTarget("foo", new ShardId("bar", "baz", shardID),
+                        null, OriginalIndices.NONE), new RuntimeException("boom")));
                     break;
                 default:
                     fail("unknown state");
@@ -75,7 +68,7 @@ public class CountedCollectorTests extends ESTestCase {
         }
         latch.await();
         assertEquals(numResultsExpected, state.size());
-
+        AtomicArray<SearchPhaseResult> results = consumer.getAtomicArray();
         for (int i = 0; i < numResultsExpected; i++) {
             switch (state.get(i)) {
                 case 0:
@@ -83,7 +76,7 @@ public class CountedCollectorTests extends ESTestCase {
                     break;
                 case 1:
                     assertNotNull(results.get(i));
-                    assertEquals(i, results.get(i).getRequestId());
+                    assertEquals(i, results.get(i).getContextId().getId());
                     break;
                 case 2:
                     final int shardId = i;

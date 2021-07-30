@@ -1,129 +1,97 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
-import java.util.function.Consumer;
-
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
+import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
-/**
- * Fake ClusterInfoService class that allows updating the nodes stats disk
- * usage with fake values
- */
 public class MockInternalClusterInfoService extends InternalClusterInfoService {
 
     /** This is a marker plugin used to trigger MockNode to use this mock info service. */
     public static class TestPlugin extends Plugin {}
 
-    private final ClusterName clusterName;
-    private volatile NodeStats[] stats = new NodeStats[3];
+    @Nullable // if no fakery should take place
+    private volatile Function<ShardRouting, Long> shardSizeFunction;
 
-    /** Create a fake NodeStats for the given node and usage */
-    public static NodeStats makeStats(String nodeName, DiskUsage usage) {
-        FsInfo.Path[] paths = new FsInfo.Path[1];
-        FsInfo.Path path = new FsInfo.Path("/dev/null", null,
-            usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes());
-        paths[0] = path;
-        FsInfo fsInfo = new FsInfo(System.currentTimeMillis(), null, paths);
-        return new NodeStats(
-            new DiscoveryNode(nodeName, ESTestCase.buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-            System.currentTimeMillis(),
-            null, null, null, null, null,
-            fsInfo,
-            null, null, null,
-            null, null, null, null);
+    @Nullable // if no fakery should take place
+    private volatile BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction;
+
+    public MockInternalClusterInfoService(Settings settings, ClusterService clusterService,
+                                          ThreadPool threadPool, NodeClient client) {
+        super(settings, clusterService, threadPool, client);
     }
 
-    public MockInternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client,
-                                          Consumer<ClusterInfo> listener) {
-        super(settings, clusterService, threadPool, client, listener);
-        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        stats[0] = makeStats("node_t1", new DiskUsage("node_t1", "n1", "/dev/null", 100, 100));
-        stats[1] = makeStats("node_t2", new DiskUsage("node_t2", "n2", "/dev/null", 100, 100));
-        stats[2] = makeStats("node_t3", new DiskUsage("node_t3", "n3", "/dev/null", 100, 100));
+    public void setDiskUsageFunctionAndRefresh(BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction) {
+        this.diskUsageFunction = diskUsageFunction;
+        ClusterInfoServiceUtils.refresh(this);
     }
 
-    public void setN1Usage(String nodeName, DiskUsage newUsage) {
-        stats[0] = makeStats(nodeName, newUsage);
-    }
-
-    public void setN2Usage(String nodeName, DiskUsage newUsage) {
-        stats[1] = makeStats(nodeName, newUsage);
-    }
-
-    public void setN3Usage(String nodeName, DiskUsage newUsage) {
-        stats[2] = makeStats(nodeName, newUsage);
-    }
-
-    @Override
-    public CountDownLatch updateNodeStats(final ActionListener<NodesStatsResponse> listener) {
-        NodesStatsResponse response = new NodesStatsResponse(clusterName, Arrays.asList(stats), Collections.emptyList());
-        listener.onResponse(response);
-        return new CountDownLatch(0);
-    }
-
-    @Override
-    public CountDownLatch updateIndicesStats(final ActionListener<IndicesStatsResponse> listener) {
-        // Not used, so noop
-        return new CountDownLatch(0);
+    public void setShardSizeFunctionAndRefresh(Function<ShardRouting, Long> shardSizeFunction) {
+        this.shardSizeFunction = shardSizeFunction;
+        ClusterInfoServiceUtils.refresh(this);
     }
 
     @Override
     public ClusterInfo getClusterInfo() {
-        ClusterInfo clusterInfo = super.getClusterInfo();
-        return new DevNullClusterInfo(clusterInfo.getNodeLeastAvailableDiskUsages(),
-                clusterInfo.getNodeMostAvailableDiskUsages(), clusterInfo.shardSizes);
+        final ClusterInfo clusterInfo = super.getClusterInfo();
+        return new SizeFakingClusterInfo(clusterInfo);
     }
 
-    /**
-     * ClusterInfo that always points to DevNull.
-     */
-    public static class DevNullClusterInfo extends ClusterInfo {
-        public DevNullClusterInfo(ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
-            ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage, ImmutableOpenMap<String, Long> shardSizes) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null);
+    @Override
+    List<NodeStats> adjustNodesStats(List<NodeStats> nodesStats) {
+        final BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction = this.diskUsageFunction;
+        if (diskUsageFunction == null) {
+            return nodesStats;
+        }
+
+        return nodesStats.stream().map(nodeStats -> {
+            final DiscoveryNode discoveryNode = nodeStats.getNode();
+            final FsInfo oldFsInfo = nodeStats.getFs();
+            return new NodeStats(discoveryNode, nodeStats.getTimestamp(), nodeStats.getIndices(), nodeStats.getOs(),
+                nodeStats.getProcess(), nodeStats.getJvm(), nodeStats.getThreadPool(), new FsInfo(oldFsInfo.getTimestamp(),
+                oldFsInfo.getIoStats(),
+                StreamSupport.stream(oldFsInfo.spliterator(), false)
+                    .map(fsInfoPath -> diskUsageFunction.apply(discoveryNode, fsInfoPath))
+                    .toArray(FsInfo.Path[]::new)), nodeStats.getTransport(),
+                nodeStats.getHttp(), nodeStats.getBreaker(), nodeStats.getScriptStats(), nodeStats.getDiscoveryStats(),
+                nodeStats.getIngestStats(), nodeStats.getAdaptiveSelectionStats(), nodeStats.getIndexingPressureStats());
+        }).collect(Collectors.toList());
+    }
+
+    class SizeFakingClusterInfo extends ClusterInfo {
+        SizeFakingClusterInfo(ClusterInfo delegate) {
+            super(delegate.getNodeLeastAvailableDiskUsages(), delegate.getNodeMostAvailableDiskUsages(),
+                delegate.shardSizes, delegate.shardDataSetSizes, delegate.routingToDataPath, delegate.reservedSpace);
         }
 
         @Override
-        public String getDataPath(ShardRouting shardRouting) {
-            return "/dev/null";
+        public Long getShardSize(ShardRouting shardRouting) {
+            final Function<ShardRouting, Long> shardSizeFunction = MockInternalClusterInfoService.this.shardSizeFunction;
+            if (shardSizeFunction == null) {
+                return super.getShardSize(shardRouting);
+            }
+
+            return shardSizeFunction.apply(shardRouting);
         }
     }
 

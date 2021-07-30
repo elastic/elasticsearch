@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-percentiles-bucket-aggregation]]
-=== Percentiles Bucket Aggregation
+=== Percentiles bucket aggregation
+++++
+<titleabbrev>Percentiles bucket</titleabbrev>
+++++
 
 A sibling pipeline aggregation which calculates percentiles across all bucket of a specified metric in a sibling aggregation.
 The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.
@@ -11,14 +14,16 @@ A `percentiles_bucket` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "percentiles_bucket": {
-        "buckets_path": "the_sum"
-    }
+  "percentiles_bucket": {
+    "buckets_path": "the_sum"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
 
+[[percentiles-bucket-params]]
 .`percentiles_bucket` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to find the percentiles for (see <<buckets-path-syntax>> for more
@@ -27,39 +32,39 @@ A `percentiles_bucket` aggregation looks like this in isolation:
  details)|Optional | `skip`
 |`format` |format to apply to the output value of this aggregation |Optional | `null`
 |`percents` |The list of percentiles to calculate |Optional | `[ 1, 5, 25, 50, 75, 95, 99 ]`
+|`keyed` |Flag which returns the range as an hash instead of an array of key-value pairs |Optional | `true`
 |===
 
 The following snippet calculates the percentiles for the total monthly `sales` buckets:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                }
-            }
-        },
-        "percentiles_monthly_sales": {
-            "percentiles_bucket": {
-                "buckets_path": "sales_per_month>sales", <1>
-                "percents": [ 25.0, 50.0, 75.0 ] <2>
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
         }
+      }
+    },
+    "percentiles_monthly_sales": {
+      "percentiles_bucket": {
+        "buckets_path": "sales_per_month>sales", <1>
+        "percents": [ 25.0, 50.0, 75.0 ]         <2>
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> `buckets_path` instructs this percentiles_bucket aggregation that we want to calculate percentiles for
@@ -68,7 +73,7 @@ the `sales` aggregation in the `sales_per_month` date histogram.
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,
@@ -125,5 +130,5 @@ interpolate between data points.
 
 The percentiles are calculated exactly and is not an approximation (unlike the Percentiles Metric). This means
 the implementation maintains an in-memory, sorted list of your data to compute the percentiles, before discarding the
-data.  You may run into memory pressure issues if you attempt to calculate percentiles over many millions of
+data. You may run into memory pressure issues if you attempt to calculate percentiles over many millions of
 data-points in a single `percentiles_bucket`.

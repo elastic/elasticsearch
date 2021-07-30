@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -22,7 +11,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -48,6 +36,9 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
             query.flags(flags.toArray(new RegexpFlag[flags.size()]));
         }
         if (randomBoolean()) {
+            query.caseInsensitive(true);
+        }
+        if (randomBoolean()) {
             query.maxDeterminizedStates(randomInt(50000));
         }
         if (randomBoolean()) {
@@ -71,13 +62,13 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
     private static RegexpQueryBuilder randomRegexpQuery() {
         // mapped or unmapped fields
-        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME, randomAlphaOfLengthBetween(1, 10));
+        String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME, randomAlphaOfLengthBetween(1, 10));
         String value = randomAlphaOfLengthBetween(1, 10);
         return new RegexpQueryBuilder(fieldName, value);
     }
 
     @Override
-    protected void doAssertLuceneQuery(RegexpQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(RegexpQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, instanceOf(RegexpQuery.class));
         RegexpQuery regexpQuery = (RegexpQuery) query;
 
@@ -102,6 +93,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
                 "    \"name.first\" : {\n" +
                 "      \"value\" : \"s.*y\",\n" +
                 "      \"flags_value\" : 7,\n" +
+                "      \"case_insensitive\" : true,\n" +
                 "      \"max_determinized_states\" : 20000,\n" +
                 "      \"boost\" : 1.0\n" +
                 "    }\n" +
@@ -117,7 +109,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
     public void testNumeric() throws Exception {
         RegexpQueryBuilder query = new RegexpQueryBuilder(INT_FIELD_NAME, "12");
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(context));
         assertEquals("Can only use regexp queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
                 e.getMessage());

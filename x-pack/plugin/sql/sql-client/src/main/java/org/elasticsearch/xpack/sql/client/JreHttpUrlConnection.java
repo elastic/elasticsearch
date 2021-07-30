@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.client;
 
@@ -35,6 +36,8 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.sql.rowset.serial.SerialException;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.sql.client.UriUtils.appendSegmentToPath;
+import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
 
 /**
  * Low-level http client using the built-in {@link HttpURLConnection}.
@@ -47,10 +50,11 @@ public class JreHttpUrlConnection implements Closeable {
      * error.
      */
     public static final String SQL_STATE_BAD_SERVER = "bad_server";
-    private static final String SQL_NOT_AVAILABLE_ERROR_MESSAGE = "request [/_sql] contains unrecognized parameter: [mode]";
+    private static final String SQL_NOT_AVAILABLE_ERROR_MESSAGE = "Incorrect HTTP method for uri [" + SQL_QUERY_REST_ENDPOINT
+            + "?error_trace] and method [POST], allowed:";
 
     public static <R> R http(String path, String query, ConnectionConfiguration cfg, Function<JreHttpUrlConnection, R> handler) {
-        final URI uriPath = cfg.baseUri().resolve(path);  // update path if needed
+        final URI uriPath = appendSegmentToPath(cfg.baseUri(), path);  // update path if needed
         final String uriQuery = query == null ? uriPath.getQuery() : query; // update query if needed
         final URL url;
         try {
@@ -138,10 +142,18 @@ public class JreHttpUrlConnection implements Closeable {
             CheckedBiFunction<InputStream, Function<String, String>, R, IOException> parser,
             String requestMethod
     ) throws ClientException {
+        return request(doc, parser, requestMethod, "application/json");
+    }
+
+    public <R> ResponseOrException<R> request(
+            CheckedConsumer<OutputStream, IOException> doc,
+            CheckedBiFunction<InputStream, Function<String, String>, R, IOException> parser,
+            String requestMethod, String contentTypeHeader
+    ) throws ClientException {
         try {
             con.setRequestMethod(requestMethod);
             con.setDoOutput(true);
-            con.setRequestProperty("Content-Type", "application/json");
+            con.setRequestProperty("Content-Type", contentTypeHeader);
             con.setRequestProperty("Accept", "application/json");
             if (doc != null) {
                 try (OutputStream out = con.getOutputStream()) {
@@ -178,10 +190,9 @@ public class JreHttpUrlConnection implements Closeable {
         SqlExceptionType type = SqlExceptionType.fromRemoteFailureType(failure.type());
         if (type == null) {
             // check if x-pack or sql are not available (x-pack not installed or sql not enabled)
-            // by checking the error message the server is sending back 
-            if (con.getResponseCode() >= HttpURLConnection.HTTP_BAD_REQUEST
-                    && failure.reason().contains(SQL_NOT_AVAILABLE_ERROR_MESSAGE)) {
-                return new ResponseOrException<>(new SQLException("X-Pack/SQL do not seem to be available"
+            // by checking the error message the server is sending back
+            if (con.getResponseCode() >= HttpURLConnection.HTTP_BAD_REQUEST && failure.reason().contains(SQL_NOT_AVAILABLE_ERROR_MESSAGE)) {
+                return new ResponseOrException<>(new SQLException("X-Pack/SQL does not seem to be available"
                         + " on the Elasticsearch node using the access path '"
                         + con.getURL().getHost()
                         + (con.getURL().getPort() > 0 ? ":" + con.getURL().getPort() : "")
@@ -240,7 +251,7 @@ public class JreHttpUrlConnection implements Closeable {
 
     @Override
     public void close() {
-        if (!closed) {
+        if (closed == false) {
             closed = true;
 
             // consume streams

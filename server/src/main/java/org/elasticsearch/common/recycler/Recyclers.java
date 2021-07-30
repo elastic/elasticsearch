@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.recycler;
@@ -51,41 +40,7 @@ public enum Recyclers {
      * Return a recycler based on a deque.
      */
     public static <T> Recycler.Factory<T> dequeFactory(final Recycler.C<T> c, final int limit) {
-        return new Recycler.Factory<T>() {
-            @Override
-            public Recycler<T> build() {
-                return deque(c, limit);
-            }
-        };
-    }
-
-    /**
-     * Wrap two recyclers and forward to calls to <code>smallObjectRecycler</code> when <code>size &lt; minSize</code> and to
-     * <code>defaultRecycler</code> otherwise.
-     */
-    public static <T> Recycler<T> sizing(final Recycler<T> defaultRecycler, final Recycler<T> smallObjectRecycler, final int minSize) {
-        return new FilterRecycler<T>() {
-
-            @Override
-            protected Recycler<T> getDelegate() {
-                return defaultRecycler;
-            }
-
-            @Override
-            public Recycler.V<T> obtain(int sizing) {
-                if (sizing > 0 && sizing < minSize) {
-                    return smallObjectRecycler.obtain(sizing);
-                }
-                return super.obtain(sizing);
-            }
-
-            @Override
-            public void close() {
-                defaultRecycler.close();
-                smallObjectRecycler.close();
-            }
-
-        };
+        return () -> deque(c, limit);
     }
 
     /**
@@ -107,14 +62,7 @@ public enum Recyclers {
             }
 
             @Override
-            public org.elasticsearch.common.recycler.Recycler.V<T> obtain(int sizing) {
-                synchronized (lock) {
-                    return super.obtain(sizing);
-                }
-            }
-
-            @Override
-            public org.elasticsearch.common.recycler.Recycler.V<T> obtain() {
+            public Recycler.V<T> obtain() {
                 synchronized (lock) {
                     return super.obtain();
                 }
@@ -163,7 +111,7 @@ public enum Recyclers {
             private final Recycler<T>[] recyclers;
 
             {
-                @SuppressWarnings("unchecked")
+                @SuppressWarnings({"rawtypes", "unchecked"})
                 final Recycler<T>[] recyclers = new Recycler[concurrencyLevel];
                 this.recyclers = recyclers;
                 for (int i = 0; i < concurrencyLevel; ++i) {
@@ -184,13 +132,6 @@ public enum Recyclers {
             @Override
             protected Recycler<T> getDelegate() {
                 return recyclers[slot()];
-            }
-
-            @Override
-            public void close() {
-                for (Recycler<T> recycler : recyclers) {
-                    recycler.close();
-                }
             }
 
         };

@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.collapse;
 
-import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,12 +18,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.InnerHitBuilder;
-import org.elasticsearch.search.SearchContextException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -189,7 +175,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         CollapseBuilder that = (CollapseBuilder) o;
 
         if (maxConcurrentGroupRequests != that.maxConcurrentGroupRequests) return false;
-        if (!field.equals(that.field)) return false;
+        if (field.equals(that.field) == false) return false;
         return Objects.equals(innerHits, that.innerHits);
     }
 
@@ -200,32 +186,20 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         return result;
     }
 
-    public CollapseContext build(SearchContext context) {
-        if (context.scrollContext() != null) {
-            throw new SearchContextException(context, "cannot use `collapse` in a scroll context");
-        }
-        if (context.searchAfter() != null) {
-            throw new SearchContextException(context, "cannot use `collapse` in conjunction with `search_after`");
-        }
-        if (context.rescore() != null && context.rescore().isEmpty() == false) {
-            throw new SearchContextException(context, "cannot use `collapse` in conjunction with `rescore`");
-        }
-
-        MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(field);
+    public CollapseContext build(SearchExecutionContext searchExecutionContext) {
+        MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
         if (fieldType == null) {
-            throw new SearchContextException(context, "no mapping found for `" + field + "` in order to collapse on");
+            throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");
         }
-        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false &&
-            fieldType instanceof NumberFieldMapper.NumberFieldType == false) {
-            throw new SearchContextException(context, "unknown type for collapse field `" + field +
-                "`, only keywords and numbers are accepted");
+        if (fieldType.collapseType() == CollapseType.NONE) {
+            throw new IllegalArgumentException("collapse is not supported for the field [" + fieldType.name() +
+                "] of the type [" + fieldType.typeName() + "]");
         }
-
         if (fieldType.hasDocValues() == false) {
-            throw new SearchContextException(context, "cannot collapse on field `" + field + "` without `doc_values`");
+            throw new IllegalArgumentException("cannot collapse on field `" + field + "` without `doc_values`");
         }
-        if (fieldType.indexOptions() == IndexOptions.NONE && (innerHits != null && !innerHits.isEmpty())) {
-            throw new SearchContextException(context, "cannot expand `inner_hits` for collapse field `"
+        if (fieldType.isSearchable() == false && (innerHits != null && innerHits.isEmpty() == false)) {
+            throw new IllegalArgumentException("cannot expand `inner_hits` for collapse field `"
                 + field + "`, " + "only indexed field can retrieve `inner_hits`");
         }
 

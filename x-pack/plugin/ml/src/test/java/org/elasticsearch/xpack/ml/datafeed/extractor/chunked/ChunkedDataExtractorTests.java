@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.mock.orig.Mockito;
@@ -23,7 +25,10 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.junit.Before;
 
@@ -49,33 +54,41 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     private List<SearchRequest> capturedSearchRequests;
     private String jobId;
     private String timeField;
-    private List<String> types;
     private List<String> indices;
     private QueryBuilder query;
     private int scrollSize;
     private TimeValue chunkSpan;
     private DataExtractorFactory dataExtractorFactory;
+    private DatafeedTimingStatsReporter timingStatsReporter;
 
     private class TestDataExtractor extends ChunkedDataExtractor {
 
         private SearchResponse nextResponse;
+        private SearchPhaseExecutionException ex;
 
         TestDataExtractor(long start, long end) {
-            super(client, dataExtractorFactory, createContext(start, end));
+            super(client, dataExtractorFactory, createContext(start, end), timingStatsReporter);
         }
 
         TestDataExtractor(long start, long end, boolean hasAggregations, Long histogramInterval) {
-            super(client, dataExtractorFactory, createContext(start, end, hasAggregations, histogramInterval));
+            super(client, dataExtractorFactory, createContext(start, end, hasAggregations, histogramInterval), timingStatsReporter);
         }
 
         @Override
         protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
             capturedSearchRequests.add(searchRequestBuilder.request());
+            if (ex != null) {
+                throw ex;
+            }
             return nextResponse;
         }
 
         void setNextResponse(SearchResponse searchResponse) {
             nextResponse = searchResponse;
+        }
+
+        void setNextResponseToError(SearchPhaseExecutionException ex) {
+            this.ex = ex;
         }
     }
 
@@ -86,11 +99,11 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         jobId = "test-job";
         timeField = "time";
         indices = Arrays.asList("index-1", "index-2");
-        types = Arrays.asList("type-1", "type-2");
         query = QueryBuilders.matchAllQuery();
         scrollSize = 1000;
         chunkSpan = null;
         dataExtractorFactory = mock(DataExtractorFactory.class);
+        timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(DatafeedTimingStatsPersister.class));
     }
 
     public void testExtractionGivenNoData() throws IOException {
@@ -482,22 +495,13 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
     }
 
-    public void testDataSummaryRequestIsNotOk() {
+    public void testDataSummaryRequestIsFailed() {
         chunkSpan = TimeValue.timeValueSeconds(2);
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2300L);
-        extractor.setNextResponse(createErrorResponse());
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
 
         assertThat(extractor.hasNext(), is(true));
-        expectThrows(IOException.class, extractor::next);
-    }
-
-    public void testDataSummaryRequestHasShardFailures() {
-        chunkSpan = TimeValue.timeValueSeconds(2);
-        TestDataExtractor extractor = new TestDataExtractor(1000L, 2300L);
-        extractor.setNextResponse(createResponseWithShardFailures());
-
-        assertThat(extractor.hasNext(), is(true));
-        expectThrows(IOException.class, extractor::next);
+        expectThrows(SearchPhaseExecutionException.class, extractor::next);
     }
 
     private SearchResponse createSearchResponse(long totalHits, long earliestTime, long latestTime) {
@@ -542,27 +546,14 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         return searchResponse;
     }
 
-    private SearchResponse createErrorResponse() {
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.status()).thenReturn(RestStatus.INTERNAL_SERVER_ERROR);
-        return searchResponse;
-    }
-
-    private SearchResponse createResponseWithShardFailures() {
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.status()).thenReturn(RestStatus.OK);
-        when(searchResponse.getShardFailures()).thenReturn(
-                new ShardSearchFailure[] { new ShardSearchFailure(new RuntimeException("shard failed"))});
-        return searchResponse;
-    }
-
     private ChunkedDataExtractorContext createContext(long start, long end) {
         return createContext(start, end, false, null);
     }
 
     private ChunkedDataExtractorContext createContext(long start, long end, boolean hasAggregations, Long histogramInterval) {
-        return new ChunkedDataExtractorContext(jobId, timeField, indices, types, query, scrollSize, start, end, chunkSpan,
-                ChunkedDataExtractorFactory.newIdentityTimeAligner(), Collections.emptyMap(), hasAggregations, histogramInterval);
+        return new ChunkedDataExtractorContext(jobId, timeField, indices, query, scrollSize, start, end, chunkSpan,
+            ChunkedDataExtractorFactory.newIdentityTimeAligner(), Collections.emptyMap(), hasAggregations, histogramInterval,
+            SearchRequest.DEFAULT_INDICES_OPTIONS, Collections.emptyMap());
     }
 
     private static class StubSubExtractor implements DataExtractor {
@@ -597,6 +588,11 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         @Override
         public void cancel() {
             // do nothing
+        }
+
+        @Override
+        public long getEndTime() {
+            return 0;
         }
     }
 }

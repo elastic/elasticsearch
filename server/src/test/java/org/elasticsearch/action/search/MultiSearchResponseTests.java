@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.search;
 
@@ -46,10 +35,10 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
             int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
             int successfulShards = randomIntBetween(0, totalShards);
             int skippedShards = totalShards - successfulShards;
+            SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
             InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-            SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalShards, successfulShards, skippedShards);
             SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
-                    successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
+                    successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters, null);
             items[i] = new MultiSearchResponse.Item(searchResponse, null);
         }
         return new MultiSearchResponse(items, randomNonNegativeLong());
@@ -60,16 +49,15 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
         MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numItems];
         for (int i = 0; i < numItems; i++) {
             if (randomBoolean()) {
-                // Creating a minimal response is OK, because SearchResponse self
-                // is tested elsewhere.
+                // Creating a minimal response is OK, because SearchResponse is tested elsewhere.
                 long tookInMillis = randomNonNegativeLong();
                 int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
                 int successfulShards = randomIntBetween(0, totalShards);
                 int skippedShards = totalShards - successfulShards;
+                SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
                 InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-                SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalShards, successfulShards, skippedShards);
                 SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
-                        successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
+                        successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters, null);
                 items[i] = new MultiSearchResponse.Item(searchResponse, null);
             } else {
                 items[i] = new MultiSearchResponse.Item(null, new ElasticsearchException("an error"));
@@ -82,7 +70,7 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
     protected MultiSearchResponse doParseInstance(XContentParser parser) throws IOException {
         return MultiSearchResponse.fromXContext(parser);
     }
-    
+
     @Override
     protected void assertEqualInstances(MultiSearchResponse expected, MultiSearchResponse actual) {
         assertThat(actual.getTook(), equalTo(expected.getTook()));
@@ -107,7 +95,7 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
 
     protected Predicate<String> getRandomFieldsExcludeFilterWhenResultHasErrors() {
         return field -> field.startsWith("responses");
-    }     
+    }
 
     /**
      * Test parsing {@link MultiSearchResponse} with inner failures as they don't support asserting on xcontent equivalence, given that
@@ -124,6 +112,6 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
         AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
                 getRandomFieldsExcludeFilterWhenResultHasErrors(), this::createParser, this::doParseInstance,
                 this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
-    }       
+    }
 
 }

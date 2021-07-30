@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -16,8 +18,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -37,12 +41,19 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class XContentObjectTransformerTests extends ESTestCase {
 
+    @Override
+    public NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
     public void testFromMap() throws IOException {
         Map<String, Object> aggMap = Collections.singletonMap("fieldName",
             Collections.singletonMap("max",
                 Collections.singletonMap("field", "fieldName")));
 
-        XContentObjectTransformer<AggregatorFactories.Builder> aggTransformer = XContentObjectTransformer.aggregatorTransformer();
+        XContentObjectTransformer<AggregatorFactories.Builder> aggTransformer =
+            XContentObjectTransformer.aggregatorTransformer(xContentRegistry());
         assertXContentAreEqual(aggTransformer.fromMap(aggMap), aggMap);
         assertXContentAreEqual(aggTransformer.fromMap(aggMap), aggTransformer.toMap(aggTransformer.fromMap(aggMap)));
 
@@ -60,7 +71,8 @@ public class XContentObjectTransformerTests extends ESTestCase {
                 put("boost",1.0);
             }}));
 
-        XContentObjectTransformer<QueryBuilder> queryBuilderTransformer = XContentObjectTransformer.queryBuilderTransformer();
+        XContentObjectTransformer<QueryBuilder> queryBuilderTransformer =
+            XContentObjectTransformer.queryBuilderTransformer(xContentRegistry());
         assertXContentAreEqual(queryBuilderTransformer.fromMap(queryMap), queryMap);
         assertXContentAreEqual(queryBuilderTransformer.fromMap(queryMap),
             queryBuilderTransformer.toMap(queryBuilderTransformer.fromMap(queryMap)));
@@ -73,7 +85,8 @@ public class XContentObjectTransformerTests extends ESTestCase {
                 put("type", "phrase"); //phrase stopped being supported for match in 6.x
             }}));
 
-        XContentObjectTransformer<QueryBuilder> queryBuilderTransformer = XContentObjectTransformer.queryBuilderTransformer();
+        XContentObjectTransformer<QueryBuilder> queryBuilderTransformer =
+            XContentObjectTransformer.queryBuilderTransformer(xContentRegistry());
         ParsingException exception = expectThrows(ParsingException.class,
             () -> queryBuilderTransformer.fromMap(queryMap));
 
@@ -85,20 +98,23 @@ public class XContentObjectTransformerTests extends ESTestCase {
                 put("field", "myField");
             }}));
 
-        XContentObjectTransformer<AggregatorFactories.Builder> aggTransformer = XContentObjectTransformer.aggregatorTransformer();
+        XContentObjectTransformer<AggregatorFactories.Builder> aggTransformer =
+            XContentObjectTransformer.aggregatorTransformer(xContentRegistry());
         XContentParseException xContentParseException = expectThrows(XContentParseException.class, () -> aggTransformer.fromMap(aggMap));
         assertThat(xContentParseException.getMessage(), containsString("[terms] failed to parse field [size]"));
     }
 
     public void testToMap() throws IOException {
-        XContentObjectTransformer<AggregatorFactories.Builder> aggTransformer = XContentObjectTransformer.aggregatorTransformer();
-        XContentObjectTransformer<QueryBuilder> queryBuilderTransformer = XContentObjectTransformer.queryBuilderTransformer();
+        XContentObjectTransformer<AggregatorFactories.Builder> aggTransformer =
+            XContentObjectTransformer.aggregatorTransformer(xContentRegistry());
+        XContentObjectTransformer<QueryBuilder> queryBuilderTransformer =
+            XContentObjectTransformer.queryBuilderTransformer(xContentRegistry());
 
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
         long aggHistogramInterval = randomNonNegativeLong();
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         aggs.addAggregator(AggregationBuilders.dateHistogram("buckets")
-            .interval(aggHistogramInterval).subAggregation(maxTime).field("time"));
+            .fixedInterval(new DateHistogramInterval(aggHistogramInterval + "ms")).subAggregation(maxTime).field("time"));
 
         assertXContentAreEqual(aggs, aggTransformer.toMap(aggs));
         assertXContentAreEqual(aggTransformer.fromMap(aggTransformer.toMap(aggs)), aggTransformer.toMap(aggs));
@@ -113,8 +129,8 @@ public class XContentObjectTransformerTests extends ESTestCase {
     public void testDeprecationWarnings() throws IOException {
         XContentObjectTransformer<QueryBuilder> queryBuilderTransformer = new XContentObjectTransformer<>(NamedXContentRegistry.EMPTY,
             (p)-> {
-            p.getDeprecationHandler().usedDeprecatedField("oldField", "newField");
-            p.getDeprecationHandler().usedDeprecatedName("oldName", "modernName");
+            p.getDeprecationHandler().logReplacedField(null, null, "oldField", "newField");
+            p.getDeprecationHandler().logRenamedField(null, null, "oldName", "modernName");
             return new BoolQueryBuilder();
             });
         List<String> deprecations = new ArrayList<>();

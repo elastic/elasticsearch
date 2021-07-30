@@ -1,142 +1,401 @@
 [[cat-shards]]
-== cat shards
+=== cat shards API
+++++
+<titleabbrev>cat shards</titleabbrev>
+++++
 
 The `shards` command is the detailed view of what nodes contain which
-shards.  It will tell you if it's a primary or replica, the number of
+shards. It will tell you if it's a primary or replica, the number of
 docs, the bytes it takes on disk, and the node where it's located.
 
-Here we see a single index, with one primary shard and no replicas:
+For data streams, the API returns information about the stream's backing
+indices.
 
-[source,js]
+
+[[cat-shards-api-request]]
+==== {api-request-title}
+
+`GET /_cat/shards/<target>`
+
+`GET /_cat/shards`
+
+[[cat-shards-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API. You must
+also have the `monitor` or `manage` <<privileges-list-indices,index privilege>>
+for any data stream, index, or alias you retrieve.
+
+[[cat-shards-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
+
+[[cat-shards-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
++
+--
+If you do not specify which columns to include, the API returns the default
+columns in the order listed below. If you explicitly specify one or more
+columns, it only returns the specified columns.
+
+Valid columns are:
+
+`index`, `i`, `idx`::
+(Default) Name of the index.
+
+`shard`, `s`, `sh`::
+(Default) Name of the shard.
+
+`prirep`, `p`, `pr`, `primaryOrReplica`::
+(Default) Shard type. Returned values are `primary` or `replica`.
+
+`state`, `st`::
+(Default) State of the shard. Returned values are:
++
+* `INITIALIZING`: The shard is recovering from a peer shard or gateway.
+* `RELOCATING`: The shard is relocating.
+* `STARTED`: The shard has started.
+* `UNASSIGNED`: The shard is not assigned to any node.
+
+`docs`, `d`, `dc`::
+(Default) Number of documents in shard, such as `25`.
+
+`store`, `sto`::
+(Default) Disk space used by the shard, such as `5kb`.
+
+`ip`::
+(Default) IP address of the node, such as `127.0.1.1`.
+
+`id`::
+(Default) ID of the node, such as `k0zy`.
+
+`node`, `n`::
+(Default) Node name, such as `I8hydUG`.
+
+`completion.size`, `cs`, `completionSize`::
+Size of completion, such as `0b`.
+
+`fielddata.memory_size`, `fm`, `fielddataMemory`::
+Used fielddata cache memory, such as `0b`.
+
+`fielddata.evictions`, `fe`, `fielddataEvictions`::
+Fielddata cache evictions, such as `0`.
+
+`flush.total`, `ft`, `flushTotal`::
+Number of flushes, such as `1`.
+
+`flush.total_time`, `ftt`, `flushTotalTime`::
+Time spent in flush, such as `1`.
+
+`get.current`, `gc`, `getCurrent`::
+Number of current get operations, such as `0`.
+
+`get.time`, `gti`, `getTime`::
+Time spent in get, such as `14ms`.
+
+`get.total`, `gto`, `getTotal`::
+Number of get operations, such as `2`.
+
+`get.exists_time`, `geti`, `getExistsTime`::
+Time spent in successful gets, such as `14ms`.
+
+`get.exists_total`, `geto`, `getExistsTotal`::
+Number of successful get operations, such as `2`.
+
+`get.missing_time`, `gmti`, `getMissingTime`::
+Time spent in failed gets, such as `0s`.
+
+`get.missing_total`, `gmto`, `getMissingTotal`::
+Number of failed get operations, such as `1`.
+
+`indexing.delete_current`, `idc`, `indexingDeleteCurrent`::
+Number of current deletion operations, such as `0`.
+
+`indexing.delete_time`, `idti`, `indexingDeleteTime`::
+Time spent in deletions, such as `2ms`.
+
+`indexing.delete_total`, `idto`, `indexingDeleteTotal`::
+Number of deletion operations, such as `2`.
+
+`indexing.index_current`, `iic`, `indexingIndexCurrent`::
+Number of current indexing operations, such as `0`.
+
+`indexing.index_time`, `iiti`, `indexingIndexTime`::
+Time spent in indexing, such as `134ms`.
+
+`indexing.index_total`, `iito`, `indexingIndexTotal`::
+Number of indexing operations, such as `1`.
+
+`indexing.index_failed`, `iif`, `indexingIndexFailed`::
+Number of failed indexing operations, such as `0`.
+
+`merges.current`, `mc`, `mergesCurrent`::
+Number of current merge operations, such as `0`.
+
+`merges.current_docs`, `mcd`, `mergesCurrentDocs`::
+Number of current merging documents, such as `0`.
+
+`merges.current_size`, `mcs`, `mergesCurrentSize`::
+Size of current merges, such as `0b`.
+
+`merges.total`, `mt`, `mergesTotal`::
+Number of completed merge operations, such as `0`.
+
+`merges.total_docs`, `mtd`, `mergesTotalDocs`::
+Number of merged documents, such as `0`.
+
+`merges.total_size`, `mts`, `mergesTotalSize`::
+Size of current merges, such as `0b`.
+
+`merges.total_time`, `mtt`, `mergesTotalTime`::
+Time spent merging documents, such as `0s`.
+
+`query_cache.memory_size`, `qcm`, `queryCacheMemory`::
+Used query cache memory, such as `0b`.
+
+`query_cache.evictions`, `qce`, `queryCacheEvictions`::
+Query cache evictions, such as `0`.
+
+`recoverysource.type`, `rs`::
+Type of recovery source.
+
+`refresh.total`, `rto`, `refreshTotal`::
+Number of refreshes, such as `16`.
+
+`refresh.time`, `rti`, `refreshTime`::
+Time spent in refreshes, such as `91ms`.
+
+`search.fetch_current`, `sfc`, `searchFetchCurrent`::
+Current fetch phase operations, such as `0`.
+
+`search.fetch_time`, `sfti`, `searchFetchTime`::
+Time spent in fetch phase, such as `37ms`.
+
+`search.fetch_total`, `sfto`, `searchFetchTotal`::
+Number of fetch operations, such as `7`.
+
+`search.open_contexts`, `so`, `searchOpenContexts`::
+Open search contexts, such as `0`.
+
+`search.query_current`, `sqc`, `searchQueryCurrent`::
+Current query phase operations, such as `0`.
+
+`search.query_time`, `sqti`, `searchQueryTime`::
+Time spent in query phase, such as `43ms`.
+
+`search.query_total`, `sqto`, `searchQueryTotal`::
+Number of query operations, such as `9`.
+
+`search.scroll_current`, `scc`, `searchScrollCurrent`::
+Open scroll contexts, such as `2`.
+
+`search.scroll_time`, `scti`, `searchScrollTime`::
+Time scroll contexts held open, such as `2m`.
+
+`search.scroll_total`, `scto`, `searchScrollTotal`::
+Completed scroll contexts, such as `1`.
+
+`segments.count`, `sc`, `segmentsCount`::
+Number of segments, such as `4`.
+
+`segments.memory`, `sm`, `segmentsMemory`::
+Memory used by segments, such as `1.4kb`.
+
+`segments.index_writer_memory`, `siwm`, `segmentsIndexWriterMemory`::
+Memory used by index writer, such as `18mb`.
+
+`segments.version_map_memory`, `svmm`, `segmentsVersionMapMemory`::
+Memory used by version map, such as `1.0kb`.
+
+`segments.fixed_bitset_memory`, `sfbm`, `fixedBitsetMemory`::
+Memory used by fixed bit sets for nested object field types and type filters for
+types referred in <<parent-join,`join`>> fields, such as `1.0kb`.
+
+`seq_no.global_checkpoint`, `sqg`, `globalCheckpoint`::
+Global checkpoint.
+
+`seq_no.local_checkpoint`, `sql`, `localCheckpoint`::
+Local checkpoint.
+
+`seq_no.max`, `sqm`, `maxSeqNo`::
+Maximum sequence number.
+
+`suggest.current`, `suc`, `suggestCurrent`::
+Number of current suggest operations, such as `0`.
+
+`suggest.time`, `suti`, `suggestTime`::
+Time spent in suggest, such as `0`.
+
+`suggest.total`, `suto`, `suggestTotal`::
+Number of suggest operations, such as `0`.
+
+`sync_id`::
+Sync ID of the shard.
+
+`unassigned.at`, `ua`::
+Time at which the shard became unassigned in
+{wikipedia}/List_of_UTC_time_offsets[Coordinated Universal
+Time (UTC)].
+
+`unassigned.details`, `ud`::
+Details about why the shard became unassigned.
+
+`unassigned.for`, `uf`::
+Time at which the shard was requested to be unassigned in
+{wikipedia}/List_of_UTC_time_offsets[Coordinated Universal
+Time (UTC)].
+
+[[reason-unassigned]]
+`unassigned.reason`, `ur`::
+Reason the shard is unassigned. Returned values are:
++
+* `ALLOCATION_FAILED`: Unassigned as a result of a failed allocation of the shard.
+* `CLUSTER_RECOVERED`: Unassigned as a result of a full cluster recovery.
+* `DANGLING_INDEX_IMPORTED`: Unassigned as a result of importing a dangling index.
+* `EXISTING_INDEX_RESTORED`: Unassigned as a result of restoring into a closed index.
+* `INDEX_CREATED`: Unassigned as a result of an API creation of an index.
+* `INDEX_REOPENED`: Unassigned as a result of opening a closed index.
+* `NEW_INDEX_RESTORED`: Unassigned as a result of restoring into a new index.
+* `NODE_LEFT`: Unassigned as a result of the node hosting it leaving the cluster.
+* `REALLOCATED_REPLICA`: A better replica location is identified and causes the existing replica allocation to be cancelled.
+* `REINITIALIZED`: When a shard moves from started back to initializing.
+* `REPLICA_ADDED`: Unassigned as a result of explicit addition of a replica.
+* `REROUTE_CANCELLED`: Unassigned as a result of explicit cancel reroute command.
+
+--
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-shards-api-example]]
+==== {api-examples-title}
+
+[[cat-shards-api-example-single]]
+===== Example with a single data stream or index
+
+[source,console]
 ---------------------------------------------------------------------------
 GET _cat/shards
 ---------------------------------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-This will return
+The API returns the following response:
 
 [source,txt]
 ---------------------------------------------------------------------------
-twitter 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
+my-index-000001 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
 ---------------------------------------------------------------------------
 // TESTRESPONSE[s/3014/\\d+/]
 // TESTRESPONSE[s/31.1mb/\\d+(\.\\d+)?[kmg]?b/]
 // TESTRESPONSE[s/192.168.56.10/.*/]
-// TESTRESPONSE[s/H5dfFeA/node-0/ _cat]
+// TESTRESPONSE[s/H5dfFeA/node-0/ non_json]
 
-[float]
-[[index-pattern]]
-=== Index pattern
+[[cat-shards-api-example-wildcard]]
+===== Example with a wildcard pattern
 
-If you have many shards, you may wish to limit which indices show up
-in the output.  You can always do this with `grep`, but you can save
-some bandwidth by supplying an index pattern to the end.
+If your cluster has many shards, you can use a wildcard pattern in the
+`<target>` path parameter to limit the API request.
 
-[source,js]
+The following request returns information for any data streams or indices
+beginning with `my-index-`.
+
+[source,console]
 ---------------------------------------------------------------------------
-GET _cat/shards/twitt*
+GET _cat/shards/my-index-*
 ---------------------------------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-Which will return the following
+The API returns the following response:
 
 [source,txt]
 ---------------------------------------------------------------------------
-twitter 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
+my-index-000001 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
 ---------------------------------------------------------------------------
 // TESTRESPONSE[s/3014/\\d+/]
 // TESTRESPONSE[s/31.1mb/\\d+(\.\\d+)?[kmg]?b/]
 // TESTRESPONSE[s/192.168.56.10/.*/]
-// TESTRESPONSE[s/H5dfFeA/node-0/ _cat]
+// TESTRESPONSE[s/H5dfFeA/node-0/ non_json]
 
 
-[float]
 [[relocation]]
-=== Relocation
+===== Example with a relocating shard
 
-Let's say you've checked your health and you see a relocating
-shards.  Where are they from and where are they going?
-
-[source,js]
+[source,console]
 ---------------------------------------------------------------------------
 GET _cat/shards
 ---------------------------------------------------------------------------
-// CONSOLE
 // TEST[skip:for now, relocation cannot be recreated]
 
-A relocating shard will be shown as follows
+The API returns the following response:
 
 [source,txt]
 ---------------------------------------------------------------------------
-twitter 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.56.30 bGG90GE
+my-index-000001 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.56.30 bGG90GE
 ---------------------------------------------------------------------------
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
-[float]
+The `RELOCATING` value in `state` column indicates the index shard is
+relocating.
+
 [[states]]
-=== Shard states
+===== Example with a shard states
 
-Before a shard can be used, it goes through an `INITIALIZING` state.
-`shards` can show you which ones.
+Before a shard is available for use, it goes through an `INITIALIZING` state.
+You can use the cat shards API to see which shards are initializing.
 
-[source,js]
+[source,console]
 ---------------------------------------------------------------------------
 GET _cat/shards
 ---------------------------------------------------------------------------
-// CONSOLE
 // TEST[skip:there is no guarantee to test for shards in initializing state]
 
-You can get the initializing state in the response like this
+The API returns the following response:
 
 [source,txt]
 ---------------------------------------------------------------------------
-twitter 0 p STARTED      3014 31.1mb 192.168.56.10 H5dfFeA
-twitter 0 r INITIALIZING    0 14.3mb 192.168.56.30 bGG90GE
+my-index-000001 0 p STARTED      3014 31.1mb 192.168.56.10 H5dfFeA
+my-index-000001 0 r INITIALIZING    0 14.3mb 192.168.56.30 bGG90GE
 ---------------------------------------------------------------------------
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
-If a shard cannot be assigned, for example you've overallocated the
-number of replicas for the number of nodes in the cluster, the shard
-will remain `UNASSIGNED` with the <<reason-unassigned,reason code>> `ALLOCATION_FAILED`.
+===== Example with reasons for unassigned shards
 
-You can use the shards API to find out that reason.
+The following request returns the `unassigned.reason` column, which indicates
+why a shard is unassigned.
 
-[source,js]
+
+[source,console]
 ---------------------------------------------------------------------------
 GET _cat/shards?h=index,shard,prirep,state,unassigned.reason
 ---------------------------------------------------------------------------
-// CONSOLE
 // TEST[skip:for now]
 
-The reason for an unassigned shard will be listed as the last field
+The API returns the following response:
 
 [source,txt]
 ---------------------------------------------------------------------------
-twitter 0 p STARTED    3014 31.1mb 192.168.56.10 H5dfFeA
-twitter 0 r STARTED    3014 31.1mb 192.168.56.30 bGG90GE
-twitter 0 r STARTED    3014 31.1mb 192.168.56.20 I8hydUG
-twitter 0 r UNASSIGNED ALLOCATION_FAILED
+my-index-000001 0 p STARTED    3014 31.1mb 192.168.56.10 H5dfFeA
+my-index-000001 0 r STARTED    3014 31.1mb 192.168.56.30 bGG90GE
+my-index-000001 0 r STARTED    3014 31.1mb 192.168.56.20 I8hydUG
+my-index-000001 0 r UNASSIGNED ALLOCATION_FAILED
 ---------------------------------------------------------------------------
-// TESTRESPONSE[_cat]
-
-[float]
-[[reason-unassigned]]
-=== Reasons for unassigned shard
-
-These are the possible reasons for a shard to be in a unassigned state:
-
-[horizontal]
-`INDEX_CREATED`::           Unassigned as a result of an API creation of an index.
-`CLUSTER_RECOVERED`::       Unassigned as a result of a full cluster recovery.
-`INDEX_REOPENED`::          Unassigned as a result of opening a closed index.
-`DANGLING_INDEX_IMPORTED`:: Unassigned as a result of importing a dangling index.
-`NEW_INDEX_RESTORED`::      Unassigned as a result of restoring into a new index.
-`EXISTING_INDEX_RESTORED`:: Unassigned as a result of restoring into a closed index.
-`REPLICA_ADDED`::           Unassigned as a result of explicit addition of a replica.
-`ALLOCATION_FAILED`::       Unassigned as a result of a failed allocation of the shard.
-`NODE_LEFT`::               Unassigned as a result of the node hosting it leaving the cluster.
-`REROUTE_CANCELLED`::       Unassigned as a result of explicit cancel reroute command.
-`REINITIALIZED`::           When a shard moves from started back to initializing, for example, with shadow replicas.
-`REALLOCATED_REPLICA`::     A better replica location is identified and causes the existing replica allocation to be cancelled.
+// TESTRESPONSE[non_json]

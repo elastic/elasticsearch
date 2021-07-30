@@ -1,0 +1,88 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "alias_write_role"
+        body:  >
+            {
+              "indices": [
+                { "names": ["write_alias"], "privileges": ["write"] }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "test_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "alias_write_role" ],
+            "full_name" : "user with privileges to write via alias"
+          }
+
+  - do:
+      indices.create:
+        index: write_index_1
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+
+  - do:
+      indices.put_alias:
+        index: write_index_1
+        name: write_alias
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "alias_write_role"
+        ignore: 404
+
+  - do:
+      indices.delete_alias:
+        index: "write_index_1"
+        name: [ "write_alias" ]
+        ignore: 404
+
+  - do:
+      indices.delete:
+        index: [ "write_index_1" ]
+        ignore: 404
+
+---
+"Test indexing documents into an alias with dynamic mappings":
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      create:
+        id: 1
+        index: write_alias
+        body: >
+          {
+            "name" : "doc1"
+          }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      create:
+        id: 2
+        index: write_alias
+        body: >
+          {
+            "name2" : "doc2"
+          }

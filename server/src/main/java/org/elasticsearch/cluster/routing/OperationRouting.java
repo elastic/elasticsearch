@@ -1,75 +1,48 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.node.ResponseCollectorService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public class OperationRouting {
 
-    private static final Logger logger = LogManager.getLogger(OperationRouting.class);
-
     public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING =
             Setting.boolSetting("cluster.routing.use_adaptive_replica_selection", true,
                     Setting.Property.Dynamic, Setting.Property.NodeScope);
 
-    private List<String> awarenessAttributes;
     private boolean useAdaptiveReplicaSelection;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
-        this.awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
-            this::setAwarenessAttributes);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
         this.useAdaptiveReplicaSelection = useAdaptiveReplicaSelection;
-    }
-
-    private void setAwarenessAttributes(List<String> awarenessAttributes) {
-        this.awarenessAttributes = awarenessAttributes;
     }
 
     public ShardIterator indexShards(ClusterState clusterState, String index, String id, @Nullable String routing) {
@@ -111,7 +84,12 @@ public class OperationRouting {
                 set.add(iterator);
             }
         }
-        return new GroupShardsIterator<>(new ArrayList<>(set));
+        return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
+    }
+
+    public static ShardIterator getShards(ClusterState clusterState, ShardId shardId) {
+        final IndexShardRoutingTable shard = clusterState.routingTable().shardRoutingTable(shardId);
+        return shard.activeInitializingShardsRandomIt();
     }
 
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
@@ -123,13 +101,13 @@ public class OperationRouting {
         // we use set here and not list since we might get duplicates
         for (String index : concreteIndices) {
             final IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
-            final IndexMetaData indexMetaData = indexMetaData(clusterState, index);
+            final IndexMetadata indexMetadata = indexMetadata(clusterState, index);
             final Set<String> effectiveRouting = routing.get(index);
             if (effectiveRouting != null) {
                 for (String r : effectiveRouting) {
-                    final int routingPartitionSize = indexMetaData.getRoutingPartitionSize();
+                    final int routingPartitionSize = indexMetadata.getRoutingPartitionSize();
                     for (int partitionOffset = 0; partitionOffset < routingPartitionSize; partitionOffset++) {
-                        set.add(shardRoutingTable(indexRouting, calculateScaledShardId(indexMetaData, r, partitionOffset)));
+                        set.add(RoutingTable.shardRoutingTable(indexRouting, calculateScaledShardId(indexMetadata, r, partitionOffset)));
                     }
                 }
             } else {
@@ -146,15 +124,7 @@ public class OperationRouting {
                                                         @Nullable ResponseCollectorService collectorService,
                                                         @Nullable Map<String, Long> nodeCounts) {
         if (preference == null || preference.isEmpty()) {
-            if (awarenessAttributes.isEmpty()) {
-                if (useAdaptiveReplicaSelection) {
-                    return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
-                } else {
-                    return indexShard.activeInitializingShardsRandomIt();
-                }
-            } else {
-                return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes);
-            }
+            return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
         }
         if (preference.charAt(0) == '_') {
             Preference preferenceType = Preference.parse(preference);
@@ -176,20 +146,12 @@ public class OperationRouting {
                         break;
                     }
                 }
-                if (!found) {
+                if (found == false) {
                     return null;
                 }
                 // no more preference
                 if (index == -1 || index == preference.length() - 1) {
-                    if (awarenessAttributes.isEmpty()) {
-                        if (useAdaptiveReplicaSelection) {
-                            return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
-                        } else {
-                            return indexShard.activeInitializingShardsRandomIt();
-                        }
-                    } else {
-                        return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes);
-                    }
+                    return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
                 } else {
                     // update the preference and continue
                     preference = preference.substring(index + 1);
@@ -215,29 +177,17 @@ public class OperationRouting {
             }
         }
         // if not, then use it as the index
-        int routingHash = Murmur3HashFunction.hash(preference);
-        if (nodes.getMinNodeVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            // The AllocationService lists shards in a fixed order based on nodes
-            // so earlier versions of this class would have a tendency to
-            // select the same node across different shardIds.
-            // Better overall balancing can be achieved if each shardId opts
-            // for a different element in the list by also incorporating the
-            // shard ID into the hash of the user-supplied preference key.
-            routingHash = 31 * routingHash + indexShard.shardId.hashCode();
-        }
-        if (awarenessAttributes.isEmpty()) {
-            return indexShard.activeInitializingShardsIt(routingHash);
-        } else {
-            return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes, routingHash);
-        }
+        int routingHash = 31 * Murmur3HashFunction.hash(preference) + indexShard.shardId.hashCode();
+        return indexShard.activeInitializingShardsIt(routingHash);
     }
 
-    private IndexShardRoutingTable shardRoutingTable(IndexRoutingTable indexRouting, int shardId) {
-        IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
-        if (indexShard == null) {
-            throw new ShardNotFoundException(new ShardId(indexRouting.getIndex(), shardId));
+    private ShardIterator shardRoutings(IndexShardRoutingTable indexShard, DiscoveryNodes nodes,
+            @Nullable ResponseCollectorService collectorService, @Nullable Map<String, Long> nodeCounts) {
+        if (useAdaptiveReplicaSelection) {
+            return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
+        } else {
+            return indexShard.activeInitializingShardsRandomIt();
         }
-        return indexShard;
     }
 
     protected IndexRoutingTable indexRoutingTable(ClusterState clusterState, String index) {
@@ -248,51 +198,51 @@ public class OperationRouting {
         return indexRouting;
     }
 
-    protected IndexMetaData indexMetaData(ClusterState clusterState, String index) {
-        IndexMetaData indexMetaData = clusterState.metaData().index(index);
-        if (indexMetaData == null) {
+    protected IndexMetadata indexMetadata(ClusterState clusterState, String index) {
+        IndexMetadata indexMetadata = clusterState.metadata().index(index);
+        if (indexMetadata == null) {
             throw new IndexNotFoundException(index);
         }
-        return indexMetaData;
+        return indexMetadata;
     }
 
     protected IndexShardRoutingTable shards(ClusterState clusterState, String index, String id, String routing) {
-        int shardId = generateShardId(indexMetaData(clusterState, index), id, routing);
+        int shardId = generateShardId(indexMetadata(clusterState, index), id, routing);
         return clusterState.getRoutingTable().shardRoutingTable(index, shardId);
     }
 
     public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
-        IndexMetaData indexMetaData = indexMetaData(clusterState, index);
-        return new ShardId(indexMetaData.getIndex(), generateShardId(indexMetaData, id, routing));
+        IndexMetadata indexMetadata = indexMetadata(clusterState, index);
+        return new ShardId(indexMetadata.getIndex(), generateShardId(indexMetadata, id, routing));
     }
 
-    public static int generateShardId(IndexMetaData indexMetaData, @Nullable String id, @Nullable String routing) {
+    public static int generateShardId(IndexMetadata indexMetadata, @Nullable String id, @Nullable String routing) {
         final String effectiveRouting;
         final int partitionOffset;
 
         if (routing == null) {
-            assert(indexMetaData.isRoutingPartitionedIndex() == false) : "A routing value is required for gets from a partitioned index";
+            assert(indexMetadata.isRoutingPartitionedIndex() == false) : "A routing value is required for gets from a partitioned index";
             effectiveRouting = id;
         } else {
             effectiveRouting = routing;
         }
 
-        if (indexMetaData.isRoutingPartitionedIndex()) {
-            partitionOffset = Math.floorMod(Murmur3HashFunction.hash(id), indexMetaData.getRoutingPartitionSize());
+        if (indexMetadata.isRoutingPartitionedIndex()) {
+            partitionOffset = Math.floorMod(Murmur3HashFunction.hash(id), indexMetadata.getRoutingPartitionSize());
         } else {
             // we would have still got 0 above but this check just saves us an unnecessary hash calculation
             partitionOffset = 0;
         }
 
-        return calculateScaledShardId(indexMetaData, effectiveRouting, partitionOffset);
+        return calculateScaledShardId(indexMetadata, effectiveRouting, partitionOffset);
     }
 
-    private static int calculateScaledShardId(IndexMetaData indexMetaData, String effectiveRouting, int partitionOffset) {
+    private static int calculateScaledShardId(IndexMetadata indexMetadata, String effectiveRouting, int partitionOffset) {
         final int hash = Murmur3HashFunction.hash(effectiveRouting) + partitionOffset;
 
         // we don't use IMD#getNumberOfShards since the index might have been shrunk such that we need to use the size
         // of original index to hash documents
-        return Math.floorMod(hash, indexMetaData.getRoutingNumShards()) / indexMetaData.getRoutingFactor();
+        return Math.floorMod(hash, indexMetadata.getRoutingNumShards()) / indexMetadata.getRoutingFactor();
     }
 
 }

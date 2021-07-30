@@ -1,173 +1,158 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsTests;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.query.QueryCacheStats;
-import org.elasticsearch.index.cache.request.RequestCacheStats;
-import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.fielddata.FieldDataStats;
-import org.elasticsearch.index.flush.FlushStats;
-import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.refresh.RefreshStats;
-import org.elasticsearch.index.search.stats.SearchStats;
-import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.index.warmer.WarmerStats;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.usage.UsageService;
 
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.stream.IntStream;
 
-import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-/**
- * Tests for {@link RestIndicesAction}
- */
 public class RestIndicesActionTests extends ESTestCase {
 
     public void testBuildTable() {
-        final Settings settings = Settings.EMPTY;
-        UsageService usageService = new UsageService();
-        final RestController restController = new RestController(Collections.emptySet(), null, null, null, usageService);
-        final RestIndicesAction action = new RestIndicesAction(settings, restController, new IndexNameExpressionResolver());
+        final int numIndices = randomIntBetween(3, 20);
+        final Map<String, Settings> indicesSettings = new LinkedHashMap<>();
+        final Map<String, IndexMetadata> indicesMetadatas = new LinkedHashMap<>();
+        final Map<String, ClusterIndexHealth> indicesHealths = new LinkedHashMap<>();
+        final Map<String, IndexStats> indicesStats = new LinkedHashMap<>();
 
-        // build a (semi-)random table
-        final int numIndices = randomIntBetween(0, 5);
-        Index[] indices = new Index[numIndices];
         for (int i = 0; i < numIndices; i++) {
-            indices[i] = new Index(randomAlphaOfLength(5), UUIDs.randomBase64UUID());
-        }
+            String indexName = "index-" + i;
 
-        final MetaData.Builder metaDataBuilder = MetaData.builder();
-        for (final Index index : indices) {
-            metaDataBuilder.put(IndexMetaData.builder(index.getName())
-                                    .settings(Settings.builder()
-                                                  .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                                                  .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID()))
-                                    .creationDate(System.currentTimeMillis())
-                                    .numberOfShards(1)
-                                    .numberOfReplicas(1)
-                                    .state(IndexMetaData.State.OPEN));
-        }
-        final MetaData metaData = metaDataBuilder.build();
+            Settings indexSettings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                .put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), randomBoolean())
+                .build();
+            indicesSettings.put(indexName, indexSettings);
 
-        final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                                              .metaData(metaData)
-                                              .build();
-        final String[] indicesStr = new String[indices.length];
-        for (int i = 0; i < indices.length; i++) {
-            indicesStr[i] = indices[i].getName();
-        }
-        final ClusterHealthResponse clusterHealth = new ClusterHealthResponse(
-            clusterState.getClusterName().value(), indicesStr, clusterState, 0, 0, 0, TimeValue.timeValueMillis(1000L)
-        );
+            IndexMetadata.State indexState = randomBoolean() ? IndexMetadata.State.OPEN : IndexMetadata.State.CLOSE;
+            if (frequently()) {
+                ClusterHealthStatus healthStatus = randomFrom(ClusterHealthStatus.values());
+                int numberOfShards = randomIntBetween(1, 3);
+                int numberOfReplicas = healthStatus == ClusterHealthStatus.YELLOW ? 1 : randomInt(1);
+                IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+                    .settings(indexSettings)
+                    .creationDate(System.currentTimeMillis())
+                    .numberOfShards(numberOfShards)
+                    .numberOfReplicas(numberOfReplicas)
+                    .state(indexState)
+                    .build();
+                indicesMetadatas.put(indexName, indexMetadata);
 
-        final Table table = action.buildTable(new FakeRestRequest(), indices, clusterHealth, randomIndicesStatsResponse(indices), metaData);
+                if (frequently()) {
+                    Index index = indexMetadata.getIndex();
+                    IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
+                    switch (randomFrom(ClusterHealthStatus.values())) {
+                        case GREEN:
+                            IntStream.range(0, numberOfShards)
+                                .mapToObj(n -> new ShardId(index, n))
+                                .map(shardId -> TestShardRouting.newShardRouting(shardId, "nodeA", true, ShardRoutingState.STARTED))
+                                .forEach(indexRoutingTable::addShard);
+                            if (numberOfReplicas > 0) {
+                                IntStream.range(0, numberOfShards)
+                                    .mapToObj(n -> new ShardId(index, n))
+                                    .map(shardId -> TestShardRouting.newShardRouting(shardId, "nodeB", false, ShardRoutingState.STARTED))
+                                    .forEach(indexRoutingTable::addShard);
+                            }
+                            break;
+                        case YELLOW:
+                            IntStream.range(0, numberOfShards)
+                                .mapToObj(n -> new ShardId(index, n))
+                                .map(shardId -> TestShardRouting.newShardRouting(shardId, "nodeA", true, ShardRoutingState.STARTED))
+                                .forEach(indexRoutingTable::addShard);
+                            if (numberOfReplicas > 0) {
+                                IntStream.range(0, numberOfShards)
+                                    .mapToObj(n -> new ShardId(index, n))
+                                    .map(shardId -> TestShardRouting.newShardRouting(shardId, null, false, ShardRoutingState.UNASSIGNED))
+                                    .forEach(indexRoutingTable::addShard);
+                            }
+                            break;
+                        case RED:
+                            break;
+                    }
+                    indicesHealths.put(indexName, new ClusterIndexHealth(indexMetadata, indexRoutingTable.build()));
 
-        // now, verify the table is correct
-        int count = 0;
-        List<Table.Cell> headers = table.getHeaders();
-        assertThat(headers.get(count++).value, equalTo("health"));
-        assertThat(headers.get(count++).value, equalTo("status"));
-        assertThat(headers.get(count++).value, equalTo("index"));
-        assertThat(headers.get(count++).value, equalTo("uuid"));
-
-        List<List<Table.Cell>> rows = table.getRows();
-        assertThat(rows.size(), equalTo(indices.length));
-        // TODO: more to verify (e.g. randomize cluster health, num primaries, num replicas, etc)
-        for (int i = 0; i < rows.size(); i++) {
-            count = 0;
-            final List<Table.Cell> row = rows.get(i);
-            assertThat(row.get(count++).value, equalTo("red*")); // all are red because cluster state doesn't have routing entries
-            assertThat(row.get(count++).value, equalTo("open")); // all are OPEN for now
-            assertThat(row.get(count++).value, equalTo(indices[i].getName()));
-            assertThat(row.get(count++).value, equalTo(indices[i].getUUID()));
-        }
-    }
-
-    private IndicesStatsResponse randomIndicesStatsResponse(final Index[] indices) {
-        List<ShardStats> shardStats = new ArrayList<>();
-        for (final Index index : indices) {
-            int numShards = randomInt(5);
-            int primaryIdx = randomIntBetween(-1, numShards - 1); // -1 means there is no primary shard.
-            for (int i = 0; i < numShards; i++) {
-                ShardId shardId = new ShardId(index, i);
-                boolean primary = (i == primaryIdx);
-                Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(i));
-                ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, primary,
-                    primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
-                    );
-                shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
-                shardRouting = shardRouting.moveToStarted();
-                CommonStats stats = new CommonStats();
-                stats.fieldData = new FieldDataStats();
-                stats.queryCache = new QueryCacheStats();
-                stats.docs = new DocsStats();
-                stats.store = new StoreStats();
-                stats.indexing = new IndexingStats();
-                stats.search = new SearchStats();
-                stats.segments = new SegmentsStats();
-                stats.merge = new MergeStats();
-                stats.refresh = new RefreshStats();
-                stats.completion = new CompletionStats();
-                stats.requestCache = new RequestCacheStats();
-                stats.get = new GetStats();
-                stats.flush = new FlushStats();
-                stats.warmer = new WarmerStats();
-                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null));
+                    if (frequently()) {
+                        IndexStats indexStats = mock(IndexStats.class);
+                        when(indexStats.getPrimaries()).thenReturn(new CommonStats());
+                        when(indexStats.getTotal()).thenReturn(new CommonStats());
+                        indicesStats.put(indexName, indexStats);
+                    }
+                }
             }
         }
-        return IndicesStatsTests.newIndicesStatsResponse(
-            shardStats.toArray(new ShardStats[shardStats.size()]), shardStats.size(), shardStats.size(), 0, emptyList()
-        );
+
+        final RestIndicesAction action = new RestIndicesAction();
+        final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, indicesHealths, indicesStats, indicesMetadatas);
+
+        // now, verify the table is correct
+        List<Table.Cell> headers = table.getHeaders();
+        assertThat(headers.get(0).value, equalTo("health"));
+        assertThat(headers.get(1).value, equalTo("status"));
+        assertThat(headers.get(2).value, equalTo("index"));
+        assertThat(headers.get(3).value, equalTo("uuid"));
+        assertThat(headers.get(4).value, equalTo("pri"));
+        assertThat(headers.get(5).value, equalTo("rep"));
+
+        final List<List<Table.Cell>> rows = table.getRows();
+        assertThat(rows.size(), equalTo(indicesMetadatas.size()));
+
+        for (final List<Table.Cell> row : rows) {
+            final String indexName = (String) row.get(2).value;
+
+            ClusterIndexHealth indexHealth = indicesHealths.get(indexName);
+            IndexStats indexStats = indicesStats.get(indexName);
+            IndexMetadata indexMetadata = indicesMetadatas.get(indexName);
+
+            if (indexHealth != null) {
+                assertThat(row.get(0).value, equalTo(indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)));
+            } else if (indexStats != null) {
+                assertThat(row.get(0).value, equalTo("red*"));
+            } else {
+                assertThat(row.get(0).value, equalTo(""));
+            }
+
+            assertThat(row.get(1).value, equalTo(indexMetadata.getState().toString().toLowerCase(Locale.ROOT)));
+            assertThat(row.get(2).value, equalTo(indexName));
+            assertThat(row.get(3).value, equalTo(indexMetadata.getIndexUUID()));
+            if (indexHealth != null) {
+                assertThat(row.get(4).value, equalTo(indexMetadata.getNumberOfShards()));
+                assertThat(row.get(5).value, equalTo(indexMetadata.getNumberOfReplicas()));
+            } else {
+                assertThat(row.get(4).value, nullValue());
+                assertThat(row.get(5).value, nullValue());
+            }
+        }
     }
 }

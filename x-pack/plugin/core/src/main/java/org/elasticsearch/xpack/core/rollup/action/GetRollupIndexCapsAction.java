@@ -1,25 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -30,7 +31,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetRollupIndexCapsAction extends Action<GetRollupIndexCapsAction.Response> {
+public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsAction.Response> {
 
     public static final GetRollupIndexCapsAction INSTANCE = new GetRollupIndexCapsAction();
     public static final String NAME = "indices:data/read/xpack/rollup/get/index/caps";
@@ -39,15 +40,10 @@ public class GetRollupIndexCapsAction extends Action<GetRollupIndexCapsAction.Re
     private static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
 
     private GetRollupIndexCapsAction() {
-        super(NAME);
+        super(NAME, GetRollupIndexCapsAction.Response::new);
     }
 
-    @Override
-    public Response newResponse() {
-        return new Response();
-    }
-
-    public static class Request extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
+    public static class Request extends ActionRequest implements IndicesRequest.Replaceable, ToXContentFragment {
         private String[] indices;
         private IndicesOptions options;
 
@@ -61,6 +57,12 @@ public class GetRollupIndexCapsAction extends Action<GetRollupIndexCapsAction.Re
         }
 
         public Request() {}
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.indices = in.readStringArray();
+            this.options = IndicesOptions.readIndicesOptions(in);
+        }
 
         @Override
         public IndicesOptions indicesOptions() {
@@ -83,10 +85,8 @@ public class GetRollupIndexCapsAction extends Action<GetRollupIndexCapsAction.Re
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.indices = in.readStringArray();
-            this.options = IndicesOptions.readIndicesOptions(in);
+        public boolean includeDataStreams() {
+            return true;
         }
 
         @Override
@@ -156,7 +156,6 @@ public class GetRollupIndexCapsAction extends Action<GetRollupIndexCapsAction.Re
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeMap(jobs, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         }
 

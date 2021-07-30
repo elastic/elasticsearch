@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
@@ -13,6 +14,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -21,22 +23,20 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.concurrent.Executors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -45,7 +45,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
 
     private Directory directory;
     private DirectoryReader directoryReader;
-    private BitsetFilterCache bitsetFilterCache;
+    private DocumentSubsetBitsetCache bitsetCache;
 
     @Before
     public void setUpDirectory() {
@@ -55,18 +55,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         assertTrue(DocumentSubsetReader.NUM_DOCS_CACHE.toString(),
                 DocumentSubsetReader.NUM_DOCS_CACHE.isEmpty());
         directory = newDirectory();
-        IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
-        bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
-        });
+        bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
     }
 
     @After
@@ -77,7 +66,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         assertTrue(DocumentSubsetReader.NUM_DOCS_CACHE.toString(),
                 DocumentSubsetReader.NUM_DOCS_CACHE.isEmpty());
         directory.close();
-        bitsetFilterCache.close();
+        bitsetCache.close();
     }
 
     public void testSearch() throws Exception {
@@ -104,14 +93,14 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         iw.close();
         openDirectoryReader();
 
-        IndexSearcher indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetFilterCache,
+        IndexSearcher indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
                 new TermQuery(new Term("field", "value1"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         TopDocs result = indexSearcher.search(new MatchAllDocsQuery(), 1);
         assertThat(result.totalHits.value, equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(0));
 
-        indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetFilterCache,
+        indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
                 new TermQuery(new Term("field", "value2"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
@@ -119,13 +108,13 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         assertThat(result.scoreDocs[0].doc, equalTo(1));
 
         // this doc has been marked as deleted:
-        indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetFilterCache,
+        indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
                 new TermQuery(new Term("field", "value3"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(0));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
         assertThat(result.totalHits.value, equalTo(0L));
 
-        indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetFilterCache,
+        indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
                 new TermQuery(new Term("field", "value4"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
@@ -154,7 +143,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             Query roleQuery = new TermQuery(new Term("field", "value" + i));
-            DirectoryReader wrappedReader = DocumentSubsetReader.wrap(directoryReader, bitsetFilterCache, roleQuery);
+            DirectoryReader wrappedReader = DocumentSubsetReader.wrap(directoryReader, bitsetCache, roleQuery);
 
             LeafReader leafReader = wrappedReader.leaves().get(0).reader();
             assertThat(leafReader.hasDeletions(), is(true));
@@ -176,26 +165,16 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
         iw.close();
-        IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-            }
-        });
-        DirectoryReader directoryReader = DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetFilterCache, new MatchAllDocsQuery());
+        DirectoryReader directoryReader = DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetCache, new MatchAllDocsQuery());
         try {
-            DocumentSubsetReader.wrap(directoryReader, bitsetFilterCache, new MatchAllDocsQuery());
+            DocumentSubsetReader.wrap(directoryReader, bitsetCache, new MatchAllDocsQuery());
             fail("shouldn't be able to wrap DocumentSubsetDirectoryReader twice");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Can't wrap [class org.elasticsearch.xpack.core.security.authz.accesscontrol" +
                     ".DocumentSubsetReader$DocumentSubsetDirectoryReader] twice"));
         }
 
-        bitsetFilterCache.close();
+        bitsetCache.close();
         directoryReader.close();
         dir.close();
     }
@@ -219,7 +198,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
 
         // open reader
         DirectoryReader ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw), new ShardId("_index", "_na_", 0));
-        ir = DocumentSubsetReader.wrap(ir, bitsetFilterCache, new MatchAllDocsQuery());
+        ir = DocumentSubsetReader.wrap(ir, bitsetCache, new MatchAllDocsQuery());
         assertEquals(2, ir.numDocs());
         assertEquals(1, ir.leaves().size());
 
@@ -238,6 +217,41 @@ public class DocumentSubsetReaderTests extends ESTestCase {
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, ir2, iw, dir);
+    }
+
+    public void testProducesStoredFieldsReader() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        iwc.setMaxBufferedDocs(100);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+
+        // add two docs, id:0 and id:1
+        Document doc = new Document();
+        Field idField = new StringField("id", "", Field.Store.NO);
+        doc.add(idField);
+        idField.setStringValue("0");
+        iw.addDocument(doc);
+        iw.commit();
+
+        idField.setStringValue("1");
+        iw.addDocument(doc);
+        iw.commit();
+
+        // open reader
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw), new ShardId("_index", "_na_", 0));
+        reader = DocumentSubsetReader.wrap(reader, bitsetCache, new MatchAllDocsQuery());
+        assertEquals(2, reader.numDocs());
+        assertEquals(2, reader.leaves().size());
+
+        TestUtil.checkReader(reader);
+        assertThat(reader.leaves().size(), Matchers.greaterThanOrEqualTo(1));
+        for (LeafReaderContext context: reader.leaves()) {
+            assertThat(context.reader(), Matchers.instanceOf(SequentialStoredFieldsLeafReader.class));
+            SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
+            assertNotNull(lf.getSequentialStoredFieldsReader());
+        }
+        IOUtils.close(reader, iw, dir);
     }
 
     private void openDirectoryReader() throws IOException {

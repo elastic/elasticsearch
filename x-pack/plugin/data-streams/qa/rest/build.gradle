@@ -1,0 +1,30 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+restResources {
+  restApi {
+    include 'bulk', 'count', 'search', '_common', 'indices', 'index', 'cluster', 'rank_eval', 'reindex', 'update_by_query', 'delete_by_query',
+      'eql', 'data_stream', 'migration', 'async_search', 'searchable_snapshots', 'rollup', 'graph', 'ilm', 'open_point_in_time', 'close_point_in_time'
+  }
+  restTests {
+    includeXpack 'data_stream'
+  }
+}
+
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  // Data streams is basic, but a few tests test data streams in combination with paid features
+  setting 'xpack.license.self_generated.type', 'trial'
+  // disable ILM history, since it disturbs tests using _all
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'xpack.security.enabled', 'false'
+}
+if (BuildParams.inFipsJvm){
+  // These fail in CI but only when run as part of checkPart2 and not individually.
+  // Tracked in :
+  tasks.named("javaRestTest").configure{enabled = false }
+  tasks.named("yamlRestTest").configure{enabled = false }
+}

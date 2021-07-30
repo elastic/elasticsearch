@@ -1,4 +1,19 @@
 [[logging]]
+=== Logging
+
+include::{es-repo-dir}/tab-widgets/code.asciidoc[]
+
+You can use {es}'s application logs to monitor your cluster and diagnose issues.
+If you run {es} as a service, the default location of the logs varies based on
+your platform and installation method:
+
+include::{es-repo-dir}/tab-widgets/logging-widget.asciidoc[]
+
+If you run {es} from the command line, {es} prints logs to the standard output
+(`stdout`).
+
+[discrete]
+[[loggin-configuration]]
 === Logging configuration
 
 Elasticsearch uses https://logging.apache.org/log4j/2.x/[Log4j 2] for
@@ -20,43 +35,62 @@ will resolve to `/var/log/elasticsearch/production.log`.
 
 [source,properties]
 --------------------------------------------------
+######## Server JSON ############################
 appender.rolling.type = RollingFile <1>
 appender.rolling.name = rolling
-appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}.log <2>
-appender.rolling.layout.type = PatternLayout
-appender.rolling.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %.-10000m%n
-appender.rolling.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.log.gz <3>
+appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}_server.json <2>
+appender.rolling.layout.type = ECSJsonLayout <3>
+appender.rolling.layout.dataset = elasticsearch.server <4>
+appender.rolling.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.json.gz <5>
 appender.rolling.policies.type = Policies
-appender.rolling.policies.time.type = TimeBasedTriggeringPolicy <4>
-appender.rolling.policies.time.interval = 1 <5>
-appender.rolling.policies.time.modulate = true <6>
-appender.rolling.policies.size.type = SizeBasedTriggeringPolicy <7>
-appender.rolling.policies.size.size = 256MB <8>
+appender.rolling.policies.time.type = TimeBasedTriggeringPolicy <6>
+appender.rolling.policies.time.interval = 1 <7>
+appender.rolling.policies.time.modulate = true <8>
+appender.rolling.policies.size.type = SizeBasedTriggeringPolicy <9>
+appender.rolling.policies.size.size = 256MB <10>
 appender.rolling.strategy.type = DefaultRolloverStrategy
 appender.rolling.strategy.fileIndex = nomax
-appender.rolling.strategy.action.type = Delete <9>
+appender.rolling.strategy.action.type = Delete <11>
 appender.rolling.strategy.action.basepath = ${sys:es.logs.base_path}
-appender.rolling.strategy.action.condition.type = IfFileName <10>
-appender.rolling.strategy.action.condition.glob = ${sys:es.logs.cluster_name}-* <11>
-appender.rolling.strategy.action.condition.nested_condition.type = IfAccumulatedFileSize <12>
-appender.rolling.strategy.action.condition.nested_condition.exceeds = 2GB <13>
+appender.rolling.strategy.action.condition.type = IfFileName <12>
+appender.rolling.strategy.action.condition.glob = ${sys:es.logs.cluster_name}-* <13>
+appender.rolling.strategy.action.condition.nested_condition.type = IfAccumulatedFileSize <14>
+appender.rolling.strategy.action.condition.nested_condition.exceeds = 2GB <15>
+################################################
 --------------------------------------------------
 
 <1> Configure the `RollingFile` appender
-<2> Log to `/var/log/elasticsearch/production.log`
-<3> Roll logs to `/var/log/elasticsearch/production-yyyy-MM-dd-i.log`; logs
+<2> Log to `/var/log/elasticsearch/production_server.json`
+<3> Use JSON layout.
+<4> `dataset` is a flag populating the `event.dataset` field in a `ECSJsonLayout`.
+ It can be used to distinguish different types of logs more easily when parsing them.
+<5> Roll logs to `/var/log/elasticsearch/production-yyyy-MM-dd-i.json`; logs
     will be compressed on each roll and `i` will be incremented
-<4> Use a time-based roll policy
-<5> Roll logs on a daily basis
-<6> Align rolls on the day boundary (as opposed to rolling every twenty-four
+<6> Use a time-based roll policy
+<7> Roll logs on a daily basis
+<8> Align rolls on the day boundary (as opposed to rolling every twenty-four
     hours)
-<7> Using a size-based roll policy
-<8> Roll logs after 256 MB
-<9> Use a delete action when rolling logs
-<10> Only delete logs matching a file pattern
-<11> The pattern is to only delete the main logs
-<12> Only delete if we have accumulated too many compressed logs
-<13> The size condition on the compressed logs is 2 GB
+<9> Using a size-based roll policy
+<10> Roll logs after 256 MB
+<11> Use a delete action when rolling logs
+<12> Only delete logs matching a file pattern
+<13> The pattern is to only delete the main logs
+<14> Only delete if we have accumulated too many compressed logs
+<15> The size condition on the compressed logs is 2 GB
+
+[source,properties]
+--------------------------------------------------
+######## Server -  old style pattern ###########
+appender.rolling_old.type = RollingFile
+appender.rolling_old.name = rolling_old
+appender.rolling_old.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}_server.log <1>
+appender.rolling_old.layout.type = PatternLayout
+appender.rolling_old.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %m%n
+appender.rolling_old.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.old_log.gz
+
+--------------------------------------------------
+<1> The configuration for `old style` pattern appenders. These logs will be saved in `*.log` files and if archived will be in `*
+.log.gz` files. Note that these should be considered deprecated and will be removed in the future.
 
 NOTE: Log4j's configuration parsing gets confused by any extraneous whitespace;
 if you copy and paste any Log4j settings on this page, or enter any Log4j
@@ -98,99 +132,132 @@ loggers. The logger section contains the java packages and their corresponding
 log level. The appender section contains the destinations for the logs.
 Extensive information on how to customize logging and all the supported
 appenders can be found on the
-http://logging.apache.org/log4j/2.x/manual/configuration.html[Log4j
+https://logging.apache.org/log4j/2.x/manual/configuration.html[Log4j
 documentation].
 
-[float]
+[discrete]
 [[configuring-logging-levels]]
 === Configuring logging levels
 
-There are four ways to configuring logging levels, each having situations in which they are appropriate to use.
+Each Java package in the {es-repo}[{es} source code] has a related logger. For
+example, the `org.elasticsearch.discovery` package has
+`logger.org.elasticsearch.discovery` for logs related to the
+<<modules-discovery-hosts-providers,discovery>> process.
 
-1. Via the command-line: `-E <name of logging hierarchy>=<level>` (e.g.,
-   `-E logger.org.elasticsearch.transport=trace`). This is most appropriate when
-   you are temporarily debugging a problem on a single node (for example, a
-   problem with startup, or during development).
-2. Via `elasticsearch.yml`: `<name of logging hierarchy>: <level>` (e.g.,
-   `logger.org.elasticsearch.transport: trace`). This is most appropriate when
-   you are temporarily debugging a problem but are not starting Elasticsearch
-   via the command-line (e.g., via a service) or you want a logging level
-   adjusted on a more permanent basis.
-3. Via <<cluster-logger,cluster settings>>:
-+
---
-[source,js]
--------------------------------
+To get more or less verbose logs, use the <<cluster-update-settings,cluster
+update settings API>> to change the related logger's log level. Each logger
+accepts Log4j 2's built-in log levels, from least to most verbose: `OFF`,
+`FATAL`, `ERROR`, `WARN`, `INFO`, `DEBUG`, and `TRACE`. The default log level is
+`INFO`. Messages logged at higher verbosity levels (`DEBUG` and `TRACE`) are
+only intended for expert use.
+
+[source,console]
+----
 PUT /_cluster/settings
 {
   "transient": {
-    "<name of logging hierarchy>": "<level>"
+    "logger.org.elasticsearch.discovery": "DEBUG"
   }
 }
--------------------------------
-// NOTCONSOLE
+----
 
-For example:
+Other ways to change log levels include:
 
-[source,js]
--------------------------------
-PUT /_cluster/settings
-{
-  "transient": {
-    "logger.org.elasticsearch.transport": "trace"
-  }
-}
--------------------------------
-// CONSOLE
-
-This is most appropriate when you need to dynamically need to adjust a logging
-level on an actively-running cluster.
-
+1. `elasticsearch.yml`:
++
 --
-4. Via the `log4j2.properties`:
+[source,yaml]
+----
+logger.org.elasticsearch.discovery: DEBUG
+----
+
+This is most appropriate when debugging a problem on a single node.
+--
+
+2. `log4j2.properties`:
 +
 --
 [source,properties]
---------------------------------------------------
-logger.<unique_identifier>.name = <name of logging hierarchy>
-logger.<unique_identifier>.level = <level>
---------------------------------------------------
+----
+logger.discovery.name = org.elasticsearch.discovery
+logger.discovery.level = debug
+----
 
-For example:
-
-[source,properties]
---------------------------------------------------
-logger.transport.name = org.elasticsearch.transport
-logger.transport.level = trace
---------------------------------------------------
-
-This is most appropriate when you need fine-grained control over the logger (for
-example, you want to send the logger to another file, or manage the logger
-differently; this is a rare use-case).
+This is most appropriate when you already need to change your Log4j 2
+configuration for other reasons. For example, you may want to send logs for a
+particular logger to another file. However, these use cases are rare.
 --
 
-[float]
+[discrete]
 [[deprecation-logging]]
 === Deprecation logging
 
-In addition to regular logging, Elasticsearch allows you to enable logging
-of deprecated actions. For example this allows you to determine early, if
-you need to migrate certain functionality in the future. By default,
-deprecation logging is enabled at the WARN level, the level at which all
-deprecation log messages will be emitted.
+{es} also writes deprecation logs to the log directory. These logs record a
+message when you use deprecated {es} functionality. You can use the deprecation
+logs to update your application before upgrading {es} to a new major version.
+
+By default, {es} rolls and compresses deprecation logs at 1GB. The default
+configuration preserves a maximum of five log files: four rolled logs and an
+active log.
+
+{es} emits deprecation log messages at the `DEPRECATION` level. To stop writing
+deprecation log messages, set `logger.deprecation.level` to `error`:
 
 [source,properties]
+----
+logger.deprecation.level = error
+----
+
+You can identify what is triggering deprecated functionality if `X-Opaque-Id` was used as an HTTP header.
+The user ID is included in the `X-Opaque-ID` field in deprecation JSON logs.
+
+[source,js]
+---------------------------
+{
+  "type": "deprecation",
+  "timestamp": "2019-08-30T12:07:07,126+02:00",
+  "level": "WARN",
+  "component": "o.e.d.r.a.a.i.RestCreateIndexAction",
+  "cluster.name": "distribution_run",
+  "node.name": "node-0",
+  "message": "[types removal] Using include_type_name in create index requests is deprecated. The parameter will be removed in the next major version.",
+  "x-opaque-id": "MY_USER_ID",
+  "cluster.uuid": "Aq-c-PAeQiK3tfBYtig9Bw",
+  "node.id": "D7fUYfnfTLa2D7y-xw6tZg"
+}
+---------------------------
+// NOTCONSOLE
+
+[discrete]
+[[json-logging]]
+=== JSON log format
+
+To make parsing Elasticsearch logs easier, logs are now printed in a JSON format.
+This is configured by a Log4J layout property `appender.rolling.layout.type = ECSJsonLayout`.
+This layout requires a `dataset` attribute to be set which is used to distinguish
+logs streams when parsing.
+[source,properties]
 --------------------------------------------------
-logger.deprecation.level = warn
+appender.rolling.layout.type = ECSJsonLayout
+appender.rolling.layout.dataset = elasticsearch.server
 --------------------------------------------------
+:es-json-layout-java-doc: {elasticsearch-javadoc}/org/elasticsearch/common/logging/ESJsonLayout.html
 
-This will create a daily rolling deprecation log file in your log directory.
-Check this file regularly, especially when you intend to upgrade to a new
-major version.
+Each line contains a single JSON document with the properties configured in `ECSJsonLayout`.
+See this class {es-json-layout-java-doc}[javadoc] for more details.
+However if a JSON document contains an exception, it will be printed over multiple lines.
+The first line will contain regular properties and subsequent lines will contain the
+stacktrace formatted as a JSON array.
 
-The default logging configuration has set the roll policy for the deprecation
-logs to roll and compress after 1 GB, and to preserve a maximum of five log
-files (four rolled logs, and the active log).
 
-You can disable it in the `config/log4j2.properties` file by setting the deprecation
-log level to `error`.
+NOTE: You can still use your own custom layout. To do that replace the line
+`appender.rolling.layout.type` with a different layout. See sample below:
+[source,properties]
+--------------------------------------------------
+appender.rolling.type = RollingFile
+appender.rolling.name = rolling
+appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}_server.log
+appender.rolling.layout.type = PatternLayout
+appender.rolling.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %.-10000m%n
+appender.rolling.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.log.gz
+--------------------------------------------------

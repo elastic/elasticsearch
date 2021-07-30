@@ -1,31 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetDatafeedsAction extends Action<GetDatafeedsAction.Response> {
+public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> {
 
     public static final GetDatafeedsAction INSTANCE = new GetDatafeedsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/datafeeds/get";
@@ -33,20 +28,17 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Response> {
     public static final String ALL = "_all";
 
     private GetDatafeedsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
+        @Deprecated
+        public static final String ALLOW_NO_DATAFEEDS = "allow_no_datafeeds";
+        public static final String ALLOW_NO_MATCH = "allow_no_match";
 
         private String datafeedId;
-        private boolean allowNoDatafeeds = true;
+        private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
             this();
@@ -60,30 +52,26 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             datafeedId = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoDatafeeds = in.readBoolean();
-            }
+            allowNoMatch = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoDatafeeds);
-            }
+            out.writeBoolean(allowNoMatch);
         }
 
         public String getDatafeedId() {
             return datafeedId;
         }
 
-        public boolean allowNoDatafeeds() {
-            return allowNoDatafeeds;
+        public boolean allowNoMatch() {
+            return allowNoMatch;
         }
 
-        public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
-            this.allowNoDatafeeds = allowNoDatafeeds;
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
         }
 
         @Override
@@ -92,13 +80,8 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Response> {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, allowNoDatafeeds);
+            return Objects.hash(datafeedId, allowNoMatch);
         }
 
         @Override
@@ -110,71 +93,26 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Response> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoDatafeeds, other.allowNoDatafeeds);
+            return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoMatch, other.allowNoMatch);
         }
     }
 
-    public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, GetDatafeedsAction action) {
-            super(client, action, new Request());
-        }
-    }
-
-    public static class Response extends ActionResponse implements ToXContentObject {
-
-        private QueryPage<DatafeedConfig> datafeeds;
+    public static class Response extends AbstractGetResourcesResponse<DatafeedConfig> implements ToXContentObject {
 
         public Response(QueryPage<DatafeedConfig> datafeeds) {
-            this.datafeeds = datafeeds;
+            super(datafeeds);
         }
 
-        public Response() {}
+        public Response(StreamInput in) throws IOException {
+            super(in);
+        }
 
         public QueryPage<DatafeedConfig> getResponse() {
-            return datafeeds;
+            return getResources();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeeds = new QueryPage<>(in, DatafeedConfig::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            datafeeds.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            datafeeds.doXContentBody(builder, params);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(datafeeds);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Response other = (Response) obj;
-            return Objects.equals(datafeeds, other.datafeeds);
-        }
-
-        @Override
-        public final String toString() {
-            return Strings.toString(this);
+        protected Reader<DatafeedConfig> getReader() {
+            return DatafeedConfig::new;
         }
     }
 

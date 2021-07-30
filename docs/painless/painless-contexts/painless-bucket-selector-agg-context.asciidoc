@@ -15,14 +15,18 @@ to determine if a bucket should be retained or filtered out.
 ==== Return
 
 boolean::
-        True if the the bucket should be retained, false if the bucket should be filtered out.
+        True if the bucket should be retained, false if the bucket should be filtered out.
 
 ==== API
+
+The standard <<painless-api-reference-shared, Painless API>> is available.
+
+==== Example
 
 
 To run this example, first follow the steps in <<painless-context-examples, context examples>>.
 
-The painless context in a `bucket_selector` aggregation provides a `params` map.  This map contains both
+The painless context in a `bucket_selector` aggregation provides a `params` map. This map contains both
 user-specified custom values, as well as the values from other aggregations specified in the `buckets_path`
 property.
 
@@ -37,9 +41,9 @@ params.max + params.base_cost > 10
 --------------------------------------------------
 
 Note that the values are extracted from the `params` map. The script is in the form of an expression
-that returns `true` or `false`.  In context, the aggregation looks like this:
+that returns `true` or `false`. In context, the aggregation looks like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /seats/_search
 {
@@ -74,8 +78,8 @@ GET /seats/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:seats]
+
 <1> The `buckets_path` points to the max aggregations (`max_cost`) and adds `max` variables
 to the `params` map
 <2> The user-specified `base_cost` is also added to the `params` map

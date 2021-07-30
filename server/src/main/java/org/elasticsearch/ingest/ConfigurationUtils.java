@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
@@ -48,6 +37,8 @@ import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 public final class ConfigurationUtils {
 
     public static final String TAG_KEY = "tag";
+    public static final String DESCRIPTION_KEY = "description";
+    public static final String[] VALID_MEDIA_TYPES = {"application/json", "text/plain", "application/x-www-form-urlencoded"};
 
     private ConfigurationUtils() {
     }
@@ -148,6 +139,34 @@ public final class ConfigurationUtils {
         return readStringOrInt(processorType, processorTag, propertyName, value);
     }
 
+    private static String readStringOrLong(String processorType, String processorTag,
+                                           String propertyName, Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String) {
+            return (String) value;
+        } else if (value instanceof Long || value instanceof Integer) {
+            return String.valueOf(value);
+        }
+        throw newConfigurationException(processorType, processorTag, propertyName,
+            "property isn't a string or long, but of type [" + value.getClass().getName() + "]");
+    }
+
+    /**
+     * Returns and removes the specified property from the specified configuration map.
+     *
+     * If the property value isn't of type string or long a {@link ElasticsearchParseException} is thrown.
+     */
+    public static String readOptionalStringOrLongProperty(String processorType, String processorTag,
+                                                         Map<String, Object> configuration, String propertyName) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            return null;
+        }
+        return readStringOrLong(processorType, processorTag, propertyName, value);
+    }
+
     public static Boolean readBooleanProperty(String processorType, String processorTag, Map<String, Object> configuration,
                                              String propertyName, boolean defaultValue) {
         Object value = configuration.remove(propertyName);
@@ -186,6 +205,26 @@ public final class ConfigurationUtils {
         } catch (Exception e) {
             throw newConfigurationException(processorType, processorTag, propertyName,
                 "property cannot be converted to an int [" + value.toString() + "]");
+        }
+    }
+
+    /**
+     * Returns and removes the specified property from the specified configuration map.
+     *
+     * If the property value isn't of type int a {@link ElasticsearchParseException} is thrown.
+     * If the property is missing an {@link ElasticsearchParseException} is thrown
+     */
+    public static Double readDoubleProperty(String processorType, String processorTag, Map<String, Object> configuration,
+                                          String propertyName) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            throw newConfigurationException(processorType, processorTag, propertyName, "required property is missing");
+        }
+        try {
+            return Double.parseDouble(value.toString());
+        } catch (Exception e) {
+            throw newConfigurationException(processorType, processorTag, propertyName,
+                "property cannot be converted to a double [" + value.toString() + "]");
         }
     }
 
@@ -284,6 +323,18 @@ public final class ConfigurationUtils {
         return value;
     }
 
+    public static String readMediaTypeProperty(String processorType, String processorTag, Map<String, Object> configuration,
+        String propertyName, String defaultValue) {
+        String mediaType = readStringProperty(processorType, processorTag, configuration, propertyName, defaultValue);
+
+        if (Arrays.asList(VALID_MEDIA_TYPES).contains(mediaType) == false) {
+            throw newConfigurationException(processorType, processorTag, propertyName,
+                "property does not contain a supported media type [" + mediaType + "]");
+        }
+
+        return mediaType;
+    }
+
     public static ElasticsearchException newConfigurationException(String processorType, String processorTag,
                                                                         String propertyName, String reason) {
         String msg;
@@ -313,7 +364,11 @@ public final class ConfigurationUtils {
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                     try {
-                        processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue()));
+                        if (entry.getValue() == null) {
+                            throw newConfigurationException(entry.getKey(), null, null, "processor config cannot be [null]");
+                        } else {
+                            processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue()));
+                        }
                     } catch (Exception e) {
                         exception = ExceptionsHelper.useOrSuppress(exception, e);
                     }
@@ -328,6 +383,12 @@ public final class ConfigurationUtils {
         return processors;
     }
 
+    public static TemplateScript.Factory readTemplateProperty(String processorType, String processorTag, Map<String, Object> configuration,
+                                                              String propertyName, ScriptService scriptService) {
+        String value = readStringProperty(processorType, processorTag, configuration, propertyName, null);
+        return compileTemplate(processorType, processorTag, propertyName, value, scriptService);
+    }
+
     public static TemplateScript.Factory compileTemplate(String processorType, String processorTag, String propertyName,
                                                            String propertyValue, ScriptService scriptService) {
         try {
@@ -335,7 +396,7 @@ public final class ConfigurationUtils {
             // installed for use by REST tests. `propertyValue` will not be
             // modified if templating is not available so a script that simply returns an unmodified `propertyValue`
             // is returned.
-            if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG)) {
+            if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG) && propertyValue.contains("{{")) {
                 Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, propertyValue, Collections.emptyMap());
                 return scriptService.compile(script, TemplateScript.CONTEXT);
             } else {
@@ -384,6 +445,7 @@ public final class ConfigurationUtils {
                                            ScriptService scriptService,
                                            String type, Map<String, Object> config) throws Exception {
         String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
+        String description = ConfigurationUtils.readOptionalStringProperty(null, tag, config, DESCRIPTION_KEY);
         Script conditionalScript = extractConditional(config);
         Processor.Factory factory = processorFactories.get(type);
         if (factory != null) {
@@ -399,7 +461,7 @@ public final class ConfigurationUtils {
             }
 
             try {
-                Processor processor = factory.create(processorFactories, tag, config);
+                Processor processor = factory.create(processorFactories, tag, description, config);
                 if (config.isEmpty() == false) {
                     throw new ElasticsearchParseException("processor [{}] doesn't support one or more provided configuration parameters {}",
                         type, Arrays.toString(config.keySet().toArray()));
@@ -408,7 +470,7 @@ public final class ConfigurationUtils {
                     processor = new CompoundProcessor(ignoreFailure, Collections.singletonList(processor), onFailureProcessors);
                 }
                 if (conditionalScript != null) {
-                    processor = new ConditionalProcessor(tag, conditionalScript, scriptService, processor);
+                    processor = new ConditionalProcessor(tag, description, conditionalScript, scriptService, processor);
                 }
                 return processor;
             } catch (Exception e) {

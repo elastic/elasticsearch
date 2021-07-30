@@ -1,31 +1,16 @@
-evaluationDependsOn(xpackModule('core'))
-
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-    name 'x-pack-graph'
-    description 'Elasticsearch Expanded Pack Plugin - Graph'
-    classname 'org.elasticsearch.xpack.graph.Graph'
-    extendedPlugins = ['x-pack-core']
+  name 'x-pack-graph'
+  description 'Elasticsearch Expanded Pack Plugin - Graph'
+  classname 'org.elasticsearch.xpack.graph.Graph'
+  extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-graph'
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    compileOnly project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-    project.subprojects
-            .find { it.path == project.path + ":qa" }
-            .subprojects
-            .findAll { it.path.startsWith(project.path + ":qa") }
-            .each { check.dependsOn it.check }
-}
-
-run {
-    plugin xpackModule('core')
-}
-
-integTest.enabled = false
+addQaCheckDependencies()

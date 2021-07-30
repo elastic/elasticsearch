@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.watch;
 
@@ -18,6 +19,8 @@ import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -28,27 +31,26 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.joda.time.DateTime.now;
 
 public class WatchStatusTests extends ESTestCase {
 
     public void testAckStatusIsResetOnUnmetCondition() {
         HashMap<String, ActionStatus> myMap = new HashMap<>();
-        ActionStatus actionStatus = new ActionStatus(now());
+        ActionStatus actionStatus = new ActionStatus(ZonedDateTime.now(ZoneOffset.UTC));
         myMap.put("foo", actionStatus);
 
-        actionStatus.update(now(), new LoggingAction.Result.Success("foo"));
-        actionStatus.onAck(now());
+        actionStatus.update(ZonedDateTime.now(ZoneOffset.UTC), new LoggingAction.Result.Success("foo"));
+        actionStatus.onAck(ZonedDateTime.now(ZoneOffset.UTC));
         assertThat(actionStatus.ackStatus().state(), is(State.ACKED));
 
-        WatchStatus status = new WatchStatus(now(), myMap);
-        status.onCheck(false, now());
+        WatchStatus status = new WatchStatus(ZonedDateTime.now(ZoneOffset.UTC), myMap);
+        status.onCheck(false, ZonedDateTime.now(ZoneOffset.UTC));
 
         assertThat(status.actionStatus("foo").ackStatus().state(), is(State.AWAITS_SUCCESSFUL_EXECUTION));
     }
 
     public void testHeadersToXContent() throws Exception {
-        WatchStatus status = new WatchStatus(now(), Collections.emptyMap());
+        WatchStatus status = new WatchStatus(ZonedDateTime.now(ZoneOffset.UTC), Collections.emptyMap());
         String key = randomAlphaOfLength(10);
         String value = randomAlphaOfLength(10);
         Map<String, String> headers = Collections.singletonMap(key, value);
@@ -71,6 +73,7 @@ public class WatchStatusTests extends ESTestCase {
                 Map<String, Object> fields = parser.map();
                 assertThat(fields, hasKey(WatchStatus.Field.HEADERS.getPreferredName()));
                 assertThat(fields.get(WatchStatus.Field.HEADERS.getPreferredName()), instanceOf(Map.class));
+                @SuppressWarnings("unchecked")
                 Map<String, Object> extractedHeaders = (Map<String, Object>) fields.get(WatchStatus.Field.HEADERS.getPreferredName());
                 assertThat(extractedHeaders, is(headers));
             }
@@ -78,7 +81,7 @@ public class WatchStatusTests extends ESTestCase {
     }
 
     public void testHeadersSerialization() throws IOException {
-        WatchStatus status = new WatchStatus(now(), Collections.emptyMap());
+        WatchStatus status = new WatchStatus(ZonedDateTime.now(ZoneOffset.UTC), Collections.emptyMap());
         String key = randomAlphaOfLength(10);
         String value = randomAlphaOfLength(10);
         Map<String, String> headers = Collections.singletonMap(key, value);
@@ -87,7 +90,7 @@ public class WatchStatusTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         status.writeTo(out);
         BytesReference bytesReference = out.bytes();
-        WatchStatus readStatus = WatchStatus.read(bytesReference.streamInput());
+        WatchStatus readStatus = new WatchStatus(bytesReference.streamInput());
         assertThat(readStatus, is(status));
         assertThat(readStatus.getHeaders(), is(headers));
 

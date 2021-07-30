@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index;
@@ -22,9 +11,8 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.DirectoryReader;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -58,7 +46,7 @@ public final class IndexWarmer {
         this.listeners = Collections.unmodifiableList(list);
     }
 
-    void warm(Engine.Searcher searcher, IndexShard shard, IndexSettings settings) {
+    void warm(ElasticsearchDirectoryReader reader, IndexShard shard, IndexSettings settings) {
         if (shard.state() == IndexShardState.CLOSED) {
             return;
         }
@@ -66,14 +54,14 @@ public final class IndexWarmer {
             return;
         }
         if (logger.isTraceEnabled()) {
-            logger.trace("{} top warming [{}]", shard.shardId(), searcher.reader());
+            logger.trace("{} top warming [{}]", shard.shardId(), reader);
         }
         shard.warmerService().onPreWarm();
         long time = System.nanoTime();
         final List<TerminationHandle> terminationHandles = new ArrayList<>();
         // get a handle on pending tasks
         for (final Listener listener : listeners) {
-            terminationHandles.add(listener.warmReader(shard, searcher));
+            terminationHandles.add(listener.warmReader(shard, reader));
         }
         // wait for termination
         for (TerminationHandle terminationHandle : terminationHandles) {
@@ -103,7 +91,7 @@ public final class IndexWarmer {
     public interface Listener {
         /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the
          *  execution of those tasks. */
-        TerminationHandle warmReader(IndexShard indexShard, Engine.Searcher searcher);
+        TerminationHandle warmReader(IndexShard indexShard, ElasticsearchDirectoryReader reader);
     }
 
     private static class FieldDataWarmer implements IndexWarmer.Listener {
@@ -117,14 +105,11 @@ public final class IndexWarmer {
         }
 
         @Override
-        public TerminationHandle warmReader(final IndexShard indexShard, final Engine.Searcher searcher) {
+        public TerminationHandle warmReader(final IndexShard indexShard, final ElasticsearchDirectoryReader reader) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
-            for (MappedFieldType fieldType : mapperService.fieldTypes()) {
+            for (MappedFieldType fieldType : mapperService.getEagerGlobalOrdinalsFields()) {
                 final String indexName = fieldType.name();
-                if (fieldType.eagerGlobalOrdinals() == false) {
-                    continue;
-                }
                 warmUpGlobalOrdinals.put(indexName, fieldType);
             }
             final CountDownLatch latch = new CountDownLatch(warmUpGlobalOrdinals.size());
@@ -132,8 +117,10 @@ public final class IndexWarmer {
                 executor.execute(() -> {
                     try {
                         final long start = System.nanoTime();
-                        IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldType);
-                        DirectoryReader reader = searcher.getDirectoryReader();
+                        IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(fieldType, indexFieldDataService.index().getName(),
+                            () -> {
+                                throw new UnsupportedOperationException("search lookup not available when warming an index");
+                            });
                         IndexFieldData<?> global = ifd.loadGlobal(reader);
                         if (reader.leaves().isEmpty() == false) {
                             global.load(reader.leaves().get(0));

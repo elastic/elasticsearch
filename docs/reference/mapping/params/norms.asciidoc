@@ -8,19 +8,18 @@ Although useful for scoring, norms also require quite a lot of disk
 (typically in the order of one byte per document per field in your index, even
 for documents that don't have this specific field). As a consequence, if you
 don't need scoring on a specific field, you should disable norms on that
-field. In  particular, this is the case for fields that are used solely for
+field. In particular, this is the case for fields that are used solely for
 filtering or aggregations.
 
-TIP: The `norms` setting must have the same setting for fields of the
-same name in the same index.  Norms can be disabled on existing fields using
-the <<indices-put-mapping,PUT mapping API>>.
+TIP: Norms can be disabled on existing fields using
+the <<indices-put-mapping,update mapping API>>.
 
-Norms can be disabled (but not reenabled) after the fact, using the
-<<indices-put-mapping,PUT mapping API>> like so:
+Norms can be disabled (but not reenabled after the fact), using the
+<<indices-put-mapping,update mapping API>> like so:
 
-[source,js]
+[source,console]
 ------------
-PUT my_index/_mapping/_doc
+PUT my-index-000001/_mapping
 {
   "properties": {
     "title": {
@@ -30,8 +29,7 @@ PUT my_index/_mapping/_doc
   }
 }
 ------------
-// CONSOLE
-// TEST[s/^/PUT my_index\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 NOTE: Norms will not be removed instantly, but will be removed as old segments
 are merged into new segments as you continue indexing new documents. Any score

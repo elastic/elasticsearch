@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
@@ -58,11 +47,6 @@ public interface RoutingChangesObserver {
      * initializing shard.
      */
     void relocationSourceRemoved(ShardRouting removedReplicaRelocationSource);
-
-    /**
-     * Called on started primary shard after it has been promoted from replica to primary and is reinitialized due to shadow replicas.
-     */
-    void startedPrimaryReinitialized(ShardRouting startedPrimaryShard, ShardRouting initializedShard);
 
     /**
      * Called when started replica is promoted to primary.
@@ -114,11 +98,6 @@ public interface RoutingChangesObserver {
 
         @Override
         public void relocationSourceRemoved(ShardRouting removedReplicaRelocationSource) {
-
-        }
-
-        @Override
-        public void startedPrimaryReinitialized(ShardRouting startedPrimaryShard, ShardRouting initializedShard) {
 
         }
 
@@ -187,13 +166,6 @@ public interface RoutingChangesObserver {
         public void relocationSourceRemoved(ShardRouting removedReplicaRelocationSource) {
             for (RoutingChangesObserver routingChangesObserver : routingChangesObservers) {
                 routingChangesObserver.relocationSourceRemoved(removedReplicaRelocationSource);
-            }
-        }
-
-        @Override
-        public void startedPrimaryReinitialized(ShardRouting startedPrimaryShard, ShardRouting initializedShard) {
-            for (RoutingChangesObserver routingChangesObserver : routingChangesObservers) {
-                routingChangesObserver.startedPrimaryReinitialized(startedPrimaryShard, initializedShard);
             }
         }
 

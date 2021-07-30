@@ -1,28 +1,49 @@
 {
-  "ingest.simulate": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/ingest.html",
-    "methods": [ "GET", "POST" ],
-    "url": {
-      "path": "/_ingest/pipeline/_simulate",
-      "paths": [ "/_ingest/pipeline/_simulate", "/_ingest/pipeline/{id}/_simulate" ],
-      "parts": {
-        "id": {
-          "type" : "string",
-          "description" : "Pipeline ID",
-          "required" : false
+  "ingest.simulate":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/simulate-pipeline-api.html",
+      "description":"Allows to simulate a pipeline with example documents."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ingest/pipeline/_simulate",
+          "methods":[
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path":"/_ingest/pipeline/{id}/_simulate",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"Pipeline ID"
+            }
+          }
         }
-      },
-      "params": {
-        "verbose": {
-          "type" : "boolean",
-          "description" : "Verbose mode. Display data output for each processor in executed pipeline",
-          "default" : false
-        }
+      ]
+    },
+    "params":{
+      "verbose":{
+        "type":"boolean",
+        "description":"Verbose mode. Display data output for each processor in executed pipeline",
+        "default":false
       }
     },
-    "body": {
-      "description" : "The simulate definition",
-      "required" : true
-    }    
+    "body":{
+      "description":"The simulate definition",
+      "required":true
+    }
   }
 }

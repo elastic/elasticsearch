@@ -1,13 +1,41 @@
 [[search-multi-search]]
-== Multi Search API
+=== Multi search API
+++++
+<titleabbrev>Multi search</titleabbrev>
+++++
 
-The multi search API allows to execute several search requests within
-the same API. The endpoint for it is `_msearch`.
+Executes several searches with a single API request.
 
-The format of the request is similar to the bulk API format and makes
-use of the newline delimited JSON (NDJSON) format. the structure is as
-follows (the structure is specifically optimized to reduce parsing if
-a specific search ends up redirected to another node):
+[source,console]
+--------------------------------------------------
+GET my-index-000001/_msearch
+{ }
+{"query" : {"match" : { "message": "this is a test"}}}
+{"index": "my-index-000002"}
+{"query" : {"match_all" : {}}}
+--------------------------------------------------
+// TEST[setup:my_index]
+
+[[search-multi-search-api-request]]
+==== {api-request-title}
+
+`GET /<target>/_msearch`
+
+[[search-multi-search-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias. For cross-cluster search, see <<cross-cluster-configuring>>.
+
+[[search-multi-search-api-desc]]
+==== {api-description-title}
+
+The multi search API executes several searches from a single API request.
+The format of the request is similar to the bulk API format and makes use
+of the newline delimited JSON (NDJSON) format.
+
+The structure is as follows:
 
 [source,js]
 --------------------------------------------------
@@ -18,13 +46,240 @@ body\n
 --------------------------------------------------
 // NOTCONSOLE
 
-*NOTE*: the final line of data must end with a newline character `\n`. Each newline character
-may be preceded by a carriage return `\r`. When sending requests to this endpoint the
-`Content-Type` header should be set to `application/x-ndjson`.
+This structure is specifically optimized to reduce parsing if a specific search
+ends up redirected to another node.
 
-The header part includes which index / indices to search on, the `search_type`, `preference`,
-and `routing`. The body includes the typical search body request (including the `query`,
-`aggregations`, `from`, `size`, and so on). Here is an example:
+[IMPORTANT]
+====
+The final line of data must end with a newline character `\n`. Each newline
+character may be preceded by a carriage return `\r`. When sending requests to
+this endpoint the `Content-Type` header should be set to `application/x-ndjson`.
+====
+
+[[search-multi-search-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and aliases to search.
++
+This list acts as a fallback if a search in the request body does not specify an
+`index` target.
++
+Wildcard (`*`) expressions are supported. To search all data streams and indices
+in a cluster, omit this parameter or use `_all` or `*`.
+
+[[search-multi-search-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+
+`ccs_minimize_roundtrips`::
+(Optional, Boolean)
+If `true`, network roundtrips between the coordinating node and remote clusters
+are minimized for {ccs} requests. Defaults to `true`. See
+<<ccs-network-delays>>.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+`ignore_throttled`::
+(Optional, Boolean)
+If `true`, concrete, expanded or aliased indices are ignored when frozen.
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+`max_concurrent_searches`::
+(Optional, integer)
+Maximum number of concurrent searches the multi search API can execute. Defaults
+to +max(1, (# of <<data-node,data nodes>> * min(<<search-threadpool,search thread pool size>>, 10)))+.
+
+`max_concurrent_shard_requests`::
++
+--
+(Optional, integer)
+Maximum number of concurrent shard requests that each sub-search request
+executes per node. Defaults to `5`.
+
+You can use this parameter to prevent a request from overloading a cluster. For
+example, a default request hits all data streams and indices in a cluster. This
+could cause shard request rejections if the number of shards per node is high.
+
+In certain scenarios, parallelism isn't achieved through concurrent requests. In
+those cases, a low value in this parameter could result in poor performance.
+For example, in an environment where a very low number of concurrent search
+requests are expected, a higher value in this parameter may improve performance.
+--
+
+`pre_filter_shard_size`::
+(Optional, integer)
+Defines a threshold that enforces a pre-filter roundtrip to prefilter search
+shards based on query rewriting if the number of shards the search request
+expands to exceeds the threshold. This filter roundtrip can limit the number of
+shards significantly if for instance a shard can not match any documents based
+on its rewrite method i.e., if date filters are mandatory to match but the
+shard bounds and the query are disjoint.
+When unspecified, the pre-filter phase is executed if any of these
+conditions is met:
+  - The request targets more than `128` shards.
+  - The request targets one or more read-only index.
+  - The primary sort of the query targets an indexed field.
+
+`rest_total_hits_as_int`::
+(Optional, Boolean)
+If `true`, `hits.total` are returned as an integer in the
+response. Defaults to `false`, which returns an object.
+
+`routing`::
+(Optional, string)
+Custom <<mapping-routing-field,routing value>> used to route search operations
+to a specific shard.
+
+`search_type`::
++
+--
+(Optional, string)
+Indicates whether global term and document frequencies should be used when
+scoring returned documents.
+
+Options are:
+
+`query_then_fetch`::
+(default)
+Documents are scored using local term and document frequencies for the shard.
+This is usually faster but less accurate.
+
+`dfs_query_then_fetch`::
+Documents are scored using global term and document frequencies across all
+shards. This is usually slower but more accurate.
+--
+
+`typed_keys`::
+(Optional, Boolean)
+Specifies whether aggregation and suggester names should be prefixed by their
+respective types in the response.
+
+[role="child_attributes"]
+[[search-multi-search-api-request-body]]
+==== {api-request-body-title}
+
+The request body contains a newline-delimited list of search `<header>` and
+search `<body>` objects.
+
+// tag::header-params[]
+`<header>`::
+(Required, object)
+Parameters used to limit or change the search.
++
+This object is required for each search body but can be empty (`{}`) or a blank
+line.
++
+.Properties of `<header>` objects
+[%collapsible%open]
+====
+`allow_no_indices`::
+(Optional, Boolean)
+If `true`, the request does *not* return an error if a wildcard expression or
+`_all` value retrieves only missing or closed indices.
++
+This parameter also applies to <<alias,aliases>> that point to a missing
+or index.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+`ignore_unavailable`::
+(Optional, Boolean) If `true`, documents from missing or closed indices are not
+included in the response. Defaults to `false`.
+
+`index`::
+(Optional, string or array of strings)
+Data streams, indices, and aliases to search. Supports wildcards (`*`). Specify
+multiple targets as an array.
++
+If this parameter is not specified, the `<target>` request path parameter
+is used as a fallback.
+
+`preference`::
+(Optional, string)
+Node or shard used to perform the search. Random by default.
+
+`request_cache`::
+(Optional, Boolean)
+If `true`, the request cache can be used for this search. Defaults to
+index-level settings. See <<shard-request-cache>>.
+
+`routing`::
+(Optional, string)
+Custom <<mapping-routing-field,routing value>> used to route search operations
+to a specific shard.
+
+`search_type`::
++
+--
+(Optional, string)
+Indicates whether global term and document frequencies should be used when
+scoring returned documents.
+
+Options are:
+
+`query_then_fetch`:::
+(default)
+Documents are scored using local term and document frequencies for the shard.
+This is usually faster but less accurate.
+
+`dfs_query_then_fetch`:::
+Documents are scored using global term and document frequencies across all
+shards. This is usually slower but more accurate.
+--
+====
+// end::header-params[]
+
+`<body>`::
+(Optional, object)
+Contains parameters for a search request:
++
+.Properties of `<body>` objects
+[%collapsible%open]
+====
+`aggregations`::
+(Optional, <<search-aggregations,aggregation object>>)
+Aggregations you wish to run during the search. See <<search-aggregations>>.
+
+`query`::
+(Optional, <<query-dsl,Query DSL object>>) Query you wish to run during the
+search. Hits matching this query are returned in the response.
+
+`from`::
+(Optional, integer)
+Starting offset for returned hits. Defaults to `0`.
+
+`size`::
+(Optional, integer)
+Number of hits to return. Defaults to `10`.
+====
+
+[[search-multi-search-api-response-body]]
+==== {api-response-body-title}
+
+`responses`::
+  (array) Includes the search response and status code for each search request
+  matching its order in the original multi search request. If there was a
+  complete failure for a specific search request, an object with `error` message
+  and corresponding status code will be returned in place of the actual search
+  response.
+
+
+[[search-multi-search-api-example]]
+==== {api-examples-title}
+
+The header includes the data streams, indices, and aliases to search. The header
+also indicates the `search_type`, `preference`, and `routing`. The body includes
+the typical search body request (including the `query`, `aggregations`, `from`,
+`size`, and so on).
 
 [source,js]
 --------------------------------------------------
@@ -51,125 +306,51 @@ $ curl -H "Content-Type: application/x-ndjson" -XGET localhost:9200/_msearch --d
 Note, the above includes an example of an empty header (can also be just
 without any content) which is supported as well.
 
-The response returns a `responses` array, which includes the search
-response and status code for each search request matching its order in
-the original multi search request. If there was a complete failure for that
-specific search request, an object with `error` message and corresponding
-status code will be returned in place of the actual search response.
 
-The endpoint allows to also search against an index/indices in the URI itself,
-in which case it will be used as the default unless explicitly defined otherwise
-in the header. For example:
+The endpoint also allows you to search against data streams, indices, and
+aliases in the request path. In this case, it will be used as the default target
+unless explicitly specified in the header's `index` parameter. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET twitter/_msearch
+GET my-index-000001/_msearch
 {}
 {"query" : {"match_all" : {}}, "from" : 0, "size" : 10}
 {}
 {"query" : {"match_all" : {}}}
-{"index" : "twitter2"}
+{"index" : "my-index-000002"}
 {"query" : {"match_all" : {}}}
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-The above will execute the search against the `twitter` index for all the
-requests that don't define an index, and the last one will be executed
-against the `twitter2` index.
+The above will execute the search against the `my-index-000001` index for all the
+requests that don't define an `index` target in the request body. The last
+search will be executed against the `my-index-000002` index.
 
 The `search_type` can be set in a similar manner to globally apply to
 all search requests.
 
-The msearch's `max_concurrent_searches` request parameter can be used to control
-the maximum number of concurrent searches the multi search api will execute.
-This default is based on the number of data nodes and the default search thread pool size.
 
-The request parameter `max_concurrent_shard_requests` can be used to control the
-maximum number of concurrent shard requests the each sub search request will execute.
-This parameter should be used to protect a single request from overloading a cluster
-(e.g., a default request will hit all indices in a cluster which could cause shard request rejections
-if the number of shards per node is high). This default is based on the number of
-data nodes in the cluster but at most `256`.In certain scenarios parallelism isn't achieved through
-concurrent request such that this protection will result in poor performance. For
-instance in an environment where only a very low number of concurrent search requests are expected
-it might help to increase this value to a higher number.
-
-[float]
 [[msearch-security]]
-=== Security
+==== Security
 
 See <<url-access-control>>
 
-[float]
-[[template-msearch]]
-=== Template support
 
-Much like described in <<search-template>> for the _search resource, _msearch
-also provides support for templates. Submit them like follows:
+[[multi-search-partial-responses]]
+==== Partial responses
 
-[source,js]
------------------------------------------------
-GET _msearch/template
-{"index" : "twitter"}
-{ "source" : "{ \"query\": { \"match\": { \"message\" : \"{{keywords}}\" } } } }", "params": { "query_type": "match", "keywords": "some message" } }
-{"index" : "twitter"}
-{ "source" : "{ \"query\": { \"match_{{template}}\": {} } }", "params": { "template": "all" } }
------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+To ensure fast responses, the multi search API will respond with partial results
+if one or more shards fail. See <<shard-failures, Shard failures>> for more
+information.
 
-for inline templates.
 
-You can also create search templates:
+[[msearch-cancellation]]
+==== Search Cancellation
 
-[source,js]
-------------------------------------------
-POST /_scripts/my_template_1
-{
-    "script": {
-        "lang": "mustache",
-        "source": {
-            "query": {
-                "match": {
-                    "message": "{{query_string}}"
-                }
-            }
-        }
-    }
-}
-------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-
-[source,js]
-------------------------------------------
-POST /_scripts/my_template_2
-{
-    "script": {
-        "lang": "mustache",
-        "source": {
-            "query": {
-                "term": {
-                    "{{field}}": "{{value}}"
-                }
-            }
-        }
-    }
-}
-------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-and later use them in a _msearch:
-
-[source,js]
------------------------------------------------
-GET _msearch/template
-{"index" : "main"}
-{ "id": "my_template_1", "params": { "query_string": "some message" } }
-{"index" : "main"}
-{ "id": "my_template_2", "params": { "field": "user", "value": "test" } }
------------------------------------------------
-// CONSOLE
-// TEST[continued]
+Multi searches can be cancelled using standard <<task-cancellation,task cancellation>>
+mechanism and are also automatically cancelled when the http connection used to
+perform the request is closed by the client. It is fundamental that the http
+client sending requests closes connections whenever requests time out or are
+aborted. Cancelling an msearch request will also cancel all of the corresponding
+sub search requests.

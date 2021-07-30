@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -20,6 +21,12 @@ public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
 
     private License license;
     private boolean acknowledge = false;
+
+    public PutLicenseRequest(StreamInput in) throws IOException {
+        super(in);
+        license = License.readLicense(in);
+        acknowledge = in.readBoolean();
+    }
 
     public PutLicenseRequest() {
     }
@@ -59,13 +66,6 @@ public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
 
     public boolean acknowledged() {
         return acknowledge;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        license = License.readLicense(in);
-        acknowledge = in.readBoolean();
     }
 
     @Override

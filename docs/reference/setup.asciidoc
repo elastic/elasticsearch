@@ -1,5 +1,5 @@
 [[setup]]
-= Set up Elasticsearch
+= Set up {es}
 
 [partintro]
 --
@@ -12,30 +12,28 @@ running, including:
 * Configuring
 
 [[supported-platforms]]
-[float]
+[discrete]
 == Supported platforms
 
 The matrix of officially supported operating systems and JVMs is available here:
 link:/support/matrix[Support Matrix]. Elasticsearch is tested on the listed
 platforms, but it is possible that it will work on other platforms too.
 
-[float]
+[discrete]
 [[jvm-version]]
 == Java (JVM) Version
 
-Elasticsearch is built using Java, and requires at least
-http://www.oracle.com/technetwork/java/javase/downloads/index.html[Java {jdk_major}]
-in order to run. Only Oracle's Java and the OpenJDK are supported. The same JVM
-version should be used on all Elasticsearch nodes and clients.
+Elasticsearch is built using Java, and includes a bundled version of
+https://openjdk.java.net[OpenJDK] from the JDK maintainers (GPLv2+CE)
+within each distribution. The bundled JVM is the recommended JVM and
+is located within the `jdk` directory of the Elasticsearch home directory.
 
-We recommend installing Java version *{jdk} or a later version in the Java
-{jdk_major} release series*. We recommend using a
-link:/support/matrix[supported]
-http://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
+To use your own version of Java, set the `ES_JAVA_HOME` environment variable.
+If you must use a version of Java that is different from the bundled JVM,
+we recommend using a link:/support/matrix[supported]
+https://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
 Elasticsearch will refuse to start if a known-bad version of Java is used.
-
-The version of Java that Elasticsearch will use can be configured by setting
-the `JAVA_HOME` environment variable.
+The bundled JVM directory may be removed when using your own JVM.
 
 --
 
@@ -43,18 +41,77 @@ include::setup/install.asciidoc[]
 
 include::setup/configuration.asciidoc[]
 
-include::setup/jvm-options.asciidoc[]
+include::setup/important-settings.asciidoc[]
+
 
 include::setup/secure-settings.asciidoc[]
 
+include::settings/audit-settings.asciidoc[]
+
+include::modules/indices/circuit_breaker.asciidoc[]
+
+include::modules/cluster.asciidoc[]
+
+include::settings/ccr-settings.asciidoc[]
+
+include::modules/discovery/discovery-settings.asciidoc[]
+
+include::modules/indices/fielddata.asciidoc[]
+
+include::settings/ilm-settings.asciidoc[]
+
+include::modules/indices/index_management.asciidoc[]
+
+include::modules/indices/recovery.asciidoc[]
+
+include::modules/indices/indexing_buffer.asciidoc[]
+
+include::settings/license-settings.asciidoc[]
+
+include::modules/gateway.asciidoc[]
+
 include::setup/logging-config.asciidoc[]
 
-include::setup/important-settings.asciidoc[]
+include::settings/ml-settings.asciidoc[]
 
+include::settings/monitoring-settings.asciidoc[]
+
+include::modules/node.asciidoc[]
+
+include::modules/network.asciidoc[]
+
+include::modules/indices/query_cache.asciidoc[]
+
+include::modules/indices/search-settings.asciidoc[]
+
+include::settings/security-settings.asciidoc[]
+
+include::modules/indices/request_cache.asciidoc[]
+
+include::settings/slm-settings.asciidoc[]
+
+include::settings/transform-settings.asciidoc[]
+
+include::modules/threadpool.asciidoc[]
+
+include::settings/notification-settings.asciidoc[]
+
+include::setup/advanced-configuration.asciidoc[]
 include::setup/sysconfig.asciidoc[]
-
 include::setup/bootstrap-checks.asciidoc[]
+
+include::setup/bootstrap-checks-xes.asciidoc[]
 
 include::setup/starting.asciidoc[]
 
 include::setup/stopping.asciidoc[]
+
+include::modules/discovery.asciidoc[]
+
+include::setup/add-nodes.asciidoc[]
+
+include::setup/restart-cluster.asciidoc[]
+
+include::modules/remote-clusters.asciidoc[]
+
+include::modules/plugins.asciidoc[]

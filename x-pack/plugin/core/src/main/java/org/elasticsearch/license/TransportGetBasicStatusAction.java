@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -14,6 +15,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -24,28 +26,18 @@ public class TransportGetBasicStatusAction extends TransportMasterNodeReadAction
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetBasicStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                GetBasicStatusRequest::new, indexNameExpressionResolver);
+                GetBasicStatusRequest::new, indexNameExpressionResolver, GetBasicStatusResponse::new, ThreadPool.Names.SAME);
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetBasicStatusResponse newResponse() {
-        return new GetBasicStatusResponse();
-    }
-
-    @Override
-    protected void masterOperation(GetBasicStatusRequest request, ClusterState state,
+    protected void masterOperation(Task task, GetBasicStatusRequest request, ClusterState state,
                                    ActionListener<GetBasicStatusResponse> listener) throws Exception {
-        LicensesMetaData licensesMetaData = state.metaData().custom(LicensesMetaData.TYPE);
-        if (licensesMetaData == null) {
+        LicensesMetadata licensesMetadata = state.metadata().custom(LicensesMetadata.TYPE);
+        if (licensesMetadata == null) {
             listener.onResponse(new GetBasicStatusResponse(true));
         } else {
-            License license = licensesMetaData.getLicense();
-            listener.onResponse(new GetBasicStatusResponse(license == null || license.type().equals("basic") == false));
+            License license = licensesMetadata.getLicense();
+            listener.onResponse(new GetBasicStatusResponse(license == null || License.LicenseType.isBasic(license.type()) == false));
         }
 
     }

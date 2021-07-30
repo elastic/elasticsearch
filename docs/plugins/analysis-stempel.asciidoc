@@ -4,15 +4,109 @@
 The Stempel Analysis plugin integrates Lucene's Stempel analysis
 module for Polish into elasticsearch.
 
-It provides high quality stemming for Polish, based on the
-http://www.egothor.org/[Egothor project].
-
 :plugin_name: analysis-stempel
 include::install_remove.asciidoc[]
 
 [[analysis-stempel-tokenizer]]
-[float]
-==== `stempel` tokenizer and token filter
+[discrete]
+==== `stempel` tokenizer and token filters
 
-The plugin provides the `polish` analyzer and `polish_stem` token filter,
+The plugin provides the `polish` analyzer and the `polish_stem` and `polish_stop` token filters,
 which are not configurable.
+
+==== Reimplementing and extending the analyzers
+
+The `polish` analyzer could be reimplemented as a `custom` analyzer that can
+then be extended and configured differently as follows:
+
+[source,console]
+----------------------------------------------------
+PUT /stempel_example
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "rebuilt_stempel": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "polish_stop",
+            "polish_stem"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: stempel_example, first: polish, second: rebuilt_stempel}\nendyaml\n/]
+
+[[analysis-polish-stop]]
+==== `polish_stop` token filter
+
+The `polish_stop` token filter filters out Polish stopwords (`_polish_`), and
+any other custom stopwords specified by the user. This filter only supports
+the predefined `_polish_` stopwords list. If you want to use a different
+predefined list, then use the
+{ref}/analysis-stop-tokenfilter.html[`stop` token filter] instead.
+
+[source,console]
+--------------------------------------------------
+PUT /polish_stop_example
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "analyzer_with_stop": {
+            "tokenizer": "standard",
+            "filter": [
+              "lowercase",
+              "polish_stop"
+            ]
+          }
+        },
+        "filter": {
+          "polish_stop": {
+            "type": "polish_stop",
+            "stopwords": [
+              "_polish_",
+              "jeść"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+
+GET polish_stop_example/_analyze
+{
+  "analyzer": "analyzer_with_stop",
+  "text": "Gdzie kucharek sześć, tam nie ma co jeść."
+}
+--------------------------------------------------
+
+The above request returns:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "tokens" : [
+    {
+      "token" : "kucharek",
+      "start_offset" : 6,
+      "end_offset" : 14,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    },
+    {
+      "token" : "sześć",
+      "start_offset" : 15,
+      "end_offset" : 20,
+      "type" : "<ALPHANUM>",
+      "position" : 2
+    }
+  ]
+}
+--------------------------------------------------

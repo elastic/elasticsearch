@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.slack;
 
@@ -28,10 +29,6 @@ public class SlackService extends NotificationService<SlackAccount> {
     private static final Setting<String> SETTING_DEFAULT_ACCOUNT =
             Setting.simpleString("xpack.notification.slack.default_account", Property.Dynamic, Property.NodeScope);
 
-    private static final Setting.AffixSetting<String> SETTING_URL =
-            Setting.affixKeySetting("xpack.notification.slack.account.", "url",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated));
-
     private static final Setting.AffixSetting<SecureString> SETTING_URL_SECURE =
             Setting.affixKeySetting("xpack.notification.slack.account.", "secure_url", (key) -> SecureSetting.secureString(key, null));
 
@@ -48,7 +45,6 @@ public class SlackService extends NotificationService<SlackAccount> {
         this.httpClient = httpClient;
         // ensure logging of setting changes
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
-        clusterSettings.addAffixUpdateConsumer(SETTING_URL, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_DEFAULTS, (s, o) -> {}, (s, o) -> {});
         // do an initial load
         reload(settings);
@@ -56,11 +52,11 @@ public class SlackService extends NotificationService<SlackAccount> {
 
     @Override
     protected SlackAccount createAccount(String name, Settings accountSettings) {
-        return new SlackAccount(name, accountSettings, accountSettings, httpClient, logger);
+        return new SlackAccount(name, accountSettings, httpClient, logger);
     }
 
     private static List<Setting<?>> getDynamicSettings() {
-        return Arrays.asList(SETTING_URL, SETTING_DEFAULT_ACCOUNT, SETTING_DEFAULTS);
+        return Arrays.asList(SETTING_DEFAULT_ACCOUNT, SETTING_DEFAULTS);
     }
 
     private static List<Setting<?>> getSecureSettings() {

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.dissect;
@@ -24,10 +13,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
+import org.mockito.internal.util.collections.Sets;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +56,7 @@ public class DissectParserTests extends ESTestCase {
         assertMatch("%{a} » %{b}»%{c}€%{d}", "foo » bar»baz€quux",
             Arrays.asList("a", "b", "c", "d"), Arrays.asList("foo", "bar", "baz", "quux"));
         assertMatch("%{a} %{b} %{+a}", "foo bar baz quux", Arrays.asList("a", "b"), Arrays.asList("foo baz quux", "bar"), " ");
-        //Logstash supports implicit ordering based anchored by the the key without the '+'
+        //Logstash supports implicit ordering based anchored by the key without the '+'
         //This implementation will only honor implicit ordering for appending right to left else explicit order (/N) is required.
         //The results of this test differ from Logstash.
         assertMatch("%{+a} %{a} %{+a} %{b}", "December 31 1999 quux",
@@ -112,7 +101,7 @@ public class DissectParserTests extends ESTestCase {
         String delimiterFirstInput = "";
         String delimiterFirstPattern = "";
         //parallel arrays
-        List<String> expectedKeys = Arrays.asList(generateRandomStringArray(100, 10, false, false));
+        List<String> expectedKeys = new ArrayList<>(Sets.newSet(generateRandomStringArray(100, 10, false, false)));
         List<String> expectedValues = new ArrayList<>(expectedKeys.size());
         for (String key : expectedKeys) {
             String value = randomAsciiAlphanumOfLengthBetween(1, 100);
@@ -137,6 +126,9 @@ public class DissectParserTests extends ESTestCase {
         List<String> expectedValues = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 100); i++) {
             String key = randomAsciiAlphanumOfLengthBetween(1, 100);
+            while (expectedKeys.contains(key)) { // keys should be unique in this test
+                key = randomAsciiAlphanumOfLengthBetween(1, 100);
+            }
             String value = randomRealisticUnicodeOfCodepointLengthBetween(1, 100);
             String delimiter = Integer.toString(randomInt()); //int to ensures values and delimiters don't overlap, else validation can fail
             keyFirstPattern += "%{" + key + "}" + delimiter;
@@ -185,6 +177,13 @@ public class DissectParserTests extends ESTestCase {
         assertBadPattern("%{*a} %{a}");
         assertBadPattern("%{a} %{&a}");
         assertMiss("%{*a} %{&a} {a} %{*b} %{&b}", "foo bar x baz lol");
+    }
+
+    public void testPartialKeyDefinition() {
+        assertMatch("%{a} %%{b},%{c}", "foo %bar,baz", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));
+        assertMatch("%{a} %{b},%%{c}", "foo bar,%baz", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));
+        assertMatch("%%{a} %{b},%{c}", "%foo bar,baz", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));
+        assertMatch("%foo %{bar}", "%foo test", Arrays.asList("bar"),  Arrays.asList("test"));
     }
 
     public void testAppendAndAssociate() {
@@ -261,6 +260,11 @@ public class DissectParserTests extends ESTestCase {
         assertMatch(",%{a} %{b}", ",,foo bar", Arrays.asList("a", "b"), Arrays.asList(",foo", "bar"));
     }
 
+    public void testEmptyValueWithBrackets() {
+        assertMatch("(%{a}) [%{b}] -[%{c}]", "(foo) [] -[bar]", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "", "bar"));
+        assertMatch("[%{a}] [%{b}]", "[] []", Arrays.asList("a", "b"), Arrays.asList("", ""));
+    }
+
     /**
      * Runtime errors
      */
@@ -318,7 +322,7 @@ public class DissectParserTests extends ESTestCase {
         while (tests.hasNext()) {
             JsonNode test = tests.next();
             boolean skip = test.path("skip").asBoolean();
-            if (!skip) {
+            if (skip == false) {
                 String name = test.path("name").asText();
                 logger.debug("Running Json specification: " + name);
                 String pattern = test.path("tok").asText();
@@ -341,11 +345,12 @@ public class DissectParserTests extends ESTestCase {
         }
     }
 
-    private DissectException assertFail(String pattern, String input){
-        return expectThrows(DissectException.class, () -> new DissectParser(pattern, null).parse(input));
+    private DissectException assertFail(String pattern, String input) {
+        return expectThrows(DissectException.class, () -> new DissectParser(pattern, null).forceParse(input));
     }
 
     private void assertMiss(String pattern, String input) {
+        assertNull(new DissectParser(pattern, null).parse(input));
         DissectException e = assertFail(pattern, input);
         assertThat(e.getMessage(), CoreMatchers.containsString("Unable to find match for dissect pattern"));
         assertThat(e.getMessage(), CoreMatchers.containsString(pattern));
@@ -374,13 +379,11 @@ public class DissectParserTests extends ESTestCase {
 
     private void assertMatch(String pattern, String input, List<String> expectedKeys, List<String> expectedValues, String appendSeperator) {
         Map<String, String> results = new DissectParser(pattern, appendSeperator).parse(input);
-        List<String> foundKeys = new ArrayList<>(results.keySet());
-        List<String> foundValues = new ArrayList<>(results.values());
-        Collections.sort(foundKeys);
-        Collections.sort(foundValues);
-        Collections.sort(expectedKeys);
-        Collections.sort(expectedValues);
-        assertThat(foundKeys, Matchers.equalTo(expectedKeys));
-        assertThat(foundValues, Matchers.equalTo(expectedValues));
+        assertThat(results.size(), Matchers.equalTo(expectedKeys.size()));
+        assertThat(results.size(), Matchers.equalTo(expectedValues.size()));
+        for (int i = 0; i < results.size(); i++) {
+            final String key = expectedKeys.get(i);
+            assertThat(results.get(key), Matchers.equalTo(expectedValues.get(i)));
+        }
     }
 }

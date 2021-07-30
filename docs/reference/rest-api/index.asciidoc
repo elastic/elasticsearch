@@ -42,6 +42,7 @@ not be included yet.
 * <<security-api,Security APIs>>
 * <<snapshot-restore-apis,Snapshot and restore APIs>>
 * <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>
+* <<sql-apis,SQL APIs>>
 * <<transform-apis,{transform-cap} APIs>>
 * <<usage-api,Usage API>>
 * <<watcher-api,Watcher APIs>>
@@ -79,6 +80,7 @@ include::{es-repo-dir}/searchable-snapshots/apis/searchable-snapshots-apis.ascii
 include::{xes-repo-dir}/rest-api/security.asciidoc[]
 include::{es-repo-dir}/snapshot-restore/apis/snapshot-restore-apis.asciidoc[]
 include::{es-repo-dir}/slm/apis/slm-api.asciidoc[]
+include::{es-repo-dir}/sql/apis/sql-apis.asciidoc[]
 include::{es-repo-dir}/transform/apis/index.asciidoc[]
 include::usage.asciidoc[]
 include::{xes-repo-dir}/rest-api/watcher.asciidoc[]

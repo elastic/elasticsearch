@@ -51,7 +51,7 @@ public class OperationModeFileWatcherTests extends ESTestCase {
     }
 
     public void testInit() throws Exception {
-        onChangeCounter.set(new CountDownLatch(2));
+        onChangeCounter.set(new CountDownLatch(1));
         writeMode("gold");
         assertThat(operationModeFileWatcher.getCurrentOperationMode(), equalTo(License.OperationMode.PLATINUM));
         operationModeFileWatcher.init();

@@ -9,7 +9,6 @@ package org.elasticsearch.persistent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -28,8 +27,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.function.Predicate;
-
-import static org.elasticsearch.persistent.CompletionPersistentTaskAction.LOCAL_ABORT_AVAILABLE_VERSION;
 
 /**
  * This service is used by persistent tasks and allocated persistent tasks to communicate changes
@@ -71,18 +68,12 @@ public class PersistentTasksService {
      * At most one of {@code failure} and {@code localAbortReason} may be
      * provided. When both {@code failure} and {@code localAbortReason} are
      * {@code null}, the persistent task is considered as successfully completed.
-     * {@code localAbortReason} must not be provided unless all nodes in the cluster
-     * are on version {@link CompletionPersistentTaskAction#LOCAL_ABORT_AVAILABLE_VERSION}
-     * or higher.
      */
     public void sendCompletionRequest(final String taskId,
                                       final long taskAllocationId,
                                       final @Nullable Exception taskFailure,
                                       final @Nullable String localAbortReason,
                                       final ActionListener<PersistentTask<?>> listener) {
-        if (localAbortReason != null) {
-            validateLocalAbortSupported();
-        }
         CompletionPersistentTaskAction.Request request =
             new CompletionPersistentTaskAction.Request(taskId, taskAllocationId, taskFailure, localAbortReason);
         execute(request, CompletionPersistentTaskAction.INSTANCE, listener);
@@ -123,27 +114,6 @@ public class PersistentTasksService {
     public void sendRemoveRequest(final String taskId, final ActionListener<PersistentTask<?>> listener) {
         RemovePersistentTaskAction.Request request = new RemovePersistentTaskAction.Request(taskId);
         execute(request, RemovePersistentTaskAction.INSTANCE, listener);
-    }
-
-    /**
-     * Is the cluster able to support locally aborting persistent tasks?
-     * This requires that every node in the cluster is on version
-     * {@link CompletionPersistentTaskAction#LOCAL_ABORT_AVAILABLE_VERSION}
-     * or above.
-     */
-    public boolean isLocalAbortSupported() {
-        return clusterService.state().nodes().getMinNodeVersion().onOrAfter(LOCAL_ABORT_AVAILABLE_VERSION);
-    }
-
-    /**
-     * Throw an exception if the cluster is not able locally abort persistent tasks.
-     */
-    public void validateLocalAbortSupported() {
-        Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
-        if (minNodeVersion.before(LOCAL_ABORT_AVAILABLE_VERSION)) {
-            throw new IllegalStateException("attempt to abort a persistent task locally in a cluster that does not support this: "
-                + "minimum node version [" + minNodeVersion + "], version required [" + LOCAL_ABORT_AVAILABLE_VERSION + "]");
-        }
     }
 
     /**

@@ -91,7 +91,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     }
 
     public SliceBuilder(StreamInput in) throws IOException {
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getVersion().before(Version.V_7_15_0)) {
             field = in.readString();
         } else {
             field = in.readOptionalString();
@@ -103,8 +103,8 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // Before 8.0.0 we always defaulted to _id when the field wasn't provided
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        // Before 7.15.0 we always defaulted to _id when the field wasn't provided
+        if (out.getVersion().before(Version.V_7_15_0)) {
             String sliceField = field != null ? field : IdFieldMapper.NAME;
             out.writeString(sliceField);
         } else {

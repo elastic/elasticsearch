@@ -129,7 +129,7 @@ public final class MappingLookup {
             if (objects.put(mapper.fullPath(), mapper) != null) {
                 throw new MapperParsingException("Object mapper [" + mapper.fullPath() + "] is defined more than once");
             }
-            if (mapper.nested().isNested()) {
+            if (mapper.isNested()) {
                 hasNested = true;
             }
         }
@@ -204,6 +204,7 @@ public final class MappingLookup {
         checkObjectDepthLimit(settings.getMappingDepthLimit());
         checkFieldNameLengthLimit(settings.getMappingFieldNameLengthLimit());
         checkNestedLimit(settings.getMappingNestedFieldsLimit());
+        checkDimensionFieldLimit(settings.getMappingDimensionFieldsLimit());
     }
 
     private void checkFieldLimit(long limit) {
@@ -214,6 +215,16 @@ public final class MappingLookup {
         if (fieldMappers.size() + objectMappers.size() + additionalFieldsToAdd - mapping.getSortedMetadataMappers().length > limit) {
             throw new IllegalArgumentException("Limit of total fields [" + limit + "] has been exceeded" +
                 (additionalFieldsToAdd > 0 ? " while adding new fields [" + additionalFieldsToAdd + "]" : ""));
+        }
+    }
+
+    private void checkDimensionFieldLimit(long limit) {
+        long dimensionFieldCount = fieldMappers.values()
+            .stream()
+            .filter(m -> m instanceof FieldMapper && ((FieldMapper) m).fieldType().isDimension())
+            .count();
+        if (dimensionFieldCount > limit) {
+            throw new IllegalArgumentException("Limit of total dimension fields [" + limit + "] has been exceeded");
         }
     }
 
@@ -248,7 +259,7 @@ public final class MappingLookup {
     private void checkNestedLimit(long limit) {
         long actualNestedFields = 0;
         for (ObjectMapper objectMapper : objectMappers.values()) {
-            if (objectMapper.nested().isNested()) {
+            if (objectMapper.isNested()) {
                 actualNestedFields++;
             }
         }
@@ -277,7 +288,7 @@ public final class MappingLookup {
     public String getNestedScope(String path) {
         for (String parentPath = parentObject(path); parentPath != null; parentPath = parentObject(parentPath)) {
             ObjectMapper objectMapper = objectMappers.get(parentPath);
-            if (objectMapper != null && objectMapper.nested().isNested()) {
+            if (objectMapper != null && objectMapper.isNested()) {
                 return parentPath;
             }
         }
@@ -358,13 +369,13 @@ public final class MappingLookup {
     /**
      * Returns all nested object mappers
      */
-    public List<ObjectMapper> getNestedMappers() {
-        List<ObjectMapper> childMappers = new ArrayList<>();
+    public List<NestedObjectMapper> getNestedMappers() {
+        List<NestedObjectMapper> childMappers = new ArrayList<>();
         for (ObjectMapper mapper : objectMappers().values()) {
-            if (mapper.nested().isNested() == false) {
+            if (mapper.isNested() == false) {
                 continue;
             }
-            childMappers.add(mapper);
+            childMappers.add((NestedObjectMapper) mapper);
         }
         return childMappers;
     }
@@ -374,16 +385,16 @@ public final class MappingLookup {
      *
      * Used by BitSetProducerWarmer
      */
-    public List<ObjectMapper> getNestedParentMappers() {
-        List<ObjectMapper> parents = new ArrayList<>();
+    public List<NestedObjectMapper> getNestedParentMappers() {
+        List<NestedObjectMapper> parents = new ArrayList<>();
         for (ObjectMapper mapper : objectMappers().values()) {
             String nestedParentPath = getNestedParent(mapper.fullPath());
             if (nestedParentPath == null) {
                 continue;
             }
             ObjectMapper parent = objectMappers().get(nestedParentPath);
-            if (parent.nested().isNested()) {
-                parents.add(parent);
+            if (parent.isNested()) {
+                parents.add((NestedObjectMapper)parent);
             }
         }
         return parents;
@@ -410,7 +421,7 @@ public final class MappingLookup {
             if (mapper == null) {
                 return null;
             }
-            if (mapper.nested().isNested()) {
+            if (mapper.isNested()) {
                 return path;
             }
             if (path.contains(".") == false) {

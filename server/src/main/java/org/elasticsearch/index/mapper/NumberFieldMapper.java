@@ -119,6 +119,11 @@ public class NumberFieldMapper extends FieldMapper {
                     if (v && EnumSet.of(NumberType.INTEGER, NumberType.LONG, NumberType.BYTE, NumberType.SHORT).contains(type) == false) {
                         throw new IllegalArgumentException("Parameter [dimension] cannot be set to numeric type [" + type.name + "]");
                     }
+                    if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                        throw new IllegalArgumentException(
+                            "Field [dimension] requires that [" + indexed.name + "] and [" + hasDocValues.name + "] are true"
+                        );
+                    }
                 });
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
@@ -1174,8 +1179,20 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, Number numericValue) {
-        context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue,
-            indexed, hasDocValues, stored));
+        List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
+        if (dimension) {
+            // Check that a dimension field is single-valued and not an array
+            if (context.doc().getByKey(fieldType().name()) != null) {
+                throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
+            }
+            if (fields.size() > 0) {
+                // Add the first field by key so that we can validate if it has been added
+                context.doc().addWithKey(fieldType().name(), fields.get(0));
+                context.doc().addAll(fields.subList(1, fields.size()));
+            }
+        } else {
+            context.doc().addAll(fields);
+        }
 
         if (hasDocValues == false && (stored || indexed)) {
             context.addToFieldNames(fieldType().name());

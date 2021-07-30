@@ -78,7 +78,7 @@ public class DeploymentManager {
     }
 
     public void startDeployment(TrainedModelDeploymentTask task) {
-        executorServiceForDeployment.execute(() -> doStartDeployment(task));
+        doStartDeployment(task);
     }
 
     private void doStartDeployment(TrainedModelDeploymentTask task) {
@@ -118,7 +118,10 @@ public class DeploymentManager {
                 NlpTask nlpTask = NlpTask.fromConfig(config);
                 NlpTask.Processor processor = nlpTask.createProcessor();
                 processContext.nlpTaskProcessor.set(processor);
-                startAndLoad(task, processContext, modelLoadedListener);
+                // here, we are being called back on the searching thread, which MAY be a network thread
+                // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
+                // executor.
+                executorServiceForDeployment.execute(() -> startAndLoad(task, processContext, modelLoadedListener));
             },
             e -> failTask(task,
                 String.format(Locale.ROOT, "[%s] creating NLP task from configuration failed with error [%s]", task.getModelId(), e))
@@ -198,24 +201,32 @@ public class DeploymentManager {
                     processor.validateInputs(input);
                     BytesReference request = processor.getRequestBuilder().buildRequest(input, requestId);
                     logger.trace(() -> "Inference Request "+ request.utf8ToString());
+                    PyTorchResultProcessor.PendingResult pendingResult = processContext.resultProcessor.requestWritten(requestId);
                     processContext.process.get().writeInferenceRequest(request);
-
-                    waitForResult(processContext, requestId, timeout, processor.getResultProcessor(), listener);
+                    waitForResult(processContext, pendingResult, requestId, timeout, processor.getResultProcessor(), listener);
                 } catch (IOException e) {
                     logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
                     onFailure(ExceptionsHelper.serverError("error writing to process", e));
+                } finally {
+                    processContext.resultProcessor.requestAccepted(requestId);
                 }
             }
         });
     }
 
     private void waitForResult(ProcessContext processContext,
+                               PyTorchResultProcessor.PendingResult pendingResult,
                                String requestId,
                                TimeValue timeout,
                                NlpTask.ResultProcessor inferenceResultsProcessor,
                                ActionListener<InferenceResults> listener) {
         try {
-            PyTorchResult pyTorchResult = processContext.resultProcessor.waitForResult(requestId, timeout);
+            PyTorchResult pyTorchResult = processContext.resultProcessor.waitForResult(
+                processContext.process.get(),
+                requestId,
+                pendingResult,
+                timeout
+            );
             if (pyTorchResult == null) {
                 listener.onFailure(new ElasticsearchStatusException("timeout [{}] waiting for inference result",
                     RestStatus.TOO_MANY_REQUESTS, timeout));

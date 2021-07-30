@@ -30,7 +30,7 @@ public final class TransportActionProxy {
 
     private TransportActionProxy() {} // no instance
 
-    private static class ProxyRequestHandler<T extends ProxyRequest> implements TransportRequestHandler<T> {
+    private static class ProxyRequestHandler<T extends ProxyRequest<TransportRequest>> implements TransportRequestHandler<T> {
 
         private final TransportService service;
         private final String action;
@@ -186,7 +186,7 @@ public final class TransportActionProxy {
      */
     public static TransportRequest unwrapRequest(TransportRequest request) {
         if (request instanceof ProxyRequest) {
-            return ((ProxyRequest)request).wrapped;
+            return ((ProxyRequest<?>)request).wrapped;
         }
         return request;
     }

@@ -235,17 +235,22 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-settings]
 
+`daily_model_snapshot_retention_after_days`::
+(Optional, long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-after-days]
+
+//Begin data_description
+[[put-datadescription]]`data_description`::
+(Required, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=data-description]
+//End data_description
+
 `datafeed_config`::
 (object) The {dfeed} configured for the current {anomaly-job}.
 +
 .Properties of `datafeed`
 [%collapsible%open]
 ====
-`datafeed_id`:::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
-Defaults to the same ID as the {anomaly-job}.
-
 `aggregations`:::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=aggregations]
@@ -253,10 +258,40 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=aggregations]
 `chunking_config`:::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=chunking-config]
++
+.Properties of `chunking_config`
+[%collapsible%open]
+=====
+`mode`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=mode]
+
+`time_span`:::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-span]
+=====
+
+`datafeed_id`:::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
++
+Defaults to the same ID as the {anomaly-job}.
 
 `delayed_data_check_config`:::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
++
+.Properties of `delayed_data_check_config`
+[%collapsible%open]
+=====
+`check_window`::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-check-window]
+
+`enabled`::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-enabled]
+=====
 
 `frequency`:::
 (Optional, <<time-units, time units>>)
@@ -294,16 +329,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=script-fields]
 (Optional, unsigned integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
 ====
-
-//Begin data_description
-[[put-datadescription]]`data_description`::
-(Required, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=data-description]
-//End data_description
-
-`daily_model_snapshot_retention_after_days`::
-(Optional, long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-after-days]
 
 `description`::
   (Optional, string) A description of the job.
@@ -349,6 +374,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-index-name]
 `results_retention_days`::
 (Optional, long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-retention-days]
+
+`system_annotations_retention_days`::
+(Optional, long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=system-annotations-retention-days]
 
 [[ml-put-job-example]]
 == {api-examples-title}

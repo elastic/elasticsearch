@@ -22,6 +22,7 @@ public class LenientCompare {
     // will fail and `false` will be returned.
     //
     // may return `null` indicating v1 simply doesn't equal v2 (without any order association)
+    @SuppressWarnings("unchecked")
     public static Integer compare(Object v1, Object v2) {
         if (Objects.equals(v1, v2)) {
             return 0;

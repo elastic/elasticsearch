@@ -84,7 +84,7 @@ property is informational; you cannot change its value.
 `datafeed_config`::
 (object) The {dfeed} configured for the current {anomaly-job}.
 +
-.Properties of `datafeed`
+.Properties of `datafeed_config`
 [%collapsible%open]
 ====
 `datafeed_id`:::
@@ -98,10 +98,34 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=aggregations]
 `chunking_config`:::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=chunking-config]
++
+.Properties of `chunking_config`
+[%collapsible%open]
+=====
+`mode`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=mode]
+
+`time_span`:::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-span]
+=====
 
 `delayed_data_check_config`:::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
++
+.Properties of `delayed_data_check_config`
+[%collapsible%open]
+=====
+`check_window`::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-check-window]
+
+`enabled`::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-enabled]
+=====
 
 `frequency`:::
 (Optional, <<time-units, time units>>)
@@ -115,7 +139,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
 
-`job_id`::
+`job_id`:::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 

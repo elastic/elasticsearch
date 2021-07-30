@@ -32,7 +32,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * This context will execute a file restore of the lucene files. It is primarily designed to be used to
@@ -175,8 +175,7 @@ public abstract class FileRestoreContext {
 
     private void afterRestore(SnapshotFiles snapshotFiles, Store store, StoreFileMetadata restoredSegmentsFile) {
         try {
-            final String indexStoreType = INDEX_STORE_TYPE_SETTING.get(store.indexSettings().getSettings());
-            if ("snapshot".equals(indexStoreType) == false) {
+            if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
                 Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
             }
         } catch (IOException e) {

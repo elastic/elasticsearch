@@ -10,15 +10,13 @@
 * <<sql-rest-columnar>>
 * <<sql-rest-params>>
 * <<sql-runtime-fields>>
-* <<sql-rest-fields>>
 * <<sql-async>>
 
 [[sql-rest-overview]]
 === Overview
 
-The SQL REST API accepts SQL in a JSON document, executes it,
-and returns the results.
-For example:
+The <<sql-search-api,SQL search API>> accepts SQL in a JSON document, executes
+it, and returns the results. For example:
 
 [source,console]
 --------------------------------------------------
@@ -52,6 +50,7 @@ If you are using {kibana-ref}/console-kibana.html[Kibana Console]
 (which is highly recommended), take advantage of the
 triple quotes `"""` when creating the query. This not only automatically escapes double
 quotes (`"`) inside the query string but also support multi-line as shown below:
+
 image:images/sql/rest/console-triple-quotes.png[]
 ====
 
@@ -344,7 +343,7 @@ SQL may keep state in Elasticsearch to support the cursor. Unlike
 scroll, receiving the last page is enough to guarantee that the
 Elasticsearch state is cleared.
 
-To clear the state earlier, you can use the clear cursor command:
+To clear the state earlier, use the <<clear-sql-cursor-api,clear cursor API>>:
 
 [source,console]
 --------------------------------------------------
@@ -581,6 +580,7 @@ POST _sql?format=json
   "fetch_size": 5
 }
 ----
+// TEST[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
 // TEST[setup:library]
 // TEST[s/"wait_for_completion_timeout": "2s"/"wait_for_completion_timeout": "0"/]
 
@@ -604,12 +604,13 @@ For CSV, TSV, and TXT responses, the API returns these values in the respective
   "rows": [ ]
 }
 ----
+// TESTRESPONSE[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
 // TESTRESPONSE[s/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=/$body.id/]
 // TESTRESPONSE[s/"is_partial": true/"is_partial": $body.is_partial/]
 // TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
 
-To check the progress of an async search, use the search ID with the get async
-SQL search status API.
+To check the progress of an async search, use the search ID with the
+<<get-async-sql-search-status-api,get async SQL search status API>>.
 
 [source,console]
 ----
@@ -630,12 +631,14 @@ complete results.
   "completion_status": 200
 }
 ----
+// TESTRESPONSE[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
 // TESTRESPONSE[s/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=/$body.id/]
 // TESTRESPONSE[s/"expiration_time_in_millis": 1611690295000/"expiration_time_in_millis": $body.expiration_time_in_millis/]
 
-To get the results, use the search ID with the get async SQL search API. If the
-search is still running, specify how long you’d like to wait using
-`wait_for_completion_timeout`. You can also specify the response `format`.
+To get the results, use the search ID with the <<get-async-sql-search-api,get
+async SQL search API>>. If the search is still running, specify how long you’d
+like to wait using `wait_for_completion_timeout`. You can also specify the
+response `format`.
 
 [source,console]
 ----
@@ -661,6 +664,7 @@ POST _sql?format=json
   "fetch_size": 5
 }
 ----
+// TEST[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
 // TEST[setup:library]
 
 You can use the get async SQL search API's `keep_alive` parameter to later
@@ -672,8 +676,9 @@ GET _sql/async/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxO
 ----
 // TEST[skip: no access to search ID]
 
-Use the delete async SQL search API to delete an async search before the
-`keep_alive` period ends. If the search is still running, {es} cancels it.
+Use the <<delete-async-sql-search-api,delete async SQL search API>> to delete an
+async search before the `keep_alive` period ends. If the search is still
+running, {es} cancels it.
 
 [source,console]
 ----
@@ -698,6 +703,7 @@ POST _sql?format=json
   "fetch_size": 5
 }
 ----
+// TEST[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
 // TEST[setup:library]
 
 If `is_partial` and `is_running` are `false`, the search was synchronous and
@@ -714,107 +720,16 @@ returned complete results.
   "cursor": ...
 }
 ----
+// TESTRESPONSE[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
 // TESTRESPONSE[s/Fnc5UllQdUVWU0NxRFNMbWxNYXplaFEaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQTo0NzA=/$body.id/]
 // TESTRESPONSE[s/"rows": \.\.\./"rows": $body.rows/]
 // TESTRESPONSE[s/"columns": \.\.\./"columns": $body.columns/]
 // TESTRESPONSE[s/"cursor": \.\.\./"cursor": $body.cursor/]
 
-You can get the same results later using the search ID with the get async SQL
-search API.
+You can get the same results later using the search ID with the
+<<get-async-sql-search-api,get async SQL search API>>.
 
 Saved synchronous searches are still subject to the `keep_alive` retention
 period. When this period ends, {es} deletes the search results. You can also
-delete saved searches using the delete async SQL search API.
-
-[[sql-rest-fields]]
-=== Supported REST parameters
-
-In addition to the `query` and `fetch_size`, a request a number of user-defined fields for specifying
-the request time-outs or localization information (such as timezone).
-
-The table below lists the supported parameters:
-
-[cols="<m,<m,<5"]
-
-|===
-
-s|name
-s|Default value
-s|Description
-
-|query
-|Mandatory
-|SQL query to execute
-
-|fetch_size
-|1000
-|The maximum number of rows (or entries) to return in one response
-
-|filter
-|none
-|Optional {es} Query DSL for additional <<sql-rest-filtering, filtering>>.
-
-|request_timeout
-|90s
-|The timeout before the request fails.
-
-|page_timeout
-|45s
-|The timeout before a pagination request fails.
-
-|[[sql-rest-fields-timezone]]time_zone
-|`Z` (or `UTC`)
-|Time-zone in ISO 8601 used for executing the query on the server.
-More information available https://docs.oracle.com/javase/8/docs/api/java/time/ZoneId.html[here].
-
-|columnar
-|false
-|Return the results in a columnar fashion, rather than row-based fashion. Valid for `json`, `yaml`, `cbor` and `smile`.
-
-|field_multi_value_leniency
-|false
-|Throw an exception when encountering multiple values for a field (default) or be lenient and return the first value from the list (without any guarantees of what that will be - typically the first in natural ascending order).
-
-|index_include_frozen
-|false
-|Whether to include <<freeze-index-api, frozen-indices>> in the query execution or not (default).
-
-|params
-|none
-|Optional list of parameters to replace question mark (`?`) placeholders inside the query.
-
-|runtime_mappings
-|none
-|Defines one or more <<runtime-search-request,runtime fields>> in the search
-request. These fields take precedence over mapped fields with the same name.
-
-|keep_alive
-|`5d`
-a|Period {es} stores the search and its results. Must be greater than `1m` (one
-minute).
-
-When this period end, {es} deletes the search and its results, even if the
-search is still running.
-
-If `keep_on_completion` is `false`, {es} only stores searches that don't finish
-within the `wait_for_completion_timeout`, regardless of this value.
-
-|keep_on_completion
-|`false`
-|If `true`, {es} stores the search and its results. If `false`, {es} stores the
-search and its results only if it doesn't finish before the
-`wait_for_completion_timeout`.
-
-|wait_for_completion_timeout
-|None
-a|Duration to wait for the search to finish. Defaults to no timeout, meaning the
-request waits for complete results.
-
-If you specify this parameter and the search finishes during the timeout, the
-request returns complete results. If the search doesn't finish during this
-period, the search becomes async. See <<sql-async>>.
-
-|===
-
-Do note that most parameters (outside the timeout and `columnar` ones) make sense only during the initial query - any follow-up pagination request only requires the `cursor` parameter as explained in the <<sql-pagination, pagination>> chapter.
-That's because the query has already been executed and the calls are simply about returning the found results - thus the parameters are simply ignored.
+delete saved searches using the <<delete-async-sql-search-api,delete async SQL
+search API>>.

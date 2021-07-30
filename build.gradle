@@ -43,6 +43,7 @@ plugins {
   id 'elasticsearch.fips'
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
+  id 'elasticsearch.release-tools'
   id "com.diffplug.spotless" version "5.12.5" apply false
 }
 
@@ -410,7 +411,7 @@ gradle.projectsEvaluated {
   }
 }
 
-tasks.register("precommit") {
+tasks.named("precommit") {
   dependsOn gradle.includedBuild('build-tools').task(':precommit')
   dependsOn gradle.includedBuild('build-tools-internal').task(':precommit')
 }

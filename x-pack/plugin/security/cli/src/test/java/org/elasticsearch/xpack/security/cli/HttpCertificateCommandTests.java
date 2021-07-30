@@ -283,6 +283,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
         final OptionSet options = command.getParser().parse(new String[0]);
         command.execute(terminal, options, env);
 
+        if (password.length() > 50) {
+            assertThat(terminal.getOutput(), containsString("OpenSSL"));
+        } else {
+            assertThat(terminal.getOutput(), not(containsString("OpenSSL")));
+        }
+
         Path zipRoot = getZipRoot(outFile);
 
         assertThat(zipRoot.resolve("elasticsearch"), isDirectory());
@@ -369,12 +375,14 @@ public class HttpCertificateCommandTests extends ESTestCase {
         }
 
         final String caPassword = randomPassword(randomBoolean());
+        boolean expectLongPasswordWarning = caPassword.length() > 50;
         // randomly enter a long password here, and then say "no" on the warning prompt
         if (randomBoolean()) {
             String longPassword = randomAlphaOfLengthBetween(60, 120);
             terminal.addSecretInput(longPassword);
             terminal.addSecretInput(longPassword);
             terminal.addTextInput("n"); // Change our mind
+            expectLongPasswordWarning = true;
         }
         terminal.addSecretInput(caPassword);
         if ("".equals(caPassword) == false) {
@@ -429,9 +437,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
         final OptionSet options = command.getParser().parse(new String[0]);
         command.execute(terminal, options, env);
 
-        if (caPassword.length() > 50) {
+        if (expectLongPasswordWarning) {
             assertThat(terminal.getOutput(), containsString("OpenSSL"));
+        } else {
+            assertThat(terminal.getOutput(), not(containsString("OpenSSL")));
         }
+
         Path zipRoot = getZipRoot(outFile);
 
         // Should have a CA directory with the generated CA.

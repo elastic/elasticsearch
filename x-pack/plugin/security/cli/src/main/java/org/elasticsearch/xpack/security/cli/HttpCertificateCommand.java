@@ -938,7 +938,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                         continue;
                     }
                 }
-                if (CertificateTool.checkPasswordLengthForOpenSSLCompatibility(password, terminal, confirm) == false) {
+                if (CertificateTool.checkAndConfirmPasswordLengthForOpenSSLCompatibility(password, terminal, confirm) == false) {
                     continue;
                 }
                 return password;

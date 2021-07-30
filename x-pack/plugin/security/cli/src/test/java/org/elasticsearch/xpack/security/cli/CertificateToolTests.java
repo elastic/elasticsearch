@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.security.cli.CertificateTool.CertificateInformati
 import org.elasticsearch.xpack.security.cli.CertificateTool.GenerateCertificateCommand;
 import org.elasticsearch.xpack.security.cli.CertificateTool.Name;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -95,10 +94,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -365,7 +364,7 @@ public class CertificateToolTests extends ESTestCase {
                             GeneralNames.fromExtensions(x509CertHolder.getExtensions(), Extension.subjectAlternativeName);
                     assertSubjAltNames(subjAltNames, certInfo);
                 }
-                assertThat(p12, Matchers.not(pathExists()));
+                assertThat(p12, not(pathExists()));
             }
         }
     }
@@ -449,7 +448,10 @@ public class CertificateToolTests extends ESTestCase {
         final Path certPath = zipRoot.resolve("cert/cert.crt");
         final Certificate[] certificates = CertParsingUtils.readCertificates(List.of(certPath));
         assertThat(certificates, arrayWithSize(1));
-        assertThat(((X509Certificate)certificates[0]).getIssuerX500Principal(),  equalTo(((X509Certificate) caCert).getSubjectX500Principal()));
+        assertThat(
+            ((X509Certificate) certificates[0]).getIssuerX500Principal(),
+            equalTo(((X509Certificate) caCert).getSubjectX500Principal())
+        );
     }
 
     public void testGetCAInfo() throws Exception {
@@ -590,7 +592,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testCreateCaAndMultipleInstances() throws Exception {
         final Path tempDir = initTempDir();
 
-        final Terminal terminal = new MockTerminal();
+        final MockTerminal terminal = new MockTerminal();
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path caFile = tempDir.resolve("ca.p12");
@@ -759,7 +761,7 @@ public class CertificateToolTests extends ESTestCase {
         Path zip2Root = zip2FS.getPath("/");
 
         final Path ca2 = zip2Root.resolve("ca/ca.p12");
-        assertThat(ca2, Matchers.not(pathExists()));
+        assertThat(ca2, not(pathExists()));
 
         final Path node2Cert = zip2Root.resolve("node02/node02.crt");
         assertThat(node2Cert, pathExists());
@@ -951,10 +953,10 @@ public class CertificateToolTests extends ESTestCase {
         return PathUtils.get(path).toAbsolutePath();
     }
 
-    private String generateCA(Path caFile, Terminal terminal, Environment env) throws Exception {
+    private String generateCA(Path caFile, MockTerminal terminal, Environment env) throws Exception {
         final int caKeySize = randomIntBetween(4, 8) * 512;
         final int days = randomIntBetween(7, 1500);
-        final String caPassword = randomFrom("", randomAlphaOfLengthBetween(4, 16));
+        final String caPassword = randomFrom("", randomAlphaOfLengthBetween(4, 80));
 
         final CertificateAuthorityCommand caCommand = new PathAwareCertificateAuthorityCommand(caFile);
         final OptionSet caOptions = caCommand.getParser().parse(
@@ -965,6 +967,13 @@ public class CertificateToolTests extends ESTestCase {
             "-days", String.valueOf(days)
         );
         caCommand.execute(terminal, caOptions, env);
+
+        // Check output for OpenSSL compatibility version
+        if (caPassword.length() > 50) {
+            assertThat(terminal.getOutput(), containsString("OpenSSL"));
+        } else {
+            assertThat(terminal.getOutput(), not(containsString("OpenSSL")));
+        }
 
         assertThat(caFile, pathExists());
 

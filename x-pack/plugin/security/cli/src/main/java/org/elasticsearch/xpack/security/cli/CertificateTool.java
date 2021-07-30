@@ -395,7 +395,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
 
             if (options.hasArgument(caPasswordSpec)) {
                 char[] password = getChars(caPasswordSpec.value(options));
-                checkPasswordLengthForOpenSSLCompatibility(password, terminal, false);
+                checkAndConfirmPasswordLengthForOpenSSLCompatibility(password, terminal, false);
                 return new CAInfo(caCert, keyPair.getPrivate(), true, password);
             }
             if (options.has(caPasswordSpec)) {
@@ -929,7 +929,13 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         return new JcePEMEncryptorBuilder("AES-128-CBC").setProvider(BC_PROV).build(password);
     }
 
-    static boolean checkPasswordLengthForOpenSSLCompatibility(char[] password, Terminal terminal, boolean confirm) {
+    /**
+     * Checks whether the supplied password exceeds the maximum length supported by older OpenSSL versions.
+     * A warning message is printed to the terminal if the password is too long. If {@code confirm} is true, then the user
+     * (via the terminal) is asked to confirm whether to continue with the potentially problematic password.
+     * @return {@code false} if the password is too long <em>and</em> the user elects to reject it, otherwise {@code true}.
+     */
+    static boolean checkAndConfirmPasswordLengthForOpenSSLCompatibility(char[] password, Terminal terminal, boolean confirm) {
         if (password.length > MAX_PASSWORD_OLD_OPENSSL) {
             terminal.println(
                 Verbosity.SILENT,
@@ -940,9 +946,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                     + " may not be able to read this file."
             );
             if (confirm) {
-                if (terminal.promptYesNo("Do you want to continue?", true) == false) {
-                    return false;
-                }
+                return terminal.promptYesNo("Do you want to continue?", true);
             }
         }
         return true;
@@ -953,7 +957,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         if (password == null) {
             while (true) {
                 char[] promptedValue = terminal.readSecret("Enter password for " + description + " : ");
-                if (checkLength && checkPasswordLengthForOpenSSLCompatibility(promptedValue, terminal, true) == false) {
+                if (checkLength && checkAndConfirmPasswordLengthForOpenSSLCompatibility(promptedValue, terminal, true) == false) {
                     continue;
                 }
                 try {
@@ -964,7 +968,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             }
         } else {
             if (checkLength) {
-                checkPasswordLengthForOpenSSLCompatibility(password, terminal, false);
+                checkAndConfirmPasswordLengthForOpenSSLCompatibility(password, terminal, false);
             }
             return body.apply(password);
         }

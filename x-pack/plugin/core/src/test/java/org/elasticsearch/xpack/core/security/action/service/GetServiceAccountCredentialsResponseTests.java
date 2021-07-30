@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.is;
 
 public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
 
-    public void testSerialisation() throws IOException {
+    public void testSerialization() throws IOException {
         final GetServiceAccountCredentialsResponse original = createTestInstance();
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);

@@ -14,6 +14,7 @@ public class GetServiceAccountNodesCredentialsAction extends ActionType<GetServi
     public static final String NAME = GetServiceAccountCredentialsAction.NAME + "[n]";
     public static final GetServiceAccountNodesCredentialsAction INSTANCE = new GetServiceAccountNodesCredentialsAction();
 
-    public GetServiceAccountNodesCredentialsAction() { super(NAME, GetServiceAccountCredentialsNodesResponse::new);
+    public GetServiceAccountNodesCredentialsAction() {
+        super(NAME, GetServiceAccountCredentialsNodesResponse::new);
     }
 }

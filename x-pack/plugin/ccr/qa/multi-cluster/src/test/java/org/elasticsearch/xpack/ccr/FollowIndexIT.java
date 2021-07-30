@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 
@@ -23,6 +25,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -234,6 +238,124 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         }
     }
+
+    public void testFollowTsdbIndex() throws Exception {
+        final int numDocs = 128;
+        final String leaderIndexName = "tsdb_leader";
+        long basetime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2021-01-01T00:00:00Z");
+        if ("leader".equals(targetCluster)) {
+            logger.info("Running against leader cluster");
+            createIndex(
+                leaderIndexName,
+                Settings.builder().put(IndexSettings.TIME_SERIES_MODE.getKey(), true).build(),
+                "\"properties\": {\"@timestamp\": {\"type\": \"date\"}, \"dim\": {\"type\": \"keyword\", \"dimension\": true}}"
+            );
+            for (int i = 0; i < numDocs; i++) {
+                logger.info("Indexing doc [{}]", i);
+                index(
+                    client(),
+                    leaderIndexName,
+                    Integer.toString(i),
+                    "@timestamp",
+                    basetime + TimeUnit.SECONDS.toMillis(i * 10),
+                    "dim",
+                    "foobar"
+                );
+            }
+            refresh(leaderIndexName);
+            verifyDocuments(client(), leaderIndexName, numDocs);
+        } else if ("follow".equals(targetCluster)) {
+            logger.info("Running against follow cluster");
+            final String followIndexName = "tsdb_follower";
+            final boolean overrideNumberOfReplicas = randomBoolean();
+            if (overrideNumberOfReplicas) {
+                followIndex(
+                    client(),
+                    "leader_cluster",
+                    leaderIndexName,
+                    followIndexName,
+                    Settings.builder().put("index.number_of_replicas", 0).build()
+                );
+            } else {
+                followIndex(leaderIndexName, followIndexName);
+            }
+            assertBusy(() -> {
+                verifyDocuments(client(), followIndexName, numDocs);
+                if (overrideNumberOfReplicas) {
+                    assertMap(
+                        getIndexSettingsAsMap(followIndexName),
+                        matchesMap().extraOk().entry("index.time_series_mode", "true").entry("index.number_of_replicas", "0")
+                    );
+                } else {
+                    assertMap(
+                        getIndexSettingsAsMap(followIndexName),
+                        matchesMap().extraOk().entry("index.time_series_mode", "true").entry("index.number_of_replicas", "1")
+                    );
+                }
+            });
+            // unfollow and then follow and then index a few docs in leader index:
+            pauseFollow(followIndexName);
+            resumeFollow(followIndexName);
+            try (RestClient leaderClient = buildLeaderClient()) {
+                int id = numDocs;
+                index(
+                    leaderClient,
+                    leaderIndexName,
+                    Integer.toString(id),
+                    "@timestamp",
+                    basetime + TimeUnit.SECONDS.toMillis(id * 10),
+                    "dim",
+                    "foobar"
+                );
+                index(
+                    leaderClient,
+                    leaderIndexName,
+                    Integer.toString(id + 1),
+                    "@timestamp",
+                    basetime + TimeUnit.SECONDS.toMillis(id * 10 + 10),
+                    "dim",
+                    "foobar"
+                );
+                index(
+                    leaderClient,
+                    leaderIndexName,
+                    Integer.toString(id + 2),
+                    "@timestamp",
+                    basetime + TimeUnit.SECONDS.toMillis(id * 10 + 20),
+                    "dim",
+                    "foobar"
+                );
+            }
+            assertBusy(() -> verifyDocuments(client(), followIndexName, numDocs + 3));
+            assertBusy(() -> verifyCcrMonitoring(leaderIndexName, followIndexName), 30, TimeUnit.SECONDS);
+
+            pauseFollow(followIndexName);
+            closeIndex(followIndexName);
+            assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_ccr/unfollow")));
+            Exception e = expectThrows(ResponseException.class, () -> resumeFollow(followIndexName));
+            assertThat(e.getMessage(), containsString("follow index [" + followIndexName + "] does not have ccr metadata"));
+        }
+    }
+
+    public void testFollowTsdbIndexCanNotOverrideMode() throws Exception {
+        if (false == "follow".equals(targetCluster)) {
+            return;
+        }
+        logger.info("Running against follow cluster");
+        Exception e = expectThrows(ResponseException.class, () -> followIndex(
+            client(),
+            "leader_cluster",
+            "tsdb_leader",
+            "tsdb_follower_bad",
+            Settings.builder().put("index.time_series_mode", false).build()
+        ));
+        assertThat(
+            e.getMessage(),
+            containsString("can not put follower index that could override leader settings {\\\"index.time_series_mode\\\":\\\"false\\\"}")
+        );
+    }
+
+    // TODO can't override tsdb mode setting
 
     @Override
     protected Settings restClientSettings() {

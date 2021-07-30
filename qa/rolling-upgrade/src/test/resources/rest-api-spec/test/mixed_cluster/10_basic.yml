@@ -74,6 +74,7 @@
       nodes.usage: {}
   - is_true: nodes
   - match: { _nodes.failed: 0 }
+
 ---
 "Get index works":
   - do:
@@ -106,3 +107,4 @@
   - match: {index_templates.0.index_template.template.aliases.test_blias.index_routing: "b" }
   - match: {index_templates.0.index_template.template.aliases.test_blias.search_routing: "b" }
   - match: {index_templates.0.index_template.template.aliases.test_clias.filter.term.user: "kimchy" }
+

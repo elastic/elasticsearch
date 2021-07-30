@@ -380,7 +380,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 ensureGreen(index);
                 ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
                 break;
-
             case UPGRADED:
                 ensureGreen(index);
                 ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);

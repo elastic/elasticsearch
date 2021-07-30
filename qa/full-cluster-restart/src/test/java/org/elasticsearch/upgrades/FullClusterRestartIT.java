@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.XContentTestUtils;
@@ -45,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -151,7 +153,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertStoredBinaryFields(count);
     }
 
-    public void testNewReplicasWork() throws Exception {
+    public void testNewReplicas() throws Exception {
         if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
             mappingsAndSettings.startObject();
@@ -189,7 +191,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             logger.debug("--> creating [{}] replicas for index [{}]", numReplicas, index);
             Request setNumberOfReplicas = new Request("PUT", "/" + index + "/_settings");
             setNumberOfReplicas.setJsonEntity("{ \"index\": { \"number_of_replicas\" : " + numReplicas + " }}");
-            Response response = client().performRequest(setNumberOfReplicas);
+            client().performRequest(setNumberOfReplicas);
 
             ensureGreenLongWait(index);
 
@@ -208,6 +210,91 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
             assertEquals("All nodes should have a consistent number of documents", 1, counts.size());
         }
+    }
+
+    public void testSearchTimeSeriesMode() throws Exception {
+        assumeTrue("time series mode introduced in 8.0.0 to be backported to 7.15.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
+        int numDocs;
+        if (isRunningAgainstOldCluster()) {
+            numDocs = createTimeSeriesModeIndex(1);
+        } else {
+            numDocs = countOfIndexedRandomDocuments();
+        }
+        assertCountAll(numDocs);
+    }
+
+    public void testNewReplicasTimeSeriesMode() throws Exception {
+        assumeTrue("time series mode introduced in 8.0.0 to be backported to 7.15.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
+        if (isRunningAgainstOldCluster()) {
+            createTimeSeriesModeIndex(0);
+        } else {
+            final int numReplicas = 1;
+            final long startTime = System.currentTimeMillis();
+            logger.debug("--> creating [{}] replicas for index [{}]", numReplicas, index);
+            Request setNumberOfReplicas = new Request("PUT", "/" + index + "/_settings");
+            setNumberOfReplicas.setJsonEntity("{ \"index\": { \"number_of_replicas\" : " + numReplicas + " }}");
+            client().performRequest(setNumberOfReplicas);
+
+            ensureGreenLongWait(index);
+
+            logger.debug("--> index [{}] is green, took [{}] ms", index, (System.currentTimeMillis() - startTime));
+            Map<String, Object> recoverRsp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_recovery")));
+            logger.debug("--> recovery status:\n{}", recoverRsp);
+
+            Set<Integer> counts = new HashSet<>();
+            for (String node : dataNodes(index, client())) {
+                Request search = new Request("GET", "/" + index + "/_search");
+                search.addParameter("preference", "_only_nodes:" + node);
+                Map<String, Object> responseBody = entityAsMap(client().performRequest(search));
+                assertNoFailures(responseBody);
+                int hits = extractTotalHits(responseBody);
+                counts.add(hits);
+            }
+            assertEquals("All nodes should have a consistent number of documents", 1, counts.size());
+        }
+    }
+
+    private int createTimeSeriesModeIndex(int replicas) throws IOException {
+        XContentBuilder mappingsAndSettings = jsonBuilder();
+        mappingsAndSettings.startObject();
+        {
+            mappingsAndSettings.startObject("settings");
+            mappingsAndSettings.field("number_of_shards", 1);
+            mappingsAndSettings.field("number_of_replicas", replicas);
+            mappingsAndSettings.field("time_series_mode", true);
+            mappingsAndSettings.endObject();
+        }
+        {
+            mappingsAndSettings.startObject("mappings");
+            mappingsAndSettings.startObject("properties");
+            {
+                mappingsAndSettings.startObject("@timestamp").field("type", "date").endObject();
+                mappingsAndSettings.startObject("dim").field("type", "keyword").field("dimension", true).endObject();
+            }
+            mappingsAndSettings.endObject();
+            mappingsAndSettings.endObject();
+        }
+        mappingsAndSettings.endObject();
+
+        Request createIndex = new Request("PUT", "/" + index);
+        createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+        client().performRequest(createIndex);
+
+        int numDocs = randomIntBetween(2000, 3000);
+        long basetime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2021-01-01T00:00:00Z");
+        indexRandomDocuments(
+            numDocs,
+            true,
+            true,
+            i -> JsonXContent.contentBuilder()
+                .startObject()
+                .field("@timestamp", basetime + TimeUnit.MINUTES.toMillis(i))
+                .field("dim", "value")
+                .endObject()
+        );
+        logger.info("Refreshing [{}]", index);
+        client().performRequest(new Request("POST", "/" + index + "/_refresh"));
+        return numDocs;
     }
 
     public void testClusterState() throws Exception {
@@ -459,14 +546,18 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(expectedCount, extractTotalHits(count));
     }
 
+    void assertCountAll(int count) throws IOException {
+        Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
+        assertNoFailures(response);
+        int numDocs = extractTotalHits(response);
+        logger.info("Found {} in old index", numDocs);
+        assertEquals(count, numDocs);
+    }
+
     void assertBasicSearchWorks(int count) throws IOException {
         logger.info("--> testing basic search");
         {
-            Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
-            assertNoFailures(response);
-            int numDocs = extractTotalHits(response);
-            logger.info("Found {} in old index", numDocs);
-            assertEquals(count, numDocs);
+            assertCountAll(count);
         }
 
         logger.info("--> testing basic search with sort");
@@ -1136,8 +1227,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.
-
     private void indexRandomDocuments(
             final int count,
             final boolean flushAllowed,
@@ -1629,6 +1718,4 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(XContentMapValues.extractValue("_shards.successful", resp), equalTo(totalShards));
         assertThat(extractTotalHits(resp), equalTo(numHits));
     }
-
-    // NOCOMMIT tsdb smoke test
 }

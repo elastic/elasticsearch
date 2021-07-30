@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.ml.inference.allocation;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -60,12 +62,6 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
 
         assertUnchanged(builder, b -> b.removeRoutingEntry(addingNode));
 
-        if (original.getNodeRoutingTable().isEmpty() == false) {
-            String randomExistingNode = randomFrom(original.getNodeRoutingTable().keySet());
-            assertUnchanged(builder, b -> b.addNewRoutingEntry(randomExistingNode));
-            assertUnchanged(builder, b -> b.addNewFailedRoutingEntry(randomExistingNode, "test failed"));
-        }
-
         if (randomBoolean()) {
             builder.addNewRoutingEntry(addingNode);
         } else {
@@ -76,11 +72,31 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
         TrainedModelAllocation.Builder builderWithNode = TrainedModelAllocation.Builder.fromAllocation(builder.build());
         assertThat(builderWithNode.isChanged(), is(false));
 
-        assertUnchanged(builderWithNode, b -> b.addNewFailedRoutingEntry(addingNode, "test failed"));
-        assertUnchanged(builderWithNode, b -> b.addNewRoutingEntry(addingNode));
-
         builderWithNode.removeRoutingEntry(addingNode);
         assertThat(builderWithNode.isChanged(), is(true));
+    }
+
+    public void testBuilderAddingExistingRoute() {
+        TrainedModelAllocation original = randomInstance();
+        TrainedModelAllocation.Builder builder = TrainedModelAllocation.Builder.fromAllocation(original);
+        String addingNode = "new-node";
+        if (randomBoolean()) {
+            builder.addNewRoutingEntry(addingNode);
+        } else {
+            builder.addNewFailedRoutingEntry(addingNode, "test failed");
+        }
+        expectThrows(ResourceAlreadyExistsException.class, () -> builder.addNewFailedRoutingEntry("new-node", "anything"));
+        expectThrows(ResourceAlreadyExistsException.class, () -> builder.addNewRoutingEntry("new-node"));
+    }
+
+    public void testBuilderUpdatingMissingRoute() {
+        TrainedModelAllocation original = randomInstance();
+        TrainedModelAllocation.Builder builder = TrainedModelAllocation.Builder.fromAllocation(original);
+        String addingNode = "new-node";
+        expectThrows(
+            ResourceNotFoundException.class,
+            () -> builder.updateExistingRoutingEntry(addingNode, RoutingStateAndReasonTests.randomInstance())
+        );
     }
 
     private static void assertUnchanged(

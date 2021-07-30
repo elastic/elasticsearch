@@ -279,7 +279,8 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                 // Only add the route if the node is NOT shutting down, this would be a weird case of the node
                 // just being added to the cluster and immediately shutting down...
                 if (isNodeShuttingDown(currentState, node.getId()) == false
-                    && StartTrainedModelDeploymentAction.TaskParams.canAllocateToNode(node)) {
+                    && StartTrainedModelDeploymentAction.TaskParams.canAllocateToNode(node)
+                    && modelAllocationEntry.getValue().isRoutedToNode(node.getId()) == false) {
                     nodeHasCapacity(currentState, modelAllocationEntry.getValue().getTaskParams(), node).ifPresentOrElse(
                         (error) -> builder.addFailedNode(modelAllocationEntry.getKey(), node.getId(), error),
                         () -> builder.addNode(modelAllocationEntry.getKey(), node.getId())

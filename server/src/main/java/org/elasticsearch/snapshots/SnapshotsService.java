@@ -337,9 +337,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             indexNames.addAll(aid.getMatchingIndices(currentState.metadata()));
                         }
                         for (SystemDataStreamDescriptor sdd : systemIndexDescriptorMap.get(feature).getDataStreamDescriptors()) {
-                            systemDataStreamNames.add(sdd.getDataStreamName());
-                            indexNames.addAll(sdd.getBackingIndexNames(currentState.metadata()));
-
+                            List<String> backingIndexNames = sdd.getBackingIndexNames(currentState.metadata());
+                            if (backingIndexNames.size() > 0) {
+                                indexNames.addAll(backingIndexNames);
+                                systemDataStreamNames.add(sdd.getDataStreamName());
+                            }
                         }
                     }
                     indices = List.copyOf(indexNames);
@@ -349,8 +351,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
                     currentState,
                     request.indicesOptions(),
-                    Stream.concat(Arrays.stream(request.indices()), systemDataStreamNames.stream()).distinct().toArray(String[]::new)
+                    request.indices()
                 );
+                dataStreams.addAll(systemDataStreamNames);
 
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 

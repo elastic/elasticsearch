@@ -156,7 +156,7 @@ public class RecoverySettings {
      * defaults to `false`
      */
     public static final Setting<Boolean> INDICES_RECOVERY_USE_SNAPSHOTS_SETTING =
-        Setting.boolSetting("indices.recovery.use_snapshots", false, Property.Dynamic, Property.NodeScope);
+        Setting.boolSetting("indices.recovery.use_snapshots", false, Property.NodeScope);
 
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
 
@@ -207,9 +207,6 @@ public class RecoverySettings {
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING,
             this::setInternalActionLongTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
-        if (isSnapshotsRecoveryFeatureFlagEnabled(Build.CURRENT)) {
-            clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING, this::setUseSnapshotsDuringRecovery);
-        }
     }
 
     public RateLimiter rateLimiter() {
@@ -300,23 +297,15 @@ public class RecoverySettings {
         return useSnapshotsDuringRecovery;
     }
 
-    private void setUseSnapshotsDuringRecovery(boolean useSnapshotsDuringRecovery) {
-        this.useSnapshotsDuringRecovery = useSnapshotsDuringRecovery;
-    }
-
     public static List<Setting<?>> featureFlagEnabledSettings() {
         return featureFlagEnabledSettings(Build.CURRENT);
     }
 
     public static List<Setting<?>> featureFlagEnabledSettings(Build build) {
-        if (isSnapshotsRecoveryFeatureFlagEnabled(build)) {
+        if (build.isSnapshot() || (SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED != null && SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED)) {
             return Collections.singletonList(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING);
         } else {
             return Collections.emptyList();
         }
-    }
-
-    private static boolean isSnapshotsRecoveryFeatureFlagEnabled(Build build) {
-        return build.isSnapshot() || (SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED != null && SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED);
     }
 }

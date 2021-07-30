@@ -44,6 +44,7 @@ import java.util.Objects;
  * Information about a snapshot
  */
 public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, Writeable {
+
     public static final String INDEX_DETAILS_XCONTENT_PARAM = "index_details";
     public static final String INCLUDE_REPOSITORY_XCONTENT_PARAM = "include_repository";
 

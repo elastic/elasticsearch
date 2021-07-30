@@ -199,7 +199,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         /*
          * Here we use threadPool::absoluteTimeInMillis rather than System::currentTimeInMillis because snapshot start time is set using
          * ThreadPool.absoluteTimeInMillis(). ThreadPool.absoluteTimeInMillis() returns a cached time that can be several hundred
-         * milliseconds behind System.currentTimeMillis(). The result is that a snapshot taken after a policy is created can have a start 
+         * milliseconds behind System.currentTimeMillis(). The result is that a snapshot taken after a policy is created can have a start
          * time that is before the policy's (or action's) start time if System::currentTimeInMillis is used here.
          */
         LongSupplier nowSupplier = threadPool::absoluteTimeInMillis;

@@ -12,8 +12,6 @@ import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.core.Nullable;
@@ -57,13 +55,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     private final List<Entry> entries;
 
-    private static final Logger logger = LogManager.getLogger(SnapshotsInProgress.class);
-
     public static SnapshotsInProgress of(List<Entry> entries) {
-        logger.info("snapshots in progress: {}", entries.size());
-        for (Entry entry : entries) {
-            logger.info("snapshotId: {}, startTime: {}", entry.snapshot.getSnapshotId(), entry.startTime);
-        }
         if (entries.isEmpty()) {
             return EMPTY;
         }

@@ -591,10 +591,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
          */
         long absoluteTimeInMillis() {
             if (0 < interval) {
-                logger.info("Using cached time {}", absoluteMillis);
                 return absoluteMillis;
             }
-            logger.info("Using real time");
             return System.currentTimeMillis();
         }
 

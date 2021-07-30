@@ -15,7 +15,6 @@ import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.hunspell.Dictionary;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
@@ -115,21 +114,6 @@ public class AnalysisModuleTests extends ESTestCase {
     public void testSimpleConfigurationYaml() throws IOException {
         Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.yml");
         testSimpleConfiguration(settings);
-        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
-    }
-
-    public void testVersionedAnalyzers() throws Exception {
-        String yaml = "/org/elasticsearch/index/analysis/test1.yml";
-        Version version = VersionUtils.randomVersion(random());
-        Settings settings2 = Settings.builder()
-                .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-                .build();
-        AnalysisRegistry newRegistry = getNewRegistry(settings2);
-        IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings2);
-
-        assertThat(indexAnalyzers.get("custom7").analyzer(), instanceOf(StandardAnalyzer.class));
         assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 

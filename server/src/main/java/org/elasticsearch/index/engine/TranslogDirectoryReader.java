@@ -145,7 +145,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
         private static final FieldInfo FAKE_ID_FIELD
             = new FieldInfo(IdFieldMapper.NAME, 3, false, false, false, IndexOptions.DOCS,
             DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, 0, VectorSimilarityFunction.EUCLIDEAN, false);
-        private static Set<String> TRANSLOG_FIELD_NAMES =
+        private static final Set<String> TRANSLOG_FIELD_NAMES =
             Sets.newHashSet(SourceFieldMapper.NAME, RoutingFieldMapper.NAME, IdFieldMapper.NAME);
 
 

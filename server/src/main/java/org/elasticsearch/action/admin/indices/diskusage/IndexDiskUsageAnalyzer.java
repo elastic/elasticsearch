@@ -9,14 +9,14 @@
 package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat;
+import org.apache.lucene.backward_codecs.lucene84.Lucene84PostingsFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.TermVectorsReader;
-import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat;
-import org.apache.lucene.backward_codecs.lucene84.Lucene84PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
@@ -302,6 +302,10 @@ import java.util.Objects;
             }
             if (termState instanceof Lucene50PostingsFormat.IntBlockTermState) {
                 final Lucene50PostingsFormat.IntBlockTermState blockTermState = (Lucene50PostingsFormat.IntBlockTermState) termState;
+                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            }
+            if (termState instanceof Lucene90PostingsFormat.IntBlockTermState) {
+                final Lucene90PostingsFormat.IntBlockTermState blockTermState = (Lucene90PostingsFormat.IntBlockTermState) termState;
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
         }

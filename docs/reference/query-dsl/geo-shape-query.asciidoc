@@ -288,9 +288,6 @@ PUT /test/_doc/1
 }
 --------------------------------------------------
 
-* {blank}
-+
-include::{es-repo-dir}/mapping/types/geo-shape.asciidoc[tag=geoshape-dateline-orientation]
-+
-For more information, see the `geo_shape` field's
-<<geo-shape-mapping-options,`orientation` mapping parameter>>.
+* The `geo_shape` query assumes `geo_shape` fields use a `orientation` of
+`RIGHT` (counterclockwise). For more information about how {es} uses
+orientation, see <<polygon-orientation>>.

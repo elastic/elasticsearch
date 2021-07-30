@@ -48,13 +48,8 @@ Defaults to `RIGHT` to comply with https://www.ogc.org/docs/is[OGC standards].
 OGC standards define outer ring vertices in counterclockwise order with inner
 ring (hole) vertices in clockwise order.
 
-Individual GeoJSON or WKT documents can override this parameter.
-
-// tag::geoshape-dateline-orientation[]
-Geoshapes that cross the international dateline (+/-180° longitude) must use a
-`RIGHT` or equivalent `orientation`. Otherwise, `geo_shape` queries that match
-the geoshape may return unexpected results.
-// end::geoshape-dateline-orientation[]
+You can override this parameter at the document level. For information about how
+{es} uses orientation, see <<polygon-orientation>>.
 | `RIGHT`
 
 |`ignore_malformed` |If true, malformed GeoJSON or WKT shapes are ignored. If
@@ -263,57 +258,37 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-*IMPORTANT NOTE:* WKT does not enforce a specific order for vertices thus
-ambiguous polygons around the dateline and poles are possible.
-https://tools.ietf.org/html/rfc7946#section-3.1.6[GeoJSON] mandates that the
-outer polygon must be counterclockwise and interior shapes must be clockwise,
-which agrees with the Open Geospatial Consortium (OGC)
-https://www.opengeospatial.org/standards/sfa[Simple Feature Access]
-specification for vertex ordering.
+[discrete]
+[[polygon-orientation]]
+===== Polygon orientation
 
-Elasticsearch accepts both clockwise and counterclockwise polygons if they
-appear not to cross the dateline (i.e. they cross less than 180° of longitude),
-but for polygons that do cross the dateline (or for other polygons wider than
-180°) Elasticsearch requires the vertex ordering to comply with the OGC and
-GeoJSON specifications. Otherwise, an unintended polygon may be created and
-unexpected query/filter results will be returned.
+A polygon's orientation indicates the order of its vertices: `RIGHT`
+(counterclockwise) or `LEFT` (clockwise). You can set a `geo_shape` field's
+default orientation using the <<geo-shape-mapping-options,`orientation` mapping
+parameter>>. You can override this default for specific polygons using the
+document-level `orientation` parameter.
 
-The following provides an example of an ambiguous polygon. Elasticsearch will
-apply the GeoJSON standard to eliminate ambiguity resulting in a polygon that
-crosses the dateline.
+For example, the following indexing request specifies a document-level
+`orientation` of `LEFT`.
 
 [source,console]
---------------------------------------------------
+----
 POST /example/_doc
 {
   "location" : {
     "type" : "polygon",
+    "orientation" : "LEFT",
     "coordinates" : [
-      [ [-177.0, 10.0], [176.0, 15.0], [172.0, 0.0], [176.0, -15.0], [-177.0, -10.0], [-177.0, 10.0] ],
-      [ [178.2, 8.2], [-178.8, 8.2], [-180.8, -8.8], [178.2, 8.8] ]
+      [ [-177.0, 10.0], [176.0, 15.0], [172.0, 0.0], [176.0, -15.0], [-177.0, -10.0], [-177.0, 10.0] ]
     ]
   }
 }
---------------------------------------------------
-// TEST[catch:/mapper_parsing_exception/]
+----
 
-An `orientation` parameter can be defined when setting the geo_shape mapping (see <<geo-shape-mapping-options>>). This will define vertex
-order for the coordinate list on the mapped geo_shape field. It can also be overridden on each document. The following is an example for
-overriding the orientation on a document:
-
-[source,console]
---------------------------------------------------
-POST /example/_doc
-{
-  "location" : {
-    "type" : "polygon",
-    "orientation" : "clockwise",
-    "coordinates" : [
-      [ [100.0, 0.0], [100.0, 1.0], [101.0, 1.0], [101.0, 0.0], [100.0, 0.0] ]
-    ]
-  }
-}
---------------------------------------------------
+{es} only uses orientation to determine if a polygon crosses the international
+dateline (+/-180° longitude). If so, {es} splits the polygon at the dateline. If
+the difference between a polygon's minimum longitude and the maximum longitude
+is less than 180°, its orientation has no effect.
 
 [discrete]
 [[geo-multipoint]]

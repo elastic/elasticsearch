@@ -67,7 +67,7 @@ public class FeatureFactory {
     }
 
     public List<byte[]> getFeatures(Geometry geometry) {
-        org.locationtech.jts.geom.Geometry jtsGeometry = geometry.visit(builder);
+        final org.locationtech.jts.geom.Geometry jtsGeometry = geometry.visit(builder);
         if (jtsGeometry.isValid() == false) {
             return List.of();
         }

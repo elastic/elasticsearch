@@ -716,7 +716,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
 
     /**
      * Serialize this {@link SnapshotInfo} for external consumption, i.e. REST responses, from which we don't need to be able to read it
-     * back again.
+     * back again. This method builds a well-formed object, not a fragment like {@link #toXContent} does.
      */
     public XContentBuilder toXContentExternal(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
         assert Metadata.CONTEXT_MODE_SNAPSHOT.equals(params.param(Metadata.CONTEXT_MODE_PARAM)) == false

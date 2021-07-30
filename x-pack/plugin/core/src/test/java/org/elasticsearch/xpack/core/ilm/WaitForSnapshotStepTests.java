@@ -58,7 +58,8 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
 
     public void testNoSlmPolicies() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Collections.singletonMap("action_time", Long.toString(randomLong())))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
+                Collections.singletonMap("action_time", Long.toString(randomLong())))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetadata> indices =
@@ -82,7 +83,8 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
 
 
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Collections.singletonMap("action_time", Long.toString(randomLong())))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
+                Collections.singletonMap("action_time", Long.toString(randomLong())))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetadata> indices =

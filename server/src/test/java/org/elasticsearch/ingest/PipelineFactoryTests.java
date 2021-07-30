@@ -30,7 +30,7 @@ public class PipelineFactoryTests extends ESTestCase {
     private final Integer version = randomBoolean() ? randomInt() : null;
     private final String versionString = version != null ? Integer.toString(version) : null;
     private final ScriptService scriptService = mock(ScriptService.class);
-    private final Map<String, Object> metadata = randomBoolean() ? randomMap(0, 20, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4))) : null;
+    private final Map<String, Object> metadata = randomMeta();
 
     public void testCreate() throws Exception {
         Map<String, Object> processorConfig0 = new HashMap<>();
@@ -215,5 +215,18 @@ public class PipelineFactoryTests extends ESTestCase {
         Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor1, processor2));
         List<Processor> flattened = pipeline.flattenAllProcessors();
         assertThat(flattened.size(), equalTo(4));
+    }
+
+    public static Map<String, Object> randomMeta() {
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                return Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4));
+            } else {
+                return Collections.singletonMap(randomAlphaOfLength(5),
+                    Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4)));
+            }
+        } else {
+            return null;
+        }
     }
 }

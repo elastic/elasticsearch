@@ -71,7 +71,10 @@ specified. {es} will not attempt to run the pipeline's remaining processors.
 `processors`::
 (Required, array of <<processors,processor>> objects)
 Processors used to preform transformations on documents before indexing.
-Processors run sequentially in the order specified.
+Processors run sequentially in the order specified. You can use the
+`_meta` parameter to add arbitrary metadata to the pipeline. The `_meta` parameter is optional
+and not automatically generated or used by {es}. To unset `_meta`, replace the pipeline
+without specifying one. To check the `_meta` value, you can use the <<get-pipeline-api,Get pipeline>> API.
 
 `version`::
 (Optional, integer)

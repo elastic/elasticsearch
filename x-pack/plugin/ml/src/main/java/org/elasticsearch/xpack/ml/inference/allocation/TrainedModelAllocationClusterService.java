@@ -97,7 +97,12 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    logger.trace("updated model allocations based on node changes in the cluster");
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "updated model allocations based on node changes in the cluster; new metadata [{}]",
+                            Strings.toString(TrainedModelAllocationMetadata.fromState(newState), false, true)
+                        )
+                    );
                 }
             });
         }

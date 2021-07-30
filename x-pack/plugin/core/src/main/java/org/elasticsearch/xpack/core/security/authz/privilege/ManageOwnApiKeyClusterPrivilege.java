@@ -78,8 +78,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                 }
             } else if (request instanceof QueryApiKeyRequest) {
                 final QueryApiKeyRequest queryApiKeyRequest = (QueryApiKeyRequest) request;
-                queryApiKeyRequest.setFilterForCurrentUser();
-                return true;
+                return queryApiKeyRequest.isFilterForCurrentUser();
             }
             throw new IllegalArgumentException(
                 "manage own api key privilege only supports API key requests (not " + request.getClass().getName() + ")");

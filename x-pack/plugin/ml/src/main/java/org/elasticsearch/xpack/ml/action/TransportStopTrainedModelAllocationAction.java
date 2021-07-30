@@ -20,8 +20,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAllocationAction;
-import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAllocationAction.Request;
+import org.elasticsearch.xpack.core.ml.action.StopTrainedModelAllocationAction;
+import org.elasticsearch.xpack.core.ml.action.StopTrainedModelAllocationAction.Request;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationClusterService;
 
 public class TransportStopTrainedModelAllocationAction extends AcknowledgedTransportMasterNodeAction<Request> {
@@ -38,7 +38,7 @@ public class TransportStopTrainedModelAllocationAction extends AcknowledgedTrans
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            DeleteTrainedModelAllocationAction.NAME,
+            StopTrainedModelAllocationAction.NAME,
             false,
             transportService,
             clusterService,

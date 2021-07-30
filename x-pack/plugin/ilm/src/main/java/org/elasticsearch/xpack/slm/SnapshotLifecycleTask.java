@@ -98,13 +98,13 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     logger.debug("snapshot response for [{}]: {}",
                         policyMetadata.getPolicy().getId(), Strings.toString(createSnapshotResponse));
                     final SnapshotInfo snapInfo = createSnapshotResponse.getSnapshotInfo();
-
                     // Check that there are no failed shards, since the request may not entirely
                     // fail, but may still have failures (such as in the case of an aborted snapshot)
                     if (snapInfo.failedShards() == 0) {
+                        long snapshotStartTime = snapInfo.startTime();
                         final long timestamp = Instant.now().toEpochMilli();
                         clusterService.submitStateUpdateTask("slm-record-success-" + policyMetadata.getPolicy().getId(),
-                            WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), snapInfo.startTime(), timestamp));
+                            WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), snapshotStartTime, timestamp));
                         historyStore.putAsync(SnapshotHistoryItem.creationSuccessRecord(timestamp, policyMetadata.getPolicy(),
                             request.snapshot()));
                     } else {

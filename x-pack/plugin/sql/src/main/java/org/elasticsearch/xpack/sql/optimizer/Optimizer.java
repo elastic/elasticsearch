@@ -178,9 +178,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         Batch local = new Batch("Skip Elasticsearch",
                 new SkipQueryOnLimitZero(),
-                new SkipQueryForOnlyLiteralAggregations(),
+                new SkipQueryForLiteralAggregations(),
                 new PushProjectionsIntoLocalRelation(),
-                // must run after `PushProjectionsIntoLocalRelation` because it removes the the distinction between implicit
+                // must run after `PushProjectionsIntoLocalRelation` because it removes the distinction between implicit
                 // and explicit groupings
                 new PruneLiteralsInGroupBy()
                 );
@@ -854,7 +854,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (plan instanceof Aggregate || plan instanceof Filter || plan instanceof OrderBy) {
                 LocalRelation relation = unfilteredLocalRelation(plan.child());
                 if (relation != null) {
-                    long count = (relation.executable() instanceof EmptyExecutable ? 0L : 1L);
+                    long count = relation.executable() instanceof EmptyExecutable ? 0L : 1L;
 
                     return plan.transformExpressionsDown(AggregateFunction.class, aggregateFunction -> {
                         if (aggregateFunction instanceof Count) {
@@ -1185,10 +1185,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 List<Object> foldedValues = null;
 
                 if (relation.executable() instanceof SingletonExecutable) {
-                    if (plan instanceof Project) {
-                        foldedValues = extractLiterals(((Project) plan).projections());
-                    } else {
+                    if (plan instanceof Aggregate) {
                         foldedValues = extractLiterals(((Aggregate) plan).aggregates());
+                    } else {
+                        foldedValues = extractLiterals(((Project) plan).projections());
                     }
                 } else if (relation.executable() instanceof EmptyExecutable) {
                     if (plan instanceof Aggregate) {
@@ -1235,7 +1235,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     }
 
-    static class SkipQueryForOnlyLiteralAggregations extends OptimizerRule<Aggregate> {
+    static class SkipQueryForLiteralAggregations extends OptimizerRule<Aggregate> {
 
         @Override
         protected LogicalPlan rule(Aggregate plan) {
@@ -1248,10 +1248,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         private boolean foldable(Expression e) {
             if (e instanceof Alias) {
-                return foldable(((Alias) e).child());
-            } else {
-                return e.foldable();
+                e = ((Alias) e).child();
             }
+            return e.foldable();
         }
 
     }

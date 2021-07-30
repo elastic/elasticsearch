@@ -529,7 +529,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
 
     /**
      * Utility method which computes total memory by adding
-     * FieldData, PercolatorCache, Segments (memory, index writer, version map)
+     * FieldData, PercolatorCache, Segments (index writer, version map)
      */
     public ByteSizeValue getTotalMemory() {
         long size = 0;
@@ -540,8 +540,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
             size += this.getQueryCache().getMemorySizeInBytes();
         }
         if (this.getSegments() != null) {
-            size += this.getSegments().getMemoryInBytes() +
-                    this.getSegments().getIndexWriterMemoryInBytes() +
+            size += this.getSegments().getIndexWriterMemoryInBytes() +
                     this.getSegments().getVersionMapMemoryInBytes();
         }
 

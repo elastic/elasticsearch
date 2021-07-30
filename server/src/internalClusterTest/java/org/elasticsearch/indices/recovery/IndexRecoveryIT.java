@@ -140,6 +140,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -1319,7 +1320,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 connection.sendRequest(requestId, action, request, options);
             });
         }
-        assertGlobalCheckpointIsStableAndSyncedInAllNodes(indexName, 0);
+        assertGlobalCheckpointIsStableAndSyncedInAllNodes(indexName, nodes,0);
 
         IndexShard shard = internalCluster().getInstance(IndicesService.class, failingNode)
             .getShardOrNull(new ShardId(resolveIndex(indexName), 0));
@@ -1798,17 +1799,20 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             .mapToLong(n -> n.getIndices().getStore().getReservedSize().getBytes()).sum(), equalTo(0L));
     }
 
-    private void assertGlobalCheckpointIsStableAndSyncedInAllNodes(String indexName, int shardId) throws Exception {
-        long maxSeqNo = NO_OPS_PERFORMED;
-        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            IndexShard shard = indicesService.getShardOrNull(new ShardId(resolveIndex(indexName), shardId));
-            maxSeqNo = Math.max(maxSeqNo, shard.seqNoStats().getMaxSeqNo());
-        }
+    private void assertGlobalCheckpointIsStableAndSyncedInAllNodes(String indexName, List<String> nodes, int shard) throws Exception {
+        assertThat(nodes, is(not(empty())));
 
-        final long maxSeqNoAcrossNodes = maxSeqNo;
-        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            IndexShard shard = indicesService.getShardOrNull(new ShardId(resolveIndex(indexName), shardId));
-            assertBusy(() -> assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(maxSeqNoAcrossNodes)));
+        ShardId shardId = new ShardId(resolveIndex(indexName), shard);
+        IndexShard indexShard = internalCluster().getInstance(IndicesService.class, nodes.get(0)).getShardOrNull(shardId);
+        assertThat(indexShard, is(notNullValue()));
+        long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
+
+        for (String node : nodes) {
+            IndexShard nodeIndexShard = internalCluster().getInstance(IndicesService.class, node).getShardOrNull(shardId);
+            assertThat(nodeIndexShard, is(notNullValue()));
+
+            assertThat(nodeIndexShard.seqNoStats().getMaxSeqNo(), is(equalTo(maxSeqNo)));
+            assertBusy(() -> assertThat(nodeIndexShard.getLastSyncedGlobalCheckpoint(), equalTo(maxSeqNo)));
         }
     }
 }

@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Copy of {@link MultiNormsLeafSimScorer} that contains a fix for LUCENE-9999.
+ * Copy of {@code org.apache.lucene.sandbox.search.MultiNormsLeafSimScorer} that contains a fix for LUCENE-9999.
  * TODO: remove once LUCENE-9999 is fixed and integrated
  *
  * <p>For all fields, norms must be encoded using {@link SmallFloat#intToByte4}. This scorer also

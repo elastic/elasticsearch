@@ -27,6 +27,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermStates;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.sandbox.search.CombinedFieldQuery;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.DFRSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
@@ -354,11 +355,6 @@ public final class XCombinedFieldQuery extends Query implements Accountable {
 
       return new CollectionStatistics(
           "pseudo_field", maxDoc, docCount, sumTotalTermFreq, sumDocFreq);
-    }
-
-    @Override
-    public void extractTerms(Set<Term> termSet) {
-        termSet.addAll(Arrays.asList(fieldTerms));
     }
 
     @Override

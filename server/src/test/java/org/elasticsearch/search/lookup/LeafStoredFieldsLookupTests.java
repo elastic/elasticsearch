@@ -10,7 +10,7 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.VectorValues;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -36,7 +36,7 @@ public class LeafStoredFieldsLookupTests extends ESTestCase {
                 (Double) invocation.getArguments()[0] + 10);
 
         FieldInfo mockFieldInfo = new FieldInfo("field", 1, false, false, true,
-            IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, 0, VectorValues.SimilarityFunction.NONE, false);
+            IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, 0, VectorSimilarityFunction.EUCLIDEAN, false);
 
         fieldsLookup = new LeafStoredFieldsLookup(field -> field.equals("field") || field.equals("alias") ? fieldType : null,
             (doc, visitor) -> visitor.doubleField(mockFieldInfo, 2.718));

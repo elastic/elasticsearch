@@ -15,8 +15,9 @@ import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.TermVectorsReader;
-import org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat;
-import org.apache.lucene.codecs.lucene84.Lucene84PostingsFormat;
+import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat;
+import org.apache.lucene.backward_codecs.lucene84.Lucene84PostingsFormat;
+import org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
@@ -42,7 +43,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
@@ -53,6 +53,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -169,8 +171,8 @@ import java.util.Objects;
         }
 
         @Override
-        public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
-            trackField(fieldInfo, Integer.BYTES + value.length);
+        public void stringField(FieldInfo fieldInfo, String value) throws IOException {
+            trackField(fieldInfo, Integer.BYTES + value.getBytes(StandardCharsets.UTF_8).length);
         }
 
         @Override
@@ -290,6 +292,10 @@ import java.util.Objects;
     private BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
         if (term != null && termsEnum.seekExact(term)) {
             final TermState termState = termsEnum.termState();
+            if (termState instanceof Lucene90PostingsFormat.IntBlockTermState) {
+                final Lucene90PostingsFormat.IntBlockTermState blockTermState = (Lucene90PostingsFormat.IntBlockTermState) termState;
+                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            }
             if (termState instanceof Lucene84PostingsFormat.IntBlockTermState) {
                 final Lucene84PostingsFormat.IntBlockTermState blockTermState = (Lucene84PostingsFormat.IntBlockTermState) termState;
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
@@ -425,8 +431,8 @@ import java.util.Objects;
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
             for (int dim = 0; dim < numDims; dim++) {
                 int offset = dim * bytesPerDim;
-                if (FutureArrays.compareUnsigned(minPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) > 0 ||
-                    FutureArrays.compareUnsigned(maxPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) < 0) {
+                if (Arrays.compareUnsigned(minPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) > 0 ||
+                    Arrays.compareUnsigned(maxPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) < 0) {
                     return PointValues.Relation.CELL_OUTSIDE_QUERY;
                 }
             }

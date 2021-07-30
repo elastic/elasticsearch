@@ -10,9 +10,9 @@ package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene80.Lucene80DocValuesFormat;
-import org.apache.lucene.codecs.lucene84.Lucene84PostingsFormat;
-import org.apache.lucene.codecs.lucene87.Lucene87Codec;
+import org.apache.lucene.backward_codecs.lucene80.Lucene80DocValuesFormat;
+import org.apache.lucene.backward_codecs.lucene84.Lucene84PostingsFormat;
+import org.apache.lucene.backward_codecs.lucene87.Lucene87Codec;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;

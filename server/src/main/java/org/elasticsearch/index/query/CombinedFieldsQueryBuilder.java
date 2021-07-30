@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.misc.search.similarity.LegacyBM25Similarity;
-import org.apache.lucene.sandbox.search.CombinedFieldQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;

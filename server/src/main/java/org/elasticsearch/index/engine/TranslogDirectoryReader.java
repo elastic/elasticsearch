@@ -15,7 +15,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
@@ -30,9 +29,13 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
@@ -56,7 +59,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -136,13 +138,13 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
         private static final FieldInfo FAKE_SOURCE_FIELD
             = new FieldInfo(SourceFieldMapper.NAME, 1, false, false, false, IndexOptions.NONE,
-            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
+            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, 0, VectorSimilarityFunction.EUCLIDEAN, false);
         private static final FieldInfo FAKE_ROUTING_FIELD
             = new FieldInfo(RoutingFieldMapper.NAME, 2, false, false, false, IndexOptions.NONE,
-            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
+            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, 0, VectorSimilarityFunction.EUCLIDEAN, false);
         private static final FieldInfo FAKE_ID_FIELD
             = new FieldInfo(IdFieldMapper.NAME, 3, false, false, false, IndexOptions.DOCS,
-            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
+            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, 0, VectorSimilarityFunction.EUCLIDEAN, false);
         private static Set<String> TRANSLOG_FIELD_NAMES =
             Sets.newHashSet(SourceFieldMapper.NAME, RoutingFieldMapper.NAME, IdFieldMapper.NAME);
 
@@ -274,6 +276,16 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
+        public VectorValues getVectorValues(String field) throws IOException {
+            return getDelegate().getVectorValues(field);
+        }
+
+        @Override
+        public TopDocs searchNearestVectors(String field, float[] target, int k) throws IOException {
+            return getDelegate().searchNearestVectors(field, target, k);
+        }
+
+        @Override
         public FieldInfos getFieldInfos() {
             return getDelegate().getFieldInfos();
         }
@@ -298,8 +310,8 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public Fields getTermVectors(int docID) throws IOException {
-            return getDelegate().getTermVectors(docID);
+        public TermVectors getTermVectorsReader() {
+            return getDelegate().getTermVectorsReader();
         }
 
         @Override
@@ -348,7 +360,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 }
             }
             if (operation.routing() != null && visitor.needsField(FAKE_ROUTING_FIELD) == StoredFieldVisitor.Status.YES) {
-                visitor.stringField(FAKE_ROUTING_FIELD, operation.routing().getBytes(StandardCharsets.UTF_8));
+                visitor.stringField(FAKE_ROUTING_FIELD, operation.routing());
             }
             if (visitor.needsField(FAKE_ID_FIELD) == StoredFieldVisitor.Status.YES) {
                 final byte[] id = new byte[uid.length];

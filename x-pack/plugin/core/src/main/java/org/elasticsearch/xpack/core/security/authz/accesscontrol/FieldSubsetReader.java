@@ -22,6 +22,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.TermState;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -149,14 +150,23 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public Fields getTermVectors(int docID) throws IOException {
-        Fields f = super.getTermVectors(docID);
-        if (f == null) {
+    public TermVectors getTermVectorsReader() {
+        TermVectors in = super.getTermVectorsReader();
+        if (in == null) {
             return null;
         }
-        f = new FieldFilterFields(f);
-        // we need to check for emptyness, so we can return null:
-        return f.iterator().hasNext() ? f : null;
+        return new TermVectors() {
+            @Override
+            public Fields get(int doc) throws IOException {
+                Fields f = in.get(doc);
+                if (f == null) {
+                    return null;
+                }
+                f = new FieldFilterFields(f);
+                // we need to check for emptyness, so we can return null:
+                return f.iterator().hasNext() ? f : null;
+            }
+        };
     }
 
     /** Filter a map by a {@link CharacterRunAutomaton} that defines the fields to retain. */

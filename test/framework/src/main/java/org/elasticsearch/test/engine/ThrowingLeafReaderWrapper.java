@@ -16,6 +16,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -82,10 +83,18 @@ public class ThrowingLeafReaderWrapper extends SequentialStoredFieldsLeafReader 
     }
 
     @Override
-    public Fields getTermVectors(int docID) throws IOException {
-        Fields fields = super.getTermVectors(docID);
-        thrower.maybeThrow(Flags.TermVectors);
-        return fields == null ? null : new ThrowingFields(fields, thrower);
+    public TermVectors getTermVectorsReader() {
+        TermVectors in = super.getTermVectorsReader();
+        if (in == null) {
+            return null;
+        }
+        return new TermVectors() {
+            @Override
+            public Fields get(int doc) throws IOException {
+                thrower.maybeThrow(Flags.TermVectors);
+                return new ThrowingFields(in.get(doc), thrower);
+            }
+        };
     }
 
     /**

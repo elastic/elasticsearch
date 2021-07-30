@@ -10,7 +10,6 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafMetaData;
@@ -22,6 +21,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.TopDocs;
@@ -221,7 +221,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, float[] target, int k, int fanout) throws IOException {
+        public TopDocs searchNearestVectors(String field, float[] target, int k) throws IOException {
             throw new UnsupportedOperationException();
         }
 
@@ -250,7 +250,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public Fields getTermVectors(int docID) {
+        public TermVectors getTermVectorsReader() {
             throw new UnsupportedOperationException();
         }
 

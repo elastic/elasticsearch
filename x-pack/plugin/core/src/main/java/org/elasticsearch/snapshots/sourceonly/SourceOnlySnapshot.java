@@ -23,7 +23,7 @@ import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.StandardDirectoryReader;
-import org.apache.lucene.index.VectorValues;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -224,7 +224,7 @@ public class SourceOnlySnapshot {
                 for (FieldInfo fieldInfo : fieldInfos) {
                     fieldInfoCopy.add(new FieldInfo(fieldInfo.name, fieldInfo.number,
                         false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, fieldInfo.attributes(), 0, 0, 0,
-                        0, VectorValues.SimilarityFunction.NONE, fieldInfo.isSoftDeletesField()));
+                        0, VectorSimilarityFunction.EUCLIDEAN, fieldInfo.isSoftDeletesField()));
                 }
                 FieldInfos newFieldInfos = new FieldInfos(fieldInfoCopy.toArray(new FieldInfo[0]));
                 codec.fieldInfosFormat().write(trackingDir, newSegmentInfo, segmentSuffix, newFieldInfos, IOContext.DEFAULT);

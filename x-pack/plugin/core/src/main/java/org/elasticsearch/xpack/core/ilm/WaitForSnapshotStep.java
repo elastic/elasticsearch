@@ -21,8 +21,8 @@ import java.util.Objects;
 
 /***
  * A step that waits for snapshot to be taken by SLM to ensure we have backup before we delete the index.
- * It will signal error if it can't get data needed to do the check (phase time from ILM and SLM metadata)
- * and will only return success if execution of SLM policy took place after index entered deleted phase.
+ * It will signal error if it can't get data needed to do the check (action time from ILM and SLM metadata)
+ * and will only return success if execution of SLM policy took place after index entered the wait for snapshot action.
  */
 public class WaitForSnapshotStep extends ClusterStateWaitStep {
 
@@ -33,7 +33,7 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
     private static final String POLICY_NOT_EXECUTED_MESSAGE = "waiting for policy '%s' to be executed since %s";
     private static final String POLICY_NOT_FOUND_MESSAGE = "configured policy '%s' not found";
     private static final String NO_INDEX_METADATA_MESSAGE = "no index metadata found for index '%s'";
-    private static final String NO_PHASE_TIME_MESSAGE = "no information about ILM phase start in index metadata for index '%s'";
+    private static final String NO_ACTION_TIME_MESSAGE = "no information about ILM action start in index metadata for index '%s'";
 
     private final String policy;
 
@@ -49,10 +49,10 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
             throw error(NO_INDEX_METADATA_MESSAGE, index.getName());
         }
 
-        Long phaseTime = LifecycleExecutionState.fromIndexMetadata(indexMetadata).getPhaseTime();
+        Long actionTime = LifecycleExecutionState.fromIndexMetadata(indexMetadata).getActionTime();
 
-        if (phaseTime == null) {
-            throw error(NO_PHASE_TIME_MESSAGE, index.getName());
+        if (actionTime == null) {
+            throw error(NO_ACTION_TIME_MESSAGE, index.getName());
         }
 
         SnapshotLifecycleMetadata snapMeta = clusterState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
@@ -61,28 +61,28 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
         }
         SnapshotLifecyclePolicyMetadata snapPolicyMeta = snapMeta.getSnapshotConfigurations().get(policy);
         if (snapPolicyMeta.getLastSuccess() == null || snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() == null ||
-            snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() < phaseTime) {
+            snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() < actionTime) {
             if (snapPolicyMeta.getLastSuccess() == null) {
-                logger.debug("skipping ILM policy execution because there is no last snapshot success, phase time: {}", phaseTime);
+                logger.debug("skipping ILM policy execution because there is no last snapshot success, action time: {}", actionTime);
             } else if (snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() == null) {
                 /*
                  * This is because we are running in mixed cluster mode, and the snapshot was taken on an older master, which then went
                  * down before this check could happen. We'll wait until a snapshot is taken on this newer master before passing this check.
                  */
-                logger.debug("skipping ILM policy execution because no last snapshot start date, phase time: {}", phaseTime);
+                logger.debug("skipping ILM policy execution because no last snapshot start date, action time: {}", actionTime);
             }
             else {
-                logger.debug("skipping ILM policy execution because snapshot start time {} is before phase time {}, snapshot timestamp " +
+                logger.debug("skipping ILM policy execution because snapshot start time {} is before action time {}, snapshot timestamp " +
                         "is {}",
                     snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(),
-                    phaseTime,
+                    actionTime,
                     snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp());
             }
-            return new Result(false, notExecutedMessage(phaseTime));
+            return new Result(false, notExecutedMessage(actionTime));
         }
-        logger.debug("executing policy because snapshot start time {} is after phase time {}, snapshot timestamp is {}",
+        logger.debug("executing policy because snapshot start time {} is after action time {}, snapshot timestamp is {}",
             snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(),
-            phaseTime,
+            actionTime,
             snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp());
         return new Result(true, null);
     }

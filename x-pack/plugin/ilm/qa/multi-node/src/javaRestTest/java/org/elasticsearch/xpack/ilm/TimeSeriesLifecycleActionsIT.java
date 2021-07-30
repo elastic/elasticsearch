@@ -228,6 +228,31 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }, slmPolicy);
     }
 
+    /*
+     * This test more rapidly creates a policy and then executes a snapshot, in an attempt to reproduce a timing bug where the snapshot
+     * time gets set to a time earlier than the policy's action's time.
+     */
+    public void testWaitForSnapshotFast() throws Exception {
+        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        String slmPolicy = randomAlphaOfLengthBetween(4, 10);
+        final String phaseName = "delete";
+        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createSlmPolicy(slmPolicy, snapshotRepo);
+        createNewSingletonPolicy(client(), policy, phaseName, new WaitForSnapshotAction(slmPolicy));
+        updatePolicy(client(), index, policy);
+        waitForPhaseTime(phaseName);
+
+        Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
+        assertOK(client().performRequest(request));
+        assertBusy(() -> {
+            Step.StepKey stepKey = getStepKeyForIndex(client(), index);
+            logger.info("step key for index {} is {}", index, stepKey);
+            assertThat(stepKey.getAction(), equalTo("complete"));
+        }, slmPolicy);
+    }
+
     public void testWaitForSnapshotSlmExecutedBefore() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));

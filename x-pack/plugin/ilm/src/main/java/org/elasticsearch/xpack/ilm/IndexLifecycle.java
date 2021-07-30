@@ -137,6 +137,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
@@ -211,8 +212,15 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         ilmTemplateRegistry.initialize();
         ilmHistoryStore.set(new ILMHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
             clusterService, threadPool));
+        /*
+         * Here we use threadPool::absoluteTimeInMillis rather than System::currentTimeInMillis because snapshot start time is set using
+         * ThreadPool.absoluteTimeInMillis(). ThreadPool.absoluteTimeInMillis() returns a cached time that can be several hundred
+         * milliseconds behind System.currentTimeMillis(). The result is that a snapshot taken after a policy is created can have a start
+         * time that is before the policy's (or action's) start time if System::currentTimeInMillis is used here.
+         */
+        LongSupplier nowSupplier = threadPool::absoluteTimeInMillis;
         indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
-            getClock(), System::currentTimeMillis, xContentRegistry, ilmHistoryStore.get(), getLicenseState()));
+            getClock(), nowSupplier, xContentRegistry, ilmHistoryStore.get(), getLicenseState()));
         components.add(indexLifecycleInitialisationService.get());
 
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,

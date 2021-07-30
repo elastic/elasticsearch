@@ -1,3 +1,8 @@
+[[release-notes-6.8.18]]
+== {es} version 6.8.18
+
+coming::[6.8.18]
+
 [[release-notes-6.8.17]]
 == {es} version 6.8.17
 

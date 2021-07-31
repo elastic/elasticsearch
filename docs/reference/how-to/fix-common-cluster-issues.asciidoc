@@ -100,26 +100,6 @@ POST _cache/clear?fielddata=true
 ----
 // TEST[s/^/PUT my-index\n/]
 
-**Configure the script compilation circuit breaker**
-
-If you frequently trigger the <<script-compilation-circuit-breaker,script
-compilation circuit breaker>>, you can use the <<cluster-update-settings,update
-cluster settings API>> to increase the
-`script.context.$CONTEXT.max_compilations_rate` for one or more script contexts.
-
-For example, the following request changes the maximum rate for the `field`
-context to 100 compilations every 10 minutes.
-
-[source,console]
-----
-PUT _cluster/settings
-{
-  "persistent" : {
-    "script.context.field.max_compilations_rate": "100/10m"
-  }
-}
-----
-
 [discrete]
 [[high-cpu-usage]]
 === High CPU usage

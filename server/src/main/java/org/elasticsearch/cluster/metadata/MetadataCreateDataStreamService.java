@@ -222,9 +222,17 @@ public class MetadataCreateDataStreamService {
 
         List<String> aliases = new ArrayList<>();
         if (template.template() != null && template.template().aliases() != null) {
-            for (var alias : template.template().aliases().values()) {
-                aliases.add(alias.getAlias());
-                builder.put(alias.getAlias(), dataStreamName, alias.writeIndex(), alias.filter() == null ? null : alias.filter().string());
+            var resolvedAliases = MetadataIndexTemplateService.resolveAliases(currentState.metadata(), template);
+            for (var resolvedAliasMap : resolvedAliases) {
+                for (var alias : resolvedAliasMap.values()) {
+                    aliases.add(alias.getAlias());
+                    builder.put(
+                        alias.getAlias(),
+                        dataStreamName,
+                        alias.writeIndex(),
+                        alias.filter() == null ? null : alias.filter().string()
+                    );
+                }
             }
         }
 

@@ -983,7 +983,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         );
 
         for (IndexId indexId : indices) {
-            final Set<SnapshotId> snapshotsWithIndex = new HashSet<>(oldRepositoryData.getSnapshots(indexId));
+            final Set<SnapshotId> snapshotsWithIndex = Set.copyOf(oldRepositoryData.getSnapshots(indexId));
             final Set<SnapshotId> survivingSnapshots = snapshotsWithIndex.stream()
                 .filter(id -> snapshotIds.contains(id) == false)
                 .collect(Collectors.toSet());

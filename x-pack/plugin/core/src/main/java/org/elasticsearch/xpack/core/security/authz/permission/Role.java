@@ -8,15 +8,14 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.Group;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
@@ -266,11 +265,12 @@ public class Role {
             if (groups.isEmpty()) {
                 indices = IndicesPermission.NONE;
             } else {
-                Group[] groupsArray = new Group[groups.size()];
-                for (int i = 0; i < groups.size(); i++) {
-                    groupsArray[i] = groups.get(i).toGroup(restrictedNamesAutomaton);
+                IndicesPermission.Builder indicesBuilder = new IndicesPermission.Builder(restrictedNamesAutomaton);
+                for (IndicesPermissionGroupDefinition group : groups) {
+                    indicesBuilder.addGroup(group.privilege, group.fieldPermissions, group.query, group.allowRestrictedIndices,
+                            group.indices);
                 }
-                indices = new IndicesPermission(groupsArray);
+                indices = indicesBuilder.build();
             }
             final ApplicationPermission applicationPermission
                 = applicationPrivs.isEmpty() ? ApplicationPermission.NONE : new ApplicationPermission(applicationPrivs);
@@ -319,10 +319,6 @@ public class Role {
                 this.query = query;
                 this.allowRestrictedIndices = allowRestrictedIndices;
                 this.indices = indices;
-            }
-
-            private IndicesPermission.Group toGroup(Automaton automaton) {
-                return new Group(privilege, fieldPermissions, query, allowRestrictedIndices, automaton, indices);
             }
         }
     }

@@ -13,11 +13,11 @@ import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -35,6 +35,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
@@ -47,15 +48,39 @@ public final class IndicesPermission {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndicesPermission.class);
 
-    public static final IndicesPermission NONE = new IndicesPermission();
+    public static final IndicesPermission NONE = new IndicesPermission(Automatons.EMPTY, new Group[0]);
 
     private static final Set<String> PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE = Set.of("create", "create_doc", "index", "write");
 
     private final Map<String, Predicate<IndexAbstraction>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
 
+    private final Automaton restrictedNamesAutomaton;
     private final Group[] groups;
 
-    public IndicesPermission(Group... groups) {
+    public static class Builder {
+
+        Automaton restrictedNamesAutomaton;
+        List<Group> groups = new ArrayList<>();
+
+        Builder(Automaton restrictedNamesAutomaton) {
+            this.restrictedNamesAutomaton = restrictedNamesAutomaton;
+        }
+
+        void addGroup(IndexPrivilege privilege,
+                      FieldPermissions fieldPermissions,
+                      @Nullable Set<BytesReference> query,
+                      boolean allowRestrictedIndices,
+                      String... indices) {
+            groups.add(new Group(privilege, fieldPermissions, query, allowRestrictedIndices, restrictedNamesAutomaton, indices));
+        }
+
+        IndicesPermission build() {
+            return new IndicesPermission(restrictedNamesAutomaton, groups.toArray(new Group[0]));
+        }
+    }
+
+    private IndicesPermission(Automaton restrictedNamesAutomaton, Group[] groups) {
+        this.restrictedNamesAutomaton = restrictedNamesAutomaton;
         this.groups = groups;
     }
 
@@ -66,13 +91,10 @@ public final class IndicesPermission {
      * @param ordinaryIndices A list of ordinary indices. If this collection contains restricted indices,
      *                        according to the restrictedNamesAutomaton, they will not be matched.
      * @param restrictedIndices A list of restricted index names. All of these will be matched.
-     * @param restrictedNamesAutomaton An automaton that will match restricted indices. We use this to filter
-     *                                 out restricted indices from the ordinaryIndices collection.
      * @return A matcher that will match all non-restricted index names in the ordinaryIndices
      * collection and all index names in the restrictedIndices collection.
      */
-    private static StringMatcher indexMatcher(Collection<String> ordinaryIndices, Collection<String> restrictedIndices,
-                                              Automaton restrictedNamesAutomaton) {
+    private StringMatcher indexMatcher(Collection<String> ordinaryIndices, Collection<String> restrictedIndices) {
         StringMatcher matcher;
         if (ordinaryIndices.isEmpty()) {
             matcher = StringMatcher.of(restrictedIndices);
@@ -107,14 +129,7 @@ public final class IndicesPermission {
         final Set<String> grantMappingUpdatesOnIndices = new HashSet<>();
         final Set<String> grantMappingUpdatesOnRestrictedIndices = new HashSet<>();
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
-        Automaton restrictedNamesAutomaton = null;
         for (final Group group : groups) {
-            if (restrictedNamesAutomaton == null) {
-                restrictedNamesAutomaton = group.restrictedNamesAutomaton;
-            } else {
-                assert restrictedNamesAutomaton == group.restrictedNamesAutomaton : "Groups have different restricted names automatons";
-            }
-
             if (group.actionMatcher.test(action)) {
                 if (group.allowRestrictedIndices) {
                     restrictedIndices.addAll(Arrays.asList(group.indices()));
@@ -131,9 +146,8 @@ public final class IndicesPermission {
                 }
             }
         }
-        final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices, restrictedNamesAutomaton);
-        final StringMatcher bwcSpecialCaseMatcher = indexMatcher(grantMappingUpdatesOnIndices,
-            grantMappingUpdatesOnRestrictedIndices, restrictedNamesAutomaton);
+        final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices);
+        final StringMatcher bwcSpecialCaseMatcher = indexMatcher(grantMappingUpdatesOnIndices, grantMappingUpdatesOnRestrictedIndices);
         return indexAbstraction ->
             nameMatcher.test(indexAbstraction.getName()) ||
                 (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM &&
@@ -174,12 +188,12 @@ public final class IndicesPermission {
         for (String forIndexPattern : checkForIndexPatterns) {
             Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
             if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
-                checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, getRestrictedNamesAutomaton());
+                checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, restrictedNamesAutomaton);
             }
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
                 Automaton allowedIndexPrivilegesAutomaton = null;
                 for (Group group : groups) {
-                    final Automaton groupIndexAutomaton = predicateCache.computeIfAbsent(group, Group::buildIndexMatcherAutomaton);
+                    final Automaton groupIndexAutomaton = predicateCache.computeIfAbsent(group, Group::getIndexMatcherAutomaton);
                     if (Operations.subsetOf(checkIndexAutomaton, groupIndexAutomaton)) {
                         if (allowedIndexPrivilegesAutomaton != null) {
                             allowedIndexPrivilegesAutomaton = Automatons
@@ -352,12 +366,8 @@ public final class IndicesPermission {
         if (Regex.isSimpleMatchPattern(indexPattern) || Automatons.isLuceneRegex(indexPattern)) {
             return false;
         }
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(getRestrictedNamesAutomaton());
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
         return runAutomaton.run(indexPattern);
-    }
-
-    private Automaton getRestrictedNamesAutomaton() {
-        return Arrays.stream(groups).map(g -> g.restrictedNamesAutomaton).findFirst().orElse(Automatons.EMPTY);
     }
 
     private static boolean isMappingUpdateAction(String action) {
@@ -375,13 +385,13 @@ public final class IndicesPermission {
         private final Predicate<String> actionMatcher;
         private final String[] indices;
         private final Predicate<String> indexNameMatcher;
+        private final Supplier<Automaton> indexNameAutomaton;
         private final FieldPermissions fieldPermissions;
         private final Set<BytesReference> query;
         // by default certain restricted indices are exempted when granting privileges, as they should generally be hidden for ordinary
         // users. Setting this flag true eliminates the special status for the purpose of this permission - restricted indices still have
         // to be covered by the "indices"
         private final boolean allowRestrictedIndices;
-        private final Automaton restrictedNamesAutomaton;
 
         public Group(IndexPrivilege privilege, FieldPermissions fieldPermissions, @Nullable Set<BytesReference> query,
                      boolean allowRestrictedIndices, Automaton restrictedNamesAutomaton, String... indices) {
@@ -390,13 +400,16 @@ public final class IndicesPermission {
             this.actionMatcher = privilege.predicate();
             this.indices = indices;
             this.allowRestrictedIndices = allowRestrictedIndices;
-            this.restrictedNamesAutomaton = Objects.requireNonNull(restrictedNamesAutomaton);
+            ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
             if (allowRestrictedIndices) {
                 this.indexNameMatcher = StringMatcher.of(indices);
+                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(indices, k -> Automatons.patterns(indices));
             } else {
                 final CharacterRunAutomaton restrictedNamesRunAutomaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
                 this.indexNameMatcher = StringMatcher.of(indices)
-                    .and(name -> restrictedNamesRunAutomaton.run(name) == false);
+                        .and(name -> restrictedNamesRunAutomaton.run(name) == false);
+                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(indices,
+                        k -> Automatons.minusAndMinimize(Automatons.patterns(indices), restrictedNamesAutomaton));
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
@@ -436,16 +449,9 @@ public final class IndicesPermission {
             return allowRestrictedIndices;
         }
 
-        public Automaton buildIndexMatcherAutomaton() {
-            final Automaton indicesAutomaton = Automatons.patterns(indices);
-            if (allowRestrictedIndices) {
-                return indicesAutomaton;
-            } else {
-                return Automatons.minusAndMinimize(indicesAutomaton, restrictedNamesAutomaton);
-            }
+        public Automaton getIndexMatcherAutomaton() {
+            return indexNameAutomaton.get();
         }
-
-
     }
 
     private static class DocumentLevelPermissions {

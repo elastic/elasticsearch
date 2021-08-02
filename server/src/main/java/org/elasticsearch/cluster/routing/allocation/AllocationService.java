@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -499,11 +500,11 @@ public class AllocationService {
             // now, go over all the shards routing on the node, and fail them
             for (ShardRouting shardRouting : node.copyShards()) {
                 final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-                boolean delayed = Optional.ofNullable(nodesShutdownMetadata.get(node.nodeId()))
-                    // If we know this node is restarting, then the allocation should be delayed
-                    .map(shutdownMetadata -> SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownMetadata.getType()))
-                    // Otherwise, use the "normal" allocation delay logic
-                    .orElse(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).nanos() > 0);
+                boolean delayedDueToKnownRestart = Optional.ofNullable(nodesShutdownMetadata.get(node.nodeId()))
+                    .map(shutdown -> Type.RESTART.equals(shutdown.getType()) && shutdown.getShardReallocationDelay().nanos() > 0)
+                    .orElse(false);
+                boolean delayed = delayedDueToKnownRestart
+                    || INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).nanos() > 0;
                 UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "node_left [" + node.nodeId() + "]",
                     null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), delayed, AllocationStatus.NO_ATTEMPT,
                     Collections.emptySet(), shardRouting.currentNodeId());

@@ -307,42 +307,44 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // Store newSnapshot here to be processed in clusterStateProcessed
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
 
-                final List<SnapshotFeatureInfo> featureStates;
+                final List<SnapshotFeatureInfo> featureStates = new ArrayList<>();
                 final List<String> systemDataStreamNames = new ArrayList<>();
                 // if we have any feature states in the snapshot, we add their required indices to the snapshot indices if they haven't
                 // been requested by the request directly
-                if (featureStatesSet.isEmpty()) {
-                    featureStates = Collections.emptyList();
-                } else {
-                    final Set<String> indexNames = new HashSet<>(indices);
-                    featureStates = featureStatesSet.stream()
-                        .map(
-                            feature -> new SnapshotFeatureInfo(
-                                feature,
-                                systemIndexDescriptorMap.get(feature)
-                                    .getIndexDescriptors()
-                                    .stream()
-                                    .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
-                                    .collect(Collectors.toList())
-                            )
-                        )
-                        .collect(Collectors.toList());
-                    for (SnapshotFeatureInfo featureState : featureStates) {
-                        indexNames.addAll(featureState.getIndices());
-                    }
+                final Set<String> indexNames = new HashSet<>(indices);
+                for (String featureName : featureStatesSet) {
+                    SystemIndices.Feature feature = systemIndexDescriptorMap.get(featureName);
 
-                    // Add all resolved indices from the feature states to the list of indices
-                    for (String feature : featureStatesSet) {
-                        for (AssociatedIndexDescriptor aid : systemIndexDescriptorMap.get(feature).getAssociatedIndexDescriptors()) {
-                            indexNames.addAll(aid.getMatchingIndices(currentState.metadata()));
+                    SnapshotFeatureInfo snapshotFeatureInfo = new SnapshotFeatureInfo(
+                        featureName,
+                        feature.getIndexDescriptors()
+                            .stream()
+                            .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
+                            .collect(Collectors.toList())
+                    );
+
+                    List<String> featureSystemIndices = snapshotFeatureInfo.getIndices();
+                    List<String> featureAssociatedIndices = new ArrayList<>();
+                    List<String> featureDataStreamBackingIndices = new ArrayList<>();
+                    List<String> featureSystemDataStreams = new ArrayList<>();
+                    for (AssociatedIndexDescriptor aid : feature.getAssociatedIndexDescriptors()) {
+                        featureAssociatedIndices.addAll(aid.getMatchingIndices(currentState.metadata()));
+                    }
+                    for (SystemDataStreamDescriptor sdd : feature.getDataStreamDescriptors()) {
+                        List<String> backingIndexNames = sdd.getBackingIndexNames(currentState.metadata());
+                        if (backingIndexNames.size() > 0) {
+                            featureDataStreamBackingIndices.addAll(backingIndexNames);
+                            featureSystemDataStreams.add(sdd.getDataStreamName());
                         }
-                        for (SystemDataStreamDescriptor sdd : systemIndexDescriptorMap.get(feature).getDataStreamDescriptors()) {
-                            List<String> backingIndexNames = sdd.getBackingIndexNames(currentState.metadata());
-                            if (backingIndexNames.size() > 0) {
-                                indexNames.addAll(backingIndexNames);
-                                systemDataStreamNames.add(sdd.getDataStreamName());
-                            }
-                        }
+                    }
+                    if (featureSystemIndices.size() > 0
+                        || featureAssociatedIndices.size() > 0
+                        || featureDataStreamBackingIndices.size() > 0) {
+                        featureStates.add(snapshotFeatureInfo);
+                        indexNames.addAll(featureSystemIndices);
+                        indexNames.addAll(featureAssociatedIndices);
+                        indexNames.addAll(featureDataStreamBackingIndices);
+                        systemDataStreamNames.addAll(featureSystemDataStreams);
                     }
                     indices = List.copyOf(indexNames);
                 }

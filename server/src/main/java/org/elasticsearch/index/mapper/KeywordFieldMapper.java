@@ -600,6 +600,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
         return new KeywordTsidGen(nullValue);
     }
+
     private static class KeywordTsidGen extends TimeSeriesIdGenerator.StringLeaf {
         private static final KeywordTsidGen DEFAULT = new KeywordTsidGen(null);
 

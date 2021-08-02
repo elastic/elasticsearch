@@ -520,6 +520,7 @@ public class IpFieldMapper extends FieldMapper {
         }
         return new IpTsidGen(nullValue);
     }
+
     private static class IpTsidGen extends TimeSeriesIdGenerator.StringLeaf {
         private static final IpTsidGen DEFAULT = new IpTsidGen(null);
 

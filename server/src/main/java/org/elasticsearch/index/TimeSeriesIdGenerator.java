@@ -205,7 +205,7 @@ public final class TimeSeriesIdGenerator {
             Collections.sort(dimensionNames);
             throw new IllegalArgumentException("Document must contain one of the dimensions " + dimensionNames);
         }
-        Collections.sort(values, Comparator.comparing(Map.Entry::getKey));
+        Collections.sort(values, Map.Entry.comparingByKey());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(values.size());
             for (Map.Entry<String, CheckedConsumer<StreamOutput, IOException>> v : values) {

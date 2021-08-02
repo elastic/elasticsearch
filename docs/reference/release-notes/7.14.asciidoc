@@ -153,7 +153,7 @@ Features/Watcher::
 
 Geo::
 * Speed up geotile aggregation over `geo_shape` field {es-pull}72984[#72984]
-* Add painless script support for Geoshape field {es-pull}72886[#72886] (issue: {es-issue}54218[#54218])
+* Add painless script support for `geo_shape` field {es-pull}72886[#72886] (issue: {es-issue}54218[#54218])
 
 Infra/Core::
 * Add threadpool for critical operations on system indices {es-pull}72625[#72625] (issue: {es-issue}69251[#69251])

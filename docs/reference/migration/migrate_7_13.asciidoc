@@ -9,8 +9,13 @@ your application to {es} 7.13.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-// * <<breaking_713_blah_changes>>
-// * <<breaking_713_blah_changes>>
+* <<breaking_713_mapping_changes>>
+* <<breaking_713_ssl_changes>>
+* <<breaking_713_frozen_multiple_data_paths_changes>>
+* <<breaking_713_agg_deprecations>>
+* <<breaking_713_infra_core_deprecations>>
+* <<breaking_713_eql_deprecations>>
+* <<breaking_713_security_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -77,7 +82,8 @@ Most {es} deployments will not be affected by this change, as these older
 TLS versions have known vulnerabilities and are no longer heavily used.
 
 For instructions on how to enable these older TLS versions in your {es} cluster,
-see <<jdk-enable-tls-protocol>>
+see {ref}/jdk-tls-versions.html#jdk-enable-tls-protocol[Enabling additional
+SSL/TLS versions on your JDK].
 ====
 
 [discrete]
@@ -151,9 +157,10 @@ Linux or Storage Spaces on Windows. If you wish to use multiple data paths on a
 single machine then you must run one node for each data path.
 
 If you currently use multiple data paths in a
-<<high-availability-cluster-design,highly available cluster>> then you can
-migrate to a setup that uses a single path for each node without downtime using
-a process similar to a <<restart-cluster-rolling,rolling restart>>: shut each
+{ref}/high-availability-cluster-design.html[highly available cluster] then you 
+can migrate to a setup that uses a single path for each node without downtime 
+using a process similar to a 
+{ref}/restart-cluster.html#restart-cluster-rolling[rolling restart]: shut each
 node down in turn and replace it with one or more nodes each configured to use
 a single data path. In more detail, for each node that currently has multiple
 data paths you should follow the following process.
@@ -161,7 +168,7 @@ data paths you should follow the following process.
 1. Take a snapshot to protect your data in case of disaster.
 
 2. Optionally, migrate the data away from the target node by using an
-<<cluster-shard-allocation-filtering,allocation filter>>:
+{ref}/modules-cluster.html#cluster-shard-allocation-filtering[allocation filter]:
 +
 [source,console]
 --------------------------------------------------
@@ -173,12 +180,13 @@ PUT _cluster/settings
 }
 --------------------------------------------------
 +
-You can use the <<cat-allocation,cat allocation API>> to track progress of this
-data migration. If some shards do not migrate then the
-<<cluster-allocation-explain,cluster allocation explain API>> will help you to
-determine why.
+You can use the {ref}/cat-allocation.html[cat allocation API] to track progress 
+of this data migration. If some shards do not migrate then the
+{ref}/cluster-allocation-explain.html[cluster allocation explain API] will help 
+you to determine why.
 
-3. Follow the steps in the <<restart-cluster-rolling,rolling restart process>>
+3. Follow the steps in the 
+{ref}/restart-cluster.html#restart-cluster-rolling[rolling restart process]
 up to and including shutting the target node down.
 
 4. Ensure your cluster health is `yellow` or `green`, so that there is a copy
@@ -208,17 +216,18 @@ has sufficient space for the data that it will hold.
 `path.data` setting pointing at a separate data path.
 
 9. Start the new nodes and follow the rest of the
-<<restart-cluster-rolling,rolling restart process>> for them.
+{ref}/restart-cluster.html#restart-cluster-rolling[rolling restart process] for 
+them.
 
 10. Ensure your cluster health is `green`, so that every shard has been
 assigned.
 
 You can alternatively add some number of single-data-path nodes to your
 cluster, migrate all your data over to these new nodes using
-<<cluster-shard-allocation-filtering,allocation filters>>, and then remove the
-old nodes from the cluster. This approach will temporarily double the size of
-your cluster so it will only work if you have the capacity to expand your
-cluster like this.
+{ref}/modules-cluster.html#cluster-shard-allocation-filtering[allocation filters], 
+and then remove the old nodes from the cluster. This approach will temporarily 
+double the size of your cluster so it will only work if you have the capacity to 
+expand your cluster like this.
 
 If you currently use multiple data paths but your cluster is not highly
 available then the you can migrate to a non-deprecated configuration by taking

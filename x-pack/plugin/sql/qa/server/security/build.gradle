@@ -1,19 +1,10 @@
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 dependencies {
   testImplementation project(':x-pack:plugin:core')
 }
 
 Project mainProject = project
-
-configurations.create('testArtifacts')
-
-TaskProvider testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  testArtifacts testJar
-}
 
 // Tests are pushed down to subprojects and will be checked there.
 tasks.named("testingConventions").configure { enabled = false }
@@ -24,7 +15,9 @@ subprojects {
 
   dependencies {
     testImplementation project(":x-pack:plugin:core")
-    testArtifacts project(path: mainProject.path, configuration: 'testArtifacts')
+    testArtifacts(testArtifact(project(mainProject.path))) {
+      transitive = false
+    }
   }
 
   testClusters.matching { it.name == "integTest" }.configureEach {

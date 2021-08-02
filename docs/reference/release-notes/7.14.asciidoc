@@ -8,7 +8,7 @@ Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
 === Breaking changes
 
 CCR::
-* [7.x] Deprecate Auto-Follow system indices {es-pull}73237[#73237] (issue: {es-issue}72815[#72815])
+* Deprecate auto-follow system indices {es-pull}73237[#73237] (issue: {es-issue}72815[#72815])
 
 Cluster Coordination::
 * Extend version barrier to all upgrades {es-pull}73358[#73358] (issue: {es-issue}72911[#72911])
@@ -335,6 +335,5 @@ Network::
 
 Packaging::
 * Bump bundled JDK to 16.0.1 {es-pull}73057[#73057]
-
 
 

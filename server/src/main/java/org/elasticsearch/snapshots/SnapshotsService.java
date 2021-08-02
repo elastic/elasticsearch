@@ -1308,7 +1308,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private static boolean waitingShardsStartedOrUnassigned(SnapshotsInProgress snapshotsInProgress, ClusterChangedEvent event) {
         for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
-            if (entry.state() == State.STARTED) {
+            if (entry.state() == State.STARTED && entry.isClone() == false) {
                 for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> shardStatus : entry.shardsByRepoShardId()) {
                     final ShardState state = shardStatus.value.state();
                     if (state != ShardState.WAITING && state != ShardState.QUEUED) {

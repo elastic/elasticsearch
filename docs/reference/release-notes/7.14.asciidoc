@@ -253,6 +253,9 @@ Aggregations::
 * Fix mapping error to indicate values field {es-pull}74132[#74132]
 * Prevent `date_histogram` from OOMing {es-pull}72081[#72081] (issue: {es-issue}71758[#71758])
 * Properly size empty filters {es-pull}71864[#71864]
+* Only enable "filter by filter" optimization for `terms`, `date_histogram`,
+`range`, and `fitlers` aggregation when we're sure it'll be faster {es-pull}74260[#74260]
+
 
 CRUD::
 * Move get-aliases handling onto management thread {es-pull}74053[#74053]

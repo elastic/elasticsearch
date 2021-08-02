@@ -25,7 +25,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -94,7 +93,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
-            TimeValue.timeValueSeconds(3)
+            TimeValue.timeValueMillis(randomIntBetween(10,1000))
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
         assertTrue(putShutdownResponse.isAcknowledged());
@@ -102,15 +101,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         // Actually stop the node
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToRestartName));
 
-        // Verify that the shard's allocation is delayed - but with a shorter wait than the reallocation timeout
-        assertBusy(
-            () -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); },
-            2,
-            TimeUnit.SECONDS
-        );
-
         // And the index should turn green again well within the 30-second timeout
-        ensureGreen(TimeValue.timeValueSeconds(30), "test");
+        ensureGreen("test");
     }
 
     public void testShardAllocationTimeoutCanBeChanged() throws Exception {
@@ -144,25 +136,23 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
         // Verify that the shard's allocation is delayed - but with a shorter wait than the reallocation timeout
         assertBusy(
-            () -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); },
-            2,
-            TimeUnit.SECONDS
+            () -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); }
         );
 
         {
-            // Update the timeout on the shutdown request to something shorter, but that still shouldn't be quite up yet
+            // Update the timeout on the shutdown request to something shorter
             PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
                 nodeToRestartId,
                 SingleNodeShutdownMetadata.Type.RESTART,
                 this.getTestName(),
-                TimeValue.timeValueSeconds(10)
+                TimeValue.timeValueSeconds(1)
             );
             AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
             assertTrue(putShutdownResponse.isAcknowledged());
         }
 
-        // And the index should turn green again well within the 30-second timeout
-        ensureGreen(TimeValue.timeValueSeconds(30), "test");
+        // And the index should turn green again
+        ensureGreen("test");
     }
 
     public void testShardAllocationStartsImmediatelyIfShutdownDeleted() throws Exception {
@@ -194,17 +184,17 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         // Actually stop the node
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToRestartName));
 
-        // Verify that the shard's allocation is delayed - but with a shorter wait than the reallocation timeout
+        // Verify that the shard's allocation is delayed
         assertBusy(() -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); });
 
         {
             DeleteShutdownNodeAction.Request deleteShutdownRequest = new DeleteShutdownNodeAction.Request(nodeToRestartId);
-            AcknowledgedResponse putShutdownResponse = client().execute(DeleteShutdownNodeAction.INSTANCE, deleteShutdownRequest).get();
-            assertTrue(putShutdownResponse.isAcknowledged());
+            AcknowledgedResponse deleteShutdownResponse = client().execute(DeleteShutdownNodeAction.INSTANCE, deleteShutdownRequest).get();
+            assertTrue(deleteShutdownResponse.isAcknowledged());
         }
 
-        // And the index should turn green again well within the 30-second timeout
-        ensureGreen(TimeValue.timeValueSeconds(30), "test");
+        // And the index should turn green again
+        ensureGreen("test");
     }
 
     private void indexRandomData() throws Exception {

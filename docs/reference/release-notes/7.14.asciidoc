@@ -227,7 +227,7 @@ Snapshot/Restore::
 * Make `GetSnapshotsAction` cancellable {es-pull}72644[#72644]
 * Make `SnapshotStatusAction` cancellable {es-pull}73818[#73818] (issue: {es-issue}72644[#72644])
 * Pagination and sorting for get snapshots API {es-pull}73952[#73952]
-* Prevent deletion of repositories that are used by snapshot backed indices {es-pull}73714[#73714]
+* Prevent deletion of repositories that are used by snapshot-backed indices {es-pull}73714[#73714]
 * Reroute when new repository is registered {es-pull}73761[#73761] (issues: {es-issue}73669[#73669], {es-issue}73714[#73714])
 * Save Memory on Large Repository Metadata Blob Writes {es-pull}74313[#74313]
 

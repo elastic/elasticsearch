@@ -58,8 +58,8 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
     /**
      * Return a {@link Comparator} for {@link MinAndMax} values according to the provided {@link SortOrder}.
      */
-    public static Comparator<MinAndMax<?>> getComparator(SortOrder order) {
-        Comparator<MinAndMax<?>> cmp = order == SortOrder.ASC  ?
+    public static Comparator<MinAndMax<Comparable<Object>>> getComparator(SortOrder order) {
+        Comparator<MinAndMax<Comparable<Object>>> cmp = order == SortOrder.ASC  ?
             Comparator.comparing(MinAndMax::getMin) : Comparator.comparing(MinAndMax::getMax);
         if (order == SortOrder.DESC) {
             cmp = cmp.reversed();

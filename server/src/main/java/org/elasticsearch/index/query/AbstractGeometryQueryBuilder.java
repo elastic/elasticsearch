@@ -126,7 +126,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         this.fieldName = fieldName;
         this.shape = null;
         this.supplier = supplier;
-        this.indexedShapeId = indexedShapeId;;
+        this.indexedShapeId = indexedShapeId;
     }
 
     /**

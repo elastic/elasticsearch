@@ -69,9 +69,9 @@ users will be able to reset their job by a single click.
 [[match-only-text]]
 === New match_only_text field type
 
-<<match-only-text-field-type,`match_only_text`>>, is a new space-optimized
-variant of `text` that disables scoring and performs slower on queries that need
-positions. It is best suited for indexing log messages.
+{ref}/text.html#match-only-text-field-type[`match_only_text`] is a new
+space-optimized variant of `text` that disables scoring and performs slower
+on queries that need positions. It is best suited for indexing log messages.
 
 [discrete]
 [[composite-aggs-without-global-ordinals]]

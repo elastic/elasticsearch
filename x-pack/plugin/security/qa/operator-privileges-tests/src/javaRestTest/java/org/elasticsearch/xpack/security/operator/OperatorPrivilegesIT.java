@@ -58,7 +58,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
         List<String> nodeIds = nodesArray.stream()
             .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
-            .collect(Collectors.toUnmodifiableList());
+            .collect(Collectors.toList());
         for (String nodeId : nodeIds) {
             Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
             deleteRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));

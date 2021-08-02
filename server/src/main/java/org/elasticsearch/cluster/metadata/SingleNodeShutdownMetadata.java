@@ -38,7 +38,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     public static final ParseField REASON_FIELD = new ParseField("reason");
     public static final String STARTED_AT_READABLE_FIELD = "shutdown_started";
     public static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(STARTED_AT_READABLE_FIELD + "millis");
-    public static final ParseField SHARD_REALLOCATION_DELAY = new ParseField("shard_reallocation_delay");
+    public static final ParseField ALLOCATION_DELAY_FIELD = new ParseField("allocation_delay");
 
     public static final ConstructingObjectParser<SingleNodeShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "node_shutdown_info",
@@ -58,7 +58,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), STARTED_AT_MILLIS_FIELD);
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), SHARD_REALLOCATION_DELAY.getPreferredName()), SHARD_REALLOCATION_DELAY,
+            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), ALLOCATION_DELAY_FIELD.getPreferredName()), ALLOCATION_DELAY_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
     }
@@ -166,7 +166,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             builder.field(REASON_FIELD.getPreferredName(), reason);
             builder.timeField(STARTED_AT_MILLIS_FIELD.getPreferredName(), STARTED_AT_READABLE_FIELD, startedAtMillis);
             if (shardReallocationDelay != null) {
-                builder.field(SHARD_REALLOCATION_DELAY.getPreferredName(), shardReallocationDelay.getStringRep());
+                builder.field(ALLOCATION_DELAY_FIELD.getPreferredName(), shardReallocationDelay.getStringRep());
             }
         }
         builder.endObject();

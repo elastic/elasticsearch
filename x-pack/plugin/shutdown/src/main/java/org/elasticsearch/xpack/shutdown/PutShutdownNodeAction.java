@@ -42,7 +42,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
         private static final ParseField TYPE_FIELD = new ParseField("type");
         private static final ParseField REASON_FIELD = new ParseField("reason");
-        private static final ParseField REALLOCATION_DELAY_FIELD = new ParseField("shard_reallocation_delay");
+        private static final ParseField ALLOCATION_DELAY_FIELD = new ParseField("allocation_delay");
 
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
             "put_node_shutdown_request",
@@ -53,7 +53,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), REASON_FIELD);
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REALLOCATION_DELAY_FIELD);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ALLOCATION_DELAY_FIELD);
         }
 
         public static Request parseRequest(String nodeId, XContentParser parser) {
@@ -115,7 +115,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             }
 
             if (shardReallocationDelay != null && SingleNodeShutdownMetadata.Type.RESTART.equals(type) == false) {
-                arve.addValidationError(REALLOCATION_DELAY_FIELD + "is only allowed for RESTART-type shutdown requests");
+                arve.addValidationError(ALLOCATION_DELAY_FIELD + "is only allowed for RESTART-type shutdown requests");
             }
 
             if (arve.validationErrors().isEmpty() == false) {

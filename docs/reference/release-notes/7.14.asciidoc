@@ -236,7 +236,7 @@ Task Management::
 * Add support for `RestGetMapping` cancellation {es-pull}72234[#72234]
 * Add support for task cancellation to `TransportMasterNodeAction` {es-pull}72157[#72157]
 * Identify cancelled tasks in list tasks API {es-pull}72931[#72931] (issue: {es-issue}72907[#72907])
-* Log at DEBUG only on disconnect during cancellation {es-pull}74042[#74042] (issues: {es-issue}65443[#65443], {es-issue}72968[#72968])
+* Log at `DEBUG` only on disconnect during cancellation {es-pull}74042[#74042] (issues: {es-issue}65443[#65443], {es-issue}72968[#72968])
 
 Transform::
 * Add support for top metrics {es-pull}71850[#71850] (issues: {es-issue}51925[#51925], {es-issue}52236[#52236])

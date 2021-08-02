@@ -134,6 +134,7 @@ Features/ILM+SLM::
 
 Features/Ingest::
 * Add template snippets support for KV ingest processor {es-pull}73758[#73758] (issue: {es-issue}73377[#73377])
+* Enable GeoIP downloader by default {es-pull}74323[#74323]
 * Change GeoIP downloader policy after 30 days of no updates {es-pull}74099[#74099]
 * Expose Community ID processor in Painless {es-pull}73963[#73963] (issue: {es-issue}73346[#73346])
 * Expose URI parts processor in Painless {es-pull}73634[#73634] (issue: {es-issue}73346[#73346])

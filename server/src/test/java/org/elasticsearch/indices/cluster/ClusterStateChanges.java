@@ -133,6 +133,7 @@ public class ClusterStateChanges {
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final JoinTaskExecutor joinTaskExecutor;
 
+    @SuppressWarnings("unchecked")
     public ClusterStateChanges(NamedXContentRegistry xContentRegistry, ThreadPool threadPool) {
         ClusterSettings clusterSettings = new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         allocationService = new AllocationService(new AllocationDeciders(
@@ -157,7 +158,7 @@ public class ClusterStateChanges {
         IndicesService indicesService = mock(IndicesService.class);
         // MetadataCreateIndexService uses withTempIndexService to check mappings -> fake it here
         try {
-            when(indicesService.withTempIndexService(any(IndexMetadata.class), any(CheckedFunction.class)))
+            when(indicesService.withTempIndexService(any(IndexMetadata.class), anyCheckedFunction()))
                 .then(invocationOnMock -> {
                     IndexService indexService = mock(IndexService.class);
                     IndexMetadata indexMetadata = (IndexMetadata) invocationOnMock.getArguments()[0];
@@ -167,8 +168,7 @@ public class ClusterStateChanges {
                     when(mapperService.documentMapper()).thenReturn(null);
                     when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
                     when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
-                    //noinspection unchecked
-                    return ((CheckedFunction) invocationOnMock.getArguments()[1]).apply(indexService);
+                    return ((CheckedFunction<IndexService, ?, ?>) invocationOnMock.getArguments()[1]).apply(indexService);
                 });
         } catch (Exception e) {
             /*
@@ -350,5 +350,10 @@ public class ClusterStateChanges {
         runnable.run();
         assertThat(result[0], notNullValue());
         return result[0];
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T, R, E extends Exception> CheckedFunction<T, R, E> anyCheckedFunction() {
+        return any(CheckedFunction.class);
     }
 }

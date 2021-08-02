@@ -132,7 +132,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     }
 
     @Override
-    void setAfter(Comparable<Long> value) {
+    void setAfter(Comparable<?> value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else {

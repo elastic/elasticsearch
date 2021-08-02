@@ -100,7 +100,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     /**
      * Sets the after value for this source. Values that compares smaller are filtered.
      */
-    abstract void setAfter(Comparable<T> value);
+    abstract void setAfter(Comparable<?> value);
 
     /**
      * Returns the after value set for this source.

@@ -198,7 +198,7 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    void setAfter(Comparable<BytesRef> value) {
+    void setAfter(Comparable<?> value) {
         assert invariant();
         if (missingBucket && value == null) {
             afterValue = null;

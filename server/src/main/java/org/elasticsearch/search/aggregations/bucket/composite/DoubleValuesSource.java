@@ -115,7 +115,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     }
 
     @Override
-    void setAfter(Comparable<Double> value) {
+    void setAfter(Comparable<?> value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else if (value instanceof Number) {

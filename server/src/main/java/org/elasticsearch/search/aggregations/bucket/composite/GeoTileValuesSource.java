@@ -37,7 +37,7 @@ class GeoTileValuesSource extends LongValuesSource {
     }
 
     @Override
-    void setAfter(Comparable<Long> value) {
+    void setAfter(Comparable<?> value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else if (value instanceof Number) {

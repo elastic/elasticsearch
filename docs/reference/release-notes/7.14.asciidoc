@@ -318,8 +318,6 @@ Snapshot/Restore::
 TLS::
 * Fix error reporting for SSL resources outside of config dir {es-pull}64235[#64235] (issue: {es-issue}63451[#63451])
 
-
-
 [[upgrade-7.14.0]]
 [float]
 === Upgrades

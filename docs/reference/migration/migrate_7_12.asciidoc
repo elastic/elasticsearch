@@ -10,6 +10,8 @@ your application to {es} 7.12.
 See also <<release-highlights>> and <<es-release-notes>>.
 
 * <<breaking_712_engine_changes>>
+* <<breaking_712_search_changes>>
+* <<breaking_712_ssl_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -81,9 +83,9 @@ LDAP authentication or access to snapshot repositories.
 Most {es} deployments will not be affected by this change, as these older
 TLS versions have known vulnerabilities and are no longer heavily used.
 
-For instructions on how to enable these older TLS versions in your {es} cluster, see
-{ref}/jdk-tls-versions.html#jdk-enable-tls-protocol[Enabling additional SSL/TLS versions on your JDK]
-
+For instructions on how to enable these older TLS versions in your {es} cluster,
+see {ref}/jdk-tls-versions.html#jdk-enable-tls-protocol[Enabling additional
+SSL/TLS versions on your JDK].
 ====
 
 ////

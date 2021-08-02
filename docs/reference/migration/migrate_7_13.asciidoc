@@ -9,8 +9,13 @@ your application to {es} 7.13.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-// * <<breaking_713_blah_changes>>
-// * <<breaking_713_blah_changes>>
+* <<breaking_713_mapping_changes>>
+* <<breaking_713_ssl_changes>>
+* <<breaking_713_frozen_multiple_data_paths_changes>>
+* <<breaking_713_agg_deprecations>>
+* <<breaking_713_infra_core_deprecations>>
+* <<breaking_713_eql_deprecations>>
+* <<breaking_713_security_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -76,9 +81,9 @@ LDAP authentication or access to snapshot repositories.
 Most {es} deployments will not be affected by this change, as these older
 TLS versions have known vulnerabilities and are no longer heavily used.
 
-For instructions on how to enable these older TLS versions in your {es} cluster, see
-{ref}/jdk-tls-versions.html#jdk-enable-tls-protocol[Enabling additional SSL/TLS versions on your JDK]
-
+For instructions on how to enable these older TLS versions in your {es} cluster,
+see {ref}/jdk-tls-versions.html#jdk-enable-tls-protocol[Enabling additional
+SSL/TLS versions on your JDK].
 ====
 
 [discrete]

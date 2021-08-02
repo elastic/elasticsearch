@@ -453,6 +453,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
      * Tests that a shard snapshot with a corrupted shard index file can still be used for restore and incremental snapshots.
      */
     public void testSnapshotWithCorruptedShardIndexFile() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally corrupts the repository contents");
+
         final Client client = client();
         final Path repo = randomRepoPath();
         final String indexName = "test-idx";

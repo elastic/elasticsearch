@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
@@ -84,8 +83,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/75759")
     public void testEvaluate() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/75685", Constants.OS_ARCH.equals("aarch64"));
         createModelStoreIndex();
         putTaskConfig();
         putModelDefinition();

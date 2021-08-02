@@ -9,13 +9,13 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
@@ -84,9 +84,11 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
         return aggregation;
     }
 
-    static void declareParsedSignificantTermsFields(final ObjectParser<? extends ParsedSignificantTerms, Void> objectParser,
-                                     final CheckedFunction<XContentParser, ParsedSignificantTerms.ParsedBucket, IOException> bucketParser) {
-        declareMultiBucketAggregationFields(objectParser, bucketParser::apply, bucketParser::apply);
+    static void declareParsedSignificantTermsFields(
+        final ObjectParser<? extends ParsedSignificantTerms, Void> objectParser,
+        final CheckedFunction<XContentParser, ParsedSignificantTerms.ParsedBucket, IOException> bucketParser
+    ) {
+        declareMultiBucketAggregationFields(objectParser, bucketParser, bucketParser);
         objectParser.declareLong((parsedTerms, value) -> parsedTerms.subsetSize = value , CommonFields.DOC_COUNT);
         objectParser.declareLong((parsedTerms, value) -> parsedTerms.supersetSize = value ,
                 new ParseField(InternalMappedSignificantTerms.BG_COUNT));

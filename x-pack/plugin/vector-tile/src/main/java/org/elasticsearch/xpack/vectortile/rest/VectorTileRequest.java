@@ -16,6 +16,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -27,7 +28,9 @@ import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
+import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -71,14 +74,11 @@ class VectorTileRequest {
     }
 
     protected static class Defaults {
-        // TODO: Should it be SearchService.DEFAULT_SIZE?
         public static final int SIZE = 10000;
         public static final List<FieldAndFormat> FETCH = emptyList();
         public static final Map<String, Object> RUNTIME_MAPPINGS = emptyMap();
         public static final QueryBuilder QUERY = null;
         public static final AggregatorFactories.Builder AGGS = null;
-        public static final List<SortBuilder<?>> SORT = emptyList();
-        // TODO: Should it be 0, no aggs by default?
         public static final int GRID_PRECISION = 8;
         public static final GRID_TYPE GRID_TYPE = VectorTileRequest.GRID_TYPE.GRID;
         public static final int EXTENT = 4096;
@@ -161,6 +161,14 @@ class VectorTileRequest {
         return request;
     }
 
+    private static final String SCRIPT = ""
+        + "ScriptDocValues.Geometry geometry = doc[params."
+        + FIELD_PARAM
+        + "];"
+        + "double w = geometry.getMercatorWidth();"
+        + "double h = geometry.getMercatorHeight();"
+        + "return h * h + w * w;";
+
     private final String[] indexes;
     private final String field;
     private final int x;
@@ -175,7 +183,7 @@ class VectorTileRequest {
     private int extent = Defaults.EXTENT;
     private AggregatorFactories.Builder aggBuilder = Defaults.AGGS;
     private List<FieldAndFormat> fields = Defaults.FETCH;
-    private List<SortBuilder<?>> sortBuilders = Defaults.SORT;
+    private List<SortBuilder<?>> sortBuilders;
     private boolean exact_bounds = Defaults.EXACT_BOUNDS;
 
     private VectorTileRequest(String[] indexes, String field, int z, int x, int y) {
@@ -317,7 +325,20 @@ class VectorTileRequest {
     }
 
     public List<SortBuilder<?>> getSortBuilders() {
-        return sortBuilders;
+        if (sortBuilders == null) {
+            if (size == 0) {
+                // no need to add sorting
+                return List.of();
+            }
+            return List.of(
+                new ScriptSortBuilder(
+                    new Script(Script.DEFAULT_SCRIPT_TYPE, Script.DEFAULT_SCRIPT_LANG, SCRIPT, Map.of(FIELD_PARAM, getField())),
+                    ScriptSortBuilder.ScriptSortType.NUMBER
+                ).order(SortOrder.DESC)
+            );
+        } else {
+            return sortBuilders;
+        }
     }
 
     private void setSortBuilders(List<SortBuilder<?>> sortBuilders) {

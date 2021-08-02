@@ -122,28 +122,17 @@ public class AllocatedPersistentTask extends CancellableTask {
      * reassigned to the same node unless separate measures have been taken to prevent
      * this. The task should complete any graceful shutdown actions before calling this
      * method.
-     * @throws IllegalStateException This exception will be thrown if the cluster contains
-     *                               nodes that are too old to understand the concept of
-     *                               locally aborting tasks. In this situation callers
-     *                               should revert to whatever the functionality was prior
-     *                               to local abort being possible. It is possible to check
-     *                               if local abort is possible before starting a sequence
-     *                               of steps that will end in a local abort by calling
-     *                               {@link PersistentTasksService#isLocalAbortSupported}.
      * @param localAbortReason Reason for the task being aborted on this node. This
      *                         will be recorded as the reason for unassignment of the
      *                         persistent task.
      */
     public void markAsLocallyAborted(String localAbortReason) {
-        persistentTasksService.validateLocalAbortSupported();
         completeAndNotifyIfNeeded(null, Objects.requireNonNull(localAbortReason));
     }
 
     private void completeAndNotifyIfNeeded(@Nullable Exception failure, @Nullable String localAbortReason) {
         assert failure == null || localAbortReason == null
             : "completion notification has both exception " + failure + " and local abort reason " + localAbortReason;
-        assert localAbortReason == null || persistentTasksService.isLocalAbortSupported()
-            : "local abort reason provided to inner implementation when it is not supported: " + localAbortReason;
         final State desiredState = (localAbortReason == null) ? State.COMPLETED : State.LOCAL_ABORTED;
         final State prevState = state.getAndUpdate(
             currentState -> (currentState != State.COMPLETED && currentState != State.LOCAL_ABORTED) ? desiredState : currentState);

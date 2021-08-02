@@ -263,7 +263,7 @@ import static java.util.Objects.requireNonNull;
  */
 public class SearchModule {
     public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting("indices.query.bool.max_clause_count",
-            1024, 1, Integer.MAX_VALUE, Setting.Property.NodeScope);
+            4096, 1, Integer.MAX_VALUE, Setting.Property.NodeScope);
 
     public static final Setting<Integer> INDICES_MAX_NESTED_DEPTH_SETTING = Setting.intSetting("indices.query.bool.max_nested_depth",
         20, 1, Integer.MAX_VALUE, Setting.Property.NodeScope);
@@ -884,7 +884,7 @@ public class SearchModule {
                 (p, c) -> spec.getParser().fromXContent(p)));
     }
 
-    private void registerBoolQuery(ParseField name, Writeable.Reader reader) {
+    private void registerBoolQuery(ParseField name, Writeable.Reader<QueryBuilder> reader) {
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, name.getPreferredName(), reader));
         namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class, name,
             (p, c) -> BoolQueryBuilder.fromXContent(p, (Integer) c)));

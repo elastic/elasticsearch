@@ -226,7 +226,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         TrainedModelAllocationMetadata metadata = TrainedModelAllocationMetadata.fromState(clusterState);
         final TrainedModelAllocation existingAllocation = metadata.getModelAllocation(modelId);
         if (existingAllocation == null) {
-            throw new ResourceNotFoundException("allocation for model with id [" + modelId + "] not found");
+            throw new ResourceNotFoundException("allocation for model with id [{}] not found", modelId);
         }
         // If we are stopping, don't update anything
         if (existingAllocation.getAllocationState().equals(AllocationState.STOPPING)) {
@@ -256,14 +256,20 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         }
 
         if (existingAllocation == null) {
-            throw new ResourceNotFoundException("allocation for model with id [" + modelId + "] not found");
+            throw new ResourceNotFoundException("allocation for model with id [{}] not found", modelId);
         }
         // If we are stopping, don't update anything
         if (existingAllocation.getAllocationState().equals(AllocationState.STOPPING)) {
+            logger.debug(() -> new ParameterizedMessage(
+                "[{}] requested update from node [{}] to update route state to [{}]",
+                modelId,
+                nodeId,
+                request.getRoutingState()
+            ));
             return currentState;
         }
         if (existingAllocation.isRoutedToNode(nodeId) == false) {
-            throw new ResourceNotFoundException("allocation for model with id [" + modelId + "] is not routed to node [" + nodeId + "]");
+            throw new ResourceNotFoundException("allocation for model with id [{}]] is not routed to node [{}]", modelId, nodeId);
         }
         TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
         builder.updateAllocation(modelId, nodeId, request.getRoutingState());
@@ -273,7 +279,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
     static ClusterState removeAllocation(ClusterState currentState, String modelId) {
         TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
         if (builder.hasModel(modelId) == false) {
-            throw new ResourceNotFoundException("allocation for model with id [" + modelId + "] not found");
+            throw new ResourceNotFoundException("allocation for model with id [{}] not found", modelId);
         }
         return update(currentState, builder.removeAllocation(modelId));
     }

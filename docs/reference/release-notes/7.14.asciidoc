@@ -187,7 +187,7 @@ Machine Learning::
 
 Mapping::
 * Add a cluster deprecation check for index templates containing multiple types {es-pull}72540[#72540]
-* Enhance error message for copy-to {es-pull}72820[#72820] (issue: {es-issue}49344[#49344])
+* Enhance error message for `copy_to` {es-pull}72820[#72820] (issue: {es-issue}49344[#49344])
 * Make intervals queries fully pluggable through field mappers {es-pull}71429[#71429]
 * `DynamicFieldType` to expose its known subfields names {es-pull}73530[#73530]
 * `FieldTypeLookup` to support dynamic runtime fields {es-pull}73519[#73519]

@@ -134,6 +134,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public AbstractGeometryFieldType<T> fieldType() {
         return (AbstractGeometryFieldType<T>) mappedFieldType;
     }

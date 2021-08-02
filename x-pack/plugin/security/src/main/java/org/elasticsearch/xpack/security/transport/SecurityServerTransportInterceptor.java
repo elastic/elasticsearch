@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SendRequestTransportException;
@@ -55,7 +54,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final AuthorizationService authzService;
     private final SSLService sslService;
     private final Map<String, ServerTransportFilter> profileFilters;
-    private final XPackLicenseState licenseState;
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
@@ -66,7 +64,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                               ThreadPool threadPool,
                                               AuthenticationService authcService,
                                               AuthorizationService authzService,
-                                              XPackLicenseState licenseState,
                                               SSLService sslService,
                                               SecurityContext securityContext,
                                               DestructiveOperations destructiveOperations,
@@ -75,7 +72,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.threadPool = threadPool;
         this.authcService = authcService;
         this.authzService = authzService;
-        this.licenseState = licenseState;
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
@@ -88,7 +84,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             @Override
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                final boolean requireAuth = XPackSettings.SECURITY_ENABLED.get(settings);
                 // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
@@ -169,7 +164,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         private final String action;
         private final TransportRequestHandler<T> handler;
         private final Map<String, ServerTransportFilter> profileFilters;
-        private final Settings settings;
         private final ThreadContext threadContext;
         private final String executorName;
         private final ThreadPool threadPool;
@@ -184,7 +178,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             this.executorName = executorName;
             this.handler = handler;
             this.profileFilters = profileFilters;
-            this.settings = settings;
             this.threadContext = threadPool.getThreadContext();
             this.threadPool = threadPool;
             this.forceExecution = forceExecution;
@@ -233,57 +226,54 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) {
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
-                if (XPackSettings.SECURITY_ENABLED.get(settings)) {
-                    String profile = channel.getProfileName();
-                    ServerTransportFilter filter = profileFilters.get(profile);
+                String profile = channel.getProfileName();
+                ServerTransportFilter filter = profileFilters.get(profile);
 
-                    if (filter == null) {
-                        if (TransportService.DIRECT_RESPONSE_PROFILE.equals(profile)) {
-                            // apply the default filter to local requests. We never know what the request is or who sent it...
-                            filter = profileFilters.get("default");
-                        } else {
-                            String msg = "transport profile [" + profile + "] is not associated with a transport filter";
-                            throw new IllegalStateException(msg);
-                        }
-                    }
-                    assert filter != null;
-
-                    final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
-                    final ActionListener<Void> filterListener;
-                    if (ThreadPool.Names.SAME.equals(executorName)) {
-                        filterListener = new AbstractFilterListener(receiveMessage) {
-                            @Override
-                            public void onResponse(Void unused) {
-                                receiveMessage.run();
-                            }
-                        };
+                if (filter == null) {
+                    if (TransportService.DIRECT_RESPONSE_PROFILE.equals(profile)) {
+                        // apply the default filter to local requests. We never know what the request is or who sent it...
+                        filter = profileFilters.get("default");
                     } else {
-                        final Thread executingThread = Thread.currentThread();
-                        filterListener = new AbstractFilterListener(receiveMessage) {
-                            @Override
-                            public void onResponse(Void unused) {
-                                if (executingThread == Thread.currentThread()) {
-                                    // only fork off if we get called on another thread this means we moved to
-                                    // an async execution and in this case we need to go back to the thread pool
-                                    // that was actually executing it. it's also possible that the
-                                    // thread-pool we are supposed to execute on is `SAME` in that case
-                                    // the handler is OK with executing on a network thread and we can just continue even if
-                                    // we are on another thread due to async operations
-                                    receiveMessage.run();
-                                } else {
-                                    try {
-                                        threadPool.executor(executorName).execute(receiveMessage);
-                                    } catch (Exception e) {
-                                        onFailure(e);
-                                    }
+                        String msg = "transport profile [" + profile + "] is not associated with a transport filter";
+                        throw new IllegalStateException(msg);
+                    }
+                }
+                assert filter != null;
+
+                final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
+                final ActionListener<Void> filterListener;
+                if (ThreadPool.Names.SAME.equals(executorName)) {
+                    filterListener = new AbstractFilterListener(receiveMessage) {
+                        @Override
+                        public void onResponse(Void unused) {
+                            receiveMessage.run();
+                        }
+                    };
+                } else {
+                    final Thread executingThread = Thread.currentThread();
+                    filterListener = new AbstractFilterListener(receiveMessage) {
+                        @Override
+                        public void onResponse(Void unused) {
+                            if (executingThread == Thread.currentThread()) {
+                                // only fork off if we get called on another thread this means we moved to
+                                // an async execution and in this case we need to go back to the thread pool
+                                // that was actually executing it. it's also possible that the
+                                // thread-pool we are supposed to execute on is `SAME` in that case
+                                // the handler is OK with executing on a network thread and we can just continue even if
+                                // we are on another thread due to async operations
+                                receiveMessage.run();
+                            } else {
+                                try {
+                                    threadPool.executor(executorName).execute(receiveMessage);
+                                } catch (Exception e) {
+                                    onFailure(e);
                                 }
                             }
-                        };
-                    }
-                    filter.inbound(action, request, channel, filterListener);
-                } else {
-                    getReceiveRunnable(request, channel, task).run();
+                        }
+                    };
                 }
+                filter.inbound(action, request, channel, filterListener);
+
             }
         }
     }

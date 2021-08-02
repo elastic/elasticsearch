@@ -163,6 +163,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    @SuppressWarnings("cast")
     protected RepositoryData getRepositoryData(String repository) {
         return getRepositoryData((Repository) getRepositoryOnMaster(repository));
     }
@@ -253,6 +254,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static void blockDataNode(String repository, String nodeName) {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, nodeName).blockOnDataFiles();
+    }
+
+    public static void blockAndFailDataNode(String repository, String nodeName) {
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, nodeName).blockAndFailOnDataFiles();
     }
 
     public static void blockAllDataNodes(String repository) {

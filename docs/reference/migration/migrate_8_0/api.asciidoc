@@ -4,10 +4,8 @@
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
+
 //tag::notable-breaking-changes[]
-
-// end::notable-breaking-changes[]
-
 .The cat node API's `local` query parameter has been removed.
 [%collapsible]
 ====
@@ -74,10 +72,10 @@ include this parameter will return an error.
 [%collapsible]
 ====
 *Details* +
-The {ml} <<ml-post-data,post data to jobs API>> is deprecated starting in 7.11.0
+The {ml} {ref}/ml-post-data.html[post data to jobs API] is deprecated starting in 7.11.0
 and will be removed in a future major version.
 
 *Impact* +
-Use <<ml-api-datafeed-endpoint,{dfeeds}>> instead.
-
+Use {ref}/ml-apis.html#ml-api-datafeed-endpoint[{dfeeds}] instead.
 ====
+// end::notable-breaking-changes[]

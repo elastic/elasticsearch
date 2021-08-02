@@ -90,7 +90,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, ShardSearchRequest request,
-                                         SearchTask task, SearchActionListener<SearchPhaseResult> listener) {
+                                         SearchTask task, SearchActionListener<? super SearchPhaseResult> listener) {
                 int shardId = request.shardId().id();
                 if (request.canReturnNullResponseIfMatchNoDocs()) {
                     canReturnNullResponse.set(true);
@@ -312,7 +312,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, ShardSearchRequest request,
-                                         SearchTask task, SearchActionListener<SearchPhaseResult> listener) {
+                                         SearchTask task, SearchActionListener<? super SearchPhaseResult> listener) {
                 int shardId = request.shardId().id();
                 QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("N/A", 123),
                     new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null, OriginalIndices.NONE), null);
@@ -412,7 +412,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, ShardSearchRequest request,
-                                         SearchTask task, SearchActionListener<SearchPhaseResult> listener) {
+                                         SearchTask task, SearchActionListener<? super SearchPhaseResult> listener) {
                 int shardId = request.shardId().id();
                 QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("N/A", 123),
                     new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null, OriginalIndices.NONE), null);

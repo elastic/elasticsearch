@@ -824,8 +824,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                 dlsBitsetCache.get(),
                                 securityContext.get(),
                                 getLicenseState(),
-                                indexService.getScriptService(),
-                                settings));
+                                indexService.getScriptService()));
                 /*
                  * We need to forcefully overwrite the query cache implementation to use security's opt-out query cache implementation. This
                  * implementation disables the query cache if field level security is used for a particular request. We have to forcefully

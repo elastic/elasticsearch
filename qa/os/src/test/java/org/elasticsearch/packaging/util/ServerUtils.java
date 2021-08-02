@@ -38,6 +38,7 @@ import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -49,6 +50,7 @@ import javax.net.ssl.TrustManagerFactory;
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static org.elasticsearch.packaging.util.Docker.sh;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 
@@ -57,7 +59,6 @@ public class ServerUtils {
     private static final Logger logger = LogManager.getLogger(ServerUtils.class);
 
     private static String SECURITY_DISABLED = "xpack.security.enabled: false";
-    private static String SSL_ENABLED = "xpack.security.http.ssl.enabled: true";
 
     // generous timeout as nested virtualization can be quite slow ...
     private static final long waitTime = TimeUnit.MINUTES.toMillis(3);
@@ -73,9 +74,14 @@ public class ServerUtils {
             String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
             securityEnabled = configFile.contains(SECURITY_DISABLED) == false;
         } else {
-            // TODO: need a way to check if docker has security enabled, the yml config is not bind mounted so can't look from here
-            // we currently enable security in all tests
-            securityEnabled = true;
+            final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
+                .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
+                .findFirst();
+            if (commandLine.isPresent() == false) {
+                throw new RuntimeException("Installation distribution is docker but a docker container is not running");
+            }
+            // security is enabled by default, the only way for it to be disabled is to be explicitly disabled
+            securityEnabled = commandLine.get().contains("-Expack.security.enabled=false") == false;
         }
 
         if (securityEnabled) {

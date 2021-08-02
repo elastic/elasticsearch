@@ -197,6 +197,6 @@ public class ServerTransportFilterTests extends ESTestCase {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ThreadContext threadContext = new ThreadContext(settings);
         return new ServerTransportFilter(authcService, authzService, threadContext, false, destructiveOperations,
-                new SecurityContext(settings, threadContext), settings);
+                new SecurityContext(settings, threadContext));
     }
 }

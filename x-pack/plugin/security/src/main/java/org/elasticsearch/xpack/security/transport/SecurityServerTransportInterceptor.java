@@ -100,20 +100,20 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
                             new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                    , handler), sender, requireAuth), minVersion);
+                                    , handler), sender), minVersion);
                 } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadPool.getThreadContext())) {
                     AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadPool.getThreadContext(), securityContext,
                             (original) -> sendWithUser(connection, action, request, options,
                                     new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                            , handler), sender, requireAuth));
+                                            , handler), sender));
                 } else if (securityContext.getAuthentication() != null &&
                         securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
                     // re-write the authentication since we want the authentication version to match the version of the connection
                     securityContext.executeAfterRewritingAuthentication(original -> sendWithUser(connection, action, request, options,
-                        new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender,
-                        requireAuth), minVersion);
+                        new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender),
+                        minVersion);
                 } else {
-                    sendWithUser(connection, action, request, options, handler, sender, requireAuth);
+                    sendWithUser(connection, action, request, options, handler, sender);
                 }
             }
         };
@@ -121,8 +121,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
     private <T extends TransportResponse> void sendWithUser(Transport.Connection connection, String action, TransportRequest request,
                                                             TransportRequestOptions options, TransportResponseHandler<T> handler,
-                                                            AsyncSender sender, final boolean requireAuthentication) {
-        if (securityContext.getAuthentication() == null && requireAuthentication) {
+                                                            AsyncSender sender) {
+        if (securityContext.getAuthentication() == null) {
             // we use an assertion here to ensure we catch this in our testing infrastructure, but leave the ISE for cases we do not catch
             // in tests and may be hit by a user
             assertNoAuthentication(action);
@@ -160,7 +160,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             final SSLConfiguration profileConfiguration = entry.getValue();
             final boolean extractClientCert = transportSSLEnabled && sslService.isSSLClientAuthEnabled(profileConfiguration);
             profileFilters.put(entry.getKey(), new ServerTransportFilter(authcService, authzService, threadPool.getThreadContext(),
-                extractClientCert, destructiveOperations, securityContext, settings));
+                extractClientCert, destructiveOperations, securityContext));
         }
 
         return Collections.unmodifiableMap(profileFilters);

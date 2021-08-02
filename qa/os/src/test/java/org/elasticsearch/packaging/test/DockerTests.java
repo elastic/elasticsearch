@@ -111,12 +111,18 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the /_xpack API endpoint's presence is correct for the type of distribution being tested.
+     * Check that security is enabled
      */
-    public void test011PresenceOfXpack() throws Exception {
+    public void test011SecurityEnabledStatus() throws Exception {
         waitForElasticsearch(installation, USERNAME, PASSWORD);
-        final int statusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200/_xpack"), USERNAME, PASSWORD, null);
+        final int statusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200"), USERNAME, PASSWORD, null);
         assertThat(statusCode, equalTo(200));
+
+        // restart container with security disabled
+        runContainer(distribution(), builder().envVars(Map.of("xpack.security.enabled", "false")));
+        waitForElasticsearch(installation);
+        final int unauthStatusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200"), null, null, null);
+        assertThat(unauthStatusCode, equalTo(200));
     }
 
     /**
@@ -323,10 +329,7 @@ public class DockerTests extends PackagingTestCase {
 
         Map<String, String> envVars = Map.of(
             "ELASTIC_PASSWORD_FILE",
-            "/run/secrets/" + passwordFilename,
-            // Enable security so that we can test that the password has been used
-            "xpack.security.enabled",
-            "true"
+            "/run/secrets/" + passwordFilename
         );
 
         // File permissions need to be secured in order for the ES wrapper to accept
@@ -377,10 +380,7 @@ public class DockerTests extends PackagingTestCase {
 
         Map<String, String> envVars = Map.of(
             "ELASTIC_PASSWORD_FILE",
-            "/run/secrets/" + symlinkFilename,
-            // Enable security so that we can test that the password has been used
-            "xpack.security.enabled",
-            "true"
+            "/run/secrets/" + symlinkFilename
         );
 
         // File permissions need to be secured in order for the ES wrapper to accept
@@ -469,10 +469,7 @@ public class DockerTests extends PackagingTestCase {
 
         Map<String, String> envVars = Map.of(
             "ELASTIC_PASSWORD_FILE",
-            "/run/secrets/" + symlinkFilename,
-            // Enable security so that we can test that the password has been used
-            "xpack.security.enabled",
-            "true"
+            "/run/secrets/" + symlinkFilename
         );
 
         // Set invalid permissions on the file that the symlink targets
@@ -762,12 +759,12 @@ public class DockerTests extends PackagingTestCase {
     public void test124CanRestartContainerWithStackLoggingConfig() throws Exception {
         runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file")));
 
-        waitForElasticsearch(installation);
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
 
         restartContainer();
 
         // If something went wrong running Elasticsearch the second time, this will fail.
-        waitForElasticsearch(installation);
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
     }
 
     /**

@@ -15,7 +15,6 @@ import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -35,18 +34,16 @@ public class AuditTrailService {
     private static final AuditTrail NOOP_AUDIT_TRAIL = new NoopAuditTrail();
     private final CompositeAuditTrail compositeAuditTrail;
     private final XPackLicenseState licenseState;
-    private final Settings settings;
     private final Duration minLogPeriod = Duration.ofMinutes(30);
     protected AtomicReference<Instant> nextLogInstantAtomic = new AtomicReference<>(Instant.EPOCH);
 
     public AuditTrailService(List<AuditTrail> auditTrails, XPackLicenseState licenseState, Settings settings) {
         this.compositeAuditTrail = new CompositeAuditTrail(Collections.unmodifiableList(auditTrails));
         this.licenseState = licenseState;
-        this.settings = settings;
     }
 
     public AuditTrail get() {
-        if (compositeAuditTrail.isEmpty() == false && XPackSettings.SECURITY_ENABLED.get(settings)) {
+        if (compositeAuditTrail.isEmpty() == false) {
             if (licenseState.checkFeature(Feature.SECURITY_AUDITING)) {
                 return compositeAuditTrail;
             } else {

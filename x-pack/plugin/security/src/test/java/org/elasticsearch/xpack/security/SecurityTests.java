@@ -393,6 +393,11 @@ public class SecurityTests extends ESTestCase {
         assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
     }
 
+    public void testSecurityIndexWrapperDisabledSecurityDisabled() throws Exception {
+        createComponents(Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build());
+
+    }
+
     public void testValidateRealmsWhenSettingsAreInvalid() {
         final Settings settings = Settings.builder()
             .put(RealmSettings.PREFIX + "my_pki.type", "pki")

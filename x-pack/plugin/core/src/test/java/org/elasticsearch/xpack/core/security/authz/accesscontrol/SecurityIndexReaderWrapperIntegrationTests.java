@@ -145,7 +145,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 FieldPermissions(),
                 DocumentPermissions.filteredBy(singleton(new BytesArray(termQuery))));
             SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> searchExecutionContext,
-                bitsetCache, securityContext, licenseState, scriptService, Settings.EMPTY) {
+                bitsetCache, securityContext, licenseState, scriptService) {
 
                 @Override
                 protected IndicesAccessControl getIndicesAccessControl() {
@@ -224,7 +224,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> searchExecutionContext,
-                bitsetCache, securityContext, licenseState, scriptService, Settings.EMPTY) {
+                bitsetCache, securityContext, licenseState, scriptService) {
 
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {

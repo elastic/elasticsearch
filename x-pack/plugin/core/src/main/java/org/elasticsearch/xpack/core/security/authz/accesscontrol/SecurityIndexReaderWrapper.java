@@ -14,7 +14,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -22,7 +21,6 @@ import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
@@ -52,23 +50,20 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
     private final XPackLicenseState licenseState;
     private final SecurityContext securityContext;
     private final ScriptService scriptService;
-    private final Settings settings;
 
     public SecurityIndexReaderWrapper(Function<ShardId, SearchExecutionContext> searchExecutionContextProvider,
                                       DocumentSubsetBitsetCache bitsetCache, SecurityContext securityContext,
-                                      XPackLicenseState licenseState, ScriptService scriptService, Settings settings) {
+                                      XPackLicenseState licenseState, ScriptService scriptService) {
         this.scriptService = scriptService;
         this.searchExecutionContextProvider = searchExecutionContextProvider;
         this.bitsetCache = bitsetCache;
         this.securityContext = securityContext;
         this.licenseState = licenseState;
-        this.settings = settings;
     }
 
     @Override
     public DirectoryReader apply(final DirectoryReader reader) {
-        if (XPackSettings.SECURITY_ENABLED.get(settings) == false ||
-            licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+        if (licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
             return reader;
         }
 

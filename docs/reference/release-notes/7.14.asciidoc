@@ -263,7 +263,7 @@ CompositeAggs::
 * Fail composite aggregation if after key is unparsable {es-pull}74252[#74252]
 
 Distributed::
-* Change rest status code for `TaskCancelledException` to 400 {es-pull}73524[#73524]
+* Change REST status code for `TaskCancelledException` to 400 {es-pull}73524[#73524]
 
 Features/Ingest::
 * Dissect parsing: An `%` occurring in the delimiter causes incorrect capture of the `${key}` that follows {es-pull}72876[#72876]

@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -1609,6 +1610,41 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             clusterAdmin().prepareSnapshotStatus().setSnapshots("snapshot-2").setRepository(repository).get().getSnapshots(),
             hasSize(1)
         );
+    }
+
+    public void testCorrectlyFinalizeOutOfOrderPartialFailures() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode1 = internalCluster().startDataOnlyNode();
+        final String dataNode2 = internalCluster().startDataOnlyNode();
+        final String index1 = "index-1";
+        final String index2 = "index-2";
+        createIndexWithContent(index1, dataNode1, dataNode2);
+        createIndexWithContent(index2, dataNode2, dataNode1);
+
+        final String repository = "test-repo";
+        createRepository(repository, "mock");
+
+        createFullSnapshot(repository, "snapshot-1");
+        index(index1, "some_doc", Map.of("foo", "bar"));
+        index(index2, "some_doc", Map.of("foo", "bar"));
+        blockAndFailDataNode(repository, dataNode1);
+        blockDataNode(repository, dataNode2);
+        final ActionFuture<CreateSnapshotResponse> snapshotBlocked = startFullSnapshot(repository, "snapshot-2");
+        waitForBlock(dataNode1, repository);
+        waitForBlock(dataNode2, repository);
+
+        unblockNode(repository, dataNode1);
+        assertAcked(clusterAdmin().prepareCloneSnapshot(repository, "snapshot-1", "target-1").setIndices(index1).get());
+        unblockNode(repository, dataNode2);
+        snapshotBlocked.get();
+
+        assertThat(
+            clusterAdmin().prepareSnapshotStatus().setSnapshots("target-1").setRepository(repository).get().getSnapshots(),
+            hasSize(1)
+        );
+
+        createFullSnapshot(repository, "snapshot-3");
+
     }
 
     public void testQueuedAfterFailedShardSnapshot() throws Exception {

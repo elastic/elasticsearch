@@ -16,15 +16,18 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -35,6 +38,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MultiFileWriter extends AbstractRefCounted implements Releasable {
+    // TODO: extract this to a setting?
+    private static final long DEFAULT_WRITE_FILE_BUFFER_SIZE = new ByteSizeValue(128, ByteSizeUnit.KB).getBytes();
 
     public MultiFileWriter(Store store, RecoveryState.Index indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {
         super("multi_file_writer");
@@ -55,7 +60,6 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
     private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<String, FileChunkWriter> fileChunkWriters = ConcurrentCollections.newConcurrentMap();
 
-
     final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
     public void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content, boolean lastChunk)
@@ -65,6 +69,41 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         incRef();
         try {
             writer.writeChunk(new FileChunk(fileMetadata, content, position, lastChunk));
+        } finally {
+            decRef();
+        }
+    }
+
+    public void writeFile(StoreFileMetadata fileMetadata, InputStream stream) throws Exception {
+        ensureOpen.run();
+        assert Transports.assertNotTransportThread("multi_file_writer");
+
+        String fileName = fileMetadata.name();
+        String tempFileName = getTempNameForFile(fileName);
+        if (tempFileNames.containsKey(tempFileName)) {
+            throw new IllegalStateException("output for file [" + fileName + "] has already been created");
+        }
+        tempFileNames.put(tempFileName, fileName);
+
+        incRef();
+        try(IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, fileMetadata, IOContext.DEFAULT)) {
+            int bufferSize = Math.toIntExact(Math.min(DEFAULT_WRITE_FILE_BUFFER_SIZE, fileMetadata.length()));
+            byte[] buffer = new byte[bufferSize];
+            int length;
+            while ((length = stream.read(buffer)) > 0) {
+                indexOutput.writeBytes(buffer, length);
+                indexState.addRecoveredBytesToFile(fileName, length);
+            }
+
+            Store.verify(indexOutput);
+            assert Arrays.asList(store.directory().listAll()).contains(tempFileName) :
+                "expected: [" + tempFileName + "] in " + Arrays.toString(store.directory().listAll());
+            store.directory().sync(Collections.singleton(tempFileName));
+        } catch (Exception e) {
+            tempFileNames.remove(tempFileName);
+            store.deleteQuiet(tempFileName);
+            indexState.resetRecoveredBytesOfFile(fileName);
+            throw e;
         } finally {
             decRef();
         }

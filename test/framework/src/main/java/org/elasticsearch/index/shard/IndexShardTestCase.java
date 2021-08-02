@@ -66,6 +66,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
@@ -582,7 +583,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     /** recovers a replica from the given primary **/
     protected void recoverReplica(IndexShard replica, IndexShard primary, boolean startReplica) throws IOException {
         recoverReplica(replica, primary,
-            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener),
+            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, new SnapshotFilesProvider(null), recoveryListener),
             true, startReplica);
     }
 
@@ -638,7 +639,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final RecoveryPlannerService recoveryPlannerService = SourceOnlyRecoveryPlannerService.INSTANCE;
         final RecoverySourceHandler recovery = new RecoverySourceHandler(primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()), threadPool,
-            request, fileChunkSizeInBytes, between(1, 8), between(1, 8), recoveryPlannerService);
+            request, fileChunkSizeInBytes, between(1, 8), between(1, 8), between(1, 8), false, recoveryPlannerService);
         primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,
             currentClusterStateVersion.incrementAndGet(), inSyncIds, routingTable);
         try {

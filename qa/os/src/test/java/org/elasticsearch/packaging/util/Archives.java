@@ -108,6 +108,7 @@ public class Archives {
         Installation installation = Installation.ofArchive(sh, distribution, fullInstallPath);
         ServerUtils.disableGeoIpDownloader(installation);
         // TODO: Adjust all tests so that they can run with security on, which is the default behavior
+        // https://github.com/elastic/elasticsearch/issues/75940
         ServerUtils.possiblyDisableSecurityFeatures(installation);
 
         return installation;

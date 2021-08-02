@@ -32,7 +32,8 @@ public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        // TODO Ensure that the tests run correctly with security enabled
+        // TODO Change this to run with security enabled
+        // https://github.com/elastic/elasticsearch/issues/75940
         return Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
     }
 

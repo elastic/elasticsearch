@@ -39,7 +39,9 @@ public class EnrichRestartIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(XPackSettings.SECURITY_ENABLED.getKey(), false) // TODO Change this to run with security enabled
+            // TODO Change this to run with security enabled
+            // https://github.com/elastic/elasticsearch/issues/75940
+            .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
             .build();
     }
 

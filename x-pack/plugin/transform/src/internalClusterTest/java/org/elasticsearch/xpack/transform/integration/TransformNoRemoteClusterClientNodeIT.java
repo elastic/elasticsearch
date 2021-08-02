@@ -31,7 +31,9 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
     protected Settings nodeSettings() {
         return Settings.builder()
             .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master, data, ingest, transform")
-            .put(XPackSettings.SECURITY_ENABLED.getKey(), false) // TODO Change this to run with security enabled
+            // TODO Change this to run with security enabled
+            // https://github.com/elastic/elasticsearch/issues/75940
+            .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
             .build();
     }
 

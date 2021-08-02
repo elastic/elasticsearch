@@ -41,6 +41,7 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         return Settings.builder()
             // TODO Fix the test so that it runs with security enabled
+            // https://github.com/elastic/elasticsearch/issues/75940
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
             .build();
     }

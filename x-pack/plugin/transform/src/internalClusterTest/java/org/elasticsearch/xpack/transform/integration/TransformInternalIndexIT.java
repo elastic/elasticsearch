@@ -41,6 +41,7 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         // TODO Change this to run with security enabled
+        // https://github.com/elastic/elasticsearch/issues/75940
         return Settings.builder().put(super.nodeSettings()).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
     }
 

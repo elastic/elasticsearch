@@ -220,7 +220,7 @@ Snapshot/Restore::
 * Abort writes in repo analyzer {es-pull}72077[#72077] (issue: {es-issue}72051[#72051])
 * Add more snapshot details to repo data {es-pull}72232[#72232]
 * Allow some repository settings to be updated dynamically {es-pull}72543[#72543]
-* Cache `RepositoryData` Outright instead of Serialized {es-pull}73190[#73190]
+* Cache `RepositoryData` outright instead of serialized {es-pull}73190[#73190]
 * Introduce Next Field in Paginated `GetSnapshots` Response {es-pull}74236[#74236] (issue: {es-issue}73952[#73952])
 * Introduce SNAPSHOT_META Threadpool for Fetching Repository Metadata {es-pull}73172[#73172]
 * Make Large Bulk Snapshot Deletes more Memory Efficient {es-pull}72788[#72788]

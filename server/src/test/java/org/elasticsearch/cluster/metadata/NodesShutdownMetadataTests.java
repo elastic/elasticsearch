@@ -79,9 +79,7 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
     }
 
     private SingleNodeShutdownMetadata randomNodeShutdownInfo() {
-        final SingleNodeShutdownMetadata.Type type = randomBoolean()
-            ? SingleNodeShutdownMetadata.Type.REMOVE
-            : SingleNodeShutdownMetadata.Type.RESTART;
+        final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
         final SingleNodeShutdownMetadata.Builder builder = SingleNodeShutdownMetadata.builder()
             .setNodeId(randomAlphaOfLength(5))
             .setType(type)

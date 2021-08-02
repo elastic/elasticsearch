@@ -107,7 +107,8 @@ public class IndexDeprecationChecks {
                     "Index created before 7.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
                         "breaking-changes-8.0.html",
-                    "This index was created using version: " + createdWith, null);
+                    "This index was created using version: " + createdWith,
+                    false, null);
         }
         return null;
     }
@@ -131,7 +132,7 @@ public class IndexDeprecationChecks {
                     "This index has [" + fieldCount.get() + "] fields, which exceeds the automatic field expansion limit of 1024 " +
                         "and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING.getKey() + "] set, which may cause queries which use " +
                         "automatic field expansion, such as query_string, simple_query_string, and multi_match to fail if fields are not " +
-                        "explicitly specified in the query.", null);
+                        "explicitly specified in the query.", false, null);
             }
         }
         return null;
@@ -152,7 +153,7 @@ public class IndexDeprecationChecks {
                     "Date field format uses patterns which has changed meaning in 7.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
                     "This index has date fields with deprecated formats: " + fields + ". "
-                        + JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, null);
+                        + JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, false, null);
             }
         }
         return null;
@@ -174,7 +175,7 @@ public class IndexDeprecationChecks {
                 "Multi-fields within multi-fields",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
                     "#_defining_multi_fields_within_multi_fields",
-                "The names of fields that contain chained multi-fields: " + issues, null);
+                "The names of fields that contain chained multi-fields: " + issues, false, null);
         }
         return null;
     }
@@ -203,7 +204,7 @@ public class IndexDeprecationChecks {
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
                             "#fieldnames-enabling",
                     "The index mapping contains a deprecated `enabled` setting for `_field_names` that should be removed moving foward.",
-                null);
+                false, null);
         }
         return null;
     }
@@ -264,7 +265,8 @@ public class IndexDeprecationChecks {
                     "translog retention settings are ignored",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",
                     "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored " +
-                        "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)", null);
+                        "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)",
+                    false, null);
             }
         }
         return null;
@@ -277,7 +279,7 @@ public class IndexDeprecationChecks {
             final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/" +
                 "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
             final String details = "Found index data path configured. Discontinue use of this setting.";
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
         }
         return null;
     }
@@ -298,7 +300,7 @@ public class IndexDeprecationChecks {
 
             final String details = String.format(Locale.ROOT, "Found [%s] configured. Discontinue use of this setting. Use thresholds.",
                 setting.getKey());
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, null);
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
         }
         return null;
     }
@@ -311,7 +313,7 @@ public class IndexDeprecationChecks {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-store.html",
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
                     "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
-                    "as it offers superior or equivalent performance to [simplefs].", null);
+                    "as it offers superior or equivalent performance to [simplefs].", false, null);
         }
         return null;
     }

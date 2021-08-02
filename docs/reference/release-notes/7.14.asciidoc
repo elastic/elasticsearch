@@ -280,7 +280,7 @@ Geo::
 * `GeoShapeIndexer#prepareForIndex` should be called for computing the doc value centroid {es-pull}73856[#73856] (issue: {es-issue}73836[#73836])
 
 Highlighting::
-* Fix Plain Highlighter ordering for `none` {es-pull}74084[#74084] (issue: {es-issue}58236[#58236])
+* Fix plain highlighter ordering for `none` {es-pull}74084[#74084] (issue: {es-issue}58236[#58236])
 * Fix highlighting for `match_phrase_prefix` query inside nested {es-pull}73775[#73775] (issue: {es-issue}70922[#70922])
 
 Infra/Core::

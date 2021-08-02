@@ -28,6 +28,7 @@ testClusters.all {
   setting 'indices.lifecycle.poll_interval', '1000ms'
   setting 'logger.org.elasticsearch.xpack.core.ilm', 'TRACE'
   setting 'logger.org.elasticsearch.xpack.ilm', 'TRACE'
+  setting 'thread_pool.estimated_time_interval', '0'
   systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
 }
 

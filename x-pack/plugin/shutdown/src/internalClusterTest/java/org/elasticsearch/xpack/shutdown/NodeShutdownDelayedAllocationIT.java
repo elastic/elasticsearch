@@ -93,7 +93,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
-            TimeValue.timeValueMillis(randomIntBetween(10,1000))
+            TimeValue.timeValueMillis(randomIntBetween(10, 1000))
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
         assertTrue(putShutdownResponse.isAcknowledged());

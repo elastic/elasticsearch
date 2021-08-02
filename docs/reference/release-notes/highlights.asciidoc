@@ -81,4 +81,14 @@ Composite aggregations on `keyword` fields no longer use
 {ref}/eager-global-ordinals.html[global ordinals], which for high cardinality
 fields could use a lot of heap memory as part of the
 {ref}/modules-fielddata.html[field data cache].
+
+[discrete]
+====
+[[automatic-geoip-updates]]
+=== Automatic databases updates for geoip processor
+
+GeoIP processor uses Maxmind GeoLite2 databases to provide data
+about the geographical location of IP addresses. This data changes frequently as IP addresses get reused.
+In 7.14 we introduced a service that will automatically update these databases used so information is as accurate
+as possible. It's enabled by default but its operation can be adjusted. See {ref}/geoip-processor.html[GeoIP processor]
 // end::notable-highlights[]

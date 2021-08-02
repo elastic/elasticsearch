@@ -47,8 +47,8 @@ search lets you run these searches in the background instead. See
 === Transforms: support for top metrics
 
 {transforms-cap} are now able to support the 
-<<search-aggregations-metrics-top-metrics, top metrics aggregation>>. This 
-improves performance when grouping by many fields. If these fields are 
+{ref}/search-aggregations-metrics-top-metrics.html[top metrics aggregation]. 
+This improves performance when grouping by many fields. If these fields are 
 descriptive and have the same cardinality (for example, customer first and last 
 name describe their customer_id), then using top metrics significantly reduces 
 the work needed to be done by aggregations. It is also a usability improvement 

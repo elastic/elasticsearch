@@ -71,9 +71,13 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
                                        final SearchShardTarget shard,
                                        final SearchActionListener<SearchPhaseResult> listener) {
         ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt, listener.requestIndex));
-        final FieldsOptionSourceAdapter fieldsOptionAdapter;
         Connection connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
-        fieldsOptionAdapter = TransportSearchAction.createFieldsOptionAdapter(connection, request.source());
+        final FieldsOptionSourceAdapter fieldsOptionAdapter;
+        if (getRequest().isFieldsOptionEmulationEnabled()) {
+                fieldsOptionAdapter = TransportSearchAction.createFieldsOptionAdapter(connection, request.source());
+            } else {
+                fieldsOptionAdapter = TransportSearchAction.NOOP_FIELDSADAPTER;
+            }
         fieldsOptionAdapter.adaptRequest(request.source(), request::source);
 
         getSearchTransport().sendExecuteQuery(

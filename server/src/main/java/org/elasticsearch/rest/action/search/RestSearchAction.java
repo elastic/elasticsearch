@@ -16,12 +16,12 @@ import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -143,6 +143,11 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.setBatchedReduceSize(batchedReduceSize);
         if (request.hasParam("pre_filter_shard_size")) {
             searchRequest.setPreFilterShardSize(request.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE));
+        }
+        if (request.hasParam("enable_fields_emulation")) {
+            searchRequest.setFieldsOptionEmulationEnabled(
+                request.paramAsBoolean("enable_fields_emulation", searchRequest.isFieldsOptionEmulationEnabled())
+            );
         }
 
         if (request.hasParam("max_concurrent_shard_requests")) {

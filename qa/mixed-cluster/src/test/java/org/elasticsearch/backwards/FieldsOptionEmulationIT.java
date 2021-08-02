@@ -40,6 +40,7 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
     private static List<Node> newNodes;
     private static String oldNodeName;
     private static String newNodeName;
+    private static Version bwcNodeVersion;
 
     @Before
     public void prepareTestData() throws IOException {
@@ -48,6 +49,7 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
         newNodes = new ArrayList<>(nodes.getNewNodes());
         oldNodeName = bwcNodes.get(0).getNodeName();
         newNodeName = newNodes.get(0).getNodeName();
+        bwcNodeVersion = bwcNodes.get(0).getVersion();
         createIndexOnNode(index, newNodeName);
         createIndexOnNode(index_old, oldNodeName);
         refreshAllIndices();
@@ -75,6 +77,7 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
     public void testFieldOptionAdapterAllFields() throws Exception {
         for (String includeSource : new String[] { "true", "false" }) {
             Request matchAllRequest = new Request("POST", "test_field_*/_search");
+            matchAllRequest.addParameter("enable_fields_emulation", "true");
 
             matchAllRequest.setJsonEntity("{\"_source\":" + includeSource + " ,\"fields\":[\"*\"]}");
             try (
@@ -94,9 +97,48 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
                     assertTrue(((List<?>) fieldsMap.get("test")).get(0).toString().startsWith("test_"));
                     assertNotNull(fieldsMap.get("obj.foo"));
                     assertTrue(((List<?>) fieldsMap.get("obj.foo")).get(0).toString().startsWith("value_"));
-                    if (bwcNodes.get(0).getVersion().onOrAfter(Version.V_7_10_0)) {
+                    if (bwcNodeVersion.onOrAfter(Version.V_7_10_0)) {
                         // if all nodes are > 7.10 we should get full "fields" output even for subfields
                         assertTrue(((List<?>) fieldsMap.get("test.keyword")).get(0).toString().startsWith("test_"));
+                    }
+                    if (includeSource.equals("true")) {
+                        assertNotNull(hit.get("_source"));
+                    } else {
+                        assertNull(hit.get("_source"));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * test that the fields emulation is turned off by default or if 'enable_fields_emulation' is set to false
+     */
+    public void testFieldOptionEmulationNotEnabled() throws Exception {
+        for (String includeSource : new String[] { "true", "false" }) {
+            Request matchAllRequest = new Request("POST", "test_field_*/_search");
+            // enable_fields_emulation should be "false" by default, but also randomly set it on the request
+            if (randomBoolean()) {
+                matchAllRequest.addParameter("enable_fields_emulation", "false");
+            }
+
+            matchAllRequest.setJsonEntity("{\"_source\":" + includeSource + " ,\"fields\":[\"*\"]}");
+            try (
+                RestClient client = buildClient(
+                    restClientSettings(),
+                    newNodes.stream().map(Node::getPublishAddress).toArray(HttpHost[]::new)
+                )
+            ) {
+                Response response = client.performRequest(matchAllRequest);
+                ObjectPath responseObject = ObjectPath.createFromResponse(response);
+                List<Map<String, Object>> hits = responseObject.evaluate("hits.hits");
+                assertEquals(10, hits.size());
+                for (Map<String, Object> hit : hits) {
+                    String index = (String) hit.get("_index");
+                    if (index.equals("test_field_oldversion") && bwcNodeVersion.before(Version.V_7_10_0)) {
+                        assertNull(hit.get("fields"));
+                    } else {
+                        assertNotNull(hit.get("fields"));
                     }
                     if (includeSource.equals("true")) {
                         assertNotNull(hit.get("_source"));
@@ -112,6 +154,7 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
     public void testFieldOptionAdapterFilterFields() throws Exception {
         Request matchAllRequestFiltered = new Request("POST",
             "test_field_*/_search");
+        matchAllRequestFiltered.addParameter("enable_fields_emulation", "true");
         matchAllRequestFiltered.setJsonEntity("{\"_source\":false,\"fields\":[\"test*\"]}");
         try (
             RestClient client = buildClient(restClientSettings(), newNodes.stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))

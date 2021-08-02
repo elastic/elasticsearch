@@ -237,6 +237,7 @@ public class CCSFieldsOptionEmulationIT extends ESRestTestCase {
                 request.addParameter("index", localIndex + "," + CLUSTER_ALIAS + ":" + remoteIndex);
                 if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_0_0)) {
                     request.addParameter("ccs_minimize_roundtrips", minimizeRoundTrips);
+                    request.addParameter("enable_fields_emulation", "true");
                 }
                 request.setJsonEntity("{\"_source\": false, \"fields\": [\"*\"] , \"size\": " + expectedHitCount + "}");
                 Response response = lowLevelClient.performRequest(request);

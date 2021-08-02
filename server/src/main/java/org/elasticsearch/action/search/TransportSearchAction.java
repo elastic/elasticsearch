@@ -466,13 +466,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
             OriginalIndices indices = entry.getValue();
             FieldsOptionSourceAdapter adapter = NOOP_FIELDSADAPTER;
-            try {
-                adapter = createFieldsOptionAdapter(
-                    remoteClusterService.getConnection(clusterAlias),
-                    searchRequest.source()
-                );
-            } catch (NoSuchRemoteClusterException ex) {
-                // no connection version, adapter creation not possible if cluster not connected
+            if (searchRequest.isFieldsOptionEmulationEnabled()) {
+                try {
+                    adapter = createFieldsOptionAdapter(remoteClusterService.getConnection(clusterAlias), searchRequest.source());
+                } catch (NoSuchRemoteClusterException ex) {
+                    // no connection version, adapter creation not possible if cluster not connected
+                }
             }
             SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, indices.indices(),
                 clusterAlias, timeProvider.getAbsoluteStartMillis(), true);
@@ -517,13 +516,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
                 OriginalIndices indices = entry.getValue();
                 FieldsOptionSourceAdapter adapter = NOOP_FIELDSADAPTER;
-                try {
-                    adapter = createFieldsOptionAdapter(
-                        remoteClusterService.getConnection(clusterAlias),
-                        searchRequest.source()
-                    );
-                } catch (NoSuchRemoteClusterException ex) {
-                    // don't create fields option converter in this case
+                if (searchRequest.isFieldsOptionEmulationEnabled()) {
+                    try {
+
+                        adapter = createFieldsOptionAdapter(remoteClusterService.getConnection(clusterAlias), searchRequest.source());
+                    } catch (NoSuchRemoteClusterException ex) {
+                        // don't create fields option converter in this case
+                    }
                 }
                 SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(
                     parentTaskId,

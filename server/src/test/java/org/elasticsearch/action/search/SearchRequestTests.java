@@ -13,8 +13,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.Scroll;
@@ -266,6 +266,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))));
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
         mutators.add(() -> mutation.setCcsMinimizeRoundtrips(searchRequest.isCcsMinimizeRoundtrips() == false));
+        mutators.add(() -> mutation.setFieldsOptionEmulationEnabled(searchRequest.isFieldsOptionEmulationEnabled() == false));
         randomFrom(mutators).run();
         return mutation;
     }

@@ -110,37 +110,6 @@
   - match: { analysis_limits.model_memory_limit: "2048mb" }
 
 ---
-"Test put job with invalid model_prune_window value":
-  - do:
-      catch: /model_prune_window \[29m\] must be a multiple of bucket_span \[15m\]/
-      ml.put_job:
-        job_id: job-invalid-model-prune-window
-        body:  >
-          {
-            "analysis_config" : {
-                "bucket_span": "15m",
-                "detectors" :[{"function":"count"}],
-                "model_prune_window": "29m"
-            },
-            "data_description" : {
-            }
-          }
-  - do:
-      catch: /model_prune_window \[15m\] must be at least 2 times greater than bucket_span \[15m\]/
-      ml.put_job:
-        job_id: job-invalid-model-prune-window
-        body:  >
-          {
-            "analysis_config" : {
-                "bucket_span": "15m",
-                "detectors" :[{"function":"count"}],
-                "model_prune_window": "15m"
-            },
-            "data_description" : {
-            }
-          }
-
----
 "Test put job with model_prune_window":
   - do:
       ml.put_job:
@@ -158,6 +127,37 @@
   - match: { job_id: "job-model-prune-window" }
   - match: { analysis_config.bucket_span: "15m" }
   - match: { analysis_config.model_prune_window: "14d" }
+
+  - do:
+      catch: /model_prune_window \[29m\] must be a multiple of bucket_span \[15m\]/
+      ml.put_job:
+        job_id: job-invalid-model-prune-window
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "15m",
+                "detectors" :[{"function":"count"}],
+                "model_prune_window": "29m"
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      catch: /model_prune_window \[15m\] must be at least 2 times greater than bucket_span \[15m\]/
+      ml.put_job:
+        job_id: job-model-prune-window
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "15m",
+                "detectors" :[{"function":"count"}],
+                "model_prune_window": "15m"
+            },
+            "data_description" : {
+            }
+          }
+
 
 ---
 "Test put job with model_memory_limit as string and lazy open":

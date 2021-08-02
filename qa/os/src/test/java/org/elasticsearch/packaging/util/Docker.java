@@ -189,7 +189,7 @@ public class Docker {
             } catch (Exception e) {
                 logger.warn("Caught exception while waiting for ES to exit", e);
             }
-        } while (attempt++ < 5);
+        } while (attempt++ < 8);
 
         if (isElasticsearchRunning) {
             final Shell.Result dockerLogs = getContainerLogs();

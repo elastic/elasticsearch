@@ -266,12 +266,11 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test60DockerEnvironmentVariablePassword() throws Exception {
         assumeTrue(distribution().isDocker());
         String password = "keystore-password";
-        Path dockerKeystore = installation.config("elasticsearch.keystore");
 
-        Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
+        Path localConfigDir = getMountedLocalConfDirWithKeystore(password, installation.config);
 
         // restart ES with password and mounted keystore
-        Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
+        Map<Path, Path> volumes = Map.of(localConfigDir, installation.config);
         Map<String, String> envVars = Map.of(
             "KEYSTORE_PASSWORD",
             password,
@@ -302,12 +301,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
             Files.writeString(tempDir.resolve(passwordFilename), password + "\n");
             Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
 
-            Path dockerKeystore = installation.config("elasticsearch.keystore");
-
-            Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
+            Path localConfigDir = getMountedLocalConfDirWithKeystore(password, installation.config);
 
             // restart ES with password and mounted keystore
-            Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore, tempDir, Path.of("/run/secrets"));
+            Map<Path, Path> volumes = Map.of(localConfigDir, installation.config, tempDir, Path.of("/run/secrets"));
             Map<String, String> envVars = Map.of(
                 "KEYSTORE_PASSWORD_FILE",
                 "/run/secrets/" + passwordFilename,
@@ -336,12 +333,11 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test62DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
         String password = "keystore-password";
-        Path dockerKeystore = installation.config("elasticsearch.keystore");
 
-        Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
+        Path localConfigPath = getMountedLocalConfDirWithKeystore(password, installation.config);
 
-        // restart ES with password and mounted keystore
-        Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
+        // restart ES with password and mounted config dir
+        Map<Path, Path> volumes = Map.of(localConfigPath, installation.config);
         Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", "wrong");
         Shell.Result r = runContainerExpectingFailure(distribution(), builder().volumes(volumes).envVars(envVars));
         assertThat(r.stderr, containsString(ERROR_INCORRECT_PASSWORD));
@@ -354,7 +350,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * the keystore, and then returns the path of the file that appears in the
      * mounted directory (now accessible from the local filesystem).
      */
-    private Path getKeystoreFileFromDockerContainer(String password, Path dockerKeystore) throws IOException {
+    private Path getMountedLocalConfDirWithKeystore(String password, Path dockerKeystore) throws IOException {
         // Mount a temporary directory for copying the keystore
         Path dockerTemp = Path.of("/usr/tmp/keystore-tmp");
         Path tempDirectory = createTempDir(KeystoreManagementTests.class.getSimpleName());
@@ -388,7 +384,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         // copy keystore to temp file to make it available to docker host
         sh.run("cp " + dockerKeystore + " " + dockerTemp);
-        return tempDirectory.resolve("elasticsearch.keystore");
+        return tempDirectory;
     }
 
     /** Create a keystore. Provide a password to password-protect it, otherwise use null */

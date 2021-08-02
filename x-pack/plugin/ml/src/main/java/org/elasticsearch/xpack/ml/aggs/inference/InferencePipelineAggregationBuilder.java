@@ -242,7 +242,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         context.registerAsyncAction((client, listener) -> {
             if (XPackSettings.SECURITY_ENABLED.get(settings)) {
                 // check the user has ml privileges
-                SecurityContext securityContext = new SecurityContext(Settings.EMPTY, client.threadPool().getThreadContext());
+                SecurityContext securityContext = new SecurityContext(settings, client.threadPool().getThreadContext());
                 useSecondaryAuthIfAvailable(securityContext, () -> {
                     final String username = securityContext.getUser().principal();
                     final HasPrivilegesRequest privRequest = new HasPrivilegesRequest();

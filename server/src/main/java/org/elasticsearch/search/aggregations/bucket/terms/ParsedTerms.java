@@ -32,7 +32,7 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
     protected long sumOtherDocCount;
 
     @Override
-    public long getDocCountError() {
+    public Long getDocCountError() {
         return docCountErrorUpperBound;
     }
 
@@ -70,7 +70,7 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
 
     static void declareParsedTermsFields(final ObjectParser<? extends ParsedTerms, Void> objectParser,
                                          final CheckedFunction<XContentParser, ParsedBucket, IOException> bucketParser) {
-        declareMultiBucketAggregationFields(objectParser, bucketParser::apply, bucketParser::apply);
+        declareMultiBucketAggregationFields(objectParser, bucketParser, bucketParser);
         objectParser.declareLong((parsedTerms, value) -> parsedTerms.docCountErrorUpperBound = value ,
                 DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME);
         objectParser.declareLong((parsedTerms, value) -> parsedTerms.sumOtherDocCount = value,

@@ -214,6 +214,8 @@ public final class Verifier {
                 checkFilterOnAggs(p, localFailures, attributeRefs);
                 checkFilterOnGrouping(p, localFailures, attributeRefs);
 
+                checkNestedAggregation(p, localFailures, attributeRefs);
+
                 if (groupingFailures.contains(p) == false) {
                     checkGroupBy(p, localFailures, attributeRefs, groupingFailures);
                 }
@@ -264,6 +266,16 @@ public final class Verifier {
         }
 
         return failures;
+    }
+
+    private void checkNestedAggregation(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
+        if (p instanceof Aggregate) {
+            ((Aggregate) p).child()
+                .forEachDown(
+                    Aggregate.class,
+                    a -> { localFailures.add(fail(a, "Nested aggregations in sub-selects are not supported.")); }
+                );
+        }
     }
 
     private void checkFullTextSearchInSelect(LogicalPlan plan, Set<Failure> localFailures) {

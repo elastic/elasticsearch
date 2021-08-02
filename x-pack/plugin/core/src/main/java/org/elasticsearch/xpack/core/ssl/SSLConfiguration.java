@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -21,9 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.getKeyStoreType;
-
-
 /**
  * Represents the configuration for an SSLContext
  */
@@ -32,14 +31,14 @@ public final class SSLConfiguration {
     // These settings are never registered, but they exist so that we can parse the values defined under grouped settings. Also, some are
     // implemented as optional settings, which provides a declarative manner for fallback as we typically fallback to values from a
     // different configuration
-    static final SSLConfigurationSettings SETTINGS_PARSER = SSLConfigurationSettings.withoutPrefix();
+    static final SSLConfigurationSettings SETTINGS_PARSER = SSLConfigurationSettings.withoutPrefix(true);
 
     private final KeyConfig keyConfig;
     private final TrustConfig trustConfig;
     private final List<String> ciphers;
     private final List<String> supportedProtocols;
-    private final SSLClientAuth sslClientAuth;
-    private final VerificationMode verificationMode;
+    private final SslClientAuthenticationMode sslClientAuth;
+    private final SslVerificationMode verificationMode;
     private final boolean explicitlyConfigured;
 
     /**
@@ -89,14 +88,14 @@ public final class SSLConfiguration {
     /**
      * The verification mode for this configuration; this mode controls certificate and hostname verification
      */
-    public VerificationMode verificationMode() {
+    public SslVerificationMode verificationMode() {
         return verificationMode;
     }
 
     /**
      * The client auth configuration
      */
-    SSLClientAuth sslClientAuth() {
+    SslClientAuthenticationMode sslClientAuth() {
         return sslClientAuth;
     }
 
@@ -169,18 +168,19 @@ public final class SSLConfiguration {
 
     private static TrustConfig createCertChainTrustConfig(Settings settings, KeyConfig keyConfig) {
         String trustStorePath = SETTINGS_PARSER.truststorePath.get(settings).orElse(null);
-        String trustStoreType = getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
+        String trustStoreType = SSLConfigurationSettings.getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
         List<String> caPaths = getListOrNull(SETTINGS_PARSER.caPaths, settings);
         if (trustStorePath != null && caPaths != null) {
             throw new IllegalArgumentException("you cannot specify a truststore and ca files");
         }
 
-        VerificationMode verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElse(XPackSettings.VERIFICATION_MODE_DEFAULT);
+        SslVerificationMode verificationMode = SETTINGS_PARSER.verificationMode.get(settings)
+            .orElse(XPackSettings.VERIFICATION_MODE_DEFAULT);
         if (verificationMode.isCertificateVerificationEnabled() == false) {
             return TrustAllConfig.INSTANCE;
         } else if (caPaths != null) {
             return new PEMTrustConfig(caPaths);
-        } else if (trustStorePath != null || trustStoreType.equalsIgnoreCase("pkcs11")) {
+        } else if (trustStorePath != null) {
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
             SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings);
             return new StoreTrustConfig(trustStorePath, trustStoreType, trustStorePassword, trustStoreAlgorithm);

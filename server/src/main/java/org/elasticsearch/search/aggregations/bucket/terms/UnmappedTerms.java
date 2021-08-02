@@ -110,8 +110,8 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    public long getDocCountError() {
-        return 0;
+    public Long getDocCountError() {
+        return 0L;
     }
 
     @Override

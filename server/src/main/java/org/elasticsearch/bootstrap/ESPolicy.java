@@ -104,6 +104,7 @@ final class ESPolicy extends Policy {
      * Classy puzzler to rethrow any checked exception as an unchecked one.
      */
     private static class Rethrower<T extends Throwable> {
+        @SuppressWarnings("unchecked")
         private void rethrow(Throwable t) throws T {
             throw (T) t;
         }

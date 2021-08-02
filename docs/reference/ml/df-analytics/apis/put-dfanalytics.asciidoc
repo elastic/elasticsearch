@@ -300,7 +300,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=training-percent]
 `outlier_detection`:::
 (Required^*^, object)
 The configuration information necessary to perform
-{ml-docs}/ml-dfa-finding-outliers.html#dfa-outlier-detection[{oldetection}]:
+{ml-docs}/ml-dfa-finding-outliers.html[{oldetection}]:
 +
 .Properties of `outlier_detection`
 [%collapsible%open]

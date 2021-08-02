@@ -101,6 +101,108 @@ POST _cache/clear?fielddata=true
 // TEST[s/^/PUT my-index\n/]
 
 [discrete]
+[[high-cpu-usage]]
+=== High CPU usage
+
+{es} uses <<modules-threadpool,thread pools>> to manage CPU resources for
+concurrent operations. High CPU usage typically means one or more thread pools
+are running low.
+
+If a thread pool is depleted, {es} will <<rejected-requests,reject requests>>
+related to the thread pool. For example, if the `search` thread pool is
+depleted, {es} will reject search requests until more threads are available.
+
+[discrete]
+[[diagnose-high-cpu-usage]]
+==== Diagnose high CPU usage
+
+**Check CPU usage**
+
+include::{es-repo-dir}/tab-widgets/cpu-usage-widget.asciidoc[]
+
+**Check hot threads**
+
+If a node has high CPU usage, use the <<cluster-nodes-hot-threads,nodes hot
+threads API>> to check for resource-intensive threads running on the node. 
+
+[source,console]
+----
+GET _nodes/my-node,my-other-node/hot_threads
+----
+// TEST[s/\/my-node,my-other-node//]
+
+This API returns a breakdown of any hot threads in plain text.
+
+[discrete]
+[[reduce-cpu-usage]]
+==== Reduce CPU usage
+
+The following tips outline the most common causes of high CPU usage and their
+solutions.
+
+**Scale your cluster**
+
+Heavy indexing and search loads can deplete smaller thread pools. To better
+handle heavy workloads, add more nodes to your cluster or upgrade your existing
+nodes to increase capacity.
+
+**Spread out bulk requests**
+
+While more efficient than individual requests, large <<docs-bulk,bulk indexing>>
+or <<search-multi-search,multi-search>> requests still require CPU resources. If
+possible, submit smaller requests and allow more time between them.
+
+**Cancel long-running searches**
+
+Long-running searches can block threads in the `search` thread pool. To check
+for these searches, use the <<tasks,task management API>>.
+
+[source,console]
+----
+GET _tasks?actions=*search&detailed
+----
+
+The response's `description` contains the search request and its queries.
+`running_time_in_nanos` shows how long the search has been running.
+
+[source,console-result]
+----
+{
+  "nodes" : {
+    "oTUltX4IQMOUUVeiohTt8A" : {
+      "name" : "my-node",
+      "transport_address" : "127.0.0.1:9300",
+      "host" : "127.0.0.1",
+      "ip" : "127.0.0.1:9300",
+      "tasks" : {
+        "oTUltX4IQMOUUVeiohTt8A:464" : {
+          "node" : "oTUltX4IQMOUUVeiohTt8A",
+          "id" : 464,
+          "type" : "transport",
+          "action" : "indices:data/read/search",
+          "description" : "indices[my-index], search_type[QUERY_THEN_FETCH], source[{\"query\":...}]",
+          "start_time_in_millis" : 4081771730000,
+          "running_time_in_nanos" : 13991383,
+          "cancellable" : true
+        }
+      }
+    }
+  }
+}
+----
+// TESTRESPONSE[skip: no way to get tasks]
+
+To cancel a search and free up resources, use the API's `_cancel` endpoint.
+
+[source,console]
+----
+POST _tasks/oTUltX4IQMOUUVeiohTt8A:464/_cancel
+----
+
+For additional tips on how to track and avoid resource-intensive searches, see
+<<avoid-expensive-searches,Avoid expensive searches>>.
+
+[discrete]
 [[high-jvm-memory-pressure]]
 === High JVM memory pressure
 
@@ -141,6 +243,7 @@ Every shard uses memory. In most cases, a small set of large shards uses fewer
 resources than many small shards. For tips on reducing your shard count, see
 <<size-your-shards>>.
 
+[[avoid-expensive-searches]]
 **Avoid expensive searches**
 
 Expensive searches can use large amounts of memory. To better track expensive
@@ -439,3 +542,47 @@ POST _cluster/reroute
 If you backed up the missing index data to a snapshot, use the
 <<restore-snapshot-api,restore snapshot API>> to restore the individual index.
 Alternatively, you can index the missing data from the original data source.
+
+[discrete]
+[[rejected-requests]]
+=== Rejected requests
+
+When {es} rejects a request, it stops the operation and returns an error with a
+`429` response code. Rejected requests are commonly caused by:
+
+* A <<high-cpu-usage,depleted thread pool>>. A depleted `search` or `write`
+thread pool returns a `TOO_MANY_REQUESTS` error message.
+
+* A <<circuit-breaker-errors,circuit breaker error>>.
+
+* High <<index-modules-indexing-pressure,indexing pressure>> that exceeds the
+<<memory-limits,`indexing_pressure.memory.limit`>>.
+
+[discrete]
+[[check-rejected-tasks]]
+==== Check rejected tasks
+
+To check the number of rejected tasks for each thread pool, use the
+<<cat-thread-pool,cat thread pool API>>. A high ratio of `rejected` to
+`completed` tasks, particularly in the `search` and `write` thread pools, means
+{es} regularly rejects requests.
+
+[source,console]
+----
+GET /_cat/thread_pool?v=true&h=id,name,active,rejected,completed
+----
+
+[discrete]
+[[prevent-rejected-requests]]
+==== Prevent rejected requests
+
+**Fix high CPU and memory usage**
+
+If {es} regularly rejects requests and other tasks, your cluster likely has high
+CPU usage or high JVM memory pressure. For tips, see <<high-cpu-usage>> and
+<<high-jvm-memory-pressure>>.
+
+**Prevent circuit breaker errors**
+
+If you regularly trigger circuit breaker errors, see <<circuit-breaker-errors>>
+for tips on diagnosing and preventing them.

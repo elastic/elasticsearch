@@ -159,6 +159,42 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         assertTrue(container.blobExists("foo"));
     }
 
+    public void testListBlobsByPrefix() throws Exception {
+        FileContext fileContext = createTestContext();
+        HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, false);
+        FileContext.Util util = fileContext.util();
+        Path root = fileContext.makeQualified(new Path("dir"));
+        assertTrue(util.exists(root));
+        BlobPath blobPath = BlobPath.EMPTY.add("path");
+
+        hdfsBlobStore.blobContainer(blobPath);
+        Path hdfsPath = root;
+        for (String p : blobPath.parts()) {
+            hdfsPath = new Path(hdfsPath, p);
+        }
+        assertTrue(util.exists(hdfsPath));
+
+        BlobContainer container = hdfsBlobStore.blobContainer(blobPath);
+
+        byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+        writeBlob(container, "foo", new BytesArray(data), randomBoolean());
+        assertArrayEquals(readBlobFully(container, "foo", data.length), data);
+        assertTrue(container.blobExists("foo"));
+        writeBlob(container, "bar", new BytesArray(data), randomBoolean());
+        assertArrayEquals(readBlobFully(container, "bar", data.length), data);
+        assertTrue(container.blobExists("bar"));
+
+        assertEquals(2, container.listBlobsByPrefix(null).size());
+        assertEquals(1, container.listBlobsByPrefix("fo").size());
+        assertEquals(0, container.listBlobsByPrefix("noSuchFile").size());
+
+        container.delete();
+//        fileContext.delete(hdfsPath, true);
+        assertEquals(0, container.listBlobsByPrefix(null).size());
+        assertEquals(0, container.listBlobsByPrefix("fo").size());
+        assertEquals(0, container.listBlobsByPrefix("noSuchFile").size());
+    }
+
     public static byte[] readBlobPartially(BlobContainer container, String name, int pos, int length) throws IOException {
         byte[] data = new byte[length];
         try (InputStream inputStream = container.readBlob(name, pos, length)) {

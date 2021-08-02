@@ -254,7 +254,7 @@ Aggregations::
 * Prevent `date_histogram` from OOMing {es-pull}72081[#72081] (issue: {es-issue}71758[#71758])
 * Properly size empty filters {es-pull}71864[#71864]
 * Only enable "filter by filter" optimization for `terms`, `date_histogram`,
-`range`, and `fitlers` aggregation when we're sure it'll be faster {es-pull}74260[#74260]
+`range`, and `filters` aggregation when we're sure it'll be faster {es-pull}74260[#74260]
 
 
 CRUD::

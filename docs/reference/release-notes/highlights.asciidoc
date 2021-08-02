@@ -81,4 +81,24 @@ Composite aggregations on `keyword` fields no longer use
 {ref}/eager-global-ordinals.html[global ordinals], which for high cardinality
 fields could use a lot of heap memory as part of the
 {ref}/modules-fielddata.html[field data cache].
+
+[discrete]
+[[new-migrate-data-tiers-routing-api]]
+=== New migrate to data tiers routing API
+
+7.14 introduces the {ref}/ilm-migrate-to-data-tiers.html[migrate to data tiers
+routing API]. You can use the API to switch indices and ILM policies that use
+attribute-based allocation filters to data tiers using
+{ref}/modules-node.html#node-roles[node roles]. This lets ILM automatically move
+data stream indices between tiers during phase transitions. Data tiers also give
+you access to additional ILM features, such as partially mounted indices and the
+frozen tier.
+
+[discrete]
+[[new-terms-enum-api]]
+=== New terms enum API
+
+The new {ref}/search-terms-enum.html[terms enum API] lets you discover index
+terms that match a partial string. You can use the API for search
+auto-completion.
 // end::notable-highlights[]

@@ -30,6 +30,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -39,6 +40,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
@@ -240,6 +242,14 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             Randomness.shuffle(blobsToDelete);
             container.deleteBlobsIgnoringIfNotExists(blobsToDelete.iterator());
             assertThat(container.listBlobs(), is(anEmptyMap()));
+        }
+    }
+
+    public void testNotFoundErrorMessageContainsFullKey() throws Exception {
+        try (BlobStore store = newBlobStore()) {
+            BlobContainer container = store.blobContainer(BlobPath.EMPTY.add("nested").add("dir"));
+            NoSuchFileException exception = expectThrows(NoSuchFileException.class, () -> container.readBlob("blob"));
+            assertThat(exception.getMessage(), equalTo("Blob [nested/dir/blob] not found"));
         }
     }
 }

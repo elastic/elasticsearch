@@ -83,7 +83,6 @@ fields could use a lot of heap memory as part of the
 {ref}/modules-fielddata.html[field data cache].
 
 [discrete]
-====
 [[automatic-geoip-updates]]
 === Automatic databases updates for geoip processor
 

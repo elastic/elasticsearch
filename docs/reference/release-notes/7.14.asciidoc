@@ -20,7 +20,7 @@ Cluster Coordination::
 === Deprecations
 
 Allocation::
-* Add entry to Deprecation API for CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING {es-pull}73552[#73552] (issue: {es-issue}47717[#47717])
+* Add entry to deprecation API for `CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING` {es-pull}73552[#73552] (issue: {es-issue}47717[#47717])
 * Deprecations for single data node setting {es-pull}73733[#73733] (issue: {es-issue}55805[#55805])
 
 Analysis::
@@ -335,5 +335,4 @@ Network::
 
 Packaging::
 * Bump bundled JDK to 16.0.1 {es-pull}73057[#73057]
-
 

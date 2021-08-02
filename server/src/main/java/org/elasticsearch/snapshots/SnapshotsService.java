@@ -315,21 +315,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 for (String featureName : featureStatesSet) {
                     SystemIndices.Feature feature = systemIndexDescriptorMap.get(featureName);
 
-                    SnapshotFeatureInfo snapshotFeatureInfo = new SnapshotFeatureInfo(
-                        featureName,
-                        feature.getIndexDescriptors()
-                            .stream()
-                            .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
-                            .collect(Collectors.toList())
-                    );
+                    List<String> featureSystemIndices = feature.getIndexDescriptors()
+                        .stream()
+                        .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
+                        .collect(Collectors.toList());
+                    List<String> featureAssociatedIndices = feature.getAssociatedIndexDescriptors()
+                        .stream()
+                        .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
+                        .collect(Collectors.toList());
 
-                    List<String> featureSystemIndices = snapshotFeatureInfo.getIndices();
-                    List<String> featureAssociatedIndices = new ArrayList<>();
-                    List<String> featureDataStreamBackingIndices = new ArrayList<>();
                     List<String> featureSystemDataStreams = new ArrayList<>();
-                    for (AssociatedIndexDescriptor aid : feature.getAssociatedIndexDescriptors()) {
-                        featureAssociatedIndices.addAll(aid.getMatchingIndices(currentState.metadata()));
-                    }
+                    List<String> featureDataStreamBackingIndices = new ArrayList<>();
                     for (SystemDataStreamDescriptor sdd : feature.getDataStreamDescriptors()) {
                         List<String> backingIndexNames = sdd.getBackingIndexNames(currentState.metadata());
                         if (backingIndexNames.size() > 0) {
@@ -337,10 +333,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             featureSystemDataStreams.add(sdd.getDataStreamName());
                         }
                     }
+
                     if (featureSystemIndices.size() > 0
                         || featureAssociatedIndices.size() > 0
                         || featureDataStreamBackingIndices.size() > 0) {
-                        featureStates.add(snapshotFeatureInfo);
+
+                        featureStates.add(new SnapshotFeatureInfo(
+                            featureName,
+                            featureSystemIndices
+                        ));
                         indexNames.addAll(featureSystemIndices);
                         indexNames.addAll(featureAssociatedIndices);
                         indexNames.addAll(featureDataStreamBackingIndices);

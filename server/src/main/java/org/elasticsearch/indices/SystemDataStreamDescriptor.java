@@ -36,6 +36,8 @@ public class SystemDataStreamDescriptor {
     private final List<String> allowedElasticProductOrigins;
     private final ExecutorNames executorNames;
 
+    private CharacterRunAutomaton characterRunAutomaton;
+
     /**
      * Creates a new descriptor for a system data descriptor
      * @param dataStreamName the name of the data stream. Must not be {@code null}
@@ -82,14 +84,19 @@ public class SystemDataStreamDescriptor {
         return dataStreamName;
     }
 
-    // TODO[wrb]: Javadoc
-    // TODO[wrb]: Refactor to only build automaton once
+    /**
+     * Retrieve backing indices for this system data stream
+     * @param metadata Metadata in which to look for indices
+     * @return List of names of backing indices
+     */
     public List<String> getBackingIndexNames(Metadata metadata) {
-        CharacterRunAutomaton auto = new CharacterRunAutomaton(buildAutomaton(getBackingIndexPattern()));
+        if (Objects.isNull(this.characterRunAutomaton)) {
+            this.characterRunAutomaton = new CharacterRunAutomaton(buildAutomaton(getBackingIndexPattern()));
+        }
 
         ArrayList<String> matchingIndices = new ArrayList<>();
         metadata.indices().keysIt().forEachRemaining(indexName -> {
-            if (auto.run(indexName)) {
+            if (this.characterRunAutomaton.run(indexName)) {
                 matchingIndices.add(indexName);
             }
         });

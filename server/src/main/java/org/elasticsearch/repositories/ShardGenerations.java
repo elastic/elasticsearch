@@ -23,6 +23,9 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * Represents the current {@link ShardGeneration} for each shard in a repository.
+ */
 public final class ShardGenerations {
 
     public static final ShardGenerations EMPTY = new ShardGenerations(Collections.emptyMap());
@@ -39,6 +42,9 @@ public final class ShardGenerations {
      */
     public static final ShardGeneration DELETED_SHARD_GEN = new ShardGeneration("_deleted");
 
+    /**
+     * For each index, the list of shard generations for its shards (i.e. the generation for shard i is at the i'th position of the list)
+     */
     private final Map<IndexId, List<ShardGeneration>> shardGenerations;
 
     private ShardGenerations(Map<IndexId, List<ShardGeneration>> shardGenerations) {

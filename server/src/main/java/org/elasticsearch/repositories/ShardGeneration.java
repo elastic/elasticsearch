@@ -8,7 +8,6 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -67,10 +66,8 @@ public final class ShardGeneration implements Writeable, ToXContentFragment {
 
     public static ShardGeneration fromXContent(XContentParser parser) throws IOException {
         final String generationString = parser.textOrNull();
-        if (generationString == null) {
-            throw new ElasticsearchParseException("invalid null shard generation");
-        }
-        return new ShardGeneration(generationString);
+        // it's null iff using legacy generations that aren't tracked in the RepositoryData
+        return generationString == null ? null : new ShardGeneration(generationString);
     }
 
     @Override

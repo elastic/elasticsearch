@@ -50,7 +50,6 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
         final String nodeToRestartId = findIdOfNodeWithShard();
         final String nodeToRestartName = findNodeNameFromId(nodeToRestartId);
-        Settings nodeToRestartDataPathSettings = internalCluster().dataPathSettings(nodeToRestartName);
 
         // Mark the node for shutdown
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
@@ -62,14 +61,15 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
         assertTrue(putShutdownResponse.isAcknowledged());
 
-        // Actually stop the node
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToRestartName));
-
-        // Verify that the shard's allocation is delayed
-        assertBusy(() -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); });
-
-        // Bring the node back
-        internalCluster().startNode(nodeToRestartDataPathSettings); // this will use the same data location as the stopped node
+        internalCluster().restartNode(nodeToRestartName, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                assertBusy(
+                    () -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); }
+                );
+                return super.onNodeStopped(nodeName);
+            }
+        });
 
         // And the index should turn green again
         ensureGreen("test");

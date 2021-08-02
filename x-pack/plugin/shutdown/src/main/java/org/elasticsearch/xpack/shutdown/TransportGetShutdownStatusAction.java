@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.ShutdownPersistentTasksStatus;
 import org.elasticsearch.cluster.metadata.ShutdownPluginsStatus;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
@@ -172,12 +173,21 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             );
         }
 
-        if (currentState.getRoutingNodes().node(nodeId) == null) {
-            // We don't know about that node
+        if (currentState.nodes().get(nodeId) == null) {
+            // The node isn't in the cluster
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.NOT_STARTED,
                 0,
                 "node is not currently part of the cluster"
+            );
+        }
+
+        // The node is in `DiscoveryNodes`, but not `RoutingNodes` - so there are no shards assigned to it. We're done.
+        if (currentState.getRoutingNodes().node(nodeId) == null) {
+            // We don't know about that node
+            return new ShutdownShardMigrationStatus(
+                SingleNodeShutdownMetadata.Status.COMPLETE,
+                0
             );
         }
 

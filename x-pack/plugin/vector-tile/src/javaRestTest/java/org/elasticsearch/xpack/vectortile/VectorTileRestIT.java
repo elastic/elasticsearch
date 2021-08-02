@@ -585,7 +585,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         final String index = "overlapping_multipolygon";
         final Rectangle r1 = new Rectangle(-160, 160, 80, -80);
         final Rectangle r2 = new Rectangle(-159, 161, 79, -81);
-        createIndexAndPutGeometry(index, new MultiPolygon(List.of(toPolygon(r1), toPolygon(r2))));
+        createIndexAndPutGeometry(index, new MultiPolygon(org.elasticsearch.core.List.of(toPolygon(r1), toPolygon(r2))));
         final Request mvtRequest = new Request(getHttpMethod(), index + "/_mvt/location/0/0/0?grid_precision=0");
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(2));

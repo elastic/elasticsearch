@@ -221,12 +221,12 @@ Snapshot/Restore::
 * Add more snapshot details to repo data {es-pull}72232[#72232]
 * Allow some repository settings to be updated dynamically {es-pull}72543[#72543]
 * Cache `RepositoryData` outright instead of serialized {es-pull}73190[#73190]
-* Introduce Next Field in Paginated `GetSnapshots` Response {es-pull}74236[#74236] (issue: {es-issue}73952[#73952])
-* Introduce SNAPSHOT_META Threadpool for Fetching Repository Metadata {es-pull}73172[#73172]
-* Make Large Bulk Snapshot Deletes more Memory Efficient {es-pull}72788[#72788]
-* Make `GetSnapshotsAction` Cancellable {es-pull}72644[#72644]
-* Make `SnapshotStatusAction` Cancellable {es-pull}73818[#73818] (issue: {es-issue}72644[#72644])
-* Pagination and Sorting for Get Snapshots API {es-pull}73952[#73952]
+* Introduce `next` field in paginated `GetSnapshots` Response {es-pull}74236[#74236] (issue: {es-issue}73952[#73952])
+* Introduce `SNAPSHOT_META` thread pool for fetching repository metadata {es-pull}73172[#73172]
+* Make large bulk snapshot deletes more memory efficient {es-pull}72788[#72788]
+* Make `GetSnapshotsAction` cancellable {es-pull}72644[#72644]
+* Make `SnapshotStatusAction` cancellable {es-pull}73818[#73818] (issue: {es-issue}72644[#72644])
+* Pagination and sorting for get snapshots API {es-pull}73952[#73952]
 * Prevent deletion of repositories that are used by snapshot backed indices {es-pull}73714[#73714]
 * Reroute when new repository is registered {es-pull}73761[#73761] (issues: {es-issue}73669[#73669], {es-issue}73714[#73714])
 * Save Memory on Large Repository Metadata Blob Writes {es-pull}74313[#74313]

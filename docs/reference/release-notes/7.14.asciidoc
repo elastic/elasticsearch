@@ -201,7 +201,7 @@ Recovery::
 * Treat `writtenBy` as an opaque string {es-pull}74125[#74125]
 
 Search::
-* Add "search_after" support to new `termsEnum` api {es-pull}72933[#72933] (issue: {es-issue}72910[#72910])
+* Add `search_after` support to new `termsEnum` API {es-pull}72933[#72933] (issue: {es-issue}72910[#72910])
 * Be cleverer about extracting nested sources {es-pull}73157[#73157]
 * Integrate circuit breaker in `AsyncTaskIndexService` {es-pull}73862[#73862] (issues: {es-issue}67594[#67594], {es-issue}73638[#73638])
 * PIT: Make validation error actionable {es-pull}74224[#74224] (issue: {es-issue}74223[#74223])

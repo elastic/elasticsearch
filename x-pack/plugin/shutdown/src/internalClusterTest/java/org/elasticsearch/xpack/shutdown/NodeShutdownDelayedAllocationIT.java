@@ -106,56 +106,40 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     }
 
     public void testShardAllocationTimeoutCanBeChanged() throws Exception {
-        internalCluster().startNodes(3);
-        prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0) // Disable "normal" delayed allocation
-        ).get();
-        ensureGreen("test");
-        indexRandomData();
+        String nodeToRestartId = setupLongTimeoutTestCase();
 
-        final String nodeToRestartId = findIdOfNodeWithShard();
-        final String nodeToRestartName = findNodeNameFromId(nodeToRestartId);
-
-        {
-            // Mark the node for shutdown with a delay that we'll never reach in the test
-            PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-                nodeToRestartId,
-                SingleNodeShutdownMetadata.Type.RESTART,
-                this.getTestName(),
-                TimeValue.timeValueHours(3)
-            );
-            AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-            assertTrue(putShutdownResponse.isAcknowledged());
-        }
-
-        // Actually stop the node
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToRestartName));
-
-        // Verify that the shard's allocation is delayed - but with a shorter wait than the reallocation timeout
-        assertBusy(
-            () -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); }
+        // Update the timeout on the shutdown request to something shorter
+        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            nodeToRestartId,
+            SingleNodeShutdownMetadata.Type.RESTART,
+            this.getTestName(),
+            TimeValue.timeValueSeconds(1)
         );
-
-        {
-            // Update the timeout on the shutdown request to something shorter
-            PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-                nodeToRestartId,
-                SingleNodeShutdownMetadata.Type.RESTART,
-                this.getTestName(),
-                TimeValue.timeValueSeconds(1)
-            );
-            AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-            assertTrue(putShutdownResponse.isAcknowledged());
-        }
+        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
+        assertTrue(putShutdownResponse.isAcknowledged());
 
         // And the index should turn green again
         ensureGreen("test");
     }
 
     public void testShardAllocationStartsImmediatelyIfShutdownDeleted() throws Exception {
+        String nodeToRestartId = setupLongTimeoutTestCase();
+
+        DeleteShutdownNodeAction.Request deleteShutdownRequest = new DeleteShutdownNodeAction.Request(nodeToRestartId);
+        AcknowledgedResponse deleteShutdownResponse = client().execute(DeleteShutdownNodeAction.INSTANCE, deleteShutdownRequest).get();
+        assertTrue(deleteShutdownResponse.isAcknowledged());
+
+        // And the index should turn green again
+        ensureGreen("test");
+    }
+
+    /**
+     * Sets up a cluster and an index, picks a random node that has a shard, marks it for shutdown with a long timeout, and then stops the
+     * node.
+     *
+     * @return The ID of the node that was randomly chosen to be marked for shutdown and stopped.
+     */
+    private String setupLongTimeoutTestCase() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
             Settings.builder()
@@ -187,14 +171,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         // Verify that the shard's allocation is delayed
         assertBusy(() -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); });
 
-        {
-            DeleteShutdownNodeAction.Request deleteShutdownRequest = new DeleteShutdownNodeAction.Request(nodeToRestartId);
-            AcknowledgedResponse deleteShutdownResponse = client().execute(DeleteShutdownNodeAction.INSTANCE, deleteShutdownRequest).get();
-            assertTrue(deleteShutdownResponse.isAcknowledged());
-        }
-
-        // And the index should turn green again
-        ensureGreen("test");
+        return nodeToRestartId;
     }
 
     private void indexRandomData() throws Exception {

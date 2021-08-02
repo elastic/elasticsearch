@@ -309,7 +309,7 @@ public interface Repository extends LifecycleComponent {
         SnapshotId source,
         SnapshotId target,
         RepositoryShardId shardId,
-        @Nullable String shardGeneration,
+        @Nullable ShardGeneration shardGeneration,
         ActionListener<ShardSnapshotResult> listener
     );
 

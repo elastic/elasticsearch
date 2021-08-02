@@ -190,7 +190,7 @@ Reference key modifier example
 | *Pattern* | `[%{ts}] [%{level}] %{*p1}:%{&p1} %{*p2}:%{&p2}`
 | *Input*   | [2018-08-10T17:15:42,466] [ERR] ip:1.2.3.4 error:REFUSED
 | *Result*  a|
-* ts = 1998-08-10T17:15:42,466
+* ts = 2018-08-10T17:15:42,466
 * level = ERR
 * ip = 1.2.3.4
 * error = REFUSED

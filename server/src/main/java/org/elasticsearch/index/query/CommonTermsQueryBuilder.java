@@ -21,8 +21,8 @@ import java.io.IOException;
 
 public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> {
     private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(CommonTermsQueryBuilder.class);
-    public static final String COMMON_TERMS_QUERY_DEPRECATION_MSG = "[match] query which can efficiently " +
-        "skip blocks of documents if the total number of hits is not tracked. Common Terms Query usage is not supported.";
+    public static final String COMMON_TERMS_QUERY_DEPRECATION_MSG = "Common Terms Query usage is not supported. " +
+        "Use [match] query which can efficiently skip blocks of documents if the total number of hits is not tracked.";
 
     public static ParseField NAME = new ParseField("common")
         .withAllDeprecated(COMMON_TERMS_QUERY_DEPRECATION_MSG)

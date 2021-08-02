@@ -34,42 +34,6 @@ setup:
       allowed_warnings_regex:
       - "\\[types removal\\].*"
   - do:
-      index:
-        index: "test"
-        id: 2
-        body:
-          my_field1: "brown emu jump"
-          my_field2: "xylophone"
-      headers:
-        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-      allowed_warnings_regex:
-      - "\\[types removal\\].*"
-  - do:
-      index:
-        index: "test"
-        id: 3
-        body:
-          my_field1: "jumparound"
-          my_field2: "emu"
-      headers:
-        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-      allowed_warnings_regex:
-      - "\\[types removal\\].*"
-  - do:
-      index:
-        index: "test"
-        id: 4
-        body:
-          my_field1: "dog"
-          my_field2: "brown fox jump lazy"
-      headers:
-        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-      allowed_warnings_regex:
-      - "\\[types removal\\].*"
-  - do:
       indices.refresh: {}
       headers:
         Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
@@ -80,7 +44,7 @@ setup:
 ---
 multi_match multiple fields with cutoff_frequency throws exception:
 - do:
-    catch: "/cutoff_freqency is not supported. The [match] query can fskip block of documents efficiently if the total number of hits is not tracked/"
+    catch: "/cutoff_freqency is not supported. The \\[multi_match\\] query can skip block of documents efficiently if the total number of hits is not tracked/"
     search:
       rest_total_hits_as_int: true
       index: "test"
@@ -98,3 +62,44 @@ multi_match multiple fields with cutoff_frequency throws exception:
       Accept: "application/vnd.elasticsearch+json;compatible-with=7"
     allowed_warnings_regex:
     - "\\[types removal\\].*"
+
+---
+match with cutoff_frequency throws exception:
+  - do:
+      catch: "/cutoff_freqency is not supported. The \\[match\\] query can skip block of documents efficiently if the total number of hits is not tracked/"
+      search:
+        rest_total_hits_as_int: true
+        index: "test"
+        body:
+          query:
+            match:
+              my_field1:
+                query: "brown"
+                type: "bool_prefix"
+                cutoff_frequency: 0.001
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+
+---
+common querythrows exception:
+  - do:
+      catch: "/Common Terms Query usage is not supported. Use \\[match\\] query which can efficiently skip blocks of documents if the total number of hits is not tracked./"
+      search:
+        rest_total_hits_as_int: true
+        index: "test"
+        body:
+          query:
+            common:
+              my_field1:
+                query: "brown"
+                type: "bool_prefix"
+                cutoff_frequency: 0.001
+                low_freq_operator: or
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"

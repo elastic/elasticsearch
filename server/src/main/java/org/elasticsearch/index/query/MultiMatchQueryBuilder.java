@@ -43,8 +43,8 @@ import java.util.TreeMap;
 public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> {
 
     public static final String NAME = "multi_match";
-    private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "you can omit this option, " +
-        "the [multi_match] query can skip block of documents efficiently if the total number of hits is not tracked";
+    private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "cutoff_freqency is not supported." +
+        " The [multi_match] query can skip block of documents efficiently if the total number of hits is not tracked";
     private static final ParseField CUTOFF_FREQUENCY_FIELD =
         new ParseField("cutoff_frequency")
             .withAllDeprecated(CUTOFF_FREQUENCY_DEPRECATION_MSG)

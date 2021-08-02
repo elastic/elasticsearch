@@ -674,7 +674,9 @@ public class SearchModuleTests extends ESTestCase {
                 .filter(e -> RestApiVersion.minimumSupported().matches(e.restApiCompatibility))
                 .filter(e -> RestApiVersion.current().matches(e.restApiCompatibility))
                 .collect(toSet()),
-            hasSize(searchModule.getNamedXContents().size() - REST_COMPATIBLE_QUERIES.length -1 )); // -1 because of the registered in the test
+            // -1 because of the registered in the test
+            hasSize(searchModule.getNamedXContents().size() - REST_COMPATIBLE_QUERIES.length -1 ));
+
 
 
         final List<NamedXContentRegistry.Entry> compatEntry = searchModule.getNamedXContents().stream()

@@ -267,7 +267,7 @@ Distributed::
 
 Features/Ingest::
 * Dissect parsing: An `%` occurring in the delimiter causes incorrect capture of the `${key}` that follows {es-pull}72876[#72876]
-* Fix `ignore_missing` takes no effect in Rename Ingest Processor {es-pull}74248[#74248] (issue: {es-issue}74241[#74241])
+* Fix `ignore_missing` takes no effect in rename ingest processor {es-pull}74248[#74248] (issue: {es-issue}74241[#74241])
 
 Features/Java High Level REST Client::
 * Fix comparison of identical values leads to a bug of non-effective value {es-pull}74040[#74040]

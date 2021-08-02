@@ -83,7 +83,7 @@ Aggregations::
 * Only enable "filter by filter" optimization for terms, date_histogram, range, and fitlers aggregation when we’re sure it’ll be faster {es-pull}74260[#74260]
 * Docvalueformat errors {es-pull}73121[#73121] (issue: {es-issue}72040[#72040])
 * Optimize lone single bucket `date_histogram` {es-pull}71180[#71180] (issue: {es-issue}69377[#69377])
-* Read Aggregations Directly from Pooled Buffers {es-pull}72309[#72309]
+* Read aggregations directly from pooled buffers {es-pull}72309[#72309]
 * Reduce agg buckets only if competitive {es-pull}74096[#74096]
 
 Allocation::

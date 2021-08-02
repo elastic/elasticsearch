@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -101,6 +103,9 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             List<OrderByContext> orders = ctx.orderBy();
             OrderByContext endContext = orders.get(orders.size() - 1);
             plan = new OrderBy(source(ctx.ORDER(), endContext), plan, visitList(ctx.orderBy(), Order.class));
+
+            // Limit from TOP clauses must be the parent of the OrderBy clause
+            plan = pullUpTopClauseFromQuerySpecification(plan);
         }
 
         LimitClauseContext limitClause = ctx.limitClause();
@@ -113,6 +118,21 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
                 } else {
                     plan = limit(plan, source(limitClause), limit);
                 }
+            }
+        }
+
+        return plan;
+    }
+
+    private LogicalPlan pullUpTopClauseFromQuerySpecification(LogicalPlan plan) {
+        if (plan instanceof UnaryPlan) {
+            UnaryPlan unary = (UnaryPlan) plan;
+            if (unary.child() instanceof Limit) {
+                Limit limit = (Limit) unary.child();
+
+                return limit.replaceChildrenSameSize(Arrays.asList(
+                    unary.replaceChildrenSameSize(Arrays.asList(
+                        limit.child()))));
             }
         }
 

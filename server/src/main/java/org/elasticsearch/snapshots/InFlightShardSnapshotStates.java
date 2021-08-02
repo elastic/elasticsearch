@@ -12,7 +12,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGenerations;
@@ -47,16 +46,10 @@ public final class InFlightShardSnapshotStates {
             if (runningSnapshot.repository().equals(repoName) == false) {
                 continue;
             }
-            if (runningSnapshot.isClone()) {
-                for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> clone : runningSnapshot.clones()) {
-                    final RepositoryShardId repoShardId = clone.key;
-                    addStateInformation(generations, busyIds, clone.value, repoShardId.shardId(), repoShardId.indexName());
-                }
-            } else {
-                for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot.shards()) {
-                    final ShardId sid = shard.key;
-                    addStateInformation(generations, busyIds, shard.value, sid.id(), sid.getIndexName());
-                }
+            for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot
+                .shardsByRepoShardId()) {
+                final RepositoryShardId sid = shard.key;
+                addStateInformation(generations, busyIds, shard.value, sid.shardId(), sid.indexName());
             }
         }
         return new InFlightShardSnapshotStates(generations, busyIds);

@@ -983,12 +983,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         );
 
         for (IndexId indexId : indices) {
-            final Set<SnapshotId> survivingSnapshots = oldRepositoryData.getSnapshots(indexId)
-                .stream()
+            final Set<SnapshotId> snapshotsWithIndex = Set.copyOf(oldRepositoryData.getSnapshots(indexId));
+            final Set<SnapshotId> survivingSnapshots = snapshotsWithIndex.stream()
                 .filter(id -> snapshotIds.contains(id) == false)
                 .collect(Collectors.toSet());
             final StepListener<Collection<Integer>> shardCountListener = new StepListener<>();
             final Collection<String> indexMetaGenerations = snapshotIds.stream()
+                .filter(snapshotsWithIndex::contains)
                 .map(id -> oldRepositoryData.indexMetaDataGenerations().indexMetaBlobId(id, indexId))
                 .collect(Collectors.toSet());
             final ActionListener<Integer> allShardCountsListener = new GroupedActionListener<>(
@@ -3238,10 +3239,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Loads all available snapshots in the repository using the given {@code generation} for a shard. When {@code shardGen}
      * is null it tries to load it using the BwC mode, listing the available index- blobs in the shard container.
      */
-    public BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots(IndexId indexId, ShardId shardId, @Nullable String shardGen)
+    public BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots(IndexId indexId, int shardId, @Nullable String shardGen)
         throws IOException {
-        final int shard = shardId.getId();
-        final BlobContainer shardContainer = shardContainer(indexId, shard);
+        final BlobContainer shardContainer = shardContainer(indexId, shardId);
 
         Set<String> blobs = Collections.emptySet();
         if (shardGen == null) {

@@ -60,6 +60,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
@@ -247,7 +248,7 @@ public class TransformIndexerTests extends ESTestCase {
             // pretend that we processed 10k documents for each call
             getStats().incrementNumDocuments(10_000);
             return new IterationResult<>(
-                Collections.singletonList(new IndexRequest()),
+                Stream.of(new IndexRequest()),
                 new TransformIndexerPosition(null, null),
                 numberOfLoops == 0
             );

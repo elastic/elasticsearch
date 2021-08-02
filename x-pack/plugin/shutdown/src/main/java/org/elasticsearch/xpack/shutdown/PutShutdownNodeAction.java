@@ -114,6 +114,10 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
                 arve.addValidationError("the reason for shutdown is required");
             }
 
+            if (shardReallocationDelay != null && SingleNodeShutdownMetadata.Type.RESTART.equals(type) == false) {
+                arve.addValidationError(REALLOCATION_DELAY_FIELD + "is only allowed for RESTART-type shutdown requests");
+            }
+
             if (arve.validationErrors().isEmpty() == false) {
                 return arve;
             } else {

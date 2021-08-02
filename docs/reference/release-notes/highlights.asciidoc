@@ -67,7 +67,7 @@ users will be able to reset their job by a single click.
 
 [discrete]
 [[match-only-text]]
-=== New match_only_text field type
+=== New `match_only_text` field type
 
 {ref}/text.html#match-only-text-field-type[`match_only_text`] is a new
 space-optimized variant of `text` that disables scoring and performs slower

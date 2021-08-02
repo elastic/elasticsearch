@@ -14,7 +14,6 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -613,7 +612,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         for (int i = 0; i < nameParts.length - 1; ++i) {
             path.add(nameParts[i]);
         }
-        return new ObjectMapper.Builder(nameParts[nameParts.length - 1], Version.CURRENT).enabled(true).build(path);
+        return new ObjectMapper.Builder(nameParts[nameParts.length - 1]).enabled(true).build(path);
     }
 
     public void testEmptyMappingUpdate() throws Exception {
@@ -1879,6 +1878,31 @@ public class DocumentParserTests extends MapperServiceTestCase {
             + "Existing mapping for [alias-field] must be of type object but found [alias].", exception.getMessage());
     }
 
+    public void testMultifieldOverwriteFails() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("message");
+            {
+                b.field("type", "keyword");
+                b.startObject("fields");
+                {
+                    b.startObject("text");
+                    {
+                        b.field("type", "text");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        MapperParsingException exception = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("message", "original").field("message.text", "overwrite"))));
+
+        assertEquals("Could not dynamically add mapping for field [message.text]. "
+            + "Existing mapping for [message] must be of type object but found [keyword].", exception.getMessage());
+    }
+
     public void testTypeless() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject().startObject("type").startObject("properties")
@@ -1902,6 +1926,35 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("field"));
         assertNull(doc.rootDoc().getField("field.first"));
         assertNull(doc.rootDoc().getField("field.second"));
+    }
+
+    public void testDynamicShadowingOfRuntimeSubfields() throws IOException {
+
+        // Create mappings with a runtime field called 'obj' that produces two subfields,
+        // 'obj.foo' and 'obj.bar'
+
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startObject("runtime");
+            b.startObject("obj").field("type", "test-composite").endObject();
+            b.endObject();
+        }));
+
+        // Incoming documents should not create mappings for 'obj.foo' fields, as they will
+        // be shadowed by the runtime fields; but other subfields are fine and should be
+        // indexed
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("obj");
+            b.field("foo", "ignored");
+            b.field("baz", "indexed");
+            b.field("bar", "ignored");
+            b.endObject();
+        }));
+
+        assertNull(doc.rootDoc().getField("obj.foo"));
+        assertNotNull(doc.rootDoc().getField("obj.baz"));
+        assertNull(doc.rootDoc().getField("obj.bar"));
+        assertNotNull(doc.dynamicMappingsUpdate());
     }
 
     /**
@@ -1940,6 +1993,22 @@ public class DocumentParserTests extends MapperServiceTestCase {
         @Override
         public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
             return Collections.singletonMap(MockMetadataMapper.CONTENT_TYPE, MockMetadataMapper.PARSER);
+        }
+
+        @Override
+        public Map<String, RuntimeField.Parser> getRuntimeFields() {
+            return Collections.singletonMap(
+                "test-composite",
+                new RuntimeField.Parser(n -> new RuntimeField.Builder(n) {
+                    @Override
+                    protected RuntimeField createRuntimeField(MappingParserContext parserContext) {
+                        return new TestRuntimeField(n, List.of(
+                            new KeywordFieldMapper.KeywordFieldType(n + ".foo"),
+                            new KeywordFieldMapper.KeywordFieldType(n + ".bar")
+                        ));
+                    }
+                })
+            );
         }
     }
 }

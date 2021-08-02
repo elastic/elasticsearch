@@ -67,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -133,40 +134,43 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         }).when(client).prepareBulk();
         doAnswer(invocationOnMock -> {
             IndexRequest indexRequest = (IndexRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[1];
             indexRequests.add(indexRequest);
             final IndexResponse response = new IndexResponse(
                 indexRequest.shardId(), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).index(any(IndexRequest.class), any(ActionListener.class));
+        }).when(client).index(any(IndexRequest.class), anyActionListener());
         doAnswer(invocationOnMock -> {
             IndexRequest indexRequest = (IndexRequest) invocationOnMock.getArguments()[1];
+            @SuppressWarnings("unchecked")
             ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
             indexRequests.add(indexRequest);
             final IndexResponse response = new IndexResponse(
                 new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), anyActionListener());
         doAnswer(invocationOnMock -> {
             BulkRequest bulkRequest = (BulkRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocationOnMock.getArguments()[1];
             bulkRequests.add(bulkRequest);
             final BulkResponse response = new BulkResponse(new BulkItemResponse[0], 1);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).bulk(any(BulkRequest.class), any(ActionListener.class));
+        }).when(client).bulk(any(BulkRequest.class), anyActionListener());
 
         final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.freeze()).thenReturn(securityIndex);
 
@@ -234,5 +238,10 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
     @After
     public void cleanup() {
         oidcRealm.close();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Consumer<T> anyConsumer() {
+        return any(Consumer.class);
     }
 }

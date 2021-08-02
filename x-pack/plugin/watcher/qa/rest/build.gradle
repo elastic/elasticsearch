@@ -54,16 +54,3 @@ tasks.named("transformV7RestTests").configure({ task ->
 
 })
 
-tasks.named("yamlRestCompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
-    'mustache/25_array_compare/Basic array_compare watch',
-    'mustache/30_search_input/Test search input mustache integration (using request body and rest_total_hits_as_int)',
-    'mustache/30_search_input/Test search input mustache integration (using request body)',
-    'mustache/30_search_input/Test search input mustache integration (using request template and rest_total_hits_as_int)',
-    'mustache/30_search_input/Test search input mustache integration (using request template)',
-    'mustache/40_search_transform/Test search transform mustache integration (using request body)',
-    'mustache/40_search_transform/Test search transform mustache integration (using request template)',
-  ].join(',')
-}
-
-

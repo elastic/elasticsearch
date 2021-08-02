@@ -43,7 +43,6 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
     @Override
     public void intercept(RequestInfo requestInfo, AuthorizationEngine authzEngine, AuthorizationInfo authorizationInfo,
                           ActionListener<Void> listener) {
-        var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
         if (requestInfo.getRequest() instanceof BulkShardRequest) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             BulkShardRequest bulkShardRequest = (BulkShardRequest) requestInfo.getRequest();
@@ -52,6 +51,7 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(bulkShardRequest.index());
             // TODO replace if condition with assertion
             if (indexAccessControl != null) {
+                var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
                 for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
                     boolean found = false;
                     if (bulkItemRequest.request() instanceof UpdateRequest) {

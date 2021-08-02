@@ -209,6 +209,7 @@ public class Realms implements Iterable<Realm> {
         return Collections.unmodifiableList(realms);
     }
 
+    @SuppressWarnings("unchecked")
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
         Map<String, Object> realmMap = new HashMap<>();
@@ -232,6 +233,7 @@ public class Realms implements Iterable<Realm> {
                         }
 
                         assert value instanceof Map;
+                        @SuppressWarnings("unchecked")
                         Map<String, Object> realmTypeUsage = (Map<String, Object>) value;
                         realmTypeUsage.put("enabled", true);
                         realmTypeUsage.put("available", true);
@@ -359,6 +361,7 @@ public class Realms implements Iterable<Realm> {
         }
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private static void combineMaps(Map<String, Object> mapA, Map<String, Object> mapB) {
         for (Entry<String, Object> entry : mapB.entrySet()) {
             mapA.compute(entry.getKey(), (key, value) -> {

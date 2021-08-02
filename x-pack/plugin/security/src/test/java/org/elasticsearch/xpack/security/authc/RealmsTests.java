@@ -492,6 +492,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(realms.iterator().hasNext(), is(false));
     }
 
+    @SuppressWarnings("unchecked")
     public void testUsageStats() throws Exception {
         // test realms with duplicate values
         Settings.Builder builder = Settings.builder()

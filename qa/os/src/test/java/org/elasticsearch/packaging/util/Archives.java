@@ -199,6 +199,7 @@ public class Archives {
             "elasticsearch-certutil",
             "elasticsearch-croneval",
             "elasticsearch-saml-metadata",
+            "elasticsearch-security-config",
             "elasticsearch-setup-passwords",
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",

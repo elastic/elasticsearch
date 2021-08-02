@@ -28,7 +28,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
@@ -140,7 +139,7 @@ public class SecurityActionFilter implements ActionFilter {
                     if (authc != null) {
                         final String requestId = AuditUtil.extractRequestId(threadContext);
                         assert Strings.hasText(requestId);
-                        authorizeRequest(authc, securityAction, request, listener.delegateFailure(
+                        authzService.authorize(authc, securityAction, request, listener.delegateFailure(
                                 (ll, aVoid) -> chain.proceed(task, action, request, ll.delegateFailure((l, response) -> {
                                     auditTrailService.get().coordinatingActionResponse(requestId, authc, action, request,
                                             response);
@@ -150,14 +149,5 @@ public class SecurityActionFilter implements ActionFilter {
                         listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
                     }
                 }, listener::onFailure));
-    }
-
-    private <Request extends ActionRequest> void authorizeRequest(Authentication authentication, String securityAction, Request request,
-                                                                  ActionListener<Void> listener) {
-        if (authentication == null) {
-            listener.onFailure(new IllegalArgumentException("authentication must be non null for authorization"));
-        } else {
-            authzService.authorize(authentication, securityAction, request, listener);
-        }
     }
 }

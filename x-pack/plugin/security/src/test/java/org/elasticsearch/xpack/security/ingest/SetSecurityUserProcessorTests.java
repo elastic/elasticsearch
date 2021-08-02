@@ -51,6 +51,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         securityContext = new SecurityContext(Settings.EMPTY, threadContext);
     }
 
+    @SuppressWarnings("unchecked")
     public void testProcessorWithData() throws Exception {
         final Authentication authentication = randomAuthentication();
         authentication.writeToContext(threadContext);
@@ -79,11 +80,12 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         }
         assertThat(result.get("username"), equalTo(authentication.getUser().principal()));
         assertThat(result.get("full_name"), equalTo(authentication.getUser().fullName()));
-        assertThat(((Map) result.get("realm")).get("name"), equalTo(authentication.getSourceRealm().getName()));
-        assertThat(((Map) result.get("realm")).get("type"), equalTo(authentication.getSourceRealm().getType()));
+        assertThat(((Map<String, String>) result.get("realm")).get("name"), equalTo(authentication.getSourceRealm().getName()));
+        assertThat(((Map<String, String>) result.get("realm")).get("type"), equalTo(authentication.getSourceRealm().getType()));
         assertThat(result.get("authentication_type"), equalTo(authentication.getAuthenticationType().toString()));
     }
 
+    @SuppressWarnings("unchecked")
     public void testProcessorWithEmptyUserData() throws Exception {
         // test when user returns null for all values (need a mock, because a real user cannot have a null username)
         User user = Mockito.mock(User.class);
@@ -242,6 +244,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         assertThat(result2.get("other"), equalTo("test"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testApiKeyPopulation() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12), null, null);
         Authentication.RealmRef realmRef = new Authentication.RealmRef(
@@ -277,11 +280,12 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         } else {
             assertThat(apiKeyMap.get("metadata"), equalTo(apiKeyMetadata));
         }
-        assertThat(((Map) result.get("realm")).get("name"), equalTo("creator_realm_name"));
-        assertThat(((Map) result.get("realm")).get("type"), equalTo("creator_realm_type"));
+        assertThat(((Map<String, String>) result.get("realm")).get("name"), equalTo("creator_realm_name"));
+        assertThat(((Map<String, String>) result.get("realm")).get("type"), equalTo("creator_realm_type"));
         assertThat(result.get("authentication_type"), equalTo("API_KEY"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testWillNotOverwriteExistingApiKeyAndRealm() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12), null, null);
         Authentication.RealmRef realmRef = new Authentication.RealmRef(
@@ -311,10 +315,11 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result.size(), equalTo(4));
-        assertThat(((Map) result.get("api_key")).get("version"), equalTo(42));
-        assertThat(((Map) result.get("realm")).get("id"), equalTo(7));
+        assertThat(((Map<String, Integer>) result.get("api_key")).get("version"), equalTo(42));
+        assertThat(((Map<String, Integer>) result.get("realm")).get("id"), equalTo(7));
     }
 
+    @SuppressWarnings("unchecked")
     public void testWillSetRunAsRealmForNonApiKeyAuth() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12), null, null);
         Authentication.RealmRef authRealmRef = new Authentication.RealmRef(
@@ -334,8 +339,8 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result.size(), equalTo(3));
-        assertThat(((Map) result.get("realm")).get("name"), equalTo(lookedUpRealmRef.getName()));
-        assertThat(((Map) result.get("realm")).get("type"), equalTo(lookedUpRealmRef.getType()));
+        assertThat(((Map<String, String>) result.get("realm")).get("name"), equalTo(lookedUpRealmRef.getName()));
+        assertThat(((Map<String, String>) result.get("realm")).get("type"), equalTo(lookedUpRealmRef.getType()));
     }
 
     private User randomUser() {

@@ -451,6 +451,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
      * The actual response ({@link IndexResponse} or {@link DeleteResponse}). {@code null} in
      * case of failure.
      */
+    @SuppressWarnings("unchecked")
     public <T extends DocWriteResponse> T getResponse() {
         return (T) response;
     }

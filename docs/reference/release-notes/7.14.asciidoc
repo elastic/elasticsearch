@@ -325,7 +325,7 @@ Features/Monitoring::
 * [Monitoring] Monitor beat version {es-pull}73932[#73932] (issue: {es-issue}26214[#26214])
 
 Infra/Core::
-* Upgrade Azure SDK and Jackson (#72833) {es-pull}72995[#72995] (issues: {es-issue}66555[#66555], {es-issue}67214[#67214], {es-issue}72833[#72833])
+* Upgrade Azure SDK and Jackson ({es-pull}72833[#72833]) {es-pull}72995[#72995] (issues: {es-issue}66555[#66555], {es-issue}67214[#67214], {es-issue}72833[#72833])
 
 Network::
 * Upgrade netty to 4.1.63 {es-pull}73011[#73011]

@@ -18,7 +18,7 @@ versions << [
   'tika'  : '1.27',
   'pdfbox': '2.0.24',
   'poi'   : '4.1.2',
-  'mime4j': '0.8.5'
+  'mime4j': '0.8.4'
 ]
 
 dependencies {

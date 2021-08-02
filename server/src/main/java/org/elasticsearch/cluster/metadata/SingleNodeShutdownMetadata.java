@@ -183,7 +183,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             && getNodeId().equals(that.getNodeId())
             && getType() == that.getType()
             && getReason().equals(that.getReason())
-            && Objects.equals(getShardReallocationDelay(), that.getShardReallocationDelay());
+            && Objects.equals(shardReallocationDelay, that.shardReallocationDelay);
     }
 
     @Override
@@ -193,7 +193,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             getType(),
             getReason(),
             getStartedAtMillis(),
-            getShardReallocationDelay()
+            shardReallocationDelay
         );
     }
 

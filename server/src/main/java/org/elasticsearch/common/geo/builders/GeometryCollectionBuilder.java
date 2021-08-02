@@ -33,7 +33,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
     /**
      * List of shapes. Package scope for testing.
      */
-    final List<ShapeBuilder> shapes = new ArrayList<>();
+    final List<ShapeBuilder<?, ?, ?>> shapes = new ArrayList<>();
 
     /**
      * Build and empty GeometryCollectionBuilder.
@@ -54,12 +54,12 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(shapes.size());
-        for (ShapeBuilder shape : shapes) {
+        for (ShapeBuilder<?, ?, ?> shape : shapes) {
             out.writeNamedWriteable(shape);
         }
     }
 
-    public GeometryCollectionBuilder shape(ShapeBuilder shape) {
+    public GeometryCollectionBuilder shape(ShapeBuilder<?, ?, ?> shape) {
         this.shapes.add(shape);
         return this;
     }
@@ -104,7 +104,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
         return this;
     }
 
-    public ShapeBuilder getShapeAt(int i) {
+    public ShapeBuilder<?, ?, ?> getShapeAt(int i) {
         if (i >= this.shapes.size() || i < 0) {
             throw new ElasticsearchException("GeometryCollection contains " + this.shapes.size() + " shapes. + " +
                     "No shape found at index " + i);
@@ -121,7 +121,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
         builder.startObject();
         builder.field(ShapeParser.FIELD_TYPE.getPreferredName(), TYPE.shapeName());
         builder.startArray(ShapeParser.FIELD_GEOMETRIES.getPreferredName());
-        for (ShapeBuilder shape : shapes) {
+        for (ShapeBuilder<?, ?, ?> shape : shapes) {
             shape.toXContent(builder, params);
         }
         builder.endArray();
@@ -164,7 +164,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
 
         List<Shape> shapes = new ArrayList<>(this.shapes.size());
 
-        for (ShapeBuilder shape : this.shapes) {
+        for (ShapeBuilder<?, ?, ?> shape : this.shapes) {
             shapes.add(shape.buildS4J());
         }
 
@@ -182,7 +182,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
         }
         List<Geometry> shapes = new ArrayList<>(this.shapes.size());
 
-        for (ShapeBuilder shape : this.shapes) {
+        for (ShapeBuilder<?, ?, ?> shape : this.shapes) {
             shapes.add(shape.buildGeometry());
         }
 

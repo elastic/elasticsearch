@@ -748,7 +748,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that it when configuring logging to write to disk, the container can be restarted.
      */
     public void test124CanRestartContainerWithStackLoggingConfig() throws Exception {
-        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file","ELASTIC_PASSWORD", PASSWORD)));
+        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file", "ELASTIC_PASSWORD", PASSWORD)));
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
 

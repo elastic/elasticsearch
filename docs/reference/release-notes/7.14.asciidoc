@@ -141,9 +141,9 @@ Features/Ingest::
 Features/Java High Level REST Client::
 * Add point in time to HLRC {es-pull}72167[#72167] (issue: {es-issue}70593[#70593])
 * Verify that main info response returns correct product headers {es-pull}73910[#73910] (issue: {es-issue}73434[#73434])
-* [HLRC] change GET method to POST in Searchtemplate {es-pull}72851[#72851] (issues: {es-issue}72073[#72073], {es-issue}72397[#72397])
-* [ML][HLRC] adds new `running_state` field to datafeed stats (#73926) {es-pull}74025[#74025]
-* [ML][HLRC] Adds support for reset job api {es-pull}74254[#74254]
+* Change GET method to POST in Searchtemplate {es-pull}72851[#72851] (issues: {es-issue}72073[#72073], {es-issue}72397[#72397])
+* Adds new `running_state` field to datafeed stats (#73926) {es-pull}74025[#74025]
+* Adds support for reset job API {es-pull}74254[#74254]
 
 Features/Stats::
 * Add fs iotime in Nodes Stats API {es-pull}67861[#67861] (issue: {es-issue}67805[#67805])

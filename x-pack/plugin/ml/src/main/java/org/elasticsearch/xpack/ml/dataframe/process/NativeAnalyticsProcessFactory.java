@@ -43,7 +43,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
 
     private final Environment env;
     private final NativeController nativeController;
-    private final ClusterService clusterService;
+    private final String nodeName;
     private final NamedXContentRegistry namedXContentRegistry;
     private final ResultsPersisterService resultsPersisterService;
     private final DataFrameAnalyticsAuditor auditor;
@@ -58,7 +58,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
                                          DataFrameAnalyticsAuditor auditor) {
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
-        this.clusterService = Objects.requireNonNull(clusterService);
+        this.nodeName = clusterService.getNodeName();
         this.namedXContentRegistry = Objects.requireNonNull(namedXContentRegistry);
         this.auditor = auditor;
         this.resultsPersisterService = resultsPersisterService;
@@ -131,7 +131,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
         } catch (IOException e) {
             String msg = "[" + jobId + "] Failed to launch data frame analytics process";
             logger.error(msg);
-            throw ExceptionsHelper.serverError(msg + " on [" + clusterService.getNodeName() + "]", e);
+            throw ExceptionsHelper.serverError(msg + " on [" + nodeName + "]", e);
         }
     }
 }

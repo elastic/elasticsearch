@@ -39,14 +39,14 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
 
     private final Environment env;
     private final NativeController nativeController;
-    private final ClusterService clusterService;
+    private final String nodeName;
     private final AtomicLong counter;
     private volatile Duration processConnectTimeout;
 
     public NativeMemoryUsageEstimationProcessFactory(Environment env, NativeController nativeController, ClusterService clusterService) {
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
-        this.clusterService = Objects.requireNonNull(clusterService);
+        this.nodeName = clusterService.getNodeName();
         this.counter = new AtomicLong(0);
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(
@@ -110,7 +110,7 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
         } catch (IOException e) {
             String msg = "[" + jobId + "] Failed to launch data frame analytics memory usage estimation process";
             logger.error(msg);
-            throw ExceptionsHelper.serverError(msg + " on [" + clusterService.getNodeName() + "]", e);
+            throw ExceptionsHelper.serverError(msg + " on [" + nodeName + "]", e);
         }
     }
 }

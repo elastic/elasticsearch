@@ -33,14 +33,14 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
 
     private final Environment env;
     private final NativeController nativeController;
-    private final ClusterService clusterService;
+    private final String nodeName;
     private final AtomicLong counter;
     private volatile Duration processConnectTimeout;
 
     public NativeNormalizerProcessFactory(Environment env, NativeController nativeController, ClusterService clusterService) {
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
-        this.clusterService = Objects.requireNonNull(clusterService);
+        this.nodeName = clusterService.getNodeName();
         this.counter = new AtomicLong(0);
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
@@ -90,7 +90,7 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
         } catch (IOException e) {
             String msg = "[" + jobId + "] Failed to launch normalizer";
             logger.error(msg);
-            throw ExceptionsHelper.serverError(msg + " on [" + clusterService.getNodeName() + "]", e);
+            throw ExceptionsHelper.serverError(msg + " on [" + nodeName + "]", e);
         }
     }
 }

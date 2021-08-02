@@ -36,9 +36,11 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -74,14 +76,19 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 
 /**
  * RecoverySourceHandler handles the three phases of shard recovery, which is
@@ -106,6 +113,8 @@ public class RecoverySourceHandler {
     private final RecoveryTargetHandler recoveryTarget;
     private final int maxConcurrentFileChunks;
     private final int maxConcurrentOperations;
+    private final int maxConcurrentSnapshotFileDownloads;
+    private final boolean useSnapshots;
     private final ThreadPool threadPool;
     private final RecoveryPlannerService recoveryPlannerService;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
@@ -114,7 +123,8 @@ public class RecoverySourceHandler {
 
     public RecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, ThreadPool threadPool,
                                  StartRecoveryRequest request, int fileChunkSizeInBytes, int maxConcurrentFileChunks,
-                                 int maxConcurrentOperations, RecoveryPlannerService recoveryPlannerService) {
+                                 int maxConcurrentOperations, int maxConcurrentSnapshotFileDownloads, boolean useSnapshots,
+                                 RecoveryPlannerService recoveryPlannerService) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.threadPool = threadPool;
@@ -125,6 +135,8 @@ public class RecoverySourceHandler {
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.maxConcurrentFileChunks = maxConcurrentFileChunks;
         this.maxConcurrentOperations = maxConcurrentOperations;
+        this.maxConcurrentSnapshotFileDownloads = maxConcurrentSnapshotFileDownloads;
+        this.useSnapshots = useSnapshots;
     }
 
     public StartRecoveryRequest getRequest() {
@@ -476,7 +488,7 @@ public class RecoverySourceHandler {
                     startingSeqNo,
                     translogOps.getAsInt(),
                     getRequest().targetNode().getVersion(),
-                    false,
+                    useSnapshots,
                     ActionListener.wrap(plan ->
                         recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, listener), listener::onFailure)
                 );
@@ -543,6 +555,7 @@ public class RecoverySourceHandler {
         }
 
         final StepListener<Void> sendFileInfoStep = new StepListener<>();
+        final StepListener<List<StoreFileMetadata>> recoverSnapshotFilesStep = new StepListener<>();
         final StepListener<Void> sendFilesStep = new StepListener<>();
         final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
         final StepListener<Void> cleanFilesStep = new StepListener<>();
@@ -556,11 +569,19 @@ public class RecoverySourceHandler {
             sendFileInfoStep
         );
 
-        final List<StoreFileMetadata> sourceFiles = shardRecoveryPlan.getSourceFilesToRecover();
+        sendFileInfoStep.whenComplete(r -> recoverSnapshotFiles(shardRecoveryPlan, recoverSnapshotFilesStep), listener::onFailure);
 
-        sendFileInfoStep.whenComplete(r ->
+        recoverSnapshotFilesStep.whenComplete(filesFailedToRecoverFromSnapshot -> {
+            final List<StoreFileMetadata> filesToRecoverFromSource;
+            if (filesFailedToRecoverFromSnapshot.isEmpty()) {
+                filesToRecoverFromSource = shardRecoveryPlan.getSourceFilesToRecover();
+            } else {
+                filesToRecoverFromSource = concatLists(shardRecoveryPlan.getSourceFilesToRecover(), filesFailedToRecoverFromSnapshot);
+            }
+
             sendFiles(store,
-                sourceFiles.toArray(new StoreFileMetadata[0]), shardRecoveryPlan::getTranslogOps, sendFilesStep), listener::onFailure);
+                filesToRecoverFromSource.toArray(new StoreFileMetadata[0]), shardRecoveryPlan::getTranslogOps, sendFilesStep);
+        }, listener::onFailure);
 
         final long startingSeqNo = shardRecoveryPlan.getStartingSeqNo();
         sendFilesStep.whenComplete(r -> createRetentionLease(startingSeqNo, createRetentionLeaseStep), listener::onFailure);
@@ -587,6 +608,113 @@ public class RecoverySourceHandler {
                     phase1ExistingFileNames, phase1ExistingFileSizes, existingTotalSize, took)
             );
         }, listener::onFailure);
+    }
+
+    /**
+     * Send requests to the target node to recover files from a given snapshot. In case of failure, the listener
+     * value contains the list of files that failed to be recovered from a snapshot.
+     */
+    void recoverSnapshotFiles(ShardRecoveryPlan shardRecoveryPlan,
+                              ActionListener<List<StoreFileMetadata>> listener) {
+        ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover();
+
+        if (snapshotFilesToRecover.isEmpty()) {
+            listener.onResponse(Collections.emptyList());
+            return;
+        }
+
+        new SnapshotRecoverFileRequestsSender(shardRecoveryPlan, listener).start();
+    }
+
+    class SnapshotRecoverFileRequestsSender {
+        private final ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover;
+        final ActionListener<List<StoreFileMetadata>> listener;
+        final CountDown countDown;
+        final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> pendingSnapshotFilesToRecover;
+        final AtomicBoolean cancelled = new AtomicBoolean();
+        List<StoreFileMetadata> filesFailedToDownloadFromSnapshot;
+
+        SnapshotRecoverFileRequestsSender(ShardRecoveryPlan shardRecoveryPlan, ActionListener<List<StoreFileMetadata>> listener) {
+            this.snapshotFilesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover();
+            this.listener = listener;
+            this.countDown = new CountDown(shardRecoveryPlan.getSnapshotFilesToRecover().size());
+            this.pendingSnapshotFilesToRecover =
+                new LinkedBlockingQueue<>(shardRecoveryPlan.getSnapshotFilesToRecover().getSnapshotFiles());
+        }
+
+        void start() {
+            for (int i = 0; i < maxConcurrentSnapshotFileDownloads; i++) {
+                sendRequest();
+            }
+        }
+
+        void sendRequest() {
+            BlobStoreIndexShardSnapshot.FileInfo snapshotFileToRecover = pendingSnapshotFilesToRecover.poll();
+            if (snapshotFileToRecover == null) {
+                return;
+            }
+
+            try {
+                cancellableThreads.checkForCancel();
+
+                ActionListener<Void> sendRequestListener = new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        onRequestCompletion(snapshotFileToRecover.metadata(), null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn(
+                            new ParameterizedMessage("Unable to recover snapshot file {}", snapshotFileToRecover), e
+                        );
+                        onRequestCompletion(snapshotFileToRecover.metadata(), e);
+                    }
+                };
+
+                recoveryTarget.downloadSnapshotFile(
+                    snapshotFilesToRecover.getRepository(),
+                    snapshotFilesToRecover.getIndexId(),
+                    snapshotFileToRecover,
+                    ActionListener.runAfter(sendRequestListener, this::sendRequest)
+                );
+            } catch (Exception e) {
+                onFailure(e);
+            }
+        }
+
+        void onFailure(Exception e) {
+            if (cancelled.compareAndSet(false, true)) {
+                pendingSnapshotFilesToRecover.clear();
+                listener.onFailure(e);
+            }
+        }
+
+        void onRequestCompletion(StoreFileMetadata storeFileMetadata, @Nullable Exception exception) {
+            if (cancelled.get()) {
+                return;
+            }
+
+            if (exception != null) {
+                addFileFailedToRecoverFromSnapshot(storeFileMetadata);
+            }
+
+            if (countDown.countDown()) {
+                final List<StoreFileMetadata> failedToRecoverFromSnapshotFiles = getFilesFailedToRecoverFromSnapshot();
+                listener.onResponse(failedToRecoverFromSnapshotFiles);
+            }
+        }
+
+        synchronized void addFileFailedToRecoverFromSnapshot(StoreFileMetadata storeFileMetadata) {
+            if (filesFailedToDownloadFromSnapshot == null) {
+                filesFailedToDownloadFromSnapshot = new ArrayList<>();
+            }
+            filesFailedToDownloadFromSnapshot.add(storeFileMetadata);
+        }
+
+        synchronized List<StoreFileMetadata> getFilesFailedToRecoverFromSnapshot() {
+            return Objects.requireNonNullElse(filesFailedToDownloadFromSnapshot, Collections.emptyList());
+        }
     }
 
     void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {

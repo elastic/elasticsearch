@@ -42,7 +42,7 @@ import static java.util.Map.entry;
  * A builder for histograms on date fields.
  */
 public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<DateHistogramAggregationBuilder>
-        implements DateIntervalConsumer {
+        implements DateIntervalConsumer<DateHistogramAggregationBuilder> {
 
     public static final String NAME = "date_histogram";
     public static final ValuesSourceRegistry.RegistryKey<DateHistogramAggregationSupplier> REGISTRY_KEY =

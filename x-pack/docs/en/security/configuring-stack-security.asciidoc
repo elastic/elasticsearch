@@ -6,7 +6,7 @@
 
 When you start {es} for the first time, security features are automatically
 enabled by default. {es} handles the configuration to create a secured cluster
-out of the box with requiring you to explicitly configure anything.
+out of the box without requiring you to explicitly configure anything.
 
 The startup process also generates an enrollment token that you can use to
 enroll {kib} and connect it with your secured {es} cluster. You enter
@@ -45,11 +45,6 @@ this scenario we're applying TLS to the {es} transport port. In
 HTTP port.
 ****
 
-image::images/elastic-security-overview.png[Elastic Security layers]
-
-
-include::securing-communications/security-basic-setup.asciidoc[]
-include::securing-communications/security-basic-setup-https.asciidoc[]
 include::securing-communications/configuring-tls-docker.asciidoc[]
 include::securing-communications/enabling-cipher-suites.asciidoc[]
 include::securing-communications/tls-versions-jdk.asciidoc[]

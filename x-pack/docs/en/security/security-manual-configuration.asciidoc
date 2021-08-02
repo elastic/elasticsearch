@@ -1,0 +1,72 @@
+== Manually configuring security
+
+Security needs vary depending on whether you're developing locally on your
+laptop or securing all communications in a production environment. Because
+security needs vary, the following scenarios provide options for configuring
+the Elastic Stack.
+
+TIP: Each subsequent scenario builds on the previous one so that you can add
+additional security by building on the existing layer.
+
+These scenarios don't cover every situation, but provide a framework for
+securing {es} and the Elastic Stack based on typical use cases.
+
+image::images/elastic-security-overview.png[Elastic Security layers]
+
+
+[discrete]
+[[security-minimal-overview]]
+=== Minimal security ({es} Development)
+
+If you want to set up {es} on your laptop and start developing, this scenario
+is for you. This configuration prevents unauthorized access to your local
+cluster by setting up passwords for the built-in users. You also configure
+password authentication for {kib}.
+
+// tag::minimal-security-note[]
+IMPORTANT: The minimal security scenario is not sufficient for
+<<dev-vs-prod-mode,production mode>> clusters. If your cluster has multiple
+nodes, you must enable minimal security and then
+<<security-basic-setup,configure Transport Layer Security (TLS)>> between
+nodes.
+
+// end::minimal-security-note[]
+
+<<security-minimal-setup,Set up minimal security>>
+
+[discrete]
+[[security-basic-overview]]
+=== Basic security ({es} Production)
+
+This scenario builds on the minimal security requirements by adding transport
+Layer Security (TLS) for communication between nodes. This additional layer
+requires that nodes verify security certificates, which prevents unauthorized
+nodes from joining your {es} cluster.
+
+Your external HTTP traffic between {es} and {kib} won't be encrypted, but
+internode communication will be secured.
+
+<<security-basic-setup,Set up basic security>>
+
+[discrete]
+[[security-basic-https-overview]]
+=== Basic security plus secured HTTPS traffic (Elastic Stack)
+
+This scenario builds on the one for basic security and secures all HTTP
+traffic with TLS. In addition to configuring TLS on the transport interface of
+your {es} cluster, you configure TLS on the HTTP interface for both
+{es} and {kib}.
+
+NOTE: If you need mutual (bidirectional) TLS on the HTTP layer, then you'll
+need to configure mutual authenticated encryption.
+
+You then configure {kib} and Beats to communicate with
+{es} using TLS so that all communications are encrypted. This level
+of security is strong, and ensures that any communications in and out of your
+cluster are secure.
+
+<<security-basic-setup-https,Set up basic security plus HTTPS traffic>>
+
+include::securing-communications/security-minimal-setup.asciidoc[]
+include::securing-communications/security-basic-setup.asciidoc[]
+include::securing-communications/security-basic-setup-https.asciidoc[]

@@ -1692,8 +1692,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // this shard snapshot is waiting for a previous snapshot to finish execution for this shard
                 final ShardSnapshotStatus knownFailure = knownFailures.get(shardId);
                 if (knownFailure == null) {
-                    // if no failure is known for the shard we keep waiting
-                    shards.put(shardId, shardStatus);
+                    final IndexRoutingTable indexShardRoutingTable = routingTable.index(shardId.getIndex());
+                    if (indexShardRoutingTable == null) {
+                        // shard became unassigned while queued so we fail as missing here
+                        assert entry.partial();
+                        snapshotChanged = true;
+                        logger.debug("failing snapshot of shard [{}] because index got deleted", shardId);
+                        shards.put(shardId, ShardSnapshotStatus.MISSING);
+                        knownFailures.put(shardId, ShardSnapshotStatus.MISSING);
+                    } else {
+                        // if no failure is known for the shard we keep waiting
+                        shards.put(shardId, shardStatus);
+                    }
                 } else {
                     // If a failure is known for an execution we waited on for this shard then we fail with the same exception here
                     // as well
@@ -1761,9 +1771,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private static boolean waitingShardsStartedOrUnassigned(SnapshotsInProgress snapshotsInProgress, ClusterChangedEvent event) {
         for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
-            if (entry.state() == State.STARTED) {
+            if (entry.state() == State.STARTED && entry.isClone() == false) {
                 for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> shardStatus : entry.shardsByRepoShardId()) {
-                    if (shardStatus.value.state() != ShardState.WAITING) {
+                    final ShardState state = shardStatus.value.state();
+                    if (state != ShardState.WAITING && state != ShardState.QUEUED) {
                         continue;
                     }
                     final RepositoryShardId shardId = shardStatus.key;
@@ -1772,7 +1783,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             .getRoutingTable()
                             .index(entry.indexByName(shardId.indexName()));
                         if (indexShardRoutingTable == null) {
-                            // index got removed concurrently and we have to fail WAITING state shards
+                            // index got removed concurrently and we have to fail WAITING or QUEUED state shards
                             return true;
                         }
                         ShardRouting shardRouting = indexShardRoutingTable.shard(shardId.shardId()).primaryShard();

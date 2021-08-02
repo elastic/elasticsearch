@@ -43,6 +43,7 @@ plugins {
   id 'elasticsearch.fips'
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
+  id 'elasticsearch.release-tools'
   id "com.diffplug.spotless" version "5.12.5" apply false
 }
 
@@ -144,9 +145,9 @@ tasks.register("verifyVersions") {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = true
+boolean bwc_tests_enabled = false
 // place a PR link here when committing bwc changes:
-String bwc_tests_disabled_issue = ""
+String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/74226"
 /*
  * FIPS 140-2 behavior was fixed in 7.11.0. Before that there is no way to run elasticsearch in a
  * JVM that is properly configured to be in fips mode with BCFIPS. For now we need to disable
@@ -410,7 +411,7 @@ gradle.projectsEvaluated {
   }
 }
 
-tasks.register("precommit") {
+tasks.named("precommit") {
   dependsOn gradle.includedBuild('build-tools').task(':precommit')
   dependsOn gradle.includedBuild('build-tools-internal').task(':precommit')
 }

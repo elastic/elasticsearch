@@ -26,13 +26,6 @@ import java.io.IOException;
 public class SegmentsStats implements Writeable, ToXContentFragment {
 
     private long count;
-    private long memoryInBytes;
-    private long termsMemoryInBytes;
-    private long storedFieldsMemoryInBytes;
-    private long termVectorsMemoryInBytes;
-    private long normsMemoryInBytes;
-    private long pointsMemoryInBytes;
-    private long docValuesMemoryInBytes;
     private long indexWriterMemoryInBytes;
     private long versionMapMemoryInBytes;
     private long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
@@ -44,13 +37,15 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
 
     public SegmentsStats(StreamInput in) throws IOException {
         count = in.readVLong();
-        memoryInBytes = in.readLong();
-        termsMemoryInBytes = in.readLong();
-        storedFieldsMemoryInBytes = in.readLong();
-        termVectorsMemoryInBytes = in.readLong();
-        normsMemoryInBytes = in.readLong();
-        pointsMemoryInBytes = in.readLong();
-        docValuesMemoryInBytes = in.readLong();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+          in.readLong(); // memoryInBytes
+          in.readLong(); // termsMemoryInBytes
+          in.readLong(); // storedFieldsMemoryInBytes
+          in.readLong(); // termVectorsMemoryInBytes
+          in.readLong(); // normsMemoryInBytes
+          in.readLong(); // pointsMemoryInBytes
+          in.readLong(); // docValuesMemoryInBytes
+        }
         indexWriterMemoryInBytes = in.readLong();
         versionMapMemoryInBytes = in.readLong();
         bitsetMemoryInBytes = in.readLong();
@@ -65,33 +60,8 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         this.files = files.build();
     }
 
-    public void add(long count, long memoryInBytes) {
+    public void add(long count) {
         this.count += count;
-        this.memoryInBytes += memoryInBytes;
-    }
-
-    public void addTermsMemoryInBytes(long termsMemoryInBytes) {
-        this.termsMemoryInBytes += termsMemoryInBytes;
-    }
-
-    public void addStoredFieldsMemoryInBytes(long storedFieldsMemoryInBytes) {
-        this.storedFieldsMemoryInBytes += storedFieldsMemoryInBytes;
-    }
-
-    public void addTermVectorsMemoryInBytes(long termVectorsMemoryInBytes) {
-        this.termVectorsMemoryInBytes += termVectorsMemoryInBytes;
-    }
-
-    public void addNormsMemoryInBytes(long normsMemoryInBytes) {
-        this.normsMemoryInBytes += normsMemoryInBytes;
-    }
-
-    public void addPointsMemoryInBytes(long pointsMemoryInBytes) {
-        this.pointsMemoryInBytes += pointsMemoryInBytes;
-    }
-
-    public void addDocValuesMemoryInBytes(long docValuesMemoryInBytes) {
-        this.docValuesMemoryInBytes += docValuesMemoryInBytes;
     }
 
     public void addIndexWriterMemoryInBytes(long indexWriterMemoryInBytes) {
@@ -129,13 +99,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
             return;
         }
         updateMaxUnsafeAutoIdTimestamp(mergeStats.maxUnsafeAutoIdTimestamp);
-        add(mergeStats.count, mergeStats.memoryInBytes);
-        addTermsMemoryInBytes(mergeStats.termsMemoryInBytes);
-        addStoredFieldsMemoryInBytes(mergeStats.storedFieldsMemoryInBytes);
-        addTermVectorsMemoryInBytes(mergeStats.termVectorsMemoryInBytes);
-        addNormsMemoryInBytes(mergeStats.normsMemoryInBytes);
-        addPointsMemoryInBytes(mergeStats.pointsMemoryInBytes);
-        addDocValuesMemoryInBytes(mergeStats.docValuesMemoryInBytes);
+        add(mergeStats.count);
         addIndexWriterMemoryInBytes(mergeStats.indexWriterMemoryInBytes);
         addVersionMapMemoryInBytes(mergeStats.versionMapMemoryInBytes);
         addBitsetMemoryInBytes(mergeStats.bitsetMemoryInBytes);
@@ -147,83 +111,6 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
      */
     public long getCount() {
         return this.count;
-    }
-
-    /**
-     * Estimation of the memory usage used by a segment.
-     */
-    public long getMemoryInBytes() {
-        return this.memoryInBytes;
-    }
-
-    public ByteSizeValue getMemory() {
-        return new ByteSizeValue(memoryInBytes);
-    }
-
-    /**
-     * Estimation of the terms dictionary memory usage by a segment.
-     */
-    public long getTermsMemoryInBytes() {
-        return this.termsMemoryInBytes;
-    }
-
-    private ByteSizeValue getTermsMemory() {
-        return new ByteSizeValue(termsMemoryInBytes);
-    }
-
-    /**
-     * Estimation of the stored fields memory usage by a segment.
-     */
-    public long getStoredFieldsMemoryInBytes() {
-        return this.storedFieldsMemoryInBytes;
-    }
-
-    private ByteSizeValue getStoredFieldsMemory() {
-        return new ByteSizeValue(storedFieldsMemoryInBytes);
-    }
-
-    /**
-     * Estimation of the term vectors memory usage by a segment.
-     */
-    public long getTermVectorsMemoryInBytes() {
-        return this.termVectorsMemoryInBytes;
-    }
-
-    private ByteSizeValue getTermVectorsMemory() {
-        return new ByteSizeValue(termVectorsMemoryInBytes);
-    }
-
-    /**
-     * Estimation of the norms memory usage by a segment.
-     */
-    public long getNormsMemoryInBytes() {
-        return this.normsMemoryInBytes;
-    }
-
-    private ByteSizeValue getNormsMemory() {
-        return new ByteSizeValue(normsMemoryInBytes);
-    }
-
-    /**
-     * Estimation of the points memory usage by a segment.
-     */
-    public long getPointsMemoryInBytes() {
-        return this.pointsMemoryInBytes;
-    }
-
-    private ByteSizeValue getPointsMemory() {
-        return new ByteSizeValue(pointsMemoryInBytes);
-    }
-
-    /**
-     * Estimation of the doc values memory usage by a segment.
-     */
-    public long getDocValuesMemoryInBytes() {
-        return this.docValuesMemoryInBytes;
-    }
-
-    private ByteSizeValue getDocValuesMemory() {
-        return new ByteSizeValue(docValuesMemoryInBytes);
     }
 
     /**
@@ -275,13 +162,14 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.SEGMENTS);
         builder.field(Fields.COUNT, count);
-        builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, getMemory());
-        builder.humanReadableField(Fields.TERMS_MEMORY_IN_BYTES, Fields.TERMS_MEMORY, getTermsMemory());
-        builder.humanReadableField(Fields.STORED_FIELDS_MEMORY_IN_BYTES, Fields.STORED_FIELDS_MEMORY, getStoredFieldsMemory());
-        builder.humanReadableField(Fields.TERM_VECTORS_MEMORY_IN_BYTES, Fields.TERM_VECTORS_MEMORY, getTermVectorsMemory());
-        builder.humanReadableField(Fields.NORMS_MEMORY_IN_BYTES, Fields.NORMS_MEMORY, getNormsMemory());
-        builder.humanReadableField(Fields.POINTS_MEMORY_IN_BYTES, Fields.POINTS_MEMORY, getPointsMemory());
-        builder.humanReadableField(Fields.DOC_VALUES_MEMORY_IN_BYTES, Fields.DOC_VALUES_MEMORY, getDocValuesMemory());
+        final ByteSizeValue zeroBytes = new ByteSizeValue(0);
+        builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, zeroBytes);
+        builder.humanReadableField(Fields.TERMS_MEMORY_IN_BYTES, Fields.TERMS_MEMORY, zeroBytes);
+        builder.humanReadableField(Fields.STORED_FIELDS_MEMORY_IN_BYTES, Fields.STORED_FIELDS_MEMORY, zeroBytes);
+        builder.humanReadableField(Fields.TERM_VECTORS_MEMORY_IN_BYTES, Fields.TERM_VECTORS_MEMORY, zeroBytes);
+        builder.humanReadableField(Fields.NORMS_MEMORY_IN_BYTES, Fields.NORMS_MEMORY, zeroBytes);
+        builder.humanReadableField(Fields.POINTS_MEMORY_IN_BYTES, Fields.POINTS_MEMORY, zeroBytes);
+        builder.humanReadableField(Fields.DOC_VALUES_MEMORY_IN_BYTES, Fields.DOC_VALUES_MEMORY, zeroBytes);
         builder.humanReadableField(Fields.INDEX_WRITER_MEMORY_IN_BYTES, Fields.INDEX_WRITER_MEMORY, getIndexWriterMemory());
         builder.humanReadableField(Fields.VERSION_MAP_MEMORY_IN_BYTES, Fields.VERSION_MAP_MEMORY, getVersionMapMemory());
         builder.humanReadableField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, getBitsetMemory());
@@ -325,13 +213,15 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(count);
-        out.writeLong(memoryInBytes);
-        out.writeLong(termsMemoryInBytes);
-        out.writeLong(storedFieldsMemoryInBytes);
-        out.writeLong(termVectorsMemoryInBytes);
-        out.writeLong(normsMemoryInBytes);
-        out.writeLong(pointsMemoryInBytes);
-        out.writeLong(docValuesMemoryInBytes);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeLong(0L); // memoryInBytes
+            out.writeLong(0L); // termsMemoryInBytes
+            out.writeLong(0L); // storedFieldsMemoryInBytes
+            out.writeLong(0L); // termVectorsMemoryInBytes
+            out.writeLong(0L); // normsMemoryInBytes
+            out.writeLong(0L); // pointsMemoryInBytes
+            out.writeLong(0L); // docValuesMemoryInBytes
+        }
         out.writeLong(indexWriterMemoryInBytes);
         out.writeLong(versionMapMemoryInBytes);
         out.writeLong(bitsetMemoryInBytes);

@@ -12,6 +12,7 @@ import com.wdtinc.mapbox_vector_tile.adapt.jts.IGeometryFilter;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.IUserDataConverter;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.JtsAdapter;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.TileGeomResult;
+import com.wdtinc.mapbox_vector_tile.adapt.jts.UserDataIgnoreConverter;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerParams;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 
@@ -34,6 +35,7 @@ import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -42,6 +44,7 @@ import java.util.List;
 public class FeatureFactory {
 
     private final IGeometryFilter acceptAllGeomFilter = geometry -> true;
+    private final IUserDataConverter userDataIgnoreConverter = new UserDataIgnoreConverter();
     private final MvtLayerParams layerParams;
     private final GeometryFactory geomFactory = new GeometryFactory();
     private final MvtLayerProps layerProps = new MvtLayerProps();
@@ -60,7 +63,7 @@ public class FeatureFactory {
         this.layerParams = new MvtLayerParams(extent, extent);
     }
 
-    public List<VectorTile.Tile.Feature> getFeatures(Geometry geometry, IUserDataConverter userData) {
+    public List<byte[]> getFeatures(Geometry geometry) {
         final TileGeomResult tileGeom = JtsAdapter.createTileGeom(
             JtsAdapter.flatFeatureList(geometry.visit(builder)),
             tileEnvelope,
@@ -70,11 +73,10 @@ public class FeatureFactory {
             acceptAllGeomFilter
         );
         // MVT tile geometry to MVT features
-        return JtsAdapter.toFeatures(tileGeom.mvtGeoms, layerProps, userData);
-    }
-
-    public MvtLayerProps getLayerProps() {
-        return layerProps;
+        final List<VectorTile.Tile.Feature> features = JtsAdapter.toFeatures(tileGeom.mvtGeoms, layerProps, userDataIgnoreConverter);
+        final List<byte[]> byteFeatures = new ArrayList<>(features.size());
+        features.forEach(f -> byteFeatures.add(f.toByteArray()));
+        return byteFeatures;
     }
 
     private static class JTSGeometryBuilder implements GeometryVisitor<org.locationtech.jts.geom.Geometry, IllegalArgumentException> {

@@ -40,10 +40,10 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * This test is adapted from {@link CollapsingTopDocsCollectorTests} with
+ * This test is adapted from {@link TestCollapsingTopDocsCollector} with
  * modifications to test {@link FieldDoc after} parameter.
  */
-public class CollapsingTopDocsCollectorSearchAfterTests extends ESTestCase {
+public class TestCollapsingTopDocsCollectorSearchAfter extends ESTestCase {
     interface CollapsingDocValuesProducer<T extends Comparable<?>> {
         T randomGroup(int maxGroup);
         void add(Document doc, T value);

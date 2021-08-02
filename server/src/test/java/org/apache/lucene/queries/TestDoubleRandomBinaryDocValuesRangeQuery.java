@@ -9,7 +9,7 @@ package org.apache.lucene.queries;
 
 import org.elasticsearch.index.mapper.RangeType;
 
-public class DoubleRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryDocValuesRangeQueryTestCase {
+public class TestDoubleRandomBinaryDocValuesRangeQuery extends BaseRandomBinaryDocValuesRangeQueryTestCase {
 
     @Override
     protected String fieldName() {

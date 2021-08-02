@@ -20,7 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class MinDocQueryTests extends ESTestCase {
+public class TestMinDocQuery extends ESTestCase {
 
     public void testBasics() {
         MinDocQuery query1 = new MinDocQuery(42);

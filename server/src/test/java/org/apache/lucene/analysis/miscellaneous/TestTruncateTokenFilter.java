@@ -19,7 +19,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TruncateTokenFilterTests extends ESTestCase {
+public class TestTruncateTokenFilter extends ESTestCase {
     public void testSimple() throws IOException {
         Analyzer analyzer = new Analyzer() {
             @Override

@@ -27,7 +27,7 @@ import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CROS
 import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
 import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITHIN;
 
-public class BinaryDocValuesRangeQueryTests extends ESTestCase {
+public class TestBinaryDocValuesRangeQuery extends ESTestCase {
 
     public void testBasics() throws Exception {
         String fieldName = "long_field";

@@ -22,7 +22,7 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
+public class TestShuffleForcedMergePolicy extends BaseMergePolicyTestCase {
     public void testDiagnostics() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();

@@ -49,7 +49,7 @@ import java.util.Arrays;
  * TODO remove once LUCENE 9999 is fixed and integrated and we remove our copy of the query
  *
  */
-public class XCombinedFieldQueryTests extends LuceneTestCase {
+public class TestXCombinedFieldQuery extends LuceneTestCase {
 
     public void testRewrite() throws IOException {
         IndexReader reader = new MultiReader();

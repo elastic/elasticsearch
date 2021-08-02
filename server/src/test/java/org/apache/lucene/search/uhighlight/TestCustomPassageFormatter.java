@@ -17,7 +17,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 
-public class CustomPassageFormatterTests extends ESTestCase {
+public class TestCustomPassageFormatter extends ESTestCase {
     public void testSimpleFormat() {
         String content = "This is a really cool highlighter. Unified highlighter gives nice snippets back. No matches here.";
 

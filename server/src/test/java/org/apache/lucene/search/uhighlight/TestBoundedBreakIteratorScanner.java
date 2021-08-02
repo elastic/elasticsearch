@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class BoundedBreakIteratorScannerTests extends ESTestCase {
+public class TestBoundedBreakIteratorScanner extends ESTestCase {
     private static final String[] WORD_BOUNDARIES =
         new String[] { " ", "  ",  "\t", "#", "\n" };
     private static final String[] SENTENCE_BOUNDARIES =

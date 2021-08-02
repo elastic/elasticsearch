@@ -43,7 +43,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.test.ESTestCase;
 
-public class CustomUnifiedHighlighterTests extends ESTestCase {
+public class TestCustomUnifiedHighlighter extends ESTestCase {
 
     private void assertHighlightOneDoc(String fieldName, String[] inputs, Analyzer analyzer, Query query,
                                        Locale locale, BreakIterator breakIterator,

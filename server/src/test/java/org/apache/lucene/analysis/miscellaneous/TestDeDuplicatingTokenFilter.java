@@ -19,7 +19,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DeDuplicatingTokenFilterTests extends ESTestCase {
+public class TestDeDuplicatingTokenFilter extends ESTestCase {
     public void testSimple() throws IOException {
         DuplicateByteSequenceSpotter bytesDeDuper = new DuplicateByteSequenceSpotter();
         Analyzer analyzer = new Analyzer() {

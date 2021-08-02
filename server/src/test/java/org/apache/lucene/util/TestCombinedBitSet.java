@@ -11,7 +11,7 @@ package org.apache.lucene.util;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.test.ESTestCase;
 
-public class CombinedBitSetTests extends ESTestCase {
+public class TestCombinedBitSet extends ESTestCase {
     public void testEmpty() {
         for (float percent : new float[] {0f, 0.1f, 0.5f, 0.9f, 1f}) {
             testCase(randomIntBetween(1, 10000), 0f, percent);

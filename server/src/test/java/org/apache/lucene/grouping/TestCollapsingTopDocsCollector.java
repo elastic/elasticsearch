@@ -49,7 +49,7 @@ import java.util.List;
 import java.util.Set;
 
 
-public class CollapsingTopDocsCollectorTests extends ESTestCase {
+public class TestCollapsingTopDocsCollector extends ESTestCase {
     private static class SegmentSearcher extends IndexSearcher {
         private final List<LeafReaderContext> ctx;
 

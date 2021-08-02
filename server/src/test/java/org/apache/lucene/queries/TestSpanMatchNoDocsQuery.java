@@ -29,7 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class SpanMatchNoDocsQueryTests extends ESTestCase {
+public class TestSpanMatchNoDocsQuery extends ESTestCase {
     public void testSimple() throws Exception {
         SpanMatchNoDocsQuery query = new SpanMatchNoDocsQuery("field", "a good reason");
         assertEquals(query.toString(), "SpanMatchNoDocsQuery(\"a good reason\")");

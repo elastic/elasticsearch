@@ -35,7 +35,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchAfterSortedDocQueryTests extends ESTestCase {
+public class TestSearchAfterSortedDocQuery extends ESTestCase {
 
     public void testBasics() {
         Sort sort1 = new Sort(

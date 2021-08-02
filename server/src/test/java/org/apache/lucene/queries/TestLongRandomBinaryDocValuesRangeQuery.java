@@ -10,67 +10,67 @@ package org.apache.lucene.queries;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.index.mapper.RangeType;
 
-public class IntegerRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryDocValuesRangeQueryTestCase {
+public class TestLongRandomBinaryDocValuesRangeQuery extends BaseRandomBinaryDocValuesRangeQueryTestCase {
 
     @Override
     protected String fieldName() {
-        return "int_range_dv_field";
+        return "long_range_dv_field";
     }
 
     @Override
     protected RangeType rangeType() {
-        return RangeType.INTEGER;
+        return RangeType.LONG;
     }
 
     @Override
     protected Range nextRange(int dimensions) throws Exception {
-        int value1 = nextIntInternal();
-        int value2 = nextIntInternal();
-        int min = Math.min(value1, value2);
-        int max = Math.max(value1, value2);
-        return new IntTestRange(min, max);
+        long value1 = nextLongInternal();
+        long value2 = nextLongInternal();
+        long min = Math.min(value1, value2);
+        long max = Math.max(value1, value2);
+        return new LongTestRange(min, max);
     }
 
-    private int nextIntInternal() {
+    private long nextLongInternal() {
         switch (random().nextInt(5)) {
             case 0:
-                return Integer.MIN_VALUE;
+                return Long.MIN_VALUE;
             case 1:
-                return Integer.MAX_VALUE;
+                return Long.MAX_VALUE;
             default:
-                int bpv = random().nextInt(32);
+                int bpv = random().nextInt(64);
                 switch (bpv) {
-                    case 32:
-                        return random().nextInt();
+                    case 64:
+                        return random().nextLong();
                     default:
-                        int v = TestUtil.nextInt(random(), 0, (1 << bpv) - 1);
+                        long v = TestUtil.nextLong(random(), 0, (1L << bpv) - 1);
                         if (bpv > 0) {
                             // negative values sometimes
-                            v -= 1 << (bpv - 1);
+                            v -= 1L << (bpv - 1);
                         }
                         return v;
                 }
         }
     }
 
-    private static class IntTestRange extends AbstractRange<Integer> {
-        int min;
-        int max;
+    private static class LongTestRange extends AbstractRange<Long> {
+        long min;
+        long max;
 
-        IntTestRange(int min, int max) {
+        LongTestRange(long min, long max) {
             this.min = min;
             this.max = max;
         }
 
         @Override
-        public Integer getMin() {
+        public Long getMin() {
             return min;
         }
 
         @Override
         protected void setMin(int dim, Object val) {
             assert dim == 0;
-            int v = (Integer) val;
+            long v = (Long)val;
             if (min < v) {
                 max = v;
             } else {
@@ -79,14 +79,14 @@ public class IntegerRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinar
         }
 
         @Override
-        public Integer getMax() {
+        public Long getMax() {
             return max;
         }
 
         @Override
         protected void setMax(int dim, Object val) {
             assert dim == 0;
-            int v = (Integer) val;
+            long v = (Long)val;
             if (max > v) {
                 min = v;
             } else {
@@ -96,13 +96,13 @@ public class IntegerRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinar
 
         @Override
         protected boolean isDisjoint(Range o) {
-            IntTestRange other = (IntTestRange)o;
+            LongTestRange other = (LongTestRange)o;
             return this.min > other.max || this.max < other.min;
         }
 
         @Override
         protected boolean isWithin(Range o) {
-            IntTestRange other = (IntTestRange)o;
+            LongTestRange other = (LongTestRange)o;
             if ((this.min >= other.min && this.max <= other.max) == false) {
                 // not within:
                 return false;
@@ -112,7 +112,7 @@ public class IntegerRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinar
 
         @Override
         protected boolean contains(Range o) {
-            IntTestRange other = (IntTestRange) o;
+            LongTestRange other = (LongTestRange) o;
             if ((this.min <= other.min && this.max >= other.max) == false) {
                 // not contains:
                 return false;

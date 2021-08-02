@@ -14,7 +14,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 
-public class InetAddressRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryDocValuesRangeQueryTestCase {
+public class TestInetAddressRandomBinaryDocValuesRangeQuery extends BaseRandomBinaryDocValuesRangeQueryTestCase {
 
     @Override
     protected String fieldName() {

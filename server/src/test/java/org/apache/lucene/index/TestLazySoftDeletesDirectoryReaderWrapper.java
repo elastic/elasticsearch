@@ -24,7 +24,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class LazySoftDeletesDirectoryReaderWrapperTests extends LuceneTestCase {
+public class TestLazySoftDeletesDirectoryReaderWrapper extends LuceneTestCase {
 
     public void testDropFullyDeletedSegments() throws IOException {
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();

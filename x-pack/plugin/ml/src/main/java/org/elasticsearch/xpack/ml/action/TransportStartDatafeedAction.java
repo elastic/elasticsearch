@@ -542,12 +542,15 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         public Optional<GetDatafeedRunningStateAction.Response.RunningState> getRunningState() {
             if (datafeedRunner == null) {
-                return Optional.empty();
+                // In this case we don't know for sure if lookback has completed.  It may be that the
+                // datafeed has just moved nodes, but with so little delay that there's no lookback to
+                // do on the new node.  However, there _might_ be some catching up required, so it's
+                // reasonable to say real-time running hasn't started yet.  The state will quickly
+                // change once the datafeed runner gets going and determines where the datafeed is up
+                // to.
+                return new GetDatafeedRunningStateAction.Response.RunningState(endTime == null, false);
             }
-            return Optional.of(new GetDatafeedRunningStateAction.Response.RunningState(
-                this.endTime == null,
-                datafeedRunner.finishedLookBack(this)
-            ));
+            return new GetDatafeedRunningStateAction.Response.RunningState(endTime == null, datafeedRunner.finishedLookBack(this));
         }
     }
 

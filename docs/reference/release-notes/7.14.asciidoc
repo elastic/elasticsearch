@@ -307,7 +307,7 @@ Recovery::
 
 Search::
 * Dynamic runtime to not dynamically create objects {es-pull}74234[#74234] (issue: {es-issue}65489[#65489])
-* `TermsEnum` api - allow null search strings {es-pull}73144[#73144] (issue: {es-issue}73141[#73141])
+* `TermsEnum` API - allow null search strings {es-pull}73144[#73144] (issue: {es-issue}73141[#73141])
 
 Snapshot/Restore::
 * Fix edge-case threading bug in `TransportMountSearchableSnapshotAction` {es-pull}73196[#73196]

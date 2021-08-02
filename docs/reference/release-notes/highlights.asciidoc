@@ -46,22 +46,39 @@ search lets you run these searches in the background instead. See
 [[transform-top-metrics-support]]
 === Transforms: support for top metrics
 
-{transforms-cap} are now able to support the 
-{ref}/search-aggregations-metrics-top-metrics.html[top metrics aggregation]. 
-This improves performance when grouping by many fields. If these fields are 
-descriptive and have the same cardinality (for example, customer first and last 
-name describe their customer_id), then using top metrics significantly reduces 
-the work needed to be done by aggregations. It is also a usability improvement 
-if configuring top or last value, which previously would have required a 
+{transforms-cap} are now able to support the
+{ref}/search-aggregations-metrics-top-metrics.html[top metrics aggregation].
+This improves performance when grouping by many fields. If these fields are
+descriptive and have the same cardinality (for example, customer first and last
+name describe their customer_id), then using top metrics significantly reduces
+the work needed to be done by aggregations. It is also a usability improvement
+if configuring top or last value, which previously would have required a
 scripted metric.
 
 [discrete]
 [[ml-anomaly-detection-reset-job]]
 === {anomaly-detect-cap}: reset job API
 
-The {ref}/ml-reset-job.html[reset job API] makes it easier to start 
-{anomaly-jobs} again from scratch, to put a job back to the state it was in 
-immediately after creation – equivalent to deleting it and recreating it, but 
-without the need to remember the configuration. It also simplifies support, as 
+The {ref}/ml-reset-job.html[reset job API] makes it easier to start
+{anomaly-jobs} again from scratch, to put a job back to the state it was in
+immediately after creation – equivalent to deleting it and recreating it, but
+without the need to remember the configuration. It also simplifies support, as
 users will be able to reset their job by a single click.
+
+[discrete]
+[[match-only-text]]
+=== New `match_only_text` field type
+
+{ref}/text.html#match-only-text-field-type[`match_only_text`] is a new
+space-optimized variant of `text` that disables scoring and performs slower
+on queries that need positions. It is best suited for indexing log messages.
+
+[discrete]
+[[composite-aggs-without-global-ordinals]]
+=== More memory-efficient composite aggregations
+
+Composite aggregations on `keyword` fields no longer use
+{ref}/eager-global-ordinals.html[global ordinals], which for high cardinality
+fields could use a lot of heap memory as part of the
+{ref}/modules-fielddata.html[field data cache].
 // end::notable-highlights[]

@@ -649,14 +649,14 @@ public class SearchModuleTests extends ESTestCase {
         protected int doHashCode() {
             return 0;
         }
-    };
+    }
 
     public void testRegisterRestApiCompatibleQuery() {
         SearchPlugin registerCompatQuery = new SearchPlugin() {
             @Override
             public List<SearchPlugin.QuerySpec<?>> getQueries() {
                 return singletonList(new QuerySpec<>(CompatQueryBuilder.NAME_V7,
-                    (streamInput)-> new CompatQueryBuilder(), CompatQueryBuilder::fromXContent));
+                    (streamInput) -> new CompatQueryBuilder(), CompatQueryBuilder::fromXContent));
             }
         };
 
@@ -665,12 +665,12 @@ public class SearchModuleTests extends ESTestCase {
         // all entries can be used for current and previous versions except for compatible entry
         assertThat(searchModule.getNamedXContents().stream()
                 .filter(e ->
-                        // filter out compatible entry
-                        e.name.match(CompatQueryBuilder.NAME_V7.getPreferredName(), LoggingDeprecationHandler.INSTANCE) == false)
+                    // filter out compatible entry
+                    e.name.match(CompatQueryBuilder.NAME_V7.getPreferredName(), LoggingDeprecationHandler.INSTANCE) == false)
                 .filter(e -> RestApiVersion.minimumSupported().matches(e.restApiCompatibility))
                 .filter(e -> RestApiVersion.current().matches(e.restApiCompatibility))
                 .collect(toSet()),
-            hasSize(searchModule.getNamedXContents().size() -1 ));
+            hasSize(searchModule.getNamedXContents().size() - 1));
 
 
         final List<NamedXContentRegistry.Entry> compatEntry = searchModule.getNamedXContents().stream()

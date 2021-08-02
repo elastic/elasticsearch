@@ -171,7 +171,6 @@ public class SearchModuleTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeRescorer));
     }
 
-
     private ThrowingRunnable registryForPlugin(SearchPlugin plugin) {
         return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, singletonList(plugin))
             .getNamedXContents());

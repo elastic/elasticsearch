@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationClusterService;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationService;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
@@ -57,16 +58,19 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
 
     private final Client client;
     private final TrainedModelAllocationService trainedModelAllocationService;
+    private final TrainedModelAllocationClusterService trainedModelAllocationClusterService;
 
     @Inject
     public TransportStopTrainedModelDeploymentAction(ClusterService clusterService, TransportService transportService,
-                                                     ActionFilters actionFilters, Client client, ThreadPool threadPool,
-                                                     TrainedModelAllocationService trainedModelAllocationService) {
+                                                     ActionFilters actionFilters, Client client,
+                                                     TrainedModelAllocationService trainedModelAllocationService,
+                                                     TrainedModelAllocationClusterService trainedModelAllocationClusterService) {
         super(StopTrainedModelDeploymentAction.NAME, clusterService, transportService, actionFilters,
             StopTrainedModelDeploymentAction.Request::new, StopTrainedModelDeploymentAction.Response::new,
             StopTrainedModelDeploymentAction.Response::new, ThreadPool.Names.SAME);
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.trainedModelAllocationService = trainedModelAllocationService;
+        this.trainedModelAllocationClusterService = trainedModelAllocationClusterService;
     }
 
     @Override
@@ -74,6 +78,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
                              ActionListener<StopTrainedModelDeploymentAction.Response> listener) {
         ClusterState state = clusterService.state();
         DiscoveryNodes nodes = state.nodes();
+        // Master node is required for initial pre-checks and deletion preparation
         if (nodes.isLocalNodeElectedMaster() == false) {
             redirectToMasterNode(nodes.getMasterNode(), request, listener);
             return;
@@ -103,16 +108,20 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
                     return;
                 }
                 final String modelId = models.get(0).getModelId();
-                trainedModelAllocationService.stopModelAllocation(modelId, ActionListener.wrap(
-                    response -> normalUndeploy(task, models.get(0).getModelId(), maybeAllocation.get(), request, listener),
-                    failure -> {
-                        if (ExceptionsHelper.unwrapCause(failure) instanceof ResourceNotFoundException) {
-                            listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
-                            return;
+                // NOTE, should only run on Master node
+                trainedModelAllocationClusterService.setModelAllocationToStopping(
+                    modelId,
+                    ActionListener.wrap(
+                        setToStopping -> normalUndeploy(task, models.get(0).getModelId(), maybeAllocation.get(), request, listener),
+                        failure -> {
+                            if (ExceptionsHelper.unwrapCause(failure) instanceof ResourceNotFoundException) {
+                                listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
+                                return;
+                            }
+                            listener.onFailure(failure);
                         }
-                        listener.onFailure(failure);
-                    }
-                ));
+                    )
+                );
             },
             listener::onFailure
         );

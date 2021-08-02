@@ -30,7 +30,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAllocationAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAllocationAction;
-import org.elasticsearch.xpack.core.ml.action.StopTrainedModelAllocationAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 
@@ -89,10 +88,6 @@ public class TrainedModelAllocationService {
         ActionListener<CreateTrainedModelAllocationAction.Response> listener
     ) {
         client.execute(CreateTrainedModelAllocationAction.INSTANCE, new CreateTrainedModelAllocationAction.Request(taskParams), listener);
-    }
-
-    public void stopModelAllocation(String modelId, ActionListener<AcknowledgedResponse> listener) {
-        client.execute(StopTrainedModelAllocationAction.INSTANCE, new StopTrainedModelAllocationAction.Request(modelId), listener);
     }
 
     public void deleteModelAllocation(String modelId, ActionListener<AcknowledgedResponse> listener) {

@@ -152,7 +152,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         });
     }
 
-    public void stopModelAllocation(String modelId, ActionListener<AcknowledgedResponse> listener) {
+    public void setModelAllocationToStopping(String modelId, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("stop model allocation", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {

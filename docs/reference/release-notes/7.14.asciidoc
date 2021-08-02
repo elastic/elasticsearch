@@ -311,8 +311,8 @@ Search::
 
 Snapshot/Restore::
 * Fix edge-case threading bug in `TransportMountSearchableSnapshotAction` {es-pull}73196[#73196]
-* Fix `SnapshotInfo.fromXContentInternal` not Fully Consuming Parser {es-pull}73268[#73268] (issue: {es-issue}73149[#73149])
-* Fix `SnapshotShardFailure.toXContent` Serialization Issue {es-pull}72801[#72801]
+* Fix `SnapshotInfo.fromXContentInternal` not fully consuming parser {es-pull}73268[#73268] (issue: {es-issue}73149[#73149])
+* Fix `SnapshotShardFailure.toXContent` serialization issue {es-pull}72801[#72801]
 
 TLS::
 * Fix error reporting for SSL resources outside of config dir {es-pull}64235[#64235] (issue: {es-issue}63451[#63451])

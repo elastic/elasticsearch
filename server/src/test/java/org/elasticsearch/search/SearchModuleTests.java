@@ -614,7 +614,7 @@ public class SearchModuleTests extends ESTestCase {
 
     static class CompatQueryBuilder extends AbstractQueryBuilder<CompatQueryBuilder> {
         public static final String NAME = "compat_name";
-        public static final ParseField NAME_V7 = new ParseField(NAME)
+        public static final ParseField NAME_OLD = new ParseField(NAME)
             .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported()));
 
         public static CompatQueryBuilder fromXContent(XContentParser parser) throws IOException {
@@ -654,7 +654,7 @@ public class SearchModuleTests extends ESTestCase {
         SearchPlugin registerCompatQuery = new SearchPlugin() {
             @Override
             public List<SearchPlugin.QuerySpec<?>> getQueries() {
-                return singletonList(new QuerySpec<>(CompatQueryBuilder.NAME_V7,
+                return singletonList(new QuerySpec<>(CompatQueryBuilder.NAME_OLD,
                     (streamInput) -> new CompatQueryBuilder(), CompatQueryBuilder::fromXContent));
             }
         };
@@ -665,7 +665,7 @@ public class SearchModuleTests extends ESTestCase {
         assertThat(searchModule.getNamedXContents().stream()
                 .filter(e ->
                     // filter out compatible entry
-                    e.name.match(CompatQueryBuilder.NAME_V7.getPreferredName(), LoggingDeprecationHandler.INSTANCE) == false)
+                    e.name.match(CompatQueryBuilder.NAME_OLD.getPreferredName(), LoggingDeprecationHandler.INSTANCE) == false)
                 .filter(e -> RestApiVersion.minimumSupported().matches(e.restApiCompatibility))
                 .filter(e -> RestApiVersion.current().matches(e.restApiCompatibility))
                 .collect(toSet()),
@@ -674,7 +674,7 @@ public class SearchModuleTests extends ESTestCase {
 
         final List<NamedXContentRegistry.Entry> compatEntry = searchModule.getNamedXContents().stream()
             .filter(e -> e.categoryClass.equals(QueryBuilder.class) &&
-                e.name.match(CompatQueryBuilder.NAME_V7.getPreferredName(), LoggingDeprecationHandler.INSTANCE))
+                e.name.match(CompatQueryBuilder.NAME_OLD.getPreferredName(), LoggingDeprecationHandler.INSTANCE))
             .collect(toList());
         assertThat(compatEntry, hasSize(1));
         assertTrue(RestApiVersion.minimumSupported().matches(compatEntry.get(0).restApiCompatibility));

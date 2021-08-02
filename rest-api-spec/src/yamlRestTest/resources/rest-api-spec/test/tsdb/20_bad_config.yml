@@ -107,7 +107,7 @@
       reason: introduced in 8.0.0 to be backported to 7.15.0
 
   - do:
-      catch: /\[index.mode\] is incompatible with \[index.routing_partition_size\]/
+      catch: /\[index.mode=time_series\] is incompatible with \[index.routing_partition_size\]/
       indices.create:
           index: test
           body:

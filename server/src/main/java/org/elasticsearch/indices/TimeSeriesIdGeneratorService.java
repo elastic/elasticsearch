@@ -62,9 +62,9 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
     }
 
     private final Function<Index, LocalIndex> lookupLocalIndex;
-    private final Function<IndexMetadata, TimeSeriesIdGenerator> buildTimeSeriedIdGenerator;
+    private final Function<IndexMetadata, TimeSeriesIdGenerator> buildTimeSeriesIdGenerator;
     private final ExecutorService executor; // single thread to construct mapper services async as needed
-    private final Map<Index, Value> byIndex = ConcurrentCollections.newConcurrentMap();
+    private final Map<Index, IdGeneratorProvider> byIndex = ConcurrentCollections.newConcurrentMap();
 
     static TimeSeriesIdGeneratorService build(Settings nodeSettings, ThreadPool threadPool, IndicesService indicesService) {
         String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(nodeSettings));
@@ -119,7 +119,7 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
     ) {
         this.executor = executor;
         this.lookupLocalIndex = lookupLocalIndex;
-        this.buildTimeSeriedIdGenerator = buildTimeSeriedIdGenerator;
+        this.buildTimeSeriesIdGenerator = buildTimeSeriedIdGenerator;
     }
 
     @Override
@@ -138,7 +138,7 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
         if (false == meta.mode().organizeIntoTimeSeries()) {
             return null;
         }
-        Value v = byIndex.get(meta.getIndex());
+        IdGeneratorProvider v = byIndex.get(meta.getIndex());
         /*
          * v is rebuilt in applyClusterState which should have happened-before
          * whatever made meta available to the rest of the system. So the if
@@ -177,7 +177,7 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
          */
         byIndex.keySet().removeIf(index -> metadata.index(index) == null);
 
-        Map<DedupeKey, Value> dedupe = new HashMap<>();
+        Map<DedupeKey, IdGeneratorProvider> dedupe = new HashMap<>();
 
         for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
             IndexMetadata indexMetadata = cursor.value;
@@ -187,7 +187,7 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
             Index index = indexMetadata.getIndex();
 
             if (indexMetadata.mapping() == null) {
-                byIndex.put(index, new PreBuiltValue(indexMetadata.getMappingVersion(), TimeSeriesIdGenerator.EMPTY));
+                byIndex.put(index, new PreBuiltIdGeneratorProvider(indexMetadata.getMappingVersion(), TimeSeriesIdGenerator.EMPTY));
                 continue;
             }
 
@@ -196,7 +196,7 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
             /*
              * Find indices who's mapping hasn't changed.
              */
-            Value old = byIndex.get(index);
+            IdGeneratorProvider old = byIndex.get(index);
             if (old != null && old.mappingVersion == indexMetadata.getMappingVersion()) {
                 logger.trace("reusing previous timeseries id generator for {}", index);
                 dedupe.put(key, old);
@@ -206,10 +206,10 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
             /*
              * Check if the mapping is the same as something we've already seen.
              */
-            Value value = dedupe.get(key);
-            if (value != null) {
+            IdGeneratorProvider provider = dedupe.get(key);
+            if (provider != null) {
                 logger.trace("reusing timeseries id from another index for {}", index);
-                byIndex.put(index, value.withMappingVersion(indexMetadata.getMappingVersion()));
+                byIndex.put(index, provider.withMappingVersion(indexMetadata.getMappingVersion()));
                 continue;
             }
 
@@ -234,9 +234,9 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
                         + "]"
                 );
             }
-            value = new PreBuiltValue(indexMetadata.getMappingVersion(), localIndex.generator());
-            byIndex.put(index, value);
-            dedupe.put(key, value);
+            provider = new PreBuiltIdGeneratorProvider(indexMetadata.getMappingVersion(), localIndex.generator());
+            byIndex.put(index, provider);
+            dedupe.put(key, provider);
         }
 
         /*
@@ -249,41 +249,55 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
             }
             Index index = indexMetadata.getIndex();
 
-            Value old = byIndex.get(index);
+            IdGeneratorProvider old = byIndex.get(index);
             if (old != null && old.mappingVersion == indexMetadata.getMappingVersion()) {
                 // We already updated the generator in the first pass
                 continue;
             }
 
             DedupeKey key = new DedupeKey(indexMetadata);
-            Value value = dedupe.get(key);
-            if (value == null) {
+            IdGeneratorProvider provider = dedupe.get(key);
+            if (provider == null) {
                 logger.trace("computing timeseries id generator for {} async", index);
-                value = new AsyncValue(indexMetadata.getMappingVersion(), buildTimeSeriedIdGenerator, executor, indexMetadata);
+                provider = new AsyncIdGeneratorProvider(
+                    indexMetadata.getMappingVersion(),
+                    buildTimeSeriesIdGenerator,
+                    executor,
+                    indexMetadata
+                );
             } else {
                 logger.trace("reusing timeseries id from another index for {}", index);
-                value = value.withMappingVersion(indexMetadata.getMappingVersion());
+                provider = provider.withMappingVersion(indexMetadata.getMappingVersion());
             }
-            byIndex.put(index, value);
+            byIndex.put(index, provider);
         }
     }
 
-    private abstract static class Value {
+    /**
+     * Provides {@link TimeSeriesIdGenerator}s either
+     * {@link PreBuiltIdGeneratorProvider immediately} or
+     * {@link AsyncIdGeneratorProvider asynchronously}.
+     */
+    private abstract static class IdGeneratorProvider {
         private final long mappingVersion;
 
-        protected Value(long mappingVersion) {
+        protected IdGeneratorProvider(long mappingVersion) {
             this.mappingVersion = mappingVersion;
         }
 
         abstract TimeSeriesIdGenerator generator();
 
-        abstract Value withMappingVersion(long newMappingVersion);
+        abstract IdGeneratorProvider withMappingVersion(long newMappingVersion);
     }
 
-    private static class PreBuiltValue extends Value {
+    /**
+     * Provider {@link TimeSeriesIdGenerator}s for local indices or indices
+     * that have the same mapping as a local index.
+     */
+    private static class PreBuiltIdGeneratorProvider extends IdGeneratorProvider {
         private final TimeSeriesIdGenerator generator;
 
-        PreBuiltValue(long mappingVersion, TimeSeriesIdGenerator generator) {
+        PreBuiltIdGeneratorProvider(long mappingVersion, TimeSeriesIdGenerator generator) {
             super(mappingVersion);
             this.generator = generator;
         }
@@ -294,8 +308,8 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
         }
 
         @Override
-        Value withMappingVersion(long newMappingVersion) {
-            return new PreBuiltValue(newMappingVersion, generator);
+        IdGeneratorProvider withMappingVersion(long newMappingVersion) {
+            return new PreBuiltIdGeneratorProvider(newMappingVersion, generator);
         }
     }
 
@@ -307,15 +321,15 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
      * build the {@link TimeSeriesIdGenerator} and if they lose they'll return
      * a cached copy.
      */
-    private static class AsyncValue extends Value {
+    private static class AsyncIdGeneratorProvider extends IdGeneratorProvider {
         private final LazyInitializable<TimeSeriesIdGenerator, RuntimeException> lazy;
 
-        private AsyncValue(long mappingVersion, LazyInitializable<TimeSeriesIdGenerator, RuntimeException> lazy) {
+        private AsyncIdGeneratorProvider(long mappingVersion, LazyInitializable<TimeSeriesIdGenerator, RuntimeException> lazy) {
             super(mappingVersion);
             this.lazy = lazy;
         }
 
-        AsyncValue(
+        AsyncIdGeneratorProvider(
             long mappingVersion,
             Function<IndexMetadata, TimeSeriesIdGenerator> buildTimeSeriesIdGenerator,
             ExecutorService executor,
@@ -356,8 +370,8 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
         }
 
         @Override
-        Value withMappingVersion(long newMappingVersion) {
-            return new AsyncValue(newMappingVersion, lazy);
+        IdGeneratorProvider withMappingVersion(long newMappingVersion) {
+            return new AsyncIdGeneratorProvider(newMappingVersion, lazy);
         }
     }
 

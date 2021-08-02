@@ -18,9 +18,6 @@ testClusters.all {
   testDistribution = 'DEFAULT'
   numberOfNodes = 4
 
-  if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
-    setting 'es.shutdown_feature_flag_enabled', 'true'
-  }
   setting 'xpack.security.enabled', 'true'
   user username: clusterCredentials.username, password: clusterCredentials.password, role: 'superuser'
 }

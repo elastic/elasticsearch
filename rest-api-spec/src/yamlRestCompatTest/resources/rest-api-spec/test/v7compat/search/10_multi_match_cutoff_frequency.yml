@@ -1,86 +1,86 @@
 ---
 setup:
-- skip:
-    version: " - 7.1.99"
-    reason: "added in 7.2.0"
-    features:
-    - "headers"
-    - "allowed_warnings_regex"
-- do:
-    indices.create:
-      index: "test"
-      body:
-        mappings:
-          properties:
-            my_field1:
-              type: "text"
-            my_field2:
-              type: "text"
-    headers:
-      Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-      Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-    allowed_warnings_regex:
-    - "\\[types removal\\].*"
-- do:
-    index:
-      index: "test"
-      id: 1
-      body:
-        my_field1: "brown fox jump"
-        my_field2: "xylophone"
-    headers:
-      Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-      Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-    allowed_warnings_regex:
-    - "\\[types removal\\].*"
-- do:
-    index:
-      index: "test"
-      id: 2
-      body:
-        my_field1: "brown emu jump"
-        my_field2: "xylophone"
-    headers:
-      Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-      Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-    allowed_warnings_regex:
-    - "\\[types removal\\].*"
-- do:
-    index:
-      index: "test"
-      id: 3
-      body:
-        my_field1: "jumparound"
-        my_field2: "emu"
-    headers:
-      Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-      Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-    allowed_warnings_regex:
-    - "\\[types removal\\].*"
-- do:
-    index:
-      index: "test"
-      id: 4
-      body:
-        my_field1: "dog"
-        my_field2: "brown fox jump lazy"
-    headers:
-      Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-      Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-    allowed_warnings_regex:
-    - "\\[types removal\\].*"
-- do:
-    indices.refresh: {}
-    headers:
-      Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-      Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-    allowed_warnings_regex:
-    - "\\[types removal\\].*"
+  - skip:
+      version: "9.0.0 - "
+      reason: "compatible from 8.x to 7.x"
+      features:
+        - "headers"
+        - "allowed_warnings_regex"
+  - do:
+      indices.create:
+        index: "test"
+        body:
+          mappings:
+            properties:
+              my_field1:
+                type: "text"
+              my_field2:
+                type: "text"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+      - "\\[types removal\\].*"
+  - do:
+      index:
+        index: "test"
+        id: 1
+        body:
+          my_field1: "brown fox jump"
+          my_field2: "xylophone"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+      - "\\[types removal\\].*"
+  - do:
+      index:
+        index: "test"
+        id: 2
+        body:
+          my_field1: "brown emu jump"
+          my_field2: "xylophone"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+      - "\\[types removal\\].*"
+  - do:
+      index:
+        index: "test"
+        id: 3
+        body:
+          my_field1: "jumparound"
+          my_field2: "emu"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+      - "\\[types removal\\].*"
+  - do:
+      index:
+        index: "test"
+        id: 4
+        body:
+          my_field1: "dog"
+          my_field2: "brown fox jump lazy"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+      - "\\[types removal\\].*"
+  - do:
+      indices.refresh: {}
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+      - "\\[types removal\\].*"
 
 ---
 multi_match multiple fields with cutoff_frequency throws exception:
 - do:
-    catch: "/cutoff_freqency is not supported. The [match] query can skip block of documents efficiently if the total number of hits is not tracked/"
+    catch: "/cutoff_freqency is not supported. The [match] query can fskip block of documents efficiently if the total number of hits is not tracked/"
     search:
       rest_total_hits_as_int: true
       index: "test"

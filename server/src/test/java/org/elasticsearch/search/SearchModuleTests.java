@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -242,11 +243,13 @@ public class SearchModuleTests extends ESTestCase {
         List<String> allSupportedQueries = new ArrayList<>();
         Collections.addAll(allSupportedQueries, NON_DEPRECATED_QUERIES);
         Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);
+        Collections.addAll(allSupportedQueries, REST_COMPATIBLE_QUERIES);
         SearchModule module = new SearchModule(Settings.EMPTY, emptyList());
 
         Set<String> registeredNonDeprecated = module.getNamedXContents().stream()
                 .filter(e -> e.categoryClass.equals(QueryBuilder.class))
                 .filter(e -> e.name.getAllReplacedWith() == null)
+                .filter(e -> RestApiVersion.current().matches(e.restApiCompatibility))
                 .map(e -> e.name.getPreferredName())
                 .collect(toSet());
         Set<String> registeredAll = module.getNamedXContents().stream()
@@ -390,6 +393,7 @@ public class SearchModuleTests extends ESTestCase {
 
     //add here deprecated queries to make sure we log a deprecation warnings when they are used
     private static final String[] DEPRECATED_QUERIES = new String[] {"field_masking_span", "geo_polygon"};
+    private static final String[] REST_COMPATIBLE_QUERIES = new String[] {CommonTermsQueryBuilder.NAME.getPreferredName()};
 
     /**
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.
@@ -670,14 +674,15 @@ public class SearchModuleTests extends ESTestCase {
                 .filter(e -> RestApiVersion.minimumSupported().matches(e.restApiCompatibility))
                 .filter(e -> RestApiVersion.current().matches(e.restApiCompatibility))
                 .collect(toSet()),
-            hasSize(searchModule.getNamedXContents().size() -1 ));
+            hasSize(searchModule.getNamedXContents().size() - REST_COMPATIBLE_QUERIES.length -1 )); // -1 because of the registered in the test
 
 
         final List<NamedXContentRegistry.Entry> compatEntry = searchModule.getNamedXContents().stream()
             .filter(e -> e.categoryClass.equals(QueryBuilder.class) &&
-                e.name.match(CompatQueryBuilder.NAME_V7.getPreferredName(), LoggingDeprecationHandler.INSTANCE))
+                RestApiVersion.minimumSupported().matches(e.name.getForRestApiVersion()) // v7 compatbile
+                    && RestApiVersion.current().matches(e.name.getForRestApiVersion()) == false) // but not v8 compatible
             .collect(toList());
-        assertThat(compatEntry, hasSize(1));
+        assertThat(compatEntry, hasSize(REST_COMPATIBLE_QUERIES.length + 1));//+1 because of registered in the test
         assertTrue(RestApiVersion.minimumSupported().matches(compatEntry.get(0).restApiCompatibility));
         assertFalse(RestApiVersion.current().matches(compatEntry.get(0).restApiCompatibility));
     }

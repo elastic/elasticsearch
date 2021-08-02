@@ -139,7 +139,7 @@ public class FeatureFactory {
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(Line line) {
-            return buildLine(line);
+            return TopologyPreservingSimplifier.simplify(buildLine(line), pixelPrecision);
         }
 
         @Override
@@ -148,7 +148,7 @@ public class FeatureFactory {
             for (int i = 0; i < multiLine.size(); i++) {
                 lineStrings[i] = buildLine(multiLine.get(i));
             }
-            return geomFactory.createMultiLineString(lineStrings);
+            return TopologyPreservingSimplifier.simplify(geomFactory.createMultiLineString(lineStrings), pixelPrecision);
         }
 
         private LineString buildLine(Line line) {

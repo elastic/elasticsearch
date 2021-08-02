@@ -122,7 +122,7 @@ Distributed::
 * Run `CheckIndex` on metadata index before loading {es-pull}73239[#73239] (issue: {es-issue}29358[#29358])
 
 Features/Features::
-* Add X-Elastic-Product header on all http responses {es-pull}73434[#73434] (issue: {es-issue}73424[#73424])
+* Add X-Elastic-Product header on all HTTP responses {es-pull}73434[#73434] (issue: {es-issue}73424[#73424])
 * Add meta field to deprecation issue definition {es-pull}74085[#74085] (issue: {es-issue}73089[#73089])
 * Better out-of-the-box mappings for logs, metrics and synthetics {es-pull}64978[#64978] (issue: {es-issue}64400[#64400])
 
@@ -335,4 +335,3 @@ Network::
 
 Packaging::
 * Bump bundled JDK to 16.0.1 {es-pull}73057[#73057]
-

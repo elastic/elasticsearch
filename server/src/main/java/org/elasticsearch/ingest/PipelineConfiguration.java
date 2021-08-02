@@ -8,23 +8,27 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Encapsulates a pipeline's id and configuration as a blob
@@ -121,8 +125,42 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        out.writeBytesReference(config);
-        XContentHelper.writeTo(out, xContentType);
+        final BytesReference bytesReferenceToWrite;
+        final XContentType xContentTypeToWrite;
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            /*
+             * While serialization works fine regardless of which fields are in the PipelineConfiguration, the Pipeline class throws an
+             * exception if there are fields in the PipelineConfiguration that it does not expect. So when sending the config to older
+             * versions we have to strip out newer fields.
+             */
+            Map<String, Object> configMap = getConfigAsMap();
+            if (configMap.containsKey(Pipeline.META_KEY)) {
+                Map<String, Object> noMetaConfigMap = removeMetaField(configMap);
+                xContentTypeToWrite = XContentType.JSON;
+                String json = mapToXContentString(noMetaConfigMap, xContentTypeToWrite);
+                bytesReferenceToWrite = new BytesArray(json.getBytes(StandardCharsets.UTF_8));
+            } else {
+                bytesReferenceToWrite = config;
+                xContentTypeToWrite = xContentType;
+            }
+        } else {
+            bytesReferenceToWrite = config;
+            xContentTypeToWrite = xContentType;
+        }
+        out.writeBytesReference(bytesReferenceToWrite);
+        XContentHelper.writeTo(out, xContentTypeToWrite);
+    }
+
+    private static String mapToXContentString(Map<String, Object> configMap, XContentType xContentType) throws IOException {
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent()).map(configMap)) {
+            return BytesReference.bytes(builder).utf8ToString();
+        }
+    }
+
+    private static Map<String, Object> removeMetaField(Map<String, Object> configMap) {
+        return configMap.entrySet().stream().filter(entry -> Pipeline.META_KEY.equals(entry.getKey()) == false).collect(
+            Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)
+        );
     }
 
     @Override

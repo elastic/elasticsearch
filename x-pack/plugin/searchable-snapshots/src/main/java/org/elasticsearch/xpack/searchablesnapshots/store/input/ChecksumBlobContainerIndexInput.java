@@ -140,8 +140,8 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
         assert result.length >= Integer.BYTES + Integer.BYTES + Long.BYTES; // ensure that nobody changed the file format under us
         final ByteArrayDataOutput output = new ByteArrayDataOutput(result);
         // reverse CodecUtil.writeFooter()
-        output.writeInt(CodecUtil.FOOTER_MAGIC);
-        output.writeInt(0);
+        CodecUtil.writeBEInt(output, CodecUtil.FOOTER_MAGIC);
+        CodecUtil.writeBEInt(output, 0);
         output.writeLong(Long.parseLong(checksum, Character.MAX_RADIX));
         assert output.getPosition() == result.length;
         return result;

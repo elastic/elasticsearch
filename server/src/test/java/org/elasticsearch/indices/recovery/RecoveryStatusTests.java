@@ -33,10 +33,10 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
             new StoreFileMetadata("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw", MIN_SUPPORTED_LUCENE_VERSION.toString()),
             indexShard.store())) {
 
-            indexOutput.writeInt(1);
+            CodecUtil.writeBEInt(indexOutput, 1);
             IndexOutput openIndexOutput = multiFileWriter.getOpenIndexOutput("foo.bar");
             assertSame(openIndexOutput, indexOutput);
-            openIndexOutput.writeInt(1);
+            CodecUtil.writeBEInt(openIndexOutput, 1);
             CodecUtil.writeFooter(indexOutput);
         }
 

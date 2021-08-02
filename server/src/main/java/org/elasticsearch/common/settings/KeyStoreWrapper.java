@@ -25,15 +25,6 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.hash.MessageDigests;
 
-import javax.crypto.AEADBadTagException;
-import javax.crypto.Cipher;
-import javax.crypto.CipherInputStream;
-import javax.crypto.CipherOutputStream;
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -63,6 +54,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import javax.crypto.AEADBadTagException;
+import javax.crypto.Cipher;
+import javax.crypto.CipherInputStream;
+import javax.crypto.CipherOutputStream;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * A disk based container for sensitive settings in Elasticsearch.
@@ -533,13 +533,13 @@ public class KeyStoreWrapper implements SecureSettings {
             byte[] encryptedBytes = encrypt(password, salt, iv);
 
             // size of data block
-            output.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
+            CodecUtil.writeBEInt(output, 4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
 
-            output.writeInt(salt.length);
+            CodecUtil.writeBEInt(output, salt.length);
             output.writeBytes(salt, salt.length);
-            output.writeInt(iv.length);
+            CodecUtil.writeBEInt(output, iv.length);
             output.writeBytes(iv, iv.length);
-            output.writeInt(encryptedBytes.length);
+            CodecUtil.writeBEInt(output, encryptedBytes.length);
             output.writeBytes(encryptedBytes, encryptedBytes.length);
 
             CodecUtil.writeFooter(output);

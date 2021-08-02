@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 
@@ -134,7 +135,7 @@ class Extent {
     }
 
     void writeCompressed(ByteBuffersDataOutput output) throws IOException {
-        output.writeInt(this.top);
+        CodecUtil.writeBEInt(output, this.top);
         output.writeVLong((long) this.top - this.bottom);
         byte type;
         if (this.negLeft == Integer.MAX_VALUE && this.negRight == Integer.MIN_VALUE) {

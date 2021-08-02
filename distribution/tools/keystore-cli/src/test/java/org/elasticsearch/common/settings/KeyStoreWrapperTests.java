@@ -40,7 +40,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-
 import javax.crypto.Cipher;
 import javax.crypto.CipherOutputStream;
 import javax.crypto.SecretKey;
@@ -345,12 +344,12 @@ public class KeyStoreWrapperTests extends ESTestCase {
         byte[] encryptedBytes,
         int truncEncryptedDataLength
     ) throws Exception {
-        indexOutput.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
-        indexOutput.writeInt(salt.length);
+        CodecUtil.writeBEInt(indexOutput, 4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
+        CodecUtil.writeBEInt(indexOutput, salt.length);
         indexOutput.writeBytes(salt, salt.length);
-        indexOutput.writeInt(iv.length);
+        CodecUtil.writeBEInt(indexOutput, iv.length);
         indexOutput.writeBytes(iv, iv.length);
-        indexOutput.writeInt(encryptedBytes.length - truncEncryptedDataLength);
+        CodecUtil.writeBEInt(indexOutput, encryptedBytes.length - truncEncryptedDataLength);
         indexOutput.writeBytes(encryptedBytes, encryptedBytes.length);
     }
 
@@ -399,7 +398,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
             ByteArrayOutputStream keystoreBytesStream = new ByteArrayOutputStream();
             keystore.store(keystoreBytesStream, new char[0]);
             byte[] keystoreBytes = keystoreBytesStream.toByteArray();
-            output.writeInt(keystoreBytes.length);
+            CodecUtil.writeBEInt(output, keystoreBytes.length);
             output.writeBytes(keystoreBytes, keystoreBytes.length);
             CodecUtil.writeFooter(output);
         }
@@ -450,7 +449,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
             ByteArrayOutputStream keystoreBytesStream = new ByteArrayOutputStream();
             keystore.store(keystoreBytesStream, new char[0]);
             byte[] keystoreBytes = keystoreBytesStream.toByteArray();
-            output.writeInt(keystoreBytes.length);
+            CodecUtil.writeBEInt(output, keystoreBytes.length);
             output.writeBytes(keystoreBytes, keystoreBytes.length);
             CodecUtil.writeFooter(output);
         }

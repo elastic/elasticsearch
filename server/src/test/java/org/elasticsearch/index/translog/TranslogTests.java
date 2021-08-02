@@ -1260,7 +1260,7 @@ public class TranslogTests extends ESTestCase {
         for (int i = 0; i < numOps; i++) {
             byte[] bytes = new byte[4];
             ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
-            out.writeInt(i);
+            CodecUtil.writeBEInt(out, i);
             long seqNo;
             do {
                 seqNo = opsHaveValidSequenceNumbers ? randomNonNegativeLong() : SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -1292,7 +1292,7 @@ public class TranslogTests extends ESTestCase {
 
         byte[] bytes = new byte[4];
         ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
-        out.writeInt(2048);
+        CodecUtil.writeBEInt(out, 2048);
         writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), randomNonNegativeLong());
 
         if (reader instanceof TranslogReader) {
@@ -1470,7 +1470,7 @@ public class TranslogTests extends ESTestCase {
 
             byte[] bytes = new byte[4];
             ByteArrayDataOutput out = new ByteArrayDataOutput(new byte[4]);
-            out.writeInt(1);
+            CodecUtil.writeBEInt(out, 1);
             writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 1);
             assertThat(persistedSeqNos, empty());
             startBlocking.set(true);
@@ -1503,7 +1503,7 @@ public class TranslogTests extends ESTestCase {
                 final byte[] bytes = new byte[4];
                 final ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
                 out.reset(bytes);
-                out.writeInt(i);
+                CodecUtil.writeBEInt(out, i);
                 writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), randomNonNegativeLong());
             }
             writer.sync();

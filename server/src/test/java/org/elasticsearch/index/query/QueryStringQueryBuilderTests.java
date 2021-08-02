@@ -492,7 +492,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Query expected = new DisjunctionMaxQuery(List.of(
             new TermQuery(new Term(TEXT_FIELD_NAME, "test")),
             new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))),
-            1
+            0
         );
         assertEquals(expected, query);
     }
@@ -503,7 +503,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Query expected = new DisjunctionMaxQuery(List.of(
             new TermQuery(new Term(TEXT_FIELD_NAME, "test")),
             new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))),
-            1
+            0
         );
         assertEquals(expected, query);
     }
@@ -513,7 +513,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Query expected = new DisjunctionMaxQuery(List.of(
             new TermQuery(new Term(TEXT_FIELD_NAME, "test")),
             new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))),
-            1
+            0
         );
         assertEquals(expected, query);
     }
@@ -539,7 +539,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Query expected = new DisjunctionMaxQuery(List.of(
             new BoostQuery(new TermQuery(new Term(TEXT_FIELD_NAME, "test")), 2.2f),
             new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))),
-            1
+            0
         );
         assertEquals(expected, query);
     }
@@ -756,7 +756,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class,
                 () -> queryBuilder.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
-        assertThat(e.getMessage(), containsString("would result in more than 10000 states"));
+        assertThat(e.getMessage(), containsString("would require more than 10000 effort"));
     }
 
     /**
@@ -778,7 +778,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class,
                 () -> queryBuilder.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
-        assertThat(e.getMessage(), containsString("would result in more than 10 states"));
+        assertThat(e.getMessage(), containsString("would require more than 10 effort"));
     }
 
     public void testToQueryFuzzyQueryAutoFuziness() throws Exception {

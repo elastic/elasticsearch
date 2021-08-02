@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
@@ -29,8 +30,8 @@ public class GeometryDocValueWriter {
                                  CentroidCalculator centroidCalculator) throws IOException {
         final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         // normalization may be required due to floating point precision errors
-        out.writeInt(coordinateEncoder.encodeX(coordinateEncoder.normalizeX(centroidCalculator.getX())));
-        out.writeInt(coordinateEncoder.encodeY(coordinateEncoder.normalizeY(centroidCalculator.getY())));
+        CodecUtil.writeBEInt(out, coordinateEncoder.encodeX(coordinateEncoder.normalizeX(centroidCalculator.getX())));
+        CodecUtil.writeBEInt(out, coordinateEncoder.encodeY(coordinateEncoder.normalizeY(centroidCalculator.getY())));
         centroidCalculator.getDimensionalShapeType().writeTo(out);
         out.writeVLong(Double.doubleToLongBits(centroidCalculator.sumWeight()));
         TriangleTreeWriter.writeTo(out, fields);

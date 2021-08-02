@@ -86,7 +86,7 @@ final class Checkpoint {
 
     private void write(DataOutput out) throws IOException {
         out.writeLong(offset);
-        out.writeInt(numOps);
+        CodecUtil.writeBEInt(out, numOps);
         out.writeLong(generation);
         out.writeLong(minSeqNo);
         out.writeLong(maxSeqNo);
@@ -116,7 +116,7 @@ final class Checkpoint {
 
     static Checkpoint readCheckpointV3(final DataInput in) throws IOException {
         final long offset = in.readLong();
-        final int numOps = in.readInt();
+        final int numOps = CodecUtil.readBEInt(in);
         final long generation = in.readLong();
         final long minSeqNo = in.readLong();
         final long maxSeqNo = in.readLong();

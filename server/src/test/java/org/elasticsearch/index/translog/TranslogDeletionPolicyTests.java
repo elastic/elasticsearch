@@ -8,13 +8,14 @@
 
 package org.elasticsearch.index.translog;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -86,7 +87,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
 
             for (int ops = randomIntBetween(0, 20); ops > 0; ops--) {
                 out.reset(bytes);
-                out.writeInt(ops);
+                CodecUtil.writeBEInt(out, ops);
                 writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), ops);
             }
         }

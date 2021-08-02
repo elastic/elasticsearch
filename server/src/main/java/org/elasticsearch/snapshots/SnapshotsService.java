@@ -70,7 +70,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.repositories.IndexId;
@@ -338,10 +337,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         || featureAssociatedIndices.size() > 0
                         || featureDataStreamBackingIndices.size() > 0) {
 
-                        featureStates.add(new SnapshotFeatureInfo(
-                            featureName,
-                            featureSystemIndices
-                        ));
+                        featureStates.add(new SnapshotFeatureInfo(featureName, featureSystemIndices));
                         indexNames.addAll(featureSystemIndices);
                         indexNames.addAll(featureAssociatedIndices);
                         indexNames.addAll(featureDataStreamBackingIndices);

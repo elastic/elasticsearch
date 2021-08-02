@@ -276,7 +276,7 @@ Features/Java High Level REST Client::
 Geo::
 * Do not over-allocate when resizing in `GeoHashTiler` with bounds {es-pull}72539[#72539] (issue: {es-issue}72521[#72521])
 * Handle properly precision 0 for `BoundedGeoTileGrid` {es-pull}72800[#72800]
-* [GeoPoint] Grid aggregations with bounds should exclude touching tiles {es-pull}72493[#72493] (issue: {es-issue}72295[#72295])
+* [Geopoint] Grid aggregations with bounds should exclude touching tiles {es-pull}72493[#72493] (issue: {es-issue}72295[#72295])
 * [Geoshape] Grid aggregations with bounds should exclude touching tiles {es-pull}72295[#72295]
 * `GeoShapeIndexer#prepareForIndex` should be called for computing the doc value centroid {es-pull}73856[#73856] (issue: {es-issue}73836[#73836])
 

@@ -762,7 +762,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * If any nodes are registered for shutdown, removes their metadata.
      */
     @SuppressWarnings("unchecked")
-    private static void deleteAllNodeShutdownMetadata() throws IOException {
+    protected void deleteAllNodeShutdownMetadata() throws IOException {
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
         Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
         if (statusResponse.containsKey("_nodes") && statusResponse.containsKey("cluster_name")) {

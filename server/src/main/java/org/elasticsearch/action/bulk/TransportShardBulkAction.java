@@ -519,11 +519,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static String routing(IndexRequest request, IndexSettings settings) {
         // TODO remove when tsid is a native field on IndexRequest
-        return settings.inTimeSeriesMode() ? null : request.routing();
+        return settings.mode().organizeIntoTimeSeries() ? null : request.routing();
     }
 
     private static BytesReference timeSeriesId(IndexRequest request, IndexSettings settings) {
         // TODO remove when tsid is a native field on IndexRequest
-        return settings.inTimeSeriesMode() ? request.timeSeriesId() : null;
+        return settings.mode().organizeIntoTimeSeries() ? request.timeSeriesId() : null;
     }
 }

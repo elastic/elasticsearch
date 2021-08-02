@@ -247,7 +247,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             logger.info("Running against leader cluster");
             createIndex(
                 leaderIndexName,
-                Settings.builder().put(IndexSettings.TIME_SERIES_MODE.getKey(), true).build(),
+                Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build(),
                 "\"properties\": {\"@timestamp\": {\"type\": \"date\"}, \"dim\": {\"type\": \"keyword\", \"dimension\": true}}"
             );
             for (int i = 0; i < numDocs; i++) {
@@ -284,12 +284,12 @@ public class FollowIndexIT extends ESCCRRestTestCase {
                 if (overrideNumberOfReplicas) {
                     assertMap(
                         getIndexSettingsAsMap(followIndexName),
-                        matchesMap().extraOk().entry("index.time_series_mode", "true").entry("index.number_of_replicas", "0")
+                        matchesMap().extraOk().entry("index.mode", "time_series").entry("index.number_of_replicas", "0")
                     );
                 } else {
                     assertMap(
                         getIndexSettingsAsMap(followIndexName),
-                        matchesMap().extraOk().entry("index.time_series_mode", "true").entry("index.number_of_replicas", "1")
+                        matchesMap().extraOk().entry("index.mode", "time_series").entry("index.number_of_replicas", "1")
                     );
                 }
             });
@@ -347,11 +347,11 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             "leader_cluster",
             "tsdb_leader",
             "tsdb_follower_bad",
-            Settings.builder().put("index.time_series_mode", false).build()
+            Settings.builder().put("index.mode", "standard").build()
         ));
         assertThat(
             e.getMessage(),
-            containsString("can not put follower index that could override leader settings {\\\"index.time_series_mode\\\":\\\"false\\\"}")
+            containsString("can not put follower index that could override leader settings {\\\"index.mode\\\":\\\"time_series\\\"}")
         );
     }
 

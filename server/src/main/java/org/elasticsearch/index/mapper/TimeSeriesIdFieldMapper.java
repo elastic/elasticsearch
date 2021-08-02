@@ -99,7 +99,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(DocumentParserContext context) throws IOException {
-        if (false == context.indexSettings().inTimeSeriesMode()) {
+        if (false == context.indexSettings().mode().organizeIntoTimeSeries()) {
             return;
         }
         assert fieldType().isSearchable() == false;

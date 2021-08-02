@@ -44,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -391,7 +392,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final boolean isSystem;
 
     private final IndexLongFieldRange timestampRange;
-    private final boolean timeSeriesMode;
+    private final IndexMode mode;
 
     private IndexMetadata(
             final Index index,
@@ -419,7 +420,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
             final boolean isSystem,
             final IndexLongFieldRange timestampRange,
-            final boolean inTimeSeriesMode) {
+            final IndexMode mode) {
 
         this.index = index;
         this.version = version;
@@ -452,8 +453,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
         this.timestampRange = timestampRange;
-        this.timeSeriesMode = inTimeSeriesMode;
-        assert false == (timeSeriesMode
+        this.mode = mode;
+        assert false == (mode.organizeIntoTimeSeries()
             && isRoutingPartitionedIndex()) : "time series indices incompatible with routing partitioned indices";
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
@@ -1288,7 +1289,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
-            final boolean inTimeSeriesMode = IndexSettings.TIME_SERIES_MODE.get(settings);
+            final IndexMode mode = IndexSettings.MODE.get(settings);
 
             return new IndexMetadata(
                     new Index(index, uuid),
@@ -1316,7 +1317,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     rolloverInfos.build(),
                     isSystem,
                     timestampRange,
-                    inTimeSeriesMode);
+                    mode);
         }
 
         @SuppressWarnings("unchecked")
@@ -1649,8 +1650,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return routingFactor;
     }
 
-    public boolean inTimeSeriesMode() {
-        return timeSeriesMode;
+    public IndexMode mode() {
+        return mode;
     }
 
     /**

@@ -261,7 +261,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.startObject("settings");
             mappingsAndSettings.field("number_of_shards", 1);
             mappingsAndSettings.field("number_of_replicas", replicas);
-            mappingsAndSettings.field("time_series_mode", true);
+            mappingsAndSettings.field("mode", "time_series");
             mappingsAndSettings.endObject();
         }
         {

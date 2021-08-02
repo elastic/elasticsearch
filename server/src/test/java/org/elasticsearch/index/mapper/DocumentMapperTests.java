@@ -69,7 +69,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
         // but merged should
         DocumentParser documentParser = new DocumentParser(null, null, null, null);
-        DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged, false);
+        DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged);
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
     }
@@ -332,7 +332,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
     public void testContainsTimeSeriesGenerator() throws IOException {
         DocumentMapper documentMapper = createMapperService(
             Version.CURRENT,
-            Settings.builder().put(IndexSettings.TIME_SERIES_MODE.getKey(), true).build(),
+            Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build(),
             () -> false,
             mapping(b -> b.startObject("dim").field("type", "keyword").field("dimension", true).endObject())
         ).documentMapper();

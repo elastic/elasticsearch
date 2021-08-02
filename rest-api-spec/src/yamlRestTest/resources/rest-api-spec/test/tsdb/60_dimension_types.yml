@@ -10,7 +10,7 @@ keyword dimension:
           body:
             settings:
               index:
-                time_series_mode: true
+                mode: time_series
             mappings:
               properties:
                 "@timestamp":
@@ -78,7 +78,7 @@ long dimension:
           body:
             settings:
               index:
-                time_series_mode: true
+                mode: time_series
             mappings:
               properties:
                 "@timestamp":
@@ -146,7 +146,7 @@ ip dimension:
           body:
             settings:
               index:
-                time_series_mode: true
+                mode: time_series
             mappings:
               properties:
                 "@timestamp":

@@ -11,6 +11,7 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -22,8 +23,8 @@ import java.util.Map;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexRecoveryInTimeSeriesModeIT extends IndexRecoveryIT {
     @Override
-    protected boolean inTimeSeriesMode() {
-        return true;
+    protected IndexMode indexMode() {
+        return IndexMode.TIME_SERIES;
     }
 
     @Override

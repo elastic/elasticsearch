@@ -347,19 +347,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    static void prohibitInTimeSeriesMode(DocWriteRequest<?> writeRequest, IndexAbstraction abstraction) {
+    static void checkDestinationMode(DocWriteRequest<?> writeRequest, IndexAbstraction abstraction) {
         if (abstraction == null || abstraction.getWriteIndex() == null) {
             return;
         }
-        if (abstraction.getWriteIndex().inTimeSeriesMode()) {
-            throw new IllegalArgumentException(
-                "["
-                    + writeRequest.opType()
-                    + "] is not supported because the destination index ["
-                    + abstraction.getName()
-                    + "] is in time series mode"
-            );
-        }
+        abstraction.getWriteIndex().mode().checkDocWriteRequest(writeRequest.opType(), abstraction.getName());
     }
 
     boolean isOnlySystem(BulkRequest request, SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices) {
@@ -463,6 +455,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     switch (docWriteRequest.opType()) {
                         case CREATE:
                         case INDEX:
+                            checkDestinationMode(docWriteRequest, indexAbstraction);
                             prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
                             prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
@@ -473,12 +466,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
                             break;
                         case UPDATE:
-                            prohibitInTimeSeriesMode(docWriteRequest, indexAbstraction);
+                            checkDestinationMode(docWriteRequest, indexAbstraction);
                             TransportUpdateAction.resolveAndValidateRouting(metadata, concreteIndex.getName(),
                                 (UpdateRequest) docWriteRequest);
                             break;
                         case DELETE:
-                            prohibitInTimeSeriesMode(docWriteRequest, indexAbstraction);
+                            checkDestinationMode(docWriteRequest, indexAbstraction);
                             docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                             // check if routing is required, if so, throw error if routing wasn't specified
                             if (docWriteRequest.routing() == null && metadata.routingRequired(concreteIndex.getName())) {

@@ -625,10 +625,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     ) {
         // TODO clean this up once we tsid is its own field
         String routingFromAliasOrRequest = metadata.resolveWriteIndexRouting(routing(), index);
-        boolean inTimeSeriesMode = abstraction == null || abstraction.getWriteIndex() == null
+        boolean generateTimeSeriesId = abstraction == null || abstraction.getWriteIndex() == null
             ? false
-            : abstraction.getWriteIndex().inTimeSeriesMode();
-        if (inTimeSeriesMode) {
+            : abstraction.getWriteIndex().mode().organizeIntoTimeSeries();
+        if (generateTimeSeriesId) {
             if (routing() != null) {
                 throw new IllegalArgumentException(
                     "routing cannot be set because the destination index [" + abstraction.getName() + "] is in time series mode"

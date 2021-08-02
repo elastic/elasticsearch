@@ -1,4 +1,4 @@
-# Test the time_series_mode properly groups by _tsid. If we could put this in
+# Test the mode:time_series properly groups by _tsid. If we could put this in
 # rest-api-spec we would, but it requires painless.
 
 setup:
@@ -8,7 +8,7 @@ setup:
           body:
             settings:
               index:
-                time_series_mode: true
+                mode: time_series
                 number_of_shards: 3
                 number_of_replicas: 1
             mappings:

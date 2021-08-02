@@ -22,7 +22,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
@@ -337,38 +336,22 @@ public final class IndexSettings {
     }
 
     /**
-     * Is the index in time series mode? Time series mode indices are
-     * automatically routed and sorted on a the
-     * {@link TimeSeriesIdFieldMapper _tsid} field. {@code _tsid} itself
-     * is automatically {@link TimeSeriesIdGenerator generated} using
-     * the fields marked as "dimensions".
+     * The {@link IndexMode "mode"} of the index.
      */
-    public static final Setting<Boolean> TIME_SERIES_MODE = Setting.boolSetting(  // TODO make it "mode" and force the default to "standard"
-        "index.time_series_mode",
-        false,
-        new Setting.Validator<Boolean>() {
+    public static final Setting<IndexMode> MODE = Setting.enumSetting(IndexMode.class,
+        "index.mode",
+        IndexMode.STANDARD,
+        new Setting.Validator<IndexMode>() {
             @Override
-            public void validate(Boolean value) {}
+            public void validate(IndexMode value) {}
 
             @Override
-            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
-                if (false == value) {
-                    return;
-                }
-                if (settings.get(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING) != Integer.valueOf(1)) {
-                    throw new IllegalArgumentException(
-                        "["
-                            + TIME_SERIES_MODE.getKey()
-                            + "] is incompatible with ["
-                            + IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey()
-                            + "]"
-                    );
-                }
+            public void validate(IndexMode value, Map<Setting<?>, Object> settings) {
+                value.validateWithOtherSettings(settings);
             }
 
             public Iterator<Setting<?>> settings() {
-                List<Setting<?>> dependencies = List.of(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING);
-                return dependencies.iterator();
+                return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
             }
         },
         Property.IndexScope
@@ -454,13 +437,9 @@ public final class IndexSettings {
     private volatile int maxRegexLength;
 
     /**
-     * Is the index in time series mode? Time series mode indices are
-     * automatically routed and sorted on a the
-     * {@link TimeSeriesIdFieldMapper _tsid} field. {@code _tsid} itself
-     * is automatically {@link TimeSeriesIdGenerator generated} using
-     * the fields marked as "dimensions".
+     * The {@link IndexMode "mode"} of the index.
      */
-    private final boolean timeSeriesMode;
+    private final IndexMode mode;
 
     /**
      * Returns the default search fields for this index.
@@ -563,7 +542,7 @@ public final class IndexSettings {
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
-        timeSeriesMode = isTimeSeriesModeEnabled() ? scopedSettings.get(TIME_SERIES_MODE) : false;
+        mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
@@ -1101,7 +1080,7 @@ public final class IndexSettings {
         this.mappingDimensionFieldsLimit = value;
     }
 
-    public boolean inTimeSeriesMode() {
-        return timeSeriesMode;
+    public IndexMode mode() {
+        return mode;
     }
 }

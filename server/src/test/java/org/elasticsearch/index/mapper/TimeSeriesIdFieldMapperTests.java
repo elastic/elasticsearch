@@ -37,7 +37,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
 
     public void testEnabledInTimeSeriesMode() throws Exception {
         DocumentMapper docMapper = createMapperService(
-            getIndexSettingsBuilder().put(IndexSettings.TIME_SERIES_MODE.getKey(), true).build(),
+            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), "time_series").build(),
             mapping(b -> {})
         ).documentMapper();
 
@@ -52,9 +52,9 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
     }
 
-    public void testDisabledOutsideOfTimeSeriesMode() throws Exception {
+    public void testDisabledInStandardMode() throws Exception {
         DocumentMapper docMapper = createMapperService(
-            getIndexSettingsBuilder().put(IndexSettings.TIME_SERIES_MODE.getKey(), false).build(),
+            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), "standard").build(),
             mapping(b -> {})
         ).documentMapper();
 

@@ -112,16 +112,16 @@ public final class IndexSortConfig {
     final FieldSortSpec[] sortSpecs;
     private final Version indexCreatedVersion;
     private final String indexName;
-    private final boolean timeSeriesMode;
+    private final IndexMode indexMode;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
         this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
         this.indexName = indexSettings.getIndex().getName();
-        this.timeSeriesMode = indexSettings.inTimeSeriesMode();
+        this.indexMode = indexSettings.mode();
 
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
-        if (timeSeriesMode) {
+        if (indexMode.organizeIntoTimeSeries()) {
             if (false == fields.isEmpty()) {
                 throw new IllegalArgumentException("Can't set [" + INDEX_SORT_FIELD_SETTING.getKey() + "] in time series mode");
             }
@@ -204,8 +204,8 @@ public final class IndexSortConfig {
             final MappedFieldType ft = fieldTypeLookup.apply(sortSpec.field);
             if (ft == null) {
                 String err = "unknown index sort field:[" + sortSpec.field + "]";
-                if (timeSeriesMode) {
-                    err += " required by [" + IndexSettings.TIME_SERIES_MODE.getKey() + "]";
+                if (indexMode.organizeIntoTimeSeries()) {
+                    err += " required by [" + IndexSettings.MODE.getKey() + "=time_series]";
                 }
                 throw new IllegalArgumentException(err);
             }

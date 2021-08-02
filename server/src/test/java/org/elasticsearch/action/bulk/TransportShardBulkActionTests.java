@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.bulk.stats.BulkStats;
@@ -224,19 +225,19 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     public void testExecuteBulkIndexRequestWithMappingUpdates() throws Exception {
-        boolean timeSeriesMode = randomBoolean();
+        IndexMode mode = randomFrom(IndexMode.values());
 
         BulkItemRequest[] items = new BulkItemRequest[1];
         IndexRequest writeRequest = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
-        if (timeSeriesMode) {
-            writeRequest.routing("tsid");
+        if (mode.organizeIntoTimeSeries()) {
+            writeRequest.routing("tsid");  // TODO move this into its own field in a follow up
         }
         items[0] = new BulkItemRequest(0, writeRequest);
         BulkShardRequest bulkShardRequest =
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
         Engine.IndexResult mappingUpdate = new Engine.IndexResult(
-            new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap(), timeSeriesMode)
+            new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap(), mode)
         );
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
@@ -246,7 +247,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean()))
             .thenReturn(mappingUpdate);
         when(shard.mapperService()).thenReturn(mock(MapperService.class));
-        when(shard.indexSettings()).thenReturn(indexSettings(timeSeriesMode));
+        when(shard.indexSettings()).thenReturn(indexSettings(mode));
 
         randomlySetIgnoredPrimaryResponse(items[0]);
 
@@ -767,7 +768,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             "I'm conflicted <(;_;)>");
         Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0);
         Engine.IndexResult mappingUpdate = new Engine.IndexResult(
-            new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap(), randomBoolean())
+            new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap(), randomFrom(IndexMode.values()))
         );
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
@@ -847,9 +848,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             items[1] = new BulkItemRequest(1, writeRequest2);
             BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-            boolean timeSeriesMode = false;
             Engine.IndexResult mappingUpdate = new Engine.IndexResult(
-                new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap(), timeSeriesMode)
+                new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap(), IndexMode.STANDARD)
             );
             Translog.Location resultLocation1 = new Translog.Location(42, 36, 36);
             Translog.Location resultLocation2 = new Translog.Location(42, 42, 42);
@@ -862,7 +862,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 .thenReturn(success1, mappingUpdate, success2);
             when(shard.getFailedIndexResult(any(EsRejectedExecutionException.class), anyLong())).thenCallRealMethod();
             when(shard.mapperService()).thenReturn(mock(MapperService.class));
-            when(shard.indexSettings()).thenReturn(indexSettings(timeSeriesMode));
+            when(shard.indexSettings()).thenReturn(indexSettings(IndexMode.STANDARD));
 
             randomlySetIgnoredPrimaryResponse(items[0]);
 
@@ -962,10 +962,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         latch.await();
     }
 
-    private IndexSettings indexSettings(boolean timeSeriesMode) throws IOException {
+    private IndexSettings indexSettings(IndexMode mode) throws IOException {
         return new IndexSettings(
             indexMetadata(),
-            Settings.builder().put(idxSettings).put(IndexSettings.TIME_SERIES_MODE.getKey(), timeSeriesMode).build()
+            Settings.builder().put(idxSettings).put(IndexSettings.MODE.getKey(), mode).build()
         );
     }
 

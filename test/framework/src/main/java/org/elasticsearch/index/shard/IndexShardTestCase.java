@@ -465,7 +465,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected IndexShard newStartedTimeSeriesShard(boolean primary) throws IOException {
         return newStartedShard(
             primary,
-            Settings.builder().put(IndexSettings.TIME_SERIES_MODE.getKey(), true).build(),
+            Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build(),
             new InternalEngineFactory()
         );
     }

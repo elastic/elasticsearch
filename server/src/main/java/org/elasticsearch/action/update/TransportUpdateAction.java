@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -176,11 +177,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) {
         final ShardId shardId = request.getShardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        if (indexService.getMetadata().inTimeSeriesMode()) {
-            throw new IllegalArgumentException(
-                "[UPDATE] is not supported because the destination index [" + shardId.getIndexName() + "] is in time series mode"
-            );
-        }
+        indexService.getMetadata().mode().checkDocWriteRequest(OpType.UPDATE, shardId.getIndexName());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
         final UpdateHelper.Result result = updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis);
         switch (result.getResponseResult()) {

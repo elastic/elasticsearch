@@ -125,7 +125,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             metadataMapperParsers,
             this::getMetadataMappers,
             this::resolveDocumentType,
-            indexSettings.inTimeSeriesMode()
+            indexSettings.mode()
         );
     }
 
@@ -289,7 +289,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason) {
-        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, indexSettings.inTimeSeriesMode());
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping);
         newMapper.mapping().getRoot().fixRedundantIncludes();
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;

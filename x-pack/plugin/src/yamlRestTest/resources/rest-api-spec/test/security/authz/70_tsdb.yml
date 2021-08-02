@@ -5,7 +5,7 @@ setup:
           body:
             settings:
               index:
-                time_series_mode: true
+                mode: time_series
             mappings:
               properties:
                 "@timestamp":

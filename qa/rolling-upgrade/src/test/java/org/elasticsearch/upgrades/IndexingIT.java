@@ -318,7 +318,7 @@ public class IndexingIT extends AbstractRollingTestCase {
             indexSpec.startObject("dim").field("type", "keyword").field("dimension", true).endObject();
         }
         indexSpec.endObject().endObject();
-        indexSpec.startObject("settings").field("time_series_mode", true).endObject();
+        indexSpec.startObject("settings").field("mode", "time_series").endObject();
         createIndex.setJsonEntity(Strings.toString(indexSpec.endObject()));
         client().performRequest(createIndex);
     }

@@ -273,7 +273,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexSettings.TIME_SERIES_MODE.getKey(), true)
+            .put(IndexSettings.MODE.getKey(), "time_series")
             .build();
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         {

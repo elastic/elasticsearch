@@ -46,10 +46,15 @@ public class SourceToParse {
         Map<String, String> dynamicTemplates,
         MappingLookup lookup
     ) {
-        BytesReference timeSeriesId = lookup.getMapping().getTimeSeriesIdGenerator() == null
-            ? null
-            : lookup.getMapping().getTimeSeriesIdGenerator().generate(source, xContentType);
-        return new SourceToParse(index, id, source, xContentType, routing, timeSeriesId, dynamicTemplates);
+        return new SourceToParse(
+            index,
+            id,
+            source,
+            xContentType,
+            routing,
+            lookup.getMapping().generateTimeSeriesIdIfNeeded(source, xContentType),
+            dynamicTemplates
+        );
     }
 
     private final BytesReference source;

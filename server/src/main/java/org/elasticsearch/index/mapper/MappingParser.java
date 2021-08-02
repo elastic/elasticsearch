@@ -12,6 +12,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -30,18 +31,18 @@ public final class MappingParser {
     private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
-    private final boolean inTimeSeriesMode;
+    private final IndexMode indexMode;
 
     MappingParser(Supplier<MappingParserContext> parserContextSupplier,
                   Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
                   Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
                   Function<String, String> documentTypeResolver,
-                  boolean inTimeSeriesMode) {
+                  IndexMode indexMode) {
         this.parserContextSupplier = parserContextSupplier;
         this.metadataMapperParsers = metadataMapperParsers;
         this.metadataMappersSupplier = metadataMappersSupplier;
         this.documentTypeResolver = documentTypeResolver;
-        this.inTimeSeriesMode = inTimeSeriesMode;
+        this.indexMode = indexMode;
     }
 
     /**
@@ -149,6 +150,6 @@ public final class MappingParser {
             rootObjectMapper,
             metadataMappers.values().toArray(new MetadataFieldMapper[0]),
             meta,
-            inTimeSeriesMode);
+            indexMode);
     }
 }

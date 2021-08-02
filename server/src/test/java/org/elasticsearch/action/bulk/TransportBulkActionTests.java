@@ -247,28 +247,28 @@ public class TransportBulkActionTests extends ESTestCase {
         prohibitCustomRoutingOnDataStream(writeRequestAgainstIndex, metadata);
     }
 
-    public void testProhibitedInTimeSeriesModeWithoutATarget() throws Exception {
+    public void testCheckDestinationModeWithoutATarget() throws Exception {
         // Doesn't throw
-        TransportBulkAction.prohibitInTimeSeriesMode(prohibitedInTimeSeriesMode(), null);
+        TransportBulkAction.checkDestinationMode(prohibitedInTimeSeriesMode(), null);
     }
 
-    public void testProhibitedInTimeSeriesModeNotInTimeSeriesMode() throws Exception {
+    public void testCheckDestinationModeInStandardMode() throws Exception {
         Settings settings = Settings.builder().put("index.version.created", Version.CURRENT).build();
         IndexMetadata writeIndex = IndexMetadata.builder("idx").settings(settings).numberOfReplicas(0).numberOfShards(1).build();
         // Doesn't throw
-        TransportBulkAction.prohibitInTimeSeriesMode(prohibitedInTimeSeriesMode(), new IndexAbstraction.Index(writeIndex));
+        TransportBulkAction.checkDestinationMode(prohibitedInTimeSeriesMode(), new IndexAbstraction.Index(writeIndex));
     }
 
-    public void testProhibitedInTimeSeriesMode() throws Exception {
+    public void testCheckDestinationModeInTimeSeriesMode() throws Exception {
         Settings settings = Settings.builder()
             .put("index.version.created", Version.CURRENT)
-            .put(IndexSettings.TIME_SERIES_MODE.getKey(), true)
+            .put(IndexSettings.MODE.getKey(), "time_series")
             .build();
         IndexMetadata writeIndex = IndexMetadata.builder("idx").settings(settings).numberOfReplicas(0).numberOfShards(1).build();
         DocWriteRequest<?> prohibited = prohibitedInTimeSeriesMode();
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitInTimeSeriesMode(prohibited, new IndexAbstraction.Index(writeIndex))
+            () -> TransportBulkAction.checkDestinationMode(prohibited, new IndexAbstraction.Index(writeIndex))
         );
         assertThat(
             e.getMessage(),

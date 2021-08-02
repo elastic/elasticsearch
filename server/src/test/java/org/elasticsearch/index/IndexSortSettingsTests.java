@@ -191,7 +191,7 @@ public class IndexSortSettingsTests extends ESTestCase {
     }
 
     public void testTimeSeriesMode() {
-        IndexSettings indexSettings = indexSettings(Settings.builder().put(IndexSettings.TIME_SERIES_MODE.getKey(), true).build());
+        IndexSettings indexSettings = indexSettings(Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build());
         Sort sort = buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE, new DateFieldMapper.DateFieldType("@timestamp"));
         assertThat(sort.getSort(), arrayWithSize(2));
         assertThat(sort.getSort()[0].getField(), equalTo("_tsid"));
@@ -199,9 +199,9 @@ public class IndexSortSettingsTests extends ESTestCase {
     }
 
     public void testTimeSeriesModeNoTimestamp() {
-        IndexSettings indexSettings = indexSettings(Settings.builder().put(IndexSettings.TIME_SERIES_MODE.getKey(), true).build());
+        IndexSettings indexSettings = indexSettings(Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build());
         Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE));
-        assertThat(e.getMessage(), equalTo("unknown index sort field:[@timestamp] required by [index.time_series_mode]"));
+        assertThat(e.getMessage(), equalTo("unknown index sort field:[@timestamp] required by [index.mode=time_series]"));
     }
 
     private Sort buildIndexSort(IndexSettings indexSettings, MappedFieldType... mfts) {

@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
@@ -36,20 +38,21 @@ import static java.util.Collections.unmodifiableMap;
 public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
-        new RootObjectMapper.Builder("_doc").build(new ContentPath()), new MetadataFieldMapper[0], null, false);
+        new RootObjectMapper.Builder("_doc").build(new ContentPath()), new MetadataFieldMapper[0], null, IndexMode.STANDARD);
 
     private final RootObjectMapper root;
     private final Map<String, Object> meta;
     private final MetadataFieldMapper[] metadataMappers;
     private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     private final Map<String, MetadataFieldMapper> metadataMappersByName;
+    private final IndexMode indexMode;
     private final TimeSeriesIdGenerator timeSeriesIdGenerator;
 
     public Mapping(
         RootObjectMapper rootObjectMapper,
         MetadataFieldMapper[] metadataMappers,
         Map<String, Object> meta,
-        boolean inTimeSeriesMode
+        IndexMode indexMode
     ) {
         this.metadataMappers = metadataMappers;
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap = new HashMap<>();
@@ -69,7 +72,8 @@ public final class Mapping implements ToXContentFragment {
         this.metadataMappersMap = unmodifiableMap(metadataMappersMap);
         this.metadataMappersByName = unmodifiableMap(metadataMappersByName);
         this.meta = meta;
-        this.timeSeriesIdGenerator = inTimeSeriesMode
+        this.indexMode = indexMode;
+        this.timeSeriesIdGenerator = indexMode.organizeIntoTimeSeries()
             ? TimeSeriesIdGenerator.build(root.selectTimeSeriesIdComponents())
             : null;
     }
@@ -129,7 +133,7 @@ public final class Mapping implements ToXContentFragment {
      * Generate a mapping update for the given root object mapper.
      */
     Mapping mappingUpdate(RootObjectMapper rootObjectMapper) {
-        return new Mapping(rootObjectMapper, metadataMappers, meta, inTimeSeriesMode());
+        return new Mapping(rootObjectMapper, metadataMappers, meta, indexMode);
     }
 
     /**
@@ -170,7 +174,7 @@ public final class Mapping implements ToXContentFragment {
             XContentHelper.mergeDefaults(mergedMeta, meta);
         }
 
-        return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta, inTimeSeriesMode());
+        return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta, indexMode);
     }
 
     @Override
@@ -198,11 +202,14 @@ public final class Mapping implements ToXContentFragment {
         }
     }
 
-    public TimeSeriesIdGenerator getTimeSeriesIdGenerator() {
-        return timeSeriesIdGenerator;
+    public BytesReference generateTimeSeriesIdIfNeeded(BytesReference source, XContentType xContentType) {
+        if (timeSeriesIdGenerator == null) {
+            return null;
+        }
+        return timeSeriesIdGenerator.generate(source, xContentType);
     }
 
-    private boolean inTimeSeriesMode() {
-        return timeSeriesIdGenerator != null;
+    public TimeSeriesIdGenerator getTimeSeriesIdGenerator() {
+        return timeSeriesIdGenerator;
     }
 }

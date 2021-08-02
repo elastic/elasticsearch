@@ -11,7 +11,7 @@
           body:
             settings:
               index:
-                time_series_mode: true
+                mode: time_series
             mappings:
               properties:
                 "@timestamp":
@@ -34,7 +34,7 @@
           body:
             settings:
               index:
-                time_series_mode: true
+                mode: time_series
             mappings:
               properties:
                 "@timestamp":
@@ -57,7 +57,7 @@
           body:
             settings:
               index:
-                time_series_mode: true
+                mode: time_series
             mappings:
               properties:
                 "@timestamp":
@@ -90,7 +90,7 @@
                 sort:
                   field: "@timestamp"
                   order: desc
-                time_series_mode: true
+                mode: time_series
             mappings:
               properties:
                 "@timestamp":
@@ -107,13 +107,13 @@
       reason: introduced in 8.0.0 to be backported to 7.15.0
 
   - do:
-      catch: /\[index.time_series_mode\] is incompatible with \[index.routing_partition_size\]/
+      catch: /\[index.mode\] is incompatible with \[index.routing_partition_size\]/
       indices.create:
           index: test
           body:
             settings:
               index:
-                time_series_mode: true
+                mode: time_series
                 number_of_shards: 10
                 routing_partition_size: 2
             mappings:

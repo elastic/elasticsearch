@@ -12,6 +12,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
@@ -102,7 +103,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     @Override
     public void preParse(DocumentParserContext context) {
         String routing = context.sourceToParse().routing();
-        if (context.indexSettings().inTimeSeriesMode()) {
+        if (context.indexSettings().mode() == IndexMode.TIME_SERIES) {
             // TODO when we stop storing the tsid in the routing fail any request with routing in time series mode
             // the routing will always come from the time series id.
             return;

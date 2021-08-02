@@ -25,14 +25,14 @@ public class DocumentMapper {
     public static DocumentMapper createEmpty(MapperService mapperService) {
         RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME).build(new ContentPath(1));
         MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
-        Mapping mapping = new Mapping(root, metadata, null, mapperService.getIndexSettings().inTimeSeriesMode());
-        return new DocumentMapper(mapperService.documentParser(), mapping, mapperService.getIndexSettings().inTimeSeriesMode());
+        Mapping mapping = new Mapping(root, metadata, null, mapperService.getIndexSettings().mode());
+        return new DocumentMapper(mapperService.documentParser(), mapping);
     }
 
-    DocumentMapper(DocumentParser documentParser, Mapping mapping, boolean inTimeSeriesMode) {
+    DocumentMapper(DocumentParser documentParser, Mapping mapping) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().name();
-        this.mappingLookup = MappingLookup.fromMapping(mapping, inTimeSeriesMode);
+        this.mappingLookup = MappingLookup.fromMapping(mapping);
         this.mappingSource = mapping.toCompressedXContent();
     }
 

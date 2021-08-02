@@ -58,6 +58,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.ReplicaShardAllocatorIT;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
@@ -273,7 +274,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, SHARD_COUNT)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode())
                     .build()
             ).setMapping(minimalMapping())
         );
@@ -353,7 +354,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                     .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode())
                     .build()
             ).setMapping(minimalMapping())
         );
@@ -721,7 +722,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     .put("number_of_shards", shardCount)
                     .put("number_of_replicas", replicaCount)
                     .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode())
             )
             .setMapping(minimalMapping())
         );
@@ -774,7 +775,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode())
             ).setMapping(minimalMapping())
         );
 
@@ -956,7 +957,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode())
             ).setMapping(minimalMapping())
         );
 
@@ -1069,7 +1070,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode())
             ).setMapping(minimalMapping())
         );
 
@@ -1179,7 +1180,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
                     .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0)
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode())
             ).setMapping(minimalMapping())
         );
         ensureGreen(indexName);
@@ -1241,7 +1242,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     .putList("index.analysis.analyzer.test_analyzer.filter", "test_token_filter")
                     .put("index.number_of_replicas", 0)
                     .put("index.number_of_shards", 1)
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode())
             ).setMapping(minimalMapping())
         );
         client().admin().indices().preparePutMapping("test").setSource("test_field", "type=text,analyzer=test_analyzer").get();
@@ -1283,7 +1284,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put("index.routing.allocation.include._name", nodeWithPrimary)
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode())
             ).setMapping(minimalMapping())
         );
         MockTransportService transport = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeWithPrimary);
@@ -1333,7 +1334,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     // disable global checkpoint background sync so we can verify the start recovery request
                     .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "12h")
                     .put("index.routing.allocation.include._name", String.join(",", nodes))
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode())
             ).setMapping(minimalMapping())
         );
         ensureGreen(indexName);
@@ -1420,7 +1421,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                     .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                     .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "12h")
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode())
                     .build()
             ).setMapping(minimalMapping())
         );
@@ -1471,7 +1472,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                     .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                     .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "12h")
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode())
                     .build()
             ).setMapping(minimalMapping())
         );
@@ -1526,7 +1527,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "12h")
             .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
-            .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode());
+            .put(IndexSettings.MODE.getKey(), indexMode());
 
         final double reasonableOperationsBasedRecoveryProportion;
         if (randomBoolean()) {
@@ -1630,7 +1631,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode())
                     .build()
             ).setMapping(minimalMapping())
         );
@@ -1696,7 +1697,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 6))
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms")
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode())
             ).setMapping(minimalMapping())
         );
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, randomIntBetween(0, 10))
@@ -1742,7 +1743,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 1)
                         .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), randomBoolean())
-                        .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                        .put(IndexSettings.MODE.getKey(), indexMode())
                 )
                 .setMapping(minimalMapping())
         );
@@ -1775,7 +1776,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 1)
                     .put("index.routing.allocation.include._name", String.join(",", dataNodes))
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode())
                     .build()
             ).setMapping(minimalMapping())
         );
@@ -1833,7 +1834,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-                        .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                        .put(IndexSettings.MODE.getKey(), indexMode())
                 )
                 .setMapping(minimalMapping())
                 .setWaitForActiveShards(ActiveShardCount.NONE)
@@ -1859,7 +1860,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
                     .put("index.routing.allocation.include._name", String.join(",", dataNodes))
-                    .put(IndexSettings.TIME_SERIES_MODE.getKey(), inTimeSeriesMode())
+                    .put(IndexSettings.MODE.getKey(), indexMode().toString())
                     .build()
             ).setMapping(minimalMapping())
         );
@@ -1928,8 +1929,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         }
     }
 
-    protected boolean inTimeSeriesMode() {
-        return false;
+    protected IndexMode indexMode() {
+        return IndexMode.STANDARD;
     }
 
     /**

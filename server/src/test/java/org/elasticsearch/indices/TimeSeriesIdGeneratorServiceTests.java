@@ -281,7 +281,7 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
     private IndexMetadata.Builder index(String index, boolean timeSeriesMode, String mapping) {
         Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
         if (timeSeriesMode) {
-            settings.put(IndexSettings.TIME_SERIES_MODE.getKey(), true);
+            settings.put(IndexSettings.MODE.getKey(), "time_series");
         }
         IndexMetadata.Builder builder = IndexMetadata.builder(index)
             .settings(settings)

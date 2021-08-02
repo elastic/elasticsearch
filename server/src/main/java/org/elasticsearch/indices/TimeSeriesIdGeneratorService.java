@@ -135,7 +135,7 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
 
     @Override
     public TimeSeriesIdGenerator apply(IndexMetadata meta) {
-        if (false == meta.inTimeSeriesMode()) {
+        if (false == meta.mode().organizeIntoTimeSeries()) {
             return null;
         }
         Value v = byIndex.get(meta.getIndex());
@@ -181,7 +181,7 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
 
         for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
             IndexMetadata indexMetadata = cursor.value;
-            if (false == indexMetadata.inTimeSeriesMode()) {
+            if (false == indexMetadata.mode().organizeIntoTimeSeries()) {
                 continue;
             }
             Index index = indexMetadata.getIndex();
@@ -244,7 +244,7 @@ class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
          */
         for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
             IndexMetadata indexMetadata = cursor.value;
-            if (false == indexMetadata.inTimeSeriesMode()) {
+            if (false == indexMetadata.mode().organizeIntoTimeSeries()) {
                 continue;
             }
             Index index = indexMetadata.getIndex();

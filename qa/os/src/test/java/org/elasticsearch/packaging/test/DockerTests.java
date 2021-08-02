@@ -327,10 +327,7 @@ public class DockerTests extends PackagingTestCase {
         // ELASTIC_PASSWORD_FILE
         Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
 
-        Map<String, String> envVars = Map.of(
-            "ELASTIC_PASSWORD_FILE",
-            "/run/secrets/" + passwordFilename
-        );
+        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
 
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values
@@ -378,10 +375,7 @@ public class DockerTests extends PackagingTestCase {
         // it won't resolve inside the container.
         Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Path.of(passwordFilename));
 
-        Map<String, String> envVars = Map.of(
-            "ELASTIC_PASSWORD_FILE",
-            "/run/secrets/" + symlinkFilename
-        );
+        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename);
 
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values. The wrapper will resolve the symlink
@@ -467,10 +461,7 @@ public class DockerTests extends PackagingTestCase {
         // it won't resolve inside the container.
         Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Path.of(passwordFilename));
 
-        Map<String, String> envVars = Map.of(
-            "ELASTIC_PASSWORD_FILE",
-            "/run/secrets/" + symlinkFilename
-        );
+        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename);
 
         // Set invalid permissions on the file that the symlink targets
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p775);
@@ -757,7 +748,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that it when configuring logging to write to disk, the container can be restarted.
      */
     public void test124CanRestartContainerWithStackLoggingConfig() throws Exception {
-        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file")));
+        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file","ELASTIC_PASSWORD", PASSWORD)));
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
 

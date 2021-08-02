@@ -31,6 +31,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests for the cluster allocation explanation
@@ -50,11 +53,12 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
     }
 
     public void testExplanationSerialization() throws Exception {
-        ClusterAllocationExplanation cae = randomClusterAllocationExplanation(randomBoolean());
+        ClusterAllocationExplanation cae = randomClusterAllocationExplanation(randomBoolean(), randomBoolean());
         BytesStreamOutput out = new BytesStreamOutput();
         cae.writeTo(out);
         StreamInput in = out.bytes().streamInput();
         ClusterAllocationExplanation cae2 = new ClusterAllocationExplanation(in);
+        assertEquals(cae.isSpecificShard(), cae2.isSpecificShard());
         assertEquals(cae.getShard(), cae2.getShard());
         assertEquals(cae.isPrimary(), cae2.isPrimary());
         assertTrue(cae2.isPrimary());
@@ -73,7 +77,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
     }
 
     public void testExplanationToXContent() throws Exception {
-        ClusterAllocationExplanation cae = randomClusterAllocationExplanation(true);
+        ClusterAllocationExplanation cae = randomClusterAllocationExplanation(true, true);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"index\":\"idx\",\"shard\":0,\"primary\":true,\"current_state\":\"started\",\"current_node\":" +
@@ -83,7 +87,25 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                          "that can both allocate this shard and improve the cluster balance\"}", Strings.toString(builder));
     }
 
-    private static ClusterAllocationExplanation randomClusterAllocationExplanation(boolean assignedShard) {
+    public void testRandomShardExplanationToXContent() throws Exception {
+        ClusterAllocationExplanation cae = randomClusterAllocationExplanation(true, false);
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        final String actual = Strings.toString(builder);
+        assertThat(actual, allOf(
+            equalTo("{\"note\":\"" + ClusterAllocationExplanation.NO_SHARD_SPECIFIED_MESSAGE +
+                "\",\"index\":\"idx\",\"shard\":0,\"primary\":true,\"current_state\":\"started\",\"current_node\":" +
+                "{\"id\":\"node-0\",\"name\":\"\",\"transport_address\":\"" + cae.getCurrentNode().getAddress() +
+                "\",\"weight_ranking\":3},\"can_remain_on_current_node\":\"yes\",\"can_rebalance_cluster\":\"yes\"," +
+                "\"can_rebalance_to_other_node\":\"no\",\"rebalance_explanation\":\"cannot rebalance as no target node exists " +
+                "that can both allocate this shard and improve the cluster balance\"}"),
+            // no point in asserting the precise wording of the message into this test, but we care that the note contains these bits:
+            containsString("No shard was specified in the explain API request"),
+            containsString("specify the target shard in the request")
+        ));
+    }
+
+    private static ClusterAllocationExplanation randomClusterAllocationExplanation(boolean assignedShard, boolean specificShard) {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(new Index("idx", "123"), 0),
             assignedShard ? "node-0" : null, true, assignedShard ? ShardRoutingState.STARTED : ShardRoutingState.UNASSIGNED);
         DiscoveryNode node = assignedShard ? new DiscoveryNode("node-0", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
@@ -97,6 +119,6 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             AllocateUnassignedDecision allocateDecision = AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, null);
             shardAllocationDecision = new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
         }
-        return new ClusterAllocationExplanation(shardRouting, node, null, null, shardAllocationDecision);
+        return new ClusterAllocationExplanation(specificShard, shardRouting, node, null, null, shardAllocationDecision);
     }
 }

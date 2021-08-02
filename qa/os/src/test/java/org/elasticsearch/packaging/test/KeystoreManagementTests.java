@@ -450,7 +450,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             case DOCKER:
             case DOCKER_UBI:
             case DOCKER_IRON_BANK:
-                assertPermissionsAndOwnership(keystore, p660);
+                assertPermissionsAndOwnership(keystore, "elasticsearch", "root", p660);
                 break;
             default:
                 throw new IllegalStateException("Unknown Elasticsearch packaging type.");

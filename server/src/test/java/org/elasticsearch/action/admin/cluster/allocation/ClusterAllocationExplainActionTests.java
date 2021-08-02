@@ -32,6 +32,8 @@ import java.util.Collections;
 import java.util.Locale;
 
 import static org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction.findShardToExplain;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests for the {@link TransportClusterAllocationExplainAction} class.
@@ -46,7 +48,12 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         ShardRouting shard = clusterState.getRoutingTable().index("idx").shard(0).primaryShard();
         RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.emptyList()),
             clusterState.getRoutingNodes(), clusterState, null, null, System.nanoTime());
-        ClusterAllocationExplanation cae = TransportClusterAllocationExplainAction.explainShard(shard, allocation, null, randomBoolean(),
+        ClusterAllocationExplanation cae = TransportClusterAllocationExplainAction.explainShard(
+            shard,
+            allocation,
+            null,
+            randomBoolean(),
+            true,
             new AllocationService(null, new TestGatewayAllocator(), new ShardsAllocator() {
                 @Override
                 public void allocate(RoutingAllocation allocation) {
@@ -64,6 +71,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             }, null, null));
 
         assertEquals(shard.currentNodeId(), cae.getCurrentNode().getId());
+        assertTrue(cae.isSpecificShard());
         assertFalse(cae.getShardAllocationDecision().isDecisionTaken());
         assertFalse(cae.getShardAllocationDecision().getAllocateDecision().isDecisionTaken());
         assertFalse(cae.getShardAllocationDecision().getMoveDecision().isDecisionTaken());
@@ -110,8 +118,13 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         final ClusterState allStartedClusterState = ClusterStateCreationUtils.state("idx", randomBoolean(),
             ShardRoutingState.STARTED, ShardRoutingState.STARTED);
         final ClusterAllocationExplainRequest anyUnassignedShardsRequest = new ClusterAllocationExplainRequest();
-        expectThrows(IllegalArgumentException.class, () ->
-            findShardToExplain(anyUnassignedShardsRequest, routingAllocation(allStartedClusterState)));
+        assertThat(expectThrows(
+            IllegalArgumentException.class,
+            () -> findShardToExplain(anyUnassignedShardsRequest, routingAllocation(allStartedClusterState))).getMessage(),
+            allOf(
+                // no point in asserting the precise wording of the message into this test, but we care that it contains these bits:
+                containsString("No shard was specified in the request"),
+                containsString("specify the target shard in the request")));
     }
 
     public void testFindPrimaryShardToExplain() {

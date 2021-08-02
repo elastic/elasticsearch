@@ -136,8 +136,9 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         if (useInternalParser && randomBoolean()) {
             update.setBlocked(BlockedTests.createRandom());
         }
-        if (randomBoolean()) {
-            update.setModelPruneWindow(TimeValue.timeValueDays(randomIntBetween(1, 100)));
+        if (randomBoolean() && job != null) {
+            update.setModelPruneWindow(TimeValue.timeValueSeconds(TimeValue.timeValueSeconds(randomIntBetween(2, 100)).seconds()
+                * job.getAnalysisConfig().getBucketSpan().seconds()));
         }
 
         return update.build();

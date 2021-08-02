@@ -944,6 +944,9 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                         continue;
                     }
                 }
+                if (CertificateTool.checkAndConfirmPasswordLengthForOpenSSLCompatibility(password, terminal, confirm) == false) {
+                    continue;
+                }
                 return password;
             } else {
                 terminal.println(Terminal.Verbosity.SILENT, "Passwords must be plain ASCII");

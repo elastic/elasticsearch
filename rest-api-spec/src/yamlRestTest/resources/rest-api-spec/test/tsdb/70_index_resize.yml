@@ -84,7 +84,7 @@ split:
             - field: _tsid
           query:
             query_string:
-              query: '+@timestamp:"2021-04-28T18:03:24.467Z" +k8s.pod.name:cat'
+              query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
   - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
@@ -130,7 +130,7 @@ shrink:
             - field: _tsid
           query:
             query_string:
-              query: '+@timestamp:"2021-04-28T18:03:24.467Z" +k8s.pod.name:cat'
+              query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
   - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
@@ -154,7 +154,7 @@ clone:
             - field: _tsid
           query:
             query_string:
-              query: '+@timestamp:"2021-04-28T18:03:24.467Z" +k8s.pod.name:cat'
+              query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
   - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}

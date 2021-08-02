@@ -159,7 +159,7 @@ Infra/Core::
 * Add thread pool for critical operations on system indices {es-pull}72625[#72625] (issue: {es-issue}69251[#69251])
 * Add `unenroll_timeout`/`unenrolled_reason` field to Fleet system indices {es-pull}74180[#74180]
 * Add warnings if timer thread is late to wake up {es-pull}72465[#72465]
-* Log Slow Executions on Scheduler Thread {es-pull}72606[#72606] (issue: {es-issue}72465[#72465])
+* Log slow executions on scheduler thread {es-pull}72606[#72606] (issue: {es-issue}72465[#72465])
 * Protect newly introduced system indices fully {es-pull}74186[#74186] (issue: {es-issue}72572[#72572])
 * `RestController` not using thread context directly from thread pool {es-pull}74293[#74293]
 

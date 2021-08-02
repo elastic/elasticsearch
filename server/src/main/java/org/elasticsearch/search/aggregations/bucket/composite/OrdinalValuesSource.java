@@ -267,7 +267,8 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable<BytesRef> value, LeafReaderContext context, LeafBucketCollector next) throws IOException {
+    LeafBucketCollector getLeafCollector(Comparable<BytesRef> value, LeafReaderContext context, LeafBucketCollector next)
+        throws IOException {
         final boolean leafReaderContextChanged = context.ord != leafReaderOrd;
         assert leafReaderContextChanged == false || invariant(); // for performance reasons only check invariant upon change
         if (value.getClass() != BytesRef.class) {

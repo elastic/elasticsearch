@@ -197,7 +197,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         CanMatchSearchPhaseResults(int size) {
             super(size);
             possibleMatches = new FixedBitSet(size);
-            minAndMaxes = new MinAndMax[size];
+            minAndMaxes = new MinAndMax<?>[size];
         }
 
         @Override

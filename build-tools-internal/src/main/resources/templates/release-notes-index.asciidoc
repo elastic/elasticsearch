@@ -1,0 +1,12 @@
+[[es-release-notes]]
+= Release notes
+
+[partintro]
+--
+
+This section summarizes the changes in each release.
+
+<% existingVersions.each { print "* <<release-notes-${ it }>>\n" } %>
+--
+
+<% existingIncludes.each { print "include::release-notes/${ it }.asciidoc[]\n" } %>

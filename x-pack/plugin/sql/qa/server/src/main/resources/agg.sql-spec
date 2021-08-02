@@ -78,6 +78,18 @@ SELECT ROUND(SIN(TRUNCATE("salary", 2)), 2) FROM "test_emp" GROUP BY ROUND(SIN(T
 groupByRoundAndTruncateWithOneParam
 SELECT ROUND(SIN(TRUNCATE("languages"))) FROM "test_emp" GROUP BY ROUND(SIN(TRUNCATE("languages"))) ORDER BY ROUND(SIN(TRUNCATE("languages"))) LIMIT 5;
 
+// group by constant
+groupByConstant
+SELECT COUNT(*), 'c' c FROM test_emp GROUP BY c;
+groupByConstantWithWhereContradiction
+SELECT COUNT(*), 'c' c FROM test_emp WHERE 1 = 2 GROUP BY c;
+groupByConstantLocal
+SELECT COUNT(*), 'c' c GROUP BY c;
+groupByConstantLocalWithWhereContradiction
+SELECT COUNT(*), 'c' c WHERE 1 = 2 GROUP BY c;
+groupByConstantWithHavingContradiction
+SELECT COUNT(*), 'c' c FROM test_emp GROUP BY c HAVING c = 'z';
+
 // multiple group by
 groupByMultiOnText
 SELECT gender g, languages l FROM "test_emp" GROUP BY gender, languages ORDER BY gender ASC, languages ASC;
@@ -703,3 +715,43 @@ aggSumWithCastWithAliasWithLiteralWithAlias
 SELECT TRUE as employed, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM test_emp GROUP BY g ORDER BY g DESC;
 aggSumWithWhereWithLiteralWithAlias
 SELECT TRUE as employed, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM test_emp WHERE emp_no > 10000 GROUP BY gender ORDER BY gender;
+
+// local aggs with implicit grouping
+implicitLocalAgg
+SELECT COUNT(*), MAX(123);
+implicitLocalAggWithContradiction
+SELECT COUNT(*), MAX(123) WHERE 1 = 2;
+implicitLocalAggWithContradictionOrdered
+SELECT COUNT(*) c, MAX(123) WHERE 1 = 2 ORDER BY c;
+implicitLocalAggWithLimit
+SELECT COUNT(*), MAX(123) WHERE 1 = 2 LIMIT 10;
+implicitLocalAggWithLimitZero
+SELECT COUNT(*), MAX(123) WHERE 1 = 2 LIMIT 0;
+implicitAggOptimizedToLocalWithContradiction
+SELECT COUNT(*), MAX(123) AS l FROM test_emp WHERE 1 = 2;
+implicitAggOptimizedToLocalWithContradictionOrdered
+SELECT COUNT(*), MAX(123) AS l FROM test_emp WHERE 1 = 2 ORDER BY l;
+implicitAggOptimizedToLocalWithContradictionWithHavingOrderedAndLimit
+SELECT COUNT(*), MAX(123) AS l FROM test_emp WHERE 1 = 2 HAVING COUNT(*) = 1 ORDER BY l LIMIT 10;
+implicitAggOptimizedToLocalWithContradictionWithField
+SELECT COUNT(*), MAX(languages) AS l FROM test_emp WHERE 1 = 2;
+implicitLocalAggWithHavingContradiction
+SELECT COUNT(*), MAX(1) HAVING MAX(1) = 2;
+implicitLocalAggInSubqueryWithFilterContradiction
+SELECT c, m FROM (SELECT COUNT(*) c, MAX(1) m) WHERE m = 2;
+implicitLocalAggWithHavingContradictionOrdered
+SELECT COUNT(*), MAX(1) m HAVING MAX(1) = 2 ORDER BY m;
+implicitLocalAggWithHavingTautology
+SELECT COUNT(*), MAX(1) HAVING MAX(1) = 1;
+
+implicitLocalAggWithWhereContradictionAndHavingTautology
+SELECT COUNT(*) WHERE 1 = 2 HAVING COUNT(*) = 0;
+implicitLocalAggWithWhereContradictionAndHavingContradiction
+SELECT COUNT(*) WHERE 1 = 2 HAVING COUNT(*) = 100;
+implicitLocalAggWithWhereTautologyAndHavingContradiction
+SELECT COUNT(*) WHERE 1 = 1 HAVING COUNT(*) = 100;
+implicitLocalAggWithWhereTautologyAndHavingTautology
+SELECT COUNT(*) WHERE 1 = 1 HAVING COUNT(*) = 1;
+
+aggOptimizedToLocalWithGrouping
+SELECT COUNT(*), MAX(123) AS l FROM test_emp WHERE 1 = 2 GROUP BY gender;

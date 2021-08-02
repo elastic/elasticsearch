@@ -32,7 +32,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -84,9 +83,11 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
                 @Override
                 public void onNewClusterState(ClusterState newState) {
-                    if (cancellableTask.isCancelled()) {
-                        listener.onFailure(new TaskCancelledException("task cancelled"));
-                    } else if (acceptableClusterStatePredicate.test(newState)) {
+                    if (cancellableTask.notifyIfCancelled(listener)) {
+                        return;
+                    }
+
+                    if (acceptableClusterStatePredicate.test(newState)) {
                         ActionListener.completeWith(listener, () -> buildResponse(request, newState));
                     } else {
                         listener.onFailure(new NotMasterException(
@@ -102,9 +103,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     try {
-                        if (cancellableTask.isCancelled()) {
-                            listener.onFailure(new TaskCancelledException("task cancelled"));
-                        } else {
+                        if (cancellableTask.notifyIfCancelled(listener) == false) {
                             listener.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
                         }
                     } catch (Exception e) {

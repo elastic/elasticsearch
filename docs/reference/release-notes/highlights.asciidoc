@@ -88,10 +88,11 @@ fields could use a lot of heap memory as part of the
 
 7.14 introduces the {ref}/ilm-migrate-to-data-tiers.html[migrate to data tiers
 routing API]. You can use the API to switch indices and ILM policies that use
-attribute-based allocation filters to data tiers. This lets ILM automatically
-move data stream indices between tiers during phase transitions. Data tiers also
-give you access to additional ILM features, such as partially mounted indices
-and the frozen tier.
+attribute-based allocation filters to data tiers using
+{ref}/modules-node.html#node-roles[node roles]. This lets ILM automatically move
+data stream indices between tiers during phase transitions. Data tiers also give
+you access to additional ILM features, such as partially mounted indices and the
+frozen tier.
 
 [discrete]
 [[new-terms-enum-api]]

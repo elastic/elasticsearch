@@ -19,6 +19,7 @@ import org.apache.lucene.search.comparators.DoubleComparator;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -63,6 +65,7 @@ import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
  * A geo distance based sorting on a geo point like field.
  */
 public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> {
+    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(GeoDistanceSortBuilder.class);
 
     public static final String NAME = "_geo_distance";
     public static final String ALTERNATIVE_NAME = "_geoDistance";
@@ -448,11 +451,26 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     point.resetFromString(parser.text());
                     geoPoints.add(point);
                     fieldName = currentName;
-                } else if (fieldName.equals(currentName)){
+                } else if (fieldName.equals(currentName)) {
                     throw new ParsingException(
-                            parser.getTokenLocation(),
-                            "Only geohashes of type string supported for field [{}]",
-                            currentName);
+                        parser.getTokenLocation(),
+                        "Only geohashes of type string supported for field [{}]",
+                        currentName);
+                } else if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
+                    NESTED_PATH_FIELD.match(currentName, parser.getDeprecationHandler())) {
+                    deprecationLogger.compatibleApiWarning("nested_path",
+                        "[nested_path] has been removed in favour of the [nested] parameter");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[nested_path] has been removed in favour of the [nested] parameter",
+                        currentName);
+                } else if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
+                    NESTED_FILTER_FIELD.match(currentName, parser.getDeprecationHandler())) {
+                    deprecationLogger.compatibleApiWarning("nested_filter", "[nested_filter] has been removed in favour of the [nested] parameter");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[nested_filter] has been removed in favour of the [nested] parameter",
+                        currentName);
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),

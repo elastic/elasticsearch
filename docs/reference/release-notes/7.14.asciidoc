@@ -256,7 +256,6 @@ Aggregations::
 * Only enable "filter by filter" optimization for `terms`, `date_histogram`,
 `range`, and `filters` aggregation when we're sure it'll be faster {es-pull}74260[#74260]
 
-
 CRUD::
 * Move get-aliases handling onto management thread {es-pull}74053[#74053]
 

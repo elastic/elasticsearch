@@ -108,6 +108,6 @@ auto-completion.
 
 The GeoIP processor uses Maxmind GeoLite2 databases to provide data
 about the geographical location of IP addresses. This data changes frequently as IP addresses get reused.
-In 7.14 we introduced a service that will automatically update these databases used so information is as accurate
+In 7.14, we introduced a service that automatically updates these databases so their information is as accurate
 as possible. The service is enabled by default, but its operation can be adjusted. See {ref}/geoip-processor.html[GeoIP processor]
 // end::notable-highlights[]

@@ -259,6 +259,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     /**
      * Sets the format to use for the output of the aggregation.
      */
+    @SuppressWarnings("unchecked")
     public AB format(String format) {
         if (format == null) {
             throw new IllegalArgumentException("[format] must not be null: [" + name + "]");

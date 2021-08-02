@@ -210,8 +210,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
         GenerateSnapshotNameStep generateSnapshotNameStep = new GenerateSnapshotNameStep(generateSnapshotNameKey, cleanSnapshotKey,
             snapshotRepository);
         CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, createSnapshotKey, client);
-        AsyncActionBranchingStep createSnapshotBranchingStep = new AsyncActionBranchingStep(
-            new CreateSnapshotStep(createSnapshotKey, waitForDataTierKey, client), cleanSnapshotKey, client);
+        CreateSnapshotStep createSnapshotStep = new CreateSnapshotStep(createSnapshotKey, waitForDataTierKey, cleanSnapshotKey,
+            client);
 
         MountSearchableSnapshotRequest.Storage storageType = getConcreteStorageType(mountSnapshotKey);
 
@@ -253,7 +253,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         }
         steps.add(generateSnapshotNameStep);
         steps.add(cleanupSnapshotStep);
-        steps.add(createSnapshotBranchingStep);
+        steps.add(createSnapshotStep);
         steps.add(waitForDataTierStep);
         steps.add(mountSnapshotStep);
         steps.add(waitForGreenIndexHealthStep);

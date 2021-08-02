@@ -133,7 +133,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
 
         step.performAction(indexMetadata, state, observer, new ActionListener<>() {
             @Override
-            public void onResponse(Boolean complete) {
+            public void onResponse(Void complete) {
                 latch.countDown();
                 fail("expected the test to fail when updating the setting to an invalid value");
             }
@@ -150,7 +150,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
 
                 step.performAction(indexMetadata, state, observer, new ActionListener<>() {
                     @Override
-                    public void onResponse(Boolean complete) {
+                    public void onResponse(Void complete) {
                         latch.countDown();
                         assertThat(complete, is(true));
                     }

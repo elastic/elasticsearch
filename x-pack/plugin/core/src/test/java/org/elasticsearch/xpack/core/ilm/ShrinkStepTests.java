@@ -117,7 +117,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
-        assertTrue(PlainActionFuture.get(f -> step.performAction(sourceIndexMetadata, emptyClusterState(), null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(sourceIndexMetadata, emptyClusterState(), null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -139,7 +139,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -162,7 +162,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
             f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
 
         Mockito.verify(client, Mockito.only()).admin();

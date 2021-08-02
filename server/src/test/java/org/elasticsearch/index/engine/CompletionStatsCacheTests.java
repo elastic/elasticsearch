@@ -15,7 +15,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.suggest.document.Completion84PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
@@ -45,7 +45,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
 
     public void testCompletionStatsCache() throws IOException, InterruptedException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        final PostingsFormat postingsFormat = new Completion84PostingsFormat();
+        final PostingsFormat postingsFormat = new Completion90PostingsFormat();
         indexWriterConfig.setCodec(new Lucene90Codec() {
             @Override
             public PostingsFormat getPostingsFormatForField(String field) {

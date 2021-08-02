@@ -112,6 +112,9 @@ InternalTopHits extends InternalAggregation implements TopHits {
                 InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
                 shardDocs[i] = topHitsAgg.topDocs.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
+                for (ScoreDoc doc : shardDocs[i].scoreDocs) {
+                    doc.shardIndex = i;
+                }
             }
             reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
         } else {
@@ -120,6 +123,9 @@ InternalTopHits extends InternalAggregation implements TopHits {
                 InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
                 shardDocs[i] = topHitsAgg.topDocs.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
+                for (ScoreDoc doc : shardDocs[i].scoreDocs) {
+                    doc.shardIndex = i;
+                }
             }
             reducedTopDocs = TopDocs.merge(from, size, shardDocs);
         }

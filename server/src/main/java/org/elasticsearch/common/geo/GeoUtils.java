@@ -599,7 +599,7 @@ public class GeoUtils {
      * 4 decimal degrees
      */
     public static double planeDistance(double lat1, double lon1, double lat2, double lon2) {
-        double x = Math.toRadians(lon2 - lon1) * Math.cos((lat2 + lat1) / Math.toRadians(2.0));
+        double x = Math.toRadians(lon2 - lon1) * Math.cos(Math.toRadians((lat2 + lat1) / 2.0));
         double y = Math.toRadians(lat2 - lat1);
         return Math.sqrt(x * x + y * y) * EARTH_MEAN_RADIUS;
     }

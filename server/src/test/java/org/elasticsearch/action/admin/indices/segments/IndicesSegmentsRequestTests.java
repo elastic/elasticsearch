@@ -56,7 +56,7 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
     public void testVerbose() {
         IndicesSegmentResponse rsp = client().admin().indices().prepareSegments("test").setVerbose(true).get();
         List<Segment> segments = rsp.getIndices().get("test").iterator().next().getShards()[0].getSegments();
-        assertNotNull(segments.get(0).toString(), segments.get(0).ramTree);
+        assertNull(segments.get(0).toString(), segments.get(0).ramTree);
     }
 
     /**

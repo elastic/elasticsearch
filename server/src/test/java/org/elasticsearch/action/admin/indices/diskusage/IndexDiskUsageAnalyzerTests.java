@@ -38,7 +38,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.search.suggest.document.Completion84PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionPostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
@@ -157,7 +157,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 @Override
                 public PostingsFormat getPostingsFormatForField(String field) {
                     if (field.startsWith("suggest_")) {
-                        return new Completion84PostingsFormat(randomFrom(CompletionPostingsFormat.FSTLoadMode.values()));
+                        return new Completion90PostingsFormat(randomFrom(CompletionPostingsFormat.FSTLoadMode.values()));
                     } else {
                         return super.postingsFormat();
                     }

@@ -196,14 +196,29 @@ public final class SearchPhaseController {
             CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) topDocs;
             final Sort sort = new Sort(firstTopDocs.fields);
             final CollapseTopFieldDocs[] shardTopDocs = results.toArray(new CollapseTopFieldDocs[numShards]);
-            mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs);
+            for (int i = 0; i < shardTopDocs.length; i++) {
+                for (ScoreDoc sd : shardTopDocs[i].scoreDocs) {
+                    sd.shardIndex = i;
+                }
+            }
+            mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs) {
             TopFieldDocs firstTopDocs = (TopFieldDocs) topDocs;
             final Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
+            for (int i = 0; i < shardTopDocs.length; i++) {
+                for (ScoreDoc sd : shardTopDocs[i].scoreDocs) {
+                    sd.shardIndex = i;
+                }
+            }
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
             final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
+            for (int i = 0; i < shardTopDocs.length; i++) {
+                for (ScoreDoc sd : shardTopDocs[i].scoreDocs) {
+                    sd.shardIndex = i;
+                }
+            }
             mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
         }
         return mergedTopDocs;

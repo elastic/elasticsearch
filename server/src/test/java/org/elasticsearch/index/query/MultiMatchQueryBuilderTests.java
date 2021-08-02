@@ -247,8 +247,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             final Query query = queryBuilder.toQuery(createSearchExecutionContext());
             Query expected = new DisjunctionMaxQuery(List.of(
                 new BooleanQuery.Builder()
-                    .add(new TermQuery(new Term(TEXT_FIELD_NAME, "foo")), BooleanClause.Occur.MUST)
-                    .add(new PrefixQuery(new Term(TEXT_FIELD_NAME, "bar")), BooleanClause.Occur.MUST)
+                    .add(new TermQuery(new Term(TEXT_FIELD_NAME, "foo")), BooleanClause.Occur.SHOULD)
+                    .add(new PrefixQuery(new Term(TEXT_FIELD_NAME, "bar")), BooleanClause.Occur.SHOULD)
                     .build(),
                 new PrefixQuery(new Term(KEYWORD_FIELD_NAME, "foo bar"))),
                 1

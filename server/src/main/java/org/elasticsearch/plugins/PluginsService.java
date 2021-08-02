@@ -16,18 +16,19 @@ import org.apache.lucene.analysis.TokenizerFactory;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.util.SPIClassIterator;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 
@@ -51,7 +52,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -469,12 +469,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     private static <T> List<? extends T> createExtensions(Class<T> extensionPointType, Plugin plugin) {
+        SPIClassIterator<T> classIterator = SPIClassIterator.get(extensionPointType, plugin.getClass().getClassLoader());
         List<T> extensions = new ArrayList<>();
-        ServiceLoader.load(extensionPointType,  plugin.getClass().getClassLoader()).stream()
-            .map(ServiceLoader.Provider::type)
-            .forEachOrdered(service -> {
-                extensions.add(createExtension(service, extensionPointType, plugin));
-            });
+        while (classIterator.hasNext()) {
+            Class<? extends T> extensionClass = classIterator.next();
+            extensions.add(createExtension(extensionClass, extensionPointType, plugin));
+        }
         return extensions;
     }
 

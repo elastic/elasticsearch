@@ -58,7 +58,7 @@ The following parameters are accepted by `keyword` fields:
 
 // tag::dimension[]
 `dimension`::
-For internal use by {kib} only. Marks the field as a time series dimension.
+For internal use by Elastic only. Marks the field as a time series dimension.
 Accepts `true` or `false` (default).
 +
 The <<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>

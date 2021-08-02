@@ -115,7 +115,7 @@ POST /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true
   "index_settings": { <3>
     "index.number_of_replicas": 0
   },
-  "ignored_index_settings": [ "index.refresh_interval" ] <4>
+  "ignore_index_settings": [ "index.refresh_interval" ] <4>
 }
 --------------------------------------------------
 // TEST[continued]

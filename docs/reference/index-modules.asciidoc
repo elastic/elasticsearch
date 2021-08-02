@@ -331,8 +331,8 @@ Defaults to `*`, which matches all fields eligible for
 
 [[index-mapping-dimension-fields-limit]]
 `index.mapping.dimension_fields.limit`::
-For internal use by {kib} only. Maximum number of time series dimensions for the
-index. Defaults to `16`.
+For internal use by Elastic only. Maximum number of time series dimensions for
+the index. Defaults to `16`.
 +
 You can mark a field as a dimension using the `dimension` mapping parameter.
 

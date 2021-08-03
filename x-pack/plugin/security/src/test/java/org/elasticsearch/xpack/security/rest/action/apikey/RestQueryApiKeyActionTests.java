@@ -33,8 +33,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 
-import java.util.List;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -63,7 +61,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        final SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
+        final SearchModule searchModule = new SearchModule(Settings.EMPTY, false, org.elasticsearch.core.List.of());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -102,7 +100,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
                 final QueryBuilder shouldQueryBuilder = boolQueryBuilder.should().get(0);
                 assertThat(shouldQueryBuilder.getClass(), is(PrefixQueryBuilder.class));
                 assertThat(((PrefixQueryBuilder) shouldQueryBuilder).fieldName(), equalTo("metadata.environ"));
-                listener.onResponse((Response) new QueryApiKeyResponse(List.of()));
+                listener.onResponse((Response) new QueryApiKeyResponse(org.elasticsearch.core.List.of()));
             }
         }) {
             final RestQueryApiKeyAction restQueryApiKeyAction = new RestQueryApiKeyAction(Settings.EMPTY, mockLicenseState);

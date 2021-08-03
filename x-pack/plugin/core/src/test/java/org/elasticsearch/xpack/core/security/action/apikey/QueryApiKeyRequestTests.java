@@ -20,7 +20,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -30,7 +29,7 @@ public class QueryApiKeyRequestTests extends ESTestCase {
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        final SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
+        final SearchModule searchModule = new SearchModule(Settings.EMPTY, false, org.elasticsearch.core.List.of());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 

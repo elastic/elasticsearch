@@ -33,7 +33,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
     // Field names allowed at the index level
     private static final Set<String> ALLOWED_EXACT_INDEX_FIELD_NAMES =
-        Set.of("doc_type", "name", "api_key_invalidated", "creation_time", "expiration_time");
+        org.elasticsearch.core.Set.of("doc_type", "name", "api_key_invalidated", "creation_time", "expiration_time");
 
     private ApiKeyBoolQueryBuilder() {}
 
@@ -157,7 +157,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         static final List<FieldNameTranslator> FIELD_NAME_TRANSLATORS;
 
         static {
-            FIELD_NAME_TRANSLATORS = List.of(
+            FIELD_NAME_TRANSLATORS = org.elasticsearch.core.List.of(
                 new ExactFieldNameTranslator(s -> "creator.principal", "username"),
                 new ExactFieldNameTranslator(s -> "creator.realm", "realm_name"),
                 new ExactFieldNameTranslator(Function.identity(), "name"),

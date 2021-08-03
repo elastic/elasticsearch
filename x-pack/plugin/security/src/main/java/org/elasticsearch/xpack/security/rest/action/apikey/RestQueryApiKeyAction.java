@@ -51,7 +51,7 @@ public final class RestQueryApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
+        return org.elasticsearch.core.List.of(
             new Route(GET, "/_security/_query/api_key"),
             new Route(POST, "/_security/_query/api_key"));
     }

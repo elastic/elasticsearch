@@ -252,7 +252,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             .stream()
             .filter(q -> q.getClass() == TermQueryBuilder.class)
             .map(q -> (TermQueryBuilder) q)
-            .collect(Collectors.toUnmodifiableList());
+            .collect(Collectors.toList());
         assertTrue(tqb.stream().anyMatch(q -> q.equals(QueryBuilders.termQuery("doc_type", "api_key"))));
         if (authentication == null) {
             return;

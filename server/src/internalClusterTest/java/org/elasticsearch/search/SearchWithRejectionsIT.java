@@ -42,6 +42,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         refresh();
 
         int numSearches = 10;
+        @SuppressWarnings("unchecked")
         Future<SearchResponse>[] responses = new Future[numSearches];
         SearchType searchType = randomFrom(SearchType.DEFAULT, SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH);
         logger.info("search type is {}", searchType);

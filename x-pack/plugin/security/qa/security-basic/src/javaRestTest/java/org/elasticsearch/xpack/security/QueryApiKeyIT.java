@@ -20,7 +20,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -83,7 +82,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             apiKeys -> {
                 assertThat(apiKeys.size(), equalTo(2));
                 assertThat(apiKeys.stream().map(m -> m.get("name")).collect(Collectors.toSet()),
-                    equalTo(Set.of("my-ingest-key-1", "my-alert-key-2")));
+                    equalTo(org.elasticsearch.core.Set.of("my-ingest-key-1", "my-alert-key-2")));
             });
 
         // Search for keys belong to users from a realm
@@ -94,7 +93,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 // search using explicit IDs
                 try {
 
-                    var subset = randomSubsetOf(randomIntBetween(1,5), apiKeys);
+                    final List<Map<String, Object>> subset = randomSubsetOf(randomIntBetween(1, 5), apiKeys);
                     assertQuery(API_KEY_ADMIN_AUTH_HEADER,
                         "{ \"query\": { \"ids\": { \"values\": ["
                             + subset.stream().map(m -> "\"" + m.get("id") + "\"").collect(Collectors.joining(",")) + "] } } }",
@@ -149,22 +148,26 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             .encodeToString((powerKey.v1() + ":" + powerKey.v2()).getBytes(StandardCharsets.UTF_8));
 
         final Tuple<String, String> limitKey = createApiKey("limit-key-1",
-            Map.of("a", Map.of("cluster", List.of("manage_own_api_key"))), null, API_KEY_ADMIN_AUTH_HEADER);
+            org.elasticsearch.core.Map.of("a",
+                org.elasticsearch.core.Map.of("cluster", org.elasticsearch.core.List.of("manage_own_api_key"))),
+            null, API_KEY_ADMIN_AUTH_HEADER);
         final String limitKeyAuthHeader = "ApiKey " + Base64.getEncoder()
             .encodeToString((limitKey.v1() + ":" + limitKey.v2()).getBytes(StandardCharsets.UTF_8));
 
-        createApiKey("power-key-1-derived-1", Map.of("a", Map.of()), null, powerKeyAuthHeader);
-        createApiKey("limit-key-1-derived-1", Map.of("a", Map.of()), null, limitKeyAuthHeader);
+        createApiKey("power-key-1-derived-1",
+            org.elasticsearch.core.Map.of("a", org.elasticsearch.core.Map.of()), null, powerKeyAuthHeader);
+        createApiKey("limit-key-1-derived-1",
+            org.elasticsearch.core.Map.of("a", org.elasticsearch.core.Map.of()), null, limitKeyAuthHeader);
 
-        createApiKey("user-key-1", Map.of(), API_KEY_USER_AUTH_HEADER);
-        createApiKey("user-key-2", Map.of(), API_KEY_USER_AUTH_HEADER);
+        createApiKey("user-key-1", org.elasticsearch.core.Map.of(), API_KEY_USER_AUTH_HEADER);
+        createApiKey("user-key-2", org.elasticsearch.core.Map.of(), API_KEY_USER_AUTH_HEADER);
 
         // powerKey gets back all keys since it has manage_api_key privilege
         assertQuery(powerKeyAuthHeader, "", apiKeys -> {
             assertThat(apiKeys.size(), equalTo(6));
             assertThat(
-                apiKeys.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableSet()),
-                equalTo(Set.of("power-key-1", "limit-key-1", "power-key-1-derived-1", "limit-key-1-derived-1",
+                apiKeys.stream().map(m -> (String) m.get("name")).collect(Collectors.toSet()),
+                equalTo(org.elasticsearch.core.Set.of("power-key-1", "limit-key-1", "power-key-1-derived-1", "limit-key-1-derived-1",
                     "user-key-1", "user-key-2")));
         });
 
@@ -173,8 +176,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         assertQuery(limitKeyAuthHeader, "", apiKeys -> {
             assertThat(apiKeys.size(), equalTo(2));
             assertThat(
-                apiKeys.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableSet()),
-                equalTo(Set.of("power-key-1", "limit-key-1")));
+                apiKeys.stream().map(m -> (String) m.get("name")).collect(Collectors.toSet()),
+                equalTo(org.elasticsearch.core.Set.of("power-key-1", "limit-key-1")));
         });
     }
 
@@ -204,60 +207,60 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
     private void createApiKeys() throws IOException {
         createApiKey(
             "my-org/ingest-key-1",
-            Map.of(
+            org.elasticsearch.core.Map.of(
                 "application", "fleet-agent",
-                "tags", List.of("prod", "east"),
-                "environment", Map.of(
+                "tags", org.elasticsearch.core.List.of("prod", "east"),
+                "environment", org.elasticsearch.core.Map.of(
                     "os", "Cat", "level", 42, "system", false, "hostname", "my-org-host-1")
             ),
             API_KEY_ADMIN_AUTH_HEADER);
 
         createApiKey(
             "my-org/ingest-key-2",
-            Map.of(
+            org.elasticsearch.core.Map.of(
                 "application", "fleet-server",
-                "tags", List.of("staging", "east"),
-                "environment", Map.of(
+                "tags", org.elasticsearch.core.List.of("staging", "east"),
+                "environment", org.elasticsearch.core.Map.of(
                     "os", "Dog", "level", 11, "system", true, "hostname", "my-org-host-2")
             ),
             API_KEY_ADMIN_AUTH_HEADER);
 
         createApiKey(
             "my-org/management-key-1",
-            Map.of(
+            org.elasticsearch.core.Map.of(
                 "application", "fleet-agent",
-                "tags", List.of("prod", "west"),
-                "environment", Map.of(
+                "tags", org.elasticsearch.core.List.of("prod", "west"),
+                "environment", org.elasticsearch.core.Map.of(
                     "os", "Cat", "level", 11, "system", false, "hostname", "my-org-host-3")
             ),
             API_KEY_ADMIN_AUTH_HEADER);
 
         createApiKey(
             "my-org/alert-key-1",
-            Map.of(
+            org.elasticsearch.core.Map.of(
                 "application", "siem",
-                "tags", List.of("prod", "north", "upper"),
-                "environment", Map.of(
+                "tags", org.elasticsearch.core.List.of("prod", "north", "upper"),
+                "environment", org.elasticsearch.core.Map.of(
                     "os", "Dog", "level", 3, "system", true, "hostname", "my-org-host-4")
             ),
             API_KEY_ADMIN_AUTH_HEADER);
 
         createApiKey(
             "my-ingest-key-1",
-            Map.of(
+            org.elasticsearch.core.Map.of(
                 "application", "cli",
-                "tags", List.of("user", "test"),
-                "notes", Map.of(
+                "tags", org.elasticsearch.core.List.of("user", "test"),
+                "notes", org.elasticsearch.core.Map.of(
                     "sun", "hot", "earth", "blue")
             ),
             API_KEY_USER_AUTH_HEADER);
 
         createApiKey(
             "my-alert-key-2",
-            Map.of(
+            org.elasticsearch.core.Map.of(
                 "application", "web",
-                "tags", List.of("app", "prod"),
-                "notes", Map.of(
+                "tags", org.elasticsearch.core.List.of("app", "prod"),
+                "notes", org.elasticsearch.core.Map.of(
                     "shared", false, "weather", "sunny")
             ),
             API_KEY_USER_AUTH_HEADER);
@@ -272,10 +275,10 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                                                Map<String, Object> metadata,
                                                String authHeader) throws IOException {
         final Request request = new Request("POST", "/_security/api_key");
-        final String roleDescriptorsString =
-            XContentTestUtils.convertToXContent(roleDescriptors == null ? Map.of() : roleDescriptors, XContentType.JSON).utf8ToString();
-        final String metadataString =
-            XContentTestUtils.convertToXContent(metadata == null ? Map.of() : metadata, XContentType.JSON).utf8ToString();
+        final String roleDescriptorsString = XContentTestUtils.convertToXContent(
+            roleDescriptors == null ? org.elasticsearch.core.Map.of() : roleDescriptors, XContentType.JSON).utf8ToString();
+        final String metadataString = XContentTestUtils.convertToXContent(
+            metadata == null ? org.elasticsearch.core.Map.of() : metadata, XContentType.JSON).utf8ToString();
         request.setJsonEntity("{\"name\":\"" + name
             + "\", \"role_descriptors\":" + roleDescriptorsString
             + ", \"metadata\":" + metadataString + "}");

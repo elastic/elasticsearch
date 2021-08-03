@@ -500,9 +500,11 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    private void testCase(Query query,
-                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>> verify) throws IOException {
+    private void testCase(
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>> verify
+    ) throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
             NUMBER_FIELD_NAME,
             NumberFieldMapper.NumberType.INTEGER,
@@ -522,9 +524,11 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
-    private void simpleTestCase(RangeAggregationBuilder aggregationBuilder,
-                          Query query,
-                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>> verify) throws IOException {
+    private void simpleTestCase(
+        RangeAggregationBuilder aggregationBuilder,
+        Query query,
+        Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>> verify
+    ) throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {

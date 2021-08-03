@@ -82,11 +82,7 @@ def v7compatibilityNotSupportedTests = {
 
           'indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set', //#44761 bug fix,
 
-          /*
-            This test relies on indices created in 7.x hence won't work in 8.x cluster.
-            There is a new RestApiCompatibleUpgradeIT#testTypeQueryReturnsTypeWhen7xCreatedIndices that covers it
-           */
-          'search/340_type_query/type query'
+          'search/340_type_query/type query' //#47207 type query throws exception in compatible mode
 
   ]
 }

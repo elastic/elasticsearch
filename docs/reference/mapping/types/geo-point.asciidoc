@@ -122,6 +122,10 @@ The following parameters are accepted by `geo_point` fields:
     ignored. If `false`, geo-points containing any more than latitude and longitude
     (two dimensions) values throw an exception and reject the whole document.
 
+<<mapping-index,`index`>>::
+
+    Should the field be searchable? Accepts `true` (default) and `false`.
+
 <<null-value,`null_value`>>::
 
     Accepts an geopoint value which is substituted for any explicit `null` values.

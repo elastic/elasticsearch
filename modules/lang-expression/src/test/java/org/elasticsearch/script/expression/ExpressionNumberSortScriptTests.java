@@ -13,6 +13,7 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.script.DocValuesReader;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -73,7 +74,7 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
     }
 
     public void testFieldAccess() throws IOException {
-        NumberSortScript script = compile("doc['field'].value").newInstance(null);
+        NumberSortScript script = compile("doc['field'].value").newInstance(mock(DocValuesReader.class));
         script.setDocument(1);
 
         double result = script.execute();

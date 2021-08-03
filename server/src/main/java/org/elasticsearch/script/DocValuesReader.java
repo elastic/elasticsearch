@@ -16,7 +16,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.Map;
 import java.util.stream.Stream;
 
-public class DocValuesReader implements DocReader {
+public class DocValuesReader implements DocReader, LeafReaderContextSupplier {
     /** A leaf lookup for the bound segment this proxy will operate on. */
     protected LeafSearchLookup leafLookup;
 
@@ -70,6 +70,7 @@ public class DocValuesReader implements DocReader {
         return docBase;
     }
 
+    @Override
     public LeafReaderContext getLeafReaderContext() {
         return leafReaderContext;
     }

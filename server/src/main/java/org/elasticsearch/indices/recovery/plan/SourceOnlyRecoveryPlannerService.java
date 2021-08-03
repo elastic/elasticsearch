@@ -29,7 +29,7 @@ public class SourceOnlyRecoveryPlannerService implements RecoveryPlannerService 
                                     ActionListener<ShardRecoveryPlan> listener) {
         ActionListener.completeWith(listener, () -> {
             Store.RecoveryDiff recoveryDiff = sourceMetadata.recoveryDiff(targetMetadata);
-            List<StoreFileMetadata> filesMissingInTarget = concatLists(recoveryDiff.missing, recoveryDiff.identical);
+            List<StoreFileMetadata> filesMissingInTarget = concatLists(recoveryDiff.missing, recoveryDiff.different);
             return new ShardRecoveryPlan(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY,
                 filesMissingInTarget,
                 recoveryDiff.identical,

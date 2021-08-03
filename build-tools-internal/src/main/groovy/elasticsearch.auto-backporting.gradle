@@ -1,0 +1,77 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.rewrite.RewritePlugin
+
+if(gradle.getStartParameter().getTaskNames().any {it.endsWith(RewritePlugin.REWRITE_TASKNAME)}) {
+    def rewriteVersionString = "7.10.0"
+    allprojects {
+        apply plugin: 'elasticsearch.rewrite'
+        rewrite {
+            rewriteVersion = rewriteVersionString
+            activeRecipe("org.elasticsearch.java.backport.ListOfBackport",
+                    "org.elasticsearch.java.backport.MapOfBackport",
+                    "org.elasticsearch.java.backport.SetOfBackport")
+            configFile = rootProject.file("rewrite.yml")
+        }
+
+        repositories {
+            mavenCentral()
+//            maven {
+//                url = "https://oss.sonatype.org/content/repositories/snapshots/"
+//            }
+        }
+
+        configurations {
+            rewriteRun {
+                resolutionStrategy {
+                    force 'org.jetbrains:annotations:21.0.1'
+                    force 'org.slf4j:slf4j-api:1.7.31'
+                    force 'org.jetbrains.kotlin:kotlin-stdlib:1.5.10'
+                    force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.5.10'
+                }
+            }
+            rewriteDryRun {
+                resolutionStrategy {
+                    force 'org.jetbrains:annotations:21.0.1'
+                    force 'org.slf4j:slf4j-api:1.7.31'
+                    force 'org.jetbrains.kotlin:kotlin-stdlib:1.5.10'
+                    force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.5.10'
+                }
+            }
+            rewrite {
+                extendsFrom rewriteRun
+                resolutionStrategy {
+                    force 'org.jetbrains:annotations:21.0.1'
+                    force 'org.slf4j:slf4j-api:1.7.31'
+                    force 'org.jetbrains.kotlin:kotlin-stdlib:1.5.10'
+                    force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.5.10'
+                }
+            }
+        }
+
+        dependencies {
+            rewriteRun "org.openrewrite:rewrite-java-11:" + rewriteVersionString
+            rewriteRun "org.openrewrite:rewrite-java-8:" + rewriteVersionString
+            rewriteRun "org.openrewrite:rewrite-maven:" + rewriteVersionString
+            rewriteRun "org.openrewrite:rewrite-xml:" + rewriteVersionString
+            rewriteRun "org.openrewrite:rewrite-yaml:" + rewriteVersionString
+            rewriteRun "org.openrewrite:rewrite-properties:" + rewriteVersionString
+        }
+
+        afterEvaluate {
+            def java = project.getExtensions().findByType(JavaPluginExtension.class);
+            if (java) {
+                java.setSourceCompatibility(JavaVersion.VERSION_11)
+                java.setTargetCompatibility(JavaVersion.VERSION_11)
+            }
+        }
+    }
+}

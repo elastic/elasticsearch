@@ -16,7 +16,6 @@ import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.ProviderFactory;
-import org.gradle.initialization.layout.BuildLayout;
 
 import javax.inject.Inject;
 
@@ -27,14 +26,13 @@ import javax.inject.Inject;
  */
 public class RewritePlugin implements Plugin<Project> {
 
+    public static final String REWRITE_TASKNAME = "rewriteRun";
     private ProviderFactory providerFactory;
-    private BuildLayout buildLayout;
     private ProjectLayout projectLayout;
 
     @Inject
-    public RewritePlugin(ProviderFactory providerFactory, BuildLayout buildLayout, ProjectLayout projectLayout) {
+    public RewritePlugin(ProviderFactory providerFactory, ProjectLayout projectLayout) {
         this.providerFactory = providerFactory;
-        this.buildLayout = buildLayout;
         this.projectLayout = projectLayout;
     }
 
@@ -47,7 +45,7 @@ public class RewritePlugin implements Plugin<Project> {
         final RewriteExtension extension = maybeExtension;
         // Rewrite module dependencies put here will be available to all rewrite tasks
         Configuration rewriteConf = project.getConfigurations().maybeCreate("rewrite");
-        RewriteTask rewriteRun = project.getTasks().create("rewriteRun", RewriteTask.class, rewriteConf, extension);
+        RewriteTask rewriteRun = project.getTasks().create(REWRITE_TASKNAME, RewriteTask.class, rewriteConf, extension);
         rewriteRun.getActiveRecipes().convention(providerFactory.provider(() -> extension.getActiveRecipes()));
         rewriteRun.getConfigFile().convention(projectLayout.file(providerFactory.provider(() -> extension.getConfigFile())));
         project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {

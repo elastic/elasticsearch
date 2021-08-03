@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.internal.BuildPlugin
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.rewrite.RewritePlugin
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.util.DistributionLocator
@@ -41,6 +42,7 @@ plugins {
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
   id 'elasticsearch.release-tools'
+  id 'elasticsearch.auto-backporting'
   id "com.diffplug.spotless" version "5.12.5" apply false
 }
 
@@ -141,61 +143,6 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
 }
 
 allprojects {
-  apply plugin:'elasticsearch.rewrite'
-  rewrite {
-    rewriteVersion = "7.10.0"
-    activeRecipe("org.elasticsearch.java.backport.ListOfBackport",
-            "org.elasticsearch.java.backport.MapOfBackport",
-            "org.elasticsearch.java.backport.SetOfBackport")
-    configFile = rootProject.file("rewrite.yml")
-  }
-
-  repositories {
-    mavenCentral()
-    maven {
-      url = "https://oss.sonatype.org/content/repositories/snapshots/"
-    }
-  }
-
-  configurations {
-    rewriteRun {
-      resolutionStrategy {
-        force 'org.jetbrains:annotations:21.0.1'
-        force 'org.slf4j:slf4j-api:1.7.31'
-        force 'org.jetbrains.kotlin:kotlin-stdlib:1.5.10'
-        force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.5.10'
-      }
-    }
-    rewriteDryRun {
-      resolutionStrategy {
-        force 'org.jetbrains:annotations:21.0.1'
-        force 'org.slf4j:slf4j-api:1.7.31'
-        force 'org.jetbrains.kotlin:kotlin-stdlib:1.5.10'
-        force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.5.10'
-      }
-    }
-    rewrite {
-      extendsFrom rewriteRun
-      resolutionStrategy {
-        force 'org.jetbrains:annotations:21.0.1'
-        force 'org.slf4j:slf4j-api:1.7.31'
-        force 'org.jetbrains.kotlin:kotlin-stdlib:1.5.10'
-        force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.5.10'
-      }
-    }
-  }
-
-  String rewriteVersion = rewrite.getRewriteVersion();
-
-  dependencies {
-    rewriteRun "org.openrewrite:rewrite-java-11:" + rewriteVersion
-    rewriteRun "org.openrewrite:rewrite-java-8:" + rewriteVersion
-    rewriteRun "org.openrewrite:rewrite-maven:" + rewriteVersion
-    rewriteRun "org.openrewrite:rewrite-xml:" + rewriteVersion
-    rewriteRun "org.openrewrite:rewrite-yaml:" + rewriteVersion
-    rewriteRun "org.openrewrite:rewrite-properties:" + rewriteVersion
-  }
-
   // common maven publishing configuration
   group = 'org.elasticsearch'
   version = VersionProperties.elasticsearch

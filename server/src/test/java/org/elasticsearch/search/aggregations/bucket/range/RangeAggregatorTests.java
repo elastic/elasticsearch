@@ -502,7 +502,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify) throws IOException {
+                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>> verify) throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
             NUMBER_FIELD_NAME,
             NumberFieldMapper.NumberType.INTEGER,
@@ -524,7 +524,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     private void simpleTestCase(RangeAggregationBuilder aggregationBuilder,
                           Query query,
-                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify) throws IOException {
+                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>> verify) throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -537,7 +537,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     private void testCase(RangeAggregationBuilder aggregationBuilder,
                           Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify,
+                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>> verify,
                           MappedFieldType fieldType) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
@@ -547,7 +547,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> agg = searchAndReduce(indexSearcher,
+                InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>> agg = searchAndReduce(indexSearcher,
                     query, aggregationBuilder, fieldType);
                 verify.accept(agg);
 

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -69,6 +70,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
+import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
 import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
@@ -102,6 +104,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntSupplier;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
@@ -112,6 +115,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyObject;
@@ -806,6 +811,96 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 newMetadataSnapshot(syncId, Long.toString(localCheckpointOnTarget), Long.toString(maxSeqNoOnTarget), numDocs));
         });
         assertThat(error.getMessage(), containsString("try to recover [index][1] with sync id but seq_no stats are mismatched:"));
+    }
+
+    public void testRecoveryPlannerServiceIsUsed() throws Exception {
+        try (Store store = newStore(createTempDir("source"), false)) {
+            IndexShard shard = mock(IndexShard.class);
+            when(shard.store()).thenReturn(store);
+            Directory dir = store.directory();
+            RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
+            int numDocs = randomIntBetween(10, 100);
+            for (int i = 0; i < numDocs; i++) {
+                Document document = new Document();
+                document.add(new StringField("id", Integer.toString(i), Field.Store.YES));
+                document.add(newField("field", randomUnicodeOfCodepointLengthBetween(1, 10), TextField.TYPE_STORED));
+                writer.addDocument(document);
+            }
+            writer.commit();
+            writer.close();
+            when(shard.state()).thenReturn(IndexShardState.STARTED);
+
+            TestRecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
+                @Override
+                public void receiveFileInfo(List<String> phase1FileNames,
+                                            List<Long> phase1FileSizes,
+                                            List<String> phase1ExistingFileNames,
+                                            List<Long> phase1ExistingFileSizes,
+                                            int totalTranslogOps,
+                                            ActionListener<Void> listener) {
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void cleanFiles(int totalTranslogOps,
+                                       long globalCheckpoint,
+                                       Store.MetadataSnapshot sourceMetadata,
+                                       ActionListener<Void> listener) {
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void writeFileChunk(StoreFileMetadata fileMetadata,
+                                           long position,
+                                           ReleasableBytesReference content,
+                                           boolean lastChunk,
+                                           int totalTranslogOps,
+                                           ActionListener<Void> listener) {
+                    listener.onResponse(null);
+                }
+            };
+            AtomicReference<ShardRecoveryPlan> computedRecoveryPlanRef = new AtomicReference<>();
+            RecoverySourceHandler handler = new RecoverySourceHandler(
+                shard,
+                recoveryTarget,
+                threadPool,
+                getStartRecoveryRequest(),
+                between(1, 16),
+                between(1, 4),
+                between(1, 4),
+                recoveryPlannerService
+            ) {
+                @Override
+                void createRetentionLease(long startingSeqNo, ActionListener<RetentionLease> listener) {
+                    listener.onResponse(new RetentionLease("id", startingSeqNo, 0, "test"));
+                }
+
+                @Override
+                void recoverFilesFromSourceAndSnapshot(ShardRecoveryPlan shardRecoveryPlan,
+                                                       Store store,
+                                                       StopWatch stopWatch,
+                                                       ActionListener<SendFileResult> listener) {
+                    assertThat(computedRecoveryPlanRef.compareAndSet(null, shardRecoveryPlan), equalTo(true));
+                    super.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, stopWatch, listener);
+                }
+            };
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> phase1Listener = PlainActionFuture.newFuture();
+            IndexCommit indexCommit = DirectoryReader.listCommits(dir).get(0);
+            handler.phase1(indexCommit,
+                0,
+                () -> 0,
+                phase1Listener);
+            phase1Listener.get();
+
+            ShardRecoveryPlan computedRecoveryPlan = computedRecoveryPlanRef.get();
+            assertThat(computedRecoveryPlan, is(notNullValue()));
+
+            Set<String> sourceFilesToRecover = computedRecoveryPlan.getSourceFilesToRecover()
+                .stream()
+                .map(StoreFileMetadata::name)
+                .collect(Collectors.toSet());
+            assertThat(sourceFilesToRecover, equalTo(new HashSet<>(indexCommit.getFileNames())));
+        }
     }
 
     private Store.MetadataSnapshot newMetadataSnapshot(String syncId, String localCheckpoint, String maxSeqNo, int numDocs) {

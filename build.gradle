@@ -144,7 +144,9 @@ allprojects {
   apply plugin:'elasticsearch.rewrite'
   rewrite {
     rewriteVersion = "7.10.0"
-    activeRecipe("org.elasticsearch.java.backport.ListOfBackport", "org.elasticsearch.java.backport.MapOfBackport")
+    activeRecipe("org.elasticsearch.java.backport.ListOfBackport",
+            "org.elasticsearch.java.backport.MapOfBackport",
+            "org.elasticsearch.java.backport.SetOfBackport")
     configFile = rootProject.file("rewrite.yml")
   }
 
@@ -186,7 +188,6 @@ allprojects {
   String rewriteVersion = rewrite.getRewriteVersion();
 
   dependencies {
-    rewrite "com.breskeby.rewrite:auto-backport:1.0"
     rewriteRun "org.openrewrite:rewrite-java-11:" + rewriteVersion
     rewriteRun "org.openrewrite:rewrite-java-8:" + rewriteVersion
     rewriteRun "org.openrewrite:rewrite-maven:" + rewriteVersion

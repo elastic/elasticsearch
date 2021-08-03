@@ -178,9 +178,4 @@ public class SearchableSnapshotsIT extends ESRestHighLevelClientTestCase {
             assertThat(stats.getEvictions(), equalTo(0L));
         }
     }
-
-
-    private static void waitForIdlingSearchableSnapshotsThreadPools() throws Exception {
-
-    }
 }

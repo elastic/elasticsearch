@@ -1229,6 +1229,12 @@ applied. For example, "CPU,NetworkIn,DiskWrites". Wildcards are not supported.
 Only the specified `terms` can be viewed when using the Single Metric Viewer.
 end::model-plot-config-terms[]
 
+tag::model-prune-window[]
+Advanced configuration option, which affects the pruning of models that have not
+been updated for the given time duration. The value of this option must be at least
+two whole multiples of `bucket_span`. If not set, a default value is not supplied.
+end::model-prune-window[]
+
 tag::model-snapshot-id[]
 A numerical character string that uniquely identifies the model snapshot. For
 example, `1575402236000 `.

@@ -189,7 +189,6 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         assertEquals(0, container.listBlobsByPrefix("noSuchFile").size());
 
         container.delete();
-//        fileContext.delete(hdfsPath, true);
         assertEquals(0, container.listBlobsByPrefix(null).size());
         assertEquals(0, container.listBlobsByPrefix("fo").size());
         assertEquals(0, container.listBlobsByPrefix("noSuchFile").size());

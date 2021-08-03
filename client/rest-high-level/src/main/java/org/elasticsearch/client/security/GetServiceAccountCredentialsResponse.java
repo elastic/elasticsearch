@@ -9,18 +9,17 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.support.ServiceTokenInfo;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Response when requesting credentials of a service account.
@@ -28,66 +27,66 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public final class GetServiceAccountCredentialsResponse {
 
     private final String principal;
-    private final String nodeName;
-    private final List<ServiceTokenInfo> serviceTokenInfos;
+    private final List<ServiceTokenInfo> indexTokenInfos;
+    private final ServiceAccountCredentialsNodesResponse nodesResponse;
 
-    public GetServiceAccountCredentialsResponse(
-        String principal, String nodeName, List<ServiceTokenInfo> serviceTokenInfos) {
+    public GetServiceAccountCredentialsResponse(String principal,
+                                                List<ServiceTokenInfo> indexTokenInfos,
+                                                ServiceAccountCredentialsNodesResponse nodesResponse) {
         this.principal = Objects.requireNonNull(principal, "principal is required");
-        this.nodeName = Objects.requireNonNull(nodeName, "nodeName is required");
-        this.serviceTokenInfos = org.elasticsearch.core.List.copyOf(
-            Objects.requireNonNull(serviceTokenInfos, "service token infos are required)"));
+        this.indexTokenInfos = org.elasticsearch.core.List.copyOf(
+            Objects.requireNonNull(indexTokenInfos, "service token infos are required"));
+        this.nodesResponse = Objects.requireNonNull(nodesResponse, "nodes response is required");
     }
 
     public String getPrincipal() {
         return principal;
     }
 
-    public String getNodeName() {
-        return nodeName;
+    public List<ServiceTokenInfo> getIndexTokenInfos() {
+        return indexTokenInfos;
     }
 
-    public List<ServiceTokenInfo> getServiceTokenInfos() {
-        return serviceTokenInfos;
+    public ServiceAccountCredentialsNodesResponse getNodesResponse() {
+        return nodesResponse;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
-        GetServiceAccountCredentialsResponse that = (GetServiceAccountCredentialsResponse) o;
-        return principal.equals(that.principal) && nodeName.equals(that.nodeName) && serviceTokenInfos.equals(that.serviceTokenInfos);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(principal, nodeName, serviceTokenInfos);
-    }
-
+    @SuppressWarnings("unchecked")
     static ConstructingObjectParser<GetServiceAccountCredentialsResponse, Void> PARSER =
         new ConstructingObjectParser<>("get_service_account_credentials_response",
             args -> {
-                @SuppressWarnings("unchecked")
-                final List<ServiceTokenInfo> tokenInfos = Stream.concat(
-                    ((Map<String, Object>) args[3]).keySet().stream().map(name -> new ServiceTokenInfo(name, "index")),
-                    ((Map<String, Object>) args[4]).keySet().stream().map(name -> new ServiceTokenInfo(name, "file")))
-                    .collect(Collectors.toList());
-                assert tokenInfos.size() == (int) args[2] : "number of tokens do not match";
-                return new GetServiceAccountCredentialsResponse((String) args[0], (String) args[1], tokenInfos);
+                final int count = (int) args[1];
+                final List<ServiceTokenInfo> indexTokenInfos = (List<ServiceTokenInfo>) args[2];
+                final ServiceAccountCredentialsNodesResponse fileTokensResponse = (ServiceAccountCredentialsNodesResponse) args[3];
+                if (count != indexTokenInfos.size() + fileTokensResponse.getFileTokenInfos().size()) {
+                    throw new IllegalArgumentException("number of tokens do not match");
+                }
+                return new GetServiceAccountCredentialsResponse((String) args[0], indexTokenInfos, fileTokensResponse);
             });
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("service_account"));
-        PARSER.declareString(constructorArg(), new ParseField("node_name"));
         PARSER.declareInt(constructorArg(), new ParseField("count"));
-        PARSER.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("tokens"));
-        PARSER.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("file_tokens"));
+        PARSER.declareObject(constructorArg(),
+            (p, c) -> GetServiceAccountCredentialsResponse.parseIndexTokenInfos(p), new ParseField("tokens"));
+        PARSER.declareObject(constructorArg(),
+            (p, c) -> ServiceAccountCredentialsNodesResponse.fromXContent(p), new ParseField("nodes_credentials"));
     }
 
     public static GetServiceAccountCredentialsResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
+    static List<ServiceTokenInfo> parseIndexTokenInfos(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        final List<ServiceTokenInfo> indexTokenInfos = new ArrayList<>();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+            indexTokenInfos.add(new ServiceTokenInfo(parser.currentName(), "index"));
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+        }
+        return indexTokenInfos;
+    }
 }

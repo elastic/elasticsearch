@@ -644,7 +644,7 @@ public class Node implements Closeable {
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
-                Stream.of(Task.X_OPAQUE_ID)
+                Stream.of(Task.X_OPAQUE_ID, Task.TRACE_ID)
             ).collect(Collectors.toSet());
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings(), taskHeaders);

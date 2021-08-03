@@ -8,15 +8,22 @@
 
 package org.elasticsearch.client.security;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesResponse;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -27,15 +34,18 @@ public class GetServiceAccountCredentialsResponseTests
     @Override
     protected org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse createServerTestInstance(
         XContentType xContentType) {
+        final String[] fileTokenNames = randomArray(3, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8));
+        final GetServiceAccountCredentialsNodesResponse nodesResponse = new GetServiceAccountCredentialsNodesResponse(
+            new ClusterName(randomAlphaOfLength(12)),
+            org.elasticsearch.core.List.of(new GetServiceAccountCredentialsNodesResponse.Node(new DiscoveryNode(randomAlphaOfLength(10),
+                new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+                Version.CURRENT), fileTokenNames)),
+            org.elasticsearch.core.List.of(
+                new FailedNodeException(randomAlphaOfLength(11), "error", new NoSuchFieldError("service_tokens"))));
         return new org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse(
             randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8),
-            randomAlphaOfLengthBetween(3, 8), randomList(
-            1,
-            5,
-            () -> randomBoolean() ?
-                TokenInfo.fileToken(randomAlphaOfLengthBetween(3, 8)) :
-                TokenInfo.indexToken(randomAlphaOfLengthBetween(3, 8)))
-        );
+            randomList(0, 5, () -> TokenInfo.indexToken(randomAlphaOfLengthBetween(3, 8))),
+            nodesResponse);
     }
 
     @Override
@@ -48,14 +58,19 @@ public class GetServiceAccountCredentialsResponseTests
         org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse serverTestInstance,
         GetServiceAccountCredentialsResponse clientInstance) {
         assertThat(serverTestInstance.getPrincipal(), equalTo(clientInstance.getPrincipal()));
-        assertThat(serverTestInstance.getNodeName(), equalTo(clientInstance.getNodeName()));
 
         assertThat(
-            serverTestInstance.getTokenInfos().stream()
+            Stream.concat(serverTestInstance.getIndexTokenInfos().stream(),
+                serverTestInstance.getNodesResponse().getFileTokenInfos().stream())
                 .map(tokenInfo -> new Tuple<>(tokenInfo.getName(), tokenInfo.getSource().name().toLowerCase(Locale.ROOT)))
                 .collect(Collectors.toSet()),
-            equalTo(clientInstance.getServiceTokenInfos().stream()
+            equalTo(Stream.concat(clientInstance.getIndexTokenInfos().stream(),
+                clientInstance.getNodesResponse().getFileTokenInfos().stream())
                 .map(info -> new Tuple<>(info.getName(), info.getSource()))
                 .collect(Collectors.toSet())));
+
+        assertThat(
+            serverTestInstance.getNodesResponse().failures().size(),
+            equalTo(clientInstance.getNodesResponse().getHeader().getFailures().size()));
     }
 }

@@ -121,6 +121,7 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
@@ -192,6 +193,7 @@ import org.elasticsearch.xpack.security.action.service.TransportCreateServiceAcc
 import org.elasticsearch.xpack.security.action.service.TransportDeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountNodesCredentialsAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportInvalidateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportRefreshTokenAction;
@@ -217,7 +219,6 @@ import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountToken
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
@@ -567,11 +568,11 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         components.add(indexServiceAccountTokenStore);
 
         final FileServiceAccountTokenStore fileServiceAccountTokenStore =
-            new FileServiceAccountTokenStore(environment, resourceWatcherService, threadPool, cacheInvalidatorRegistry);
+            new FileServiceAccountTokenStore(environment, resourceWatcherService, threadPool, clusterService, cacheInvalidatorRegistry);
+        components.add(fileServiceAccountTokenStore);
 
-        final ServiceAccountService serviceAccountService = new ServiceAccountService(new CompositeServiceAccountTokenStore(
-            org.elasticsearch.core.List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
-            threadPool.getThreadContext()), httpTlsRuntimeCheck);
+        final ServiceAccountService serviceAccountService = new ServiceAccountService(client,
+            fileServiceAccountTokenStore, indexServiceAccountTokenStore, httpTlsRuntimeCheck);
         components.add(serviceAccountService);
 
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
@@ -935,6 +936,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new ActionHandler<>(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
                 new ActionHandler<>(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
                 new ActionHandler<>(GetServiceAccountCredentialsAction.INSTANCE, TransportGetServiceAccountCredentialsAction.class),
+                new ActionHandler<>(GetServiceAccountNodesCredentialsAction.INSTANCE,
+                    TransportGetServiceAccountNodesCredentialsAction.class),
                 new ActionHandler<>(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class)
         );
     }

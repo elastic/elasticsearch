@@ -241,7 +241,7 @@ on startup.
 [%collapsible]
 ====
 *Details* +
-The settings `*.ssl.keystore.type` and `*.ssl.truststore.type` not longer accept "PKCS11" as a valid type.
+The settings `*.ssl.keystore.type` and `*.ssl.truststore.type` no longer accept "PKCS11" as a valid type.
 This applies to all SSL settings in Elasticsearch, including
 
 - `xpack.security.http.keystore.type`

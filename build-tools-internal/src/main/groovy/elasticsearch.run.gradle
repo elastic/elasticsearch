@@ -27,9 +27,6 @@ testClusters {
         throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
       }
       setting 'xpack.security.enabled', 'true'
-      if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
-        setting 'es.shutdown_feature_flag_enabled', 'true'
-      }
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: 'superuser'
     }

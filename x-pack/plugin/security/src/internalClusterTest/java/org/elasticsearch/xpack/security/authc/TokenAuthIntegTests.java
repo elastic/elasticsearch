@@ -217,6 +217,32 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         }
     }
 
+    public void testAccessTokenAndRefreshTokenCanBeInvalidatedIndependently() throws IOException {
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
+        CreateTokenResponse response = restClient.security().createToken(CreateTokenRequest.passwordGrant(
+            SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
+        final InvalidateTokenRequest invalidateRequest1, invalidateRequest2;
+        if (randomBoolean()) {
+            invalidateRequest1 = InvalidateTokenRequest.accessToken(response.getAccessToken());
+            invalidateRequest2 = InvalidateTokenRequest.refreshToken(response.getRefreshToken());
+        } else {
+            invalidateRequest1 = InvalidateTokenRequest.refreshToken(response.getRefreshToken());
+            invalidateRequest2 = InvalidateTokenRequest.accessToken(response.getAccessToken());
+        }
+
+        final InvalidateTokenResponse response1 =
+            restClient.security().invalidateToken(invalidateRequest1, SECURITY_REQUEST_OPTIONS);
+        assertThat(response1.getInvalidatedTokens(), equalTo(1));
+        assertThat(response1.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(response1.getErrors(), empty());
+
+        final InvalidateTokenResponse response2 =
+            restClient.security().invalidateToken(invalidateRequest2, SECURITY_REQUEST_OPTIONS);
+        assertThat(response2.getInvalidatedTokens(), equalTo(1));
+        assertThat(response2.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(response2.getErrors(), empty());
+    }
+
     public void testInvalidateAllTokensForUser() throws Exception {
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
         final int numOfRequests = randomIntBetween(5, 10);

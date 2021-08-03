@@ -51,7 +51,6 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
     private static final TimeValue MODEL_LOADING_CHECK_INTERVAL = TimeValue.timeValueSeconds(1);
     private static final Logger logger = LogManager.getLogger(TrainedModelAllocationNodeService.class);
     private final TrainedModelAllocationService trainedModelAllocationService;
-    private final AtomicLong taskIdGenerator = new AtomicLong();
     private final DeploymentManager deploymentManager;
     private final TaskManager taskManager;
     private final Map<String, TrainedModelDeploymentTask> modelIdToTask;
@@ -228,8 +227,6 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
     private TaskAwareRequest taskAwareRequest(StartTrainedModelDeploymentAction.TaskParams params) {
         final TrainedModelAllocationNodeService trainedModelAllocationNodeService = this;
         return new TaskAwareRequest() {
-            final TaskId parentTaskId = new TaskId(nodeId, taskIdGenerator.incrementAndGet());
-
             @Override
             public void setParentTask(TaskId taskId) {
                 throw new UnsupportedOperationException("parent task id for model allocation tasks shouldn't change");
@@ -237,7 +234,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
 
             @Override
             public TaskId getParentTask() {
-                return parentTaskId;
+                return TaskId.EMPTY_TASK_ID;
             }
 
             @Override

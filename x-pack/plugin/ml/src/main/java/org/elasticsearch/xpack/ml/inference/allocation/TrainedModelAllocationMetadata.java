@@ -186,7 +186,7 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
             TrainedModelAllocation.Builder allocation = modelRoutingEntries.get(modelId);
             if (allocation == null) {
                 throw new ResourceNotFoundException(
-                    "unable to add node [{}] to model [{}] routing table as allocation does not exist",
+                    "unable to add failed node [{}] to model [{}] routing table as allocation does not exist",
                     nodeId,
                     modelId
                 );

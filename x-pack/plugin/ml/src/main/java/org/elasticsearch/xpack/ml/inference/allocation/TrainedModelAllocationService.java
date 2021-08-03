@@ -112,7 +112,7 @@ public class TrainedModelAllocationService {
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    listener.onResponse(TrainedModelAllocationMetadata.allocationForModelId(clusterState, modelId).orElse(null));
+                    listener.onResponse(TrainedModelAllocationMetadata.allocationForModelId(state, modelId).orElse(null));
                 }
 
                 @Override

@@ -906,7 +906,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
      * Field patterns retrieved with "include_unmapped" use an automaton with a maximal allowed size internally.
      * This test checks we have a bound in place to avoid misuse of this with exceptionally large field patterns
      */
-    // nocommit LUCENE-9981 seems to make this essentially impossible to hit, so remove the test?
+    // TODO LUCENE-9981 seems to make this essentially impossible to hit, so remove the test?
     /*
     public void testTooManyUnmappedFieldWildcardPattern() throws IOException {
         MapperService mapperService = createMapperService();

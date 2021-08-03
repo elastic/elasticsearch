@@ -136,6 +136,10 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         if (useInternalParser && randomBoolean()) {
             update.setBlocked(BlockedTests.createRandom());
         }
+        if (randomBoolean() && job != null) {
+            update.setModelPruneWindow(TimeValue.timeValueSeconds(TimeValue.timeValueSeconds(randomIntBetween(2, 100)).seconds()
+                * job.getAnalysisConfig().getBucketSpan().seconds()));
+        }
 
         return update.build();
     }
@@ -266,6 +270,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         updateBuilder.setCustomSettings(customSettings);
         updateBuilder.setModelSnapshotId(randomAlphaOfLength(10));
         updateBuilder.setJobVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+        updateBuilder.setModelPruneWindow(TimeValue.timeValueDays(randomIntBetween(1, 100)));
         JobUpdate update = updateBuilder.build();
 
         Job.Builder jobBuilder = new Job.Builder("foo");
@@ -300,6 +305,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertEquals(update.getCustomSettings(), updatedJob.getCustomSettings());
         assertEquals(update.getModelSnapshotId(), updatedJob.getModelSnapshotId());
         assertEquals(update.getJobVersion(), updatedJob.getJobVersion());
+        assertEquals(update.getModelPruneWindow(), updatedJob.getAnalysisConfig().getModelPruneWindow());
         for (JobUpdate.DetectorUpdate detectorUpdate : update.getDetectorUpdates()) {
             Detector updatedDetector = updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex());
             assertNotNull(updatedDetector);

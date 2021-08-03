@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -171,7 +170,6 @@ public class SearchModuleTests extends ESTestCase {
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeRescorer));
     }
-
 
     private ThrowingRunnable registryForPlugin(SearchPlugin plugin) {
         return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, singletonList(plugin))
@@ -619,7 +617,7 @@ public class SearchModuleTests extends ESTestCase {
 
     static class CompatQueryBuilder extends AbstractQueryBuilder<CompatQueryBuilder> {
         public static final String NAME = "compat_name";
-        public static final ParseField NAME_V7 = new ParseField(NAME)
+        public static final ParseField NAME_OLD = new ParseField(NAME)
             .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported()));
 
         public static CompatQueryBuilder fromXContent(XContentParser parser) throws IOException {
@@ -653,14 +651,14 @@ public class SearchModuleTests extends ESTestCase {
         protected int doHashCode() {
             return 0;
         }
-    };
+    }
 
     public void testRegisterRestApiCompatibleQuery() {
         SearchPlugin registerCompatQuery = new SearchPlugin() {
             @Override
             public List<SearchPlugin.QuerySpec<?>> getQueries() {
-                return singletonList(new QuerySpec<>(CompatQueryBuilder.NAME_V7,
-                    (streamInput)-> new CompatQueryBuilder(), CompatQueryBuilder::fromXContent));
+                return singletonList(new QuerySpec<>(CompatQueryBuilder.NAME_OLD,
+                    (streamInput) -> new CompatQueryBuilder(), CompatQueryBuilder::fromXContent));
             }
         };
 
@@ -669,8 +667,8 @@ public class SearchModuleTests extends ESTestCase {
         // all entries can be used for current and previous versions except for compatible entry
         assertThat(searchModule.getNamedXContents().stream()
                 .filter(e ->
-                        // filter out compatible entry
-                        e.name.match(CompatQueryBuilder.NAME_V7.getPreferredName(), LoggingDeprecationHandler.INSTANCE) == false)
+                    // filter out compatible entry
+                    e.name.match(CompatQueryBuilder.NAME_OLD.getPreferredName(), LoggingDeprecationHandler.INSTANCE) == false)
                 .filter(e -> RestApiVersion.minimumSupported().matches(e.restApiCompatibility))
                 .filter(e -> RestApiVersion.current().matches(e.restApiCompatibility))
                 .collect(toSet()),
@@ -678,11 +676,10 @@ public class SearchModuleTests extends ESTestCase {
             hasSize(searchModule.getNamedXContents().size() - REST_COMPATIBLE_QUERIES.length -1 ));
 
 
-
         final List<NamedXContentRegistry.Entry> compatEntry = searchModule.getNamedXContents().stream()
             .filter(e -> e.categoryClass.equals(QueryBuilder.class) &&
                 RestApiVersion.minimumSupported().matches(e.name.getForRestApiVersion()) // v7 compatbile
-                    && RestApiVersion.current().matches(e.name.getForRestApiVersion()) == false) // but not v8 compatible
+                && RestApiVersion.current().matches(e.name.getForRestApiVersion()) == false) // but not v8 compatible
             .collect(toList());
         assertThat(compatEntry, hasSize(REST_COMPATIBLE_QUERIES.length + 1));//+1 because of registered in the test
         assertTrue(RestApiVersion.minimumSupported().matches(compatEntry.get(0).restApiCompatibility));

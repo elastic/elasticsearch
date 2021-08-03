@@ -196,6 +196,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.core.Types.forciblyCast;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -1232,10 +1233,5 @@ public class Node implements Closeable {
             assert localNode.get() != null;
             return localNode.get();
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> T forciblyCast(Object argument) {
-        return (T) argument;
     }
 }

@@ -892,7 +892,7 @@ public class SearchModule {
                 (p, c) -> spec.getParser().fromXContent(p), spec.getName().getForRestApiVersion()));
     }
 
-    private void registerBoolQuery(ParseField name, Writeable.Reader reader) {
+    private void registerBoolQuery(ParseField name, Writeable.Reader<QueryBuilder> reader) {
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, name.getPreferredName(), reader));
         namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class, name,
             (p, c) -> BoolQueryBuilder.fromXContent(p, (Integer) c)));

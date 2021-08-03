@@ -297,6 +297,8 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
 
         datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singletonList(deleteJobRequest.getJobId()), ActionListener.wrap(
             datafeedIds -> {
+                // Since it's only possible to delete a single job at a time there should not be more than one datafeed
+                assert datafeedIds.size() <= 1 : "Expected at most 1 datafeed for a single job, got " + datafeedIds;
                 if (datafeedIds.isEmpty()) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                     return;
@@ -311,10 +313,18 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                     deleteDatafeedRequest,
                     ActionListener.wrap(
                         listener::onResponse,
-                        e -> listener.onFailure(ExceptionsHelper.conflictStatusException(
-                            "failed to delete job [{}] as its datafeed [{}] could not be deleted", e,
-                            deleteJobRequest.getJobId(), deleteDatafeedRequest.getDatafeedId())
-                        )
+                        e -> {
+                            // It's possible that a simultaneous call to delete the datafeed has deleted it in between
+                            // us finding the datafeed ID and trying to delete it in this method - this is OK
+                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                                listener.onResponse(AcknowledgedResponse.TRUE);
+                            } else {
+                                listener.onFailure(ExceptionsHelper.conflictStatusException(
+                                    "failed to delete job [{}] as its datafeed [{}] could not be deleted", e,
+                                    deleteJobRequest.getJobId(), deleteDatafeedRequest.getDatafeedId())
+                                );
+                            }
+                        }
                     )
                 );
             },

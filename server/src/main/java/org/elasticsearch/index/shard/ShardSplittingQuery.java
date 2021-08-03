@@ -170,7 +170,7 @@ final class ShardSplittingQuery extends Query {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (sameClassAs(o) == false) return false;
 
         ShardSplittingQuery that = (ShardSplittingQuery) o;
 

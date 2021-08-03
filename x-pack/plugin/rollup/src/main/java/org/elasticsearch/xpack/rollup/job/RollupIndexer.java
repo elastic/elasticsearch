@@ -51,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.rollup.RollupField.formatFieldName;
 
@@ -130,7 +131,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
 
         if (response.getBuckets().isEmpty()) {
             // do not reset the position as we want to continue from where we stopped
-            return new IterationResult<>(Collections.emptyList(), getPosition(), true);
+            return new IterationResult<>(Stream.empty(), getPosition(), true);
         }
 
         return new IterationResult<>(

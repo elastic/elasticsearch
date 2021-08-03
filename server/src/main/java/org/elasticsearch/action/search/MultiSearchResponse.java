@@ -38,6 +38,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     private static final ParseField RESPONSES = new ParseField(Fields.RESPONSES);
     private static final ParseField TOOK_IN_MILLIS = new ParseField("took");
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<MultiSearchResponse, Void> PARSER = new ConstructingObjectParser<>("multi_search",
             true, a -> new MultiSearchResponse(((List<Item>)a[0]).toArray(new Item[0]), (long) a[1]));
     static {

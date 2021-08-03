@@ -214,7 +214,8 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                 throw new IllegalArgumentException("[after] has " + after.size() +
                     " value(s) but [sources] has " + sources.size());
             }
-            Comparable[] values = new Comparable[sources.size()];
+            @SuppressWarnings("rawtypes")
+            Comparable<?>[] values = new Comparable[sources.size()];
             for (int i = 0; i < sources.size(); i++) {
                 String sourceName = sources.get(i).name();
                 if (after.containsKey(sourceName) == false) {
@@ -224,7 +225,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                 if (configs[i].missingBucket() && obj == null) {
                     values[i] = null;
                 } else if (obj instanceof Comparable) {
-                    values[i] = (Comparable) obj;
+                    values[i] = (Comparable<?>) obj;
                 } else {
                     throw new IllegalArgumentException("Invalid value for [after." + sources.get(i).name() +
                         "], expected comparable, got [" + (obj == null ? "null" :  obj.getClass().getSimpleName()) + "]");

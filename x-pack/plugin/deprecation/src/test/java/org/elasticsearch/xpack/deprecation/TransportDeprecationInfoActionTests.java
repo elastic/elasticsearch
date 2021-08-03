@@ -4,7 +4,6 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.ActionListener;
@@ -12,8 +11,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -27,10 +24,11 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
     public void testPluginSettingIssues() {
         DeprecationChecker.Components components = new DeprecationChecker.Components(null, Settings.EMPTY, null);
         PlainActionFuture<Map<String, List<DeprecationIssue>>> future = new PlainActionFuture<>();
-        TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
-            new NamedChecker("foo", Collections.emptyList(), false),
+        TransportDeprecationInfoAction.pluginSettingIssues(List.of(
+            new NamedChecker("foo", List.of(), false),
             new NamedChecker("bar",
-                List.of(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", "details", Map.of("key", "value"))), false)),
+                List.of(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", "details", false, Map.of("key", "value"))),
+                false)),
             components,
             future
             );
@@ -39,16 +37,17 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         assertThat(issueMap.get("foo"), is(empty()));
         assertThat(issueMap.get("bar").get(0).getMessage(), equalTo("bar msg"));
         assertThat(issueMap.get("bar").get(0).getDetails(), equalTo("details"));
+        assertThat(issueMap.get("bar").get(0).isResolveDuringRollingUpgrade(), is(false));
         assertThat(issueMap.get("bar").get(0).getMeta(), equalTo(Map.of("key", "value")));
     }
 
     public void testPluginSettingIssuesWithFailures() {
         DeprecationChecker.Components components = new DeprecationChecker.Components(null, Settings.EMPTY, null);
         PlainActionFuture<Map<String, List<DeprecationIssue>>> future = new PlainActionFuture<>();
-        TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
-            new NamedChecker("foo", Collections.emptyList(), false),
+        TransportDeprecationInfoAction.pluginSettingIssues(List.of(
+            new NamedChecker("foo", List.of(), false),
             new NamedChecker("bar",
-                Collections.singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null, null)),
+                List.of(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null, false, null)),
                 true)),
             components,
             future

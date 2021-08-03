@@ -195,8 +195,8 @@ public class QueryFolderTests extends ESTestCase {
         PhysicalPlan p = plan("SELECT COUNT(10), COUNT(DISTINCT 20) WHERE 1 = 2" + randomOrderByAndLimit(2));
         assertEquals(LocalExec.class, p.getClass());
         LocalExec le = (LocalExec) p;
-        assertEquals(EmptyExecutable.class, le.executable().getClass());
-        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("COUNT(10){r}#"));
         assertThat(ee.output().get(1).toString(), startsWith("COUNT(DISTINCT 20){r}#"));
@@ -230,8 +230,8 @@ public class QueryFolderTests extends ESTestCase {
         PhysicalPlan p = plan("SELECT MIN(10), MAX(123), SUM(20), AVG(30) WHERE 2 > 3" + randomOrderByAndLimit(4));
         assertEquals(LocalExec.class, p.getClass());
         LocalExec le = (LocalExec) p;
-        assertEquals(EmptyExecutable.class, le.executable().getClass());
-        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
         assertEquals(4, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("MIN(10){r}#"));
         assertThat(ee.output().get(1).toString(), startsWith("MAX(123){r}#"));

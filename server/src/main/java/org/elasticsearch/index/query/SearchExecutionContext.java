@@ -661,8 +661,4 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public NestedDocuments getNestedDocuments() {
         return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer);
     }
-
-    public MappingLookup getMappingLookup() {
-        return mappingLookup;
-    }
 }

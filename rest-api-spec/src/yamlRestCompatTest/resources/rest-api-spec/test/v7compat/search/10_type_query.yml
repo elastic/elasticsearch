@@ -5,7 +5,7 @@ setup:
         - "headers"
         - "allowed_warnings_regex"
 ---
-type query:
+type query throws exception when used:
   - do:
       index:
         index: "test1"

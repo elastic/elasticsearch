@@ -842,7 +842,7 @@ public class SearchModule {
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
 
-        if(RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
+        if (RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
             registerQuery(new QuerySpec<>(TypeQueryV7Builder.NAME_V7, TypeQueryV7Builder::new, TypeQueryV7Builder::fromXContent));
         }
     }

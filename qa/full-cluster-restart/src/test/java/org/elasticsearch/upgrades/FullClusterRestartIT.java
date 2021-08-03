@@ -599,9 +599,18 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         return EntityUtils.toString(response.getEntity());
     }
 
+    static void assertNoFailures(Map<?, ?> response) {
+        int failed = (int) XContentMapValues.extractValue("_shards.failed", response);
+        assertEquals(0, failed);
+    }
+
     void assertTotalHits(int expectedTotalHits, Map<?, ?> response) {
         int actualTotalHits = extractTotalHits(response);
         assertEquals(response.toString(), expectedTotalHits, actualTotalHits);
+    }
+
+    static int extractTotalHits(Map<?, ?> response) {
+        return (Integer) XContentMapValues.extractValue("hits.total.value", response);
     }
 
     /**

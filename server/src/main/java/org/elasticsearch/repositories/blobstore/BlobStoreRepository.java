@@ -1372,7 +1372,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         if (writeShardGens) {
                             cleanupOldShardGens(existingRepositoryData, newRepoData);
                         }
-                        finalizeSnapshotContext.onResponse(newRepoData);
+                        finalizeSnapshotContext.onResponse(Tuple.tuple(newRepoData, snapshotInfo));
                     }, onUpdateFailure)
                 );
             }, onUpdateFailure), 2 + indices.size());

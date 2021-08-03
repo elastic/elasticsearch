@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -83,7 +84,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
@@ -226,7 +226,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 repository.snapshotShard(new SnapshotShardContext(shard.store(), shard.mapperService(), snapshotId, indexId, snapshotRef,
                     null, indexShardSnapshotStatus, Version.CURRENT, Collections.emptyMap(), future));
                 future.actionGet();
-                final PlainActionFuture<RepositoryData> finFuture = PlainActionFuture.newFuture();
+                final PlainActionFuture<Tuple<RepositoryData, SnapshotInfo>> finFuture = PlainActionFuture.newFuture();
                 final ShardGenerations shardGenerations =
                     ShardGenerations.builder().put(indexId, 0, indexShardSnapshotStatus.generation()).build();
                 repository.finalizeSnapshot(new FinalizeSnapshotContext(
@@ -247,7 +247,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         Collections.emptyMap(),
                         0L,
                         Collections.emptyMap()),
-                    Version.CURRENT, Function.identity(), finFuture
+                    Version.CURRENT, finFuture
                 ));
                 finFuture.actionGet();
             });

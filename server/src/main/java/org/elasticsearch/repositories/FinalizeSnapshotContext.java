@@ -12,14 +12,16 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.snapshots.SnapshotInfo;
-
-import java.util.function.Function;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 /**
  * Context for finalizing a snapshot.
  */
-public final class FinalizeSnapshotContext extends ActionListener.Delegating<RepositoryData, RepositoryData> {
+public final class FinalizeSnapshotContext extends ActionListener.Delegating<
+    Tuple<RepositoryData, SnapshotInfo>,
+    Tuple<RepositoryData, SnapshotInfo>> {
 
     private final ShardGenerations updatedShardGenerations;
 
@@ -31,17 +33,14 @@ public final class FinalizeSnapshotContext extends ActionListener.Delegating<Rep
 
     private final Version repositoryMetaVersion;
 
-    private final Function<ClusterState, ClusterState> stateTransformer;
-
     /**
      * @param updatedShardGenerations updated shard generations
      * @param repositoryStateId       the unique id identifying the state of the repository when the snapshot began
      * @param clusterMetadata         cluster metadata
      * @param snapshotInfo            SnapshotInfo instance to write for this snapshot
      * @param repositoryMetaVersion   version of the updated repository metadata to write
-     * @param stateTransformer        a function that filters the last cluster state update that the snapshot finalization will execute and
-     *                                is used to remove any state tracked for the in-progress snapshot from the cluster state
-     * @param listener                listener to be invoked with the new {@link RepositoryData} after completing the snapshot
+     * @param listener                listener to be invoked with the new {@link RepositoryData} and {@link SnapshotInfo} after completing
+     *                                the snapshot
      */
     public FinalizeSnapshotContext(
         ShardGenerations updatedShardGenerations,
@@ -49,8 +48,7 @@ public final class FinalizeSnapshotContext extends ActionListener.Delegating<Rep
         Metadata clusterMetadata,
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
-        Function<ClusterState, ClusterState> stateTransformer,
-        ActionListener<RepositoryData> listener
+        ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener
     ) {
         super(listener);
         this.updatedShardGenerations = updatedShardGenerations;
@@ -58,7 +56,6 @@ public final class FinalizeSnapshotContext extends ActionListener.Delegating<Rep
         this.clusterMetadata = clusterMetadata;
         this.snapshotInfo = snapshotInfo;
         this.repositoryMetaVersion = repositoryMetaVersion;
-        this.stateTransformer = stateTransformer;
     }
 
     public long repositoryStateId() {
@@ -82,11 +79,11 @@ public final class FinalizeSnapshotContext extends ActionListener.Delegating<Rep
     }
 
     public ClusterState updatedClusterState(ClusterState state) {
-        return stateTransformer.apply(state);
+        return SnapshotsService.stateWithoutSuccessfulSnapshot(state, snapshotInfo.snapshot());
     }
 
     @Override
-    public void onResponse(RepositoryData repositoryData) {
+    public void onResponse(Tuple<RepositoryData, SnapshotInfo> repositoryData) {
         delegate.onResponse(repositoryData);
     }
 }

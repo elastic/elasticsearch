@@ -244,7 +244,6 @@ class S3Repository extends MeteredBlobStoreRepository {
                 finalizeSnapshotContext.clusterMetadata(),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
-                finalizeSnapshotContext::updatedClusterState,
                 delayedListener(finalizeSnapshotContext)
             );
         }

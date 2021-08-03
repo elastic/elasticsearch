@@ -1533,14 +1533,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         metaForSnapshot,
                         snapshotInfo,
                         entry.version(),
-                        state -> stateWithoutSuccessfulSnapshot(state, snapshot),
-                        ActionListener.wrap(newRepoData -> {
-                            completeListenersIgnoringException(
-                                endAndGetListenersToResolve(snapshot),
-                                Tuple.tuple(newRepoData, snapshotInfo)
-                            );
-                            logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
-                            runNextQueuedOperation(newRepoData, repository, true);
+                        ActionListener.wrap(result -> {
+                            final SnapshotInfo writtenSnapshotInfo = result.v2();
+                            completeListenersIgnoringException(endAndGetListenersToResolve(writtenSnapshotInfo.snapshot()), result);
+                            logger.info("snapshot [{}] completed with state [{}]", snapshot, writtenSnapshotInfo.state());
+                            runNextQueuedOperation(result.v1(), repository, true);
                         }, e -> handleFinalizationFailure(e, snapshot, repositoryData))
                     )
                 );
@@ -1740,7 +1737,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param snapshot snapshot for which to remove the snapshot operation
      * @return updated cluster state
      */
-    private static ClusterState stateWithoutSuccessfulSnapshot(ClusterState state, Snapshot snapshot) {
+    public static ClusterState stateWithoutSuccessfulSnapshot(ClusterState state, Snapshot snapshot) {
         // TODO: updating snapshots here leaks their outdated generation files, we should add logic to clean those up and enhance
         // BlobStoreTestUtil to catch this leak
         SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);

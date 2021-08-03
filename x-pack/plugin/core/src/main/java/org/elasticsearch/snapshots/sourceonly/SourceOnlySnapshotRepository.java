@@ -97,8 +97,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     finalizeSnapshotContext.updatedShardGenerations().indices(),
                     finalizeSnapshotContext.clusterMetadata()
                 ),
-                finalizeSnapshotContext.snapshotInfo(), finalizeSnapshotContext.repositoryMetaVersion(),
-                finalizeSnapshotContext::updatedClusterState, finalizeSnapshotContext
+                finalizeSnapshotContext.snapshotInfo(),
+                finalizeSnapshotContext.repositoryMetaVersion(),
+                finalizeSnapshotContext
             )
         );
     }

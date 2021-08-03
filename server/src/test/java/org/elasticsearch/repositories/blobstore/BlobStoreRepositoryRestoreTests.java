@@ -22,6 +22,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -51,7 +52,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -172,7 +172,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 new SnapshotId(snapshot.getSnapshotId().getName(), "_uuid2")
             );
             final ShardGenerations shardGenerations = ShardGenerations.builder().put(indexId, 0, shardGen).build();
-            PlainActionFuture.<RepositoryData, Exception>get(
+            PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(
                 f -> repository.finalizeSnapshot(
                     new FinalizeSnapshotContext(
                         shardGenerations,
@@ -193,7 +193,6 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                             Collections.emptyMap()
                         ),
                         Version.CURRENT,
-                        Function.identity(),
                         f
                     )
                 )

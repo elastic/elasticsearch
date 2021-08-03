@@ -53,13 +53,13 @@ public class SuggestionEntryTests extends ESTestCase {
         int length = randomInt();
         Entry<O> entry;
         Supplier<Option> supplier;
-        if (entryType == TermSuggestion.Entry.class) {
+        if (entryType == (Class<? extends Entry<? extends Option>>) TermSuggestion.Entry.class) {
             entry = (Entry<O>) new TermSuggestion.Entry(entryText, offset, length);
             supplier = TermSuggestionOptionTests::createTestItem;
-        } else if (entryType == PhraseSuggestion.Entry.class) {
+        } else if (entryType == (Class<? extends Entry<? extends Option>>) PhraseSuggestion.Entry.class) {
             entry = (Entry<O>) new PhraseSuggestion.Entry(entryText, offset, length, randomDouble());
             supplier = SuggestionOptionTests::createTestItem;
-        } else if (entryType == CompletionSuggestion.Entry.class) {
+        } else if (entryType == (Class<? extends Entry<? extends Option>>) CompletionSuggestion.Entry.class) {
             entry = (Entry<O>) new CompletionSuggestion.Entry(entryText, offset, length);
             supplier = CompletionSuggestionOptionTests::createTestItem;
         } else {

@@ -127,7 +127,8 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
         return gcb;
     }
 
-    private static ShapeBuilder<?, ?, ?> createShape(Random r, Point nearPoint, Rectangle within, ShapeType st) throws InvalidShapeException {
+    private static ShapeBuilder<?, ?, ?> createShape(Random r, Point nearPoint, Rectangle within, ShapeType st)
+        throws InvalidShapeException {
         ShapeBuilder<?, ?, ?> shape;
         short i=0;
         do {

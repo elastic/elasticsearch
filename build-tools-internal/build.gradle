@@ -206,7 +206,7 @@ dependencies {
 
   api localGroovy()
   api gradleApi()
-  api "org.openrewrite:plugin:latest.release"
+  api "org.openrewrite:plugin:7.10.0"
 
   api "org.elasticsearch:build-conventions:$version"
   api "org.elasticsearch.gradle:build-tools:$version"

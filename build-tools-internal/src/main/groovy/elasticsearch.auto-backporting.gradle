@@ -7,7 +7,6 @@
  */
 
 
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.rewrite.RewritePlugin
 
 if(gradle.getStartParameter().getTaskNames().any {it.endsWith(RewritePlugin.REWRITE_TASKNAME)}) {
@@ -24,9 +23,6 @@ if(gradle.getStartParameter().getTaskNames().any {it.endsWith(RewritePlugin.REWR
 
         repositories {
             mavenCentral()
-//            maven {
-//                url = "https://oss.sonatype.org/content/repositories/snapshots/"
-//            }
         }
 
         configurations {

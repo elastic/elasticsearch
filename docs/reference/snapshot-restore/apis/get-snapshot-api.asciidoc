@@ -58,9 +58,6 @@ Use the get snapshot API to return information about one or more snapshots, incl
 `<repository>`::
 (Required, string)
 Snapshot repository name used to limit the request.
-+
-To get information about all snapshot repositories registered in the
-cluster, omit this parameter or use `*` or `_all`.
 
 `<snapshot>`::
 (Required, string)

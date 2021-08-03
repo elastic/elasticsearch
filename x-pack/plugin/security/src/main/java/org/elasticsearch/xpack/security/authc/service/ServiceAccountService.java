@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAcco
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -59,7 +58,8 @@ public class ServiceAccountService {
         this.client = client;
         this.indexServiceAccountTokenStore = indexServiceAccountTokenStore;
         this.compositeServiceAccountTokenStore = new CompositeServiceAccountTokenStore(
-            List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore), client.threadPool().getThreadContext());
+            org.elasticsearch.core.List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
+            client.threadPool().getThreadContext());
         this.httpTlsRuntimeCheck = httpTlsRuntimeCheck;
     }
 

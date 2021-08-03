@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.core.security.action.service;
 
+import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
@@ -42,7 +42,7 @@ public class GetServiceAccountCredentialsNodesRequest extends BaseNodesRequest<G
         out.writeString(serviceName);
     }
 
-    public static class Node extends TransportRequest {
+    public static class Node extends BaseNodeRequest {
 
         private final String namespace;
         private final String serviceName;

@@ -42,7 +42,7 @@ public class ServiceAccountCredentialsNodesResponse {
     public static ServiceAccountCredentialsNodesResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         NodesResponseHeader header = null;
-        List<ServiceTokenInfo> fileTokenInfos = List.of();
+        List<ServiceTokenInfo> fileTokenInfos = org.elasticsearch.core.List.of();
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);

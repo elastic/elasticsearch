@@ -64,8 +64,8 @@ public class GetServiceAccountCredentialsNodesResponse extends BaseNodesResponse
             });
         }
         return fileTokenDistribution.entrySet().stream()
-            .map(entry -> TokenInfo.fileToken(entry.getKey(), entry.getValue().stream().sorted().collect(Collectors.toUnmodifiableList())))
-            .collect(Collectors.toUnmodifiableList());
+            .map(entry -> TokenInfo.fileToken(entry.getKey(), entry.getValue().stream().sorted().collect(Collectors.toList())))
+            .collect(Collectors.toList());
     }
 
     public static class Node extends BaseNodeResponse {

@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
@@ -66,9 +65,7 @@ public class TransportGetServiceAccountNodesCredentialsAction
     }
 
     @Override
-    protected GetServiceAccountCredentialsNodesResponse.Node nodeOperation(
-        GetServiceAccountCredentialsNodesRequest.Node request, Task task
-    ) {
+    protected GetServiceAccountCredentialsNodesResponse.Node nodeOperation(GetServiceAccountCredentialsNodesRequest.Node request) {
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
         final List<TokenInfo> tokenInfos = fileServiceAccountTokenStore.findTokensFor(accountId);
         return new GetServiceAccountCredentialsNodesResponse.Node(

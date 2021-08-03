@@ -421,7 +421,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         );
     }
 
-    SnapshotInfo(
+    public SnapshotInfo(
         Snapshot snapshot,
         List<String> indices,
         List<String> dataStreams,
@@ -451,7 +451,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         this.successfulShards = successfulShards;
         this.shardFailures = List.copyOf(shardFailures);
         this.includeGlobalState = includeGlobalState;
-        this.userMetadata = userMetadata;
+        this.userMetadata = userMetadata == null ? null : Map.copyOf(userMetadata);
         this.indexSnapshotDetails = Map.copyOf(indexSnapshotDetails);
     }
 

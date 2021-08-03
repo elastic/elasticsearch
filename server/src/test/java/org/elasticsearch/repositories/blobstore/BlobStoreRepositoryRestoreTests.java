@@ -35,6 +35,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -173,26 +174,28 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             final ShardGenerations shardGenerations = ShardGenerations.builder().put(indexId, 0, shardGen).build();
             PlainActionFuture.<RepositoryData, Exception>get(
                 f -> repository.finalizeSnapshot(
-                    shardGenerations,
-                    RepositoryData.EMPTY_REPO_GEN,
-                    Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
-                    new SnapshotInfo(
-                        snapshot,
-                        shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
-                        Collections.emptyList(),
-                        Collections.emptyList(),
-                        null,
-                        1L,
-                        6,
-                        Collections.emptyList(),
-                        true,
-                        Collections.emptyMap(),
-                        0L,
-                        Collections.emptyMap()
-                    ),
-                    Version.CURRENT,
-                    Function.identity(),
-                    f
+                    new FinalizeSnapshotContext(
+                        shardGenerations,
+                        RepositoryData.EMPTY_REPO_GEN,
+                        Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
+                        new SnapshotInfo(
+                            snapshot,
+                            shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            null,
+                            1L,
+                            6,
+                            Collections.emptyList(),
+                            true,
+                            Collections.emptyMap(),
+                            0L,
+                            Collections.emptyMap()
+                        ),
+                        Version.CURRENT,
+                        Function.identity(),
+                        f
+                    )
                 )
             );
             IndexShardSnapshotFailedException isfe = expectThrows(

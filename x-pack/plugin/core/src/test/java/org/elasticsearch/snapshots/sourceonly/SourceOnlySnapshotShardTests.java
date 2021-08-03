@@ -61,12 +61,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -228,7 +229,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 final PlainActionFuture<RepositoryData> finFuture = PlainActionFuture.newFuture();
                 final ShardGenerations shardGenerations =
                     ShardGenerations.builder().put(indexId, 0, indexShardSnapshotStatus.generation()).build();
-                repository.finalizeSnapshot(
+                repository.finalizeSnapshot(new FinalizeSnapshotContext(
                     shardGenerations,
                     ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId(),
                     Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
@@ -246,7 +247,8 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         Collections.emptyMap(),
                         0L,
                         Collections.emptyMap()),
-                    Version.CURRENT, Function.identity(), finFuture);
+                    Version.CURRENT, Function.identity(), finFuture
+                ));
                 finFuture.actionGet();
             });
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();

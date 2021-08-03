@@ -72,6 +72,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -1521,24 +1522,27 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.partial() ? shardGenerations.totalShards() : entry.shardsByRepoShardId().size(),
                     shardFailures,
                     entry.includeGlobalState(),
-                    // TODO: remove this hack making the metadata mutable once
-                    // https://github.com/elastic/elasticsearch/pull/72776 has been merged
-                    entry.userMetadata() == null ? null : new HashMap<>(entry.userMetadata()),
+                    entry.userMetadata(),
                     entry.startTime(),
                     indexSnapshotDetails
                 );
                 repo.finalizeSnapshot(
-                    shardGenerations,
-                    repositoryData.getGenId(),
-                    metaForSnapshot,
-                    snapshotInfo,
-                    entry.version(),
-                    state -> stateWithoutSuccessfulSnapshot(state, snapshot),
-                    ActionListener.wrap(newRepoData -> {
-                        completeListenersIgnoringException(endAndGetListenersToResolve(snapshot), Tuple.tuple(newRepoData, snapshotInfo));
-                        logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
-                        runNextQueuedOperation(newRepoData, repository, true);
-                    }, e -> handleFinalizationFailure(e, snapshot, repositoryData))
+                    new FinalizeSnapshotContext(
+                        shardGenerations,
+                        repositoryData.getGenId(),
+                        metaForSnapshot,
+                        snapshotInfo,
+                        entry.version(),
+                        state -> stateWithoutSuccessfulSnapshot(state, snapshot),
+                        ActionListener.wrap(newRepoData -> {
+                            completeListenersIgnoringException(
+                                endAndGetListenersToResolve(snapshot),
+                                Tuple.tuple(newRepoData, snapshotInfo)
+                            );
+                            logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
+                            runNextQueuedOperation(newRepoData, repository, true);
+                        }, e -> handleFinalizationFailure(e, snapshot, repositoryData))
+                    )
                 );
             }, e -> handleFinalizationFailure(e, snapshot, repositoryData));
         } catch (Exception e) {

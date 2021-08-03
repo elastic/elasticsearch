@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
@@ -27,7 +28,6 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -93,11 +93,8 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
-    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId,
-                                 Metadata clusterMetadata, SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
-                                 Function<ClusterState, ClusterState> stateTransformer,
-                                 ActionListener<RepositoryData> listener) {
-        listener.onResponse(null);
+    public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
+        finalizeSnapshotContext.onResponse(null);
     }
 
     @Override

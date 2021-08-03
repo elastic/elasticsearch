@@ -13,8 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -28,12 +26,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -239,15 +236,19 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final AtomicReference<Scheduler.Cancellable> finalizationFuture = new AtomicReference<>();
 
     @Override
-    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
-                                 SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
-                                 Function<ClusterState, ClusterState> stateTransformer,
-                                 ActionListener<RepositoryData> listener) {
-        if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
-            listener = delayedListener(listener);
+    public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
+        if (SnapshotsService.useShardGenerations(finalizeSnapshotContext.repositoryMetaVersion()) == false) {
+            finalizeSnapshotContext = new FinalizeSnapshotContext(
+                finalizeSnapshotContext.updatedShardGenerations(),
+                finalizeSnapshotContext.repositoryStateId(),
+                finalizeSnapshotContext.clusterMetadata(),
+                finalizeSnapshotContext.snapshotInfo(),
+                finalizeSnapshotContext.repositoryMetaVersion(),
+                finalizeSnapshotContext::updatedClusterState,
+                delayedListener(finalizeSnapshotContext)
+            );
         }
-        super.finalizeSnapshot(shardGenerations, repositoryStateId, clusterMetadata, snapshotInfo, repositoryMetaVersion,
-            stateTransformer, listener);
+        super.finalizeSnapshot(finalizeSnapshotContext);
     }
 
     @Override

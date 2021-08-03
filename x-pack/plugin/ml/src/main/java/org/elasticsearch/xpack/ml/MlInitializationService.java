@@ -18,6 +18,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 
 import java.util.Objects;
@@ -94,9 +95,18 @@ class MlInitializationService implements ClusterStateListener {
             return;
         }
 
+        final boolean isCurrentResetMode = MlMetadata.getMlMetadata(event.state()).isResetMode();
+        final boolean isPreviousResetMode = MlMetadata.getMlMetadata(event.previousState()).isResetMode();
+
         // The atomic flag prevents multiple simultaneous attempts to create the
         // index if there is a flurry of cluster state updates in quick succession
-        if (this.isMaster && isIndexCreationInProgress.compareAndSet(false, true)) {
+        if (this.isMaster
+            && isIndexCreationInProgress.compareAndSet(false, true)
+            // Don't bother checking if the current state is in reset mode
+            && isCurrentResetMode == false
+            // If the previous state was reset mode, it means we recently changed it to off, so don't immediate create annotations index
+            && isPreviousResetMode == false
+        ) {
             AnnotationIndex.createAnnotationsIndexIfNecessary(client, event.state(), MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
                 ActionListener.wrap(
                     r -> isIndexCreationInProgress.set(false),

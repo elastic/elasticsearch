@@ -40,7 +40,6 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.spatial.GeometryFormatterExtension;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractLatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
@@ -96,13 +95,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final Version version;
-        private final GeometryFormatterExtension geometryFormatterExtension;
+        private final GeoFormatterFactory<Geometry> geoFormatterFactory;
 
         public Builder(String name, Version version, boolean ignoreMalformedByDefault, boolean coerceByDefault,
-                      GeometryFormatterExtension geometryFormatterExtension) {
+                       GeoFormatterFactory<Geometry> geoFormatterFactory) {
             super(name);
             this.version = version;
-            this.geometryFormatterExtension = geometryFormatterExtension;
+            this.geoFormatterFactory = geoFormatterFactory;
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
             this.hasDocValues
@@ -134,7 +133,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 hasDocValues.get(),
                 orientation.get().value(),
                 parser,
-                geometryFormatterExtension,
+                geoFormatterFactory,
                 meta.get());
             return new GeoShapeWithDocValuesFieldMapper(name, ft,
                 multiFieldsBuilder.build(this, contentPath), copyTo.build(),
@@ -148,9 +147,9 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         private final GeoFormatterFactory<Geometry> geoFormatterFactory;
         public GeoShapeWithDocValuesFieldType(String name, boolean indexed, boolean hasDocValues,
                                               Orientation orientation, GeoShapeParser parser,
-                                              GeometryFormatterExtension geometryFormatterExtension, Map<String, String> meta) {
+                                              GeoFormatterFactory<Geometry> geoFormatterFactory, Map<String, String> meta) {
             super(name, indexed, false, hasDocValues, parser, orientation, meta);
-            this.geoFormatterFactory = new GeoFormatterFactory<>(geometryFormatterExtension.getGeometryFormatterFactories());
+            this.geoFormatterFactory = geoFormatterFactory;
         }
 
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
@@ -190,10 +189,10 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     public static class TypeParser implements Mapper.TypeParser {
 
-        private final GeometryFormatterExtension geometryFormatterExtension;
+        private final GeoFormatterFactory<Geometry> geoFormatterFactory;
 
-        public TypeParser(GeometryFormatterExtension geometryFormatterExtension) {
-            this.geometryFormatterExtension = geometryFormatterExtension;
+        public TypeParser(GeoFormatterFactory<Geometry> geoFormatterFactory) {
+            this.geoFormatterFactory = geoFormatterFactory;
         }
 
         @Override
@@ -220,7 +219,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                     parserContext.indexVersionCreated(),
                     ignoreMalformedByDefault,
                     coerceByDefault,
-                    geometryFormatterExtension);
+                    geoFormatterFactory);
             }
             builder.parse(name, parserContext, node);
             return builder;
@@ -275,7 +274,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             builder.version,
             builder.ignoreMalformed.getDefaultValue().value(),
             builder.coerce.getDefaultValue().value(),
-            builder.geometryFormatterExtension
+            builder.geoFormatterFactory
         ).init(this);
     }
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -89,8 +90,10 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
     }
 
     private void fetchVectorTile(Geometry geometry) throws IOException {
+        final GeoFormatterFactory<Geometry> geoFormatterFactory = new GeoFormatterFactory<>(
+            new SpatialGeometryFormatterExtension().getGeometryFormatterFactories());
         final MappedFieldType mapper
-            = new GeoShapeWithDocValuesFieldMapper.Builder("field", Version.CURRENT, false, false, new SpatialGeometryFormatterExtension())
+            = new GeoShapeWithDocValuesFieldMapper.Builder("field", Version.CURRENT, false, false, geoFormatterFactory)
             .build(new ContentPath()).fieldType();
         final int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);

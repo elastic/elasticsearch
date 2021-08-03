@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.spatial;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.geo.GeoPlugin;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseUtils;
@@ -56,6 +58,7 @@ import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentr
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -73,7 +76,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
         return XPackPlugin.getSharedLicenseState();
     }
     // register the vector tile factory from a different module
-    private final SetOnce<GeometryFormatterExtension> vectorTileExtension = new SetOnce<>();
+    private final SetOnce<GeoFormatterFactory<Geometry>> geoFormatterFactory = new SetOnce<>();
 
     @Override
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -89,7 +92,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
         mappers.put(ShapeFieldMapper.CONTENT_TYPE, ShapeFieldMapper.PARSER);
         mappers.put(PointFieldMapper.CONTENT_TYPE, PointFieldMapper.PARSER);
         mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE,
-            new GeoShapeWithDocValuesFieldMapper.TypeParser(vectorTileExtension.get()));
+            new GeoShapeWithDocValuesFieldMapper.TypeParser(geoFormatterFactory.get()));
         return Collections.unmodifiableMap(mappers);
     }
 
@@ -214,6 +217,9 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         // we only expect one vector tile extension that comes from the vector tile module.
-        loader.loadExtensions(GeometryFormatterExtension.class).forEach(vectorTileExtension::set);
+        List<GeoFormatterFactory.FormatterFactory<Geometry>> formatterFactories = new ArrayList<>();
+        loader.loadExtensions(GeometryFormatterExtension.class).stream().map(GeometryFormatterExtension::getGeometryFormatterFactories)
+            .forEach(formatterFactories::addAll);
+        geoFormatterFactory.set(new GeoFormatterFactory<>(formatterFactories));
     }
 }

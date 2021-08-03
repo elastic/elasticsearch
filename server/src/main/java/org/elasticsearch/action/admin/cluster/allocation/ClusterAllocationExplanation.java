@@ -66,7 +66,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
     }
 
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
             this.specificShard = in.readBoolean();
         } else {
             this.specificShard = true; // suppress "this is a random shard" warning in BwC situations
@@ -80,7 +80,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
             out.writeBoolean(specificShard);
         } // else suppress "this is a random shard" warning in BwC situations
         shardRouting.writeTo(out);

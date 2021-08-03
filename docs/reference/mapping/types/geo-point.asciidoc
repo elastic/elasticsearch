@@ -135,6 +135,10 @@ The following parameters are accepted by `geo_point` fields:
     (two dimensions) values throw an exception and reject the whole document. Note
     that this cannot be set if the `script` parameter is used.
 
+<<mapping-index,`index`>>::
+
+    Should the field be searchable? Accepts `true` (default) and `false`.
+
 <<null-value,`null_value`>>::
 
     Accepts an geopoint value which is substituted for any explicit `null` values.

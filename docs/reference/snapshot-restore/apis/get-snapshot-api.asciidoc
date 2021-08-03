@@ -67,13 +67,9 @@ cluster, omit this parameter or use `*` or `_all`.
 
 `<snapshot>`::
 (Required, string)
-Comma-separated list of snapshot names to retrieve. Also accepts wildcards (`*`).
+Comma-separated list of snapshot names to retrieve. Also accepts wildcards (`*`) when a repository is specified.
 +
-* To get information about all snapshots in a registered repository, use a wildcard (`*`) or `_all`.
-* To get information about any snapshots that are currently running, use `_current`.
-+
-NOTE: Using `_all` in a request fails if any snapshots are unavailable.
-Set <<get-snapshot-api-ignore-unavailable,`ignore_unavailable`>> to `true` to return only available snapshots.
+To get information about any snapshots that are currently running, use `_current`.
 
 [role="child_attributes"]
 [[get-snapshot-api-query-params]]

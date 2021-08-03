@@ -1094,7 +1094,7 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Resolve the given v2 template into an ordered list of aliases
+     * Resolve the given v2 template name into an ordered list of aliases
      *
      * @param failIfTemplateHasDataStream Whether to skip validating if a template has a data stream definition and an alias definition.
      *                                    This validation is needed so that no template gets created that creates data stream and also
@@ -1112,11 +1112,20 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null : "attempted to resolve aliases for a template [" + templateName +
             "] that did not exist in the cluster state";
+        return resolveAliases(metadata, template, failIfTemplateHasDataStream);
+    }
+
+    /**
+     * Resolve the given v2 template into an ordered list of aliases
+     */
+    static List<Map<String, AliasMetadata>> resolveAliases(final Metadata metadata,
+                                                           final ComposableIndexTemplate template,
+                                                           final boolean failIfTemplateHasDataStream) {
         if (template == null) {
             return Collections.emptyList();
         }
         final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
-        return resolveAliases(template, componentTemplates, failIfTemplateHasDataStream, templateName);
+        return resolveAliases(template, componentTemplates, failIfTemplateHasDataStream);
     }
 
     /**
@@ -1124,8 +1133,7 @@ public class MetadataIndexTemplateService {
      */
     static List<Map<String, AliasMetadata>> resolveAliases(final ComposableIndexTemplate template,
                                                            final Map<String, ComponentTemplate> componentTemplates,
-                                                           final boolean failIfTemplateHasDataStream,
-                                                           @Nullable String templateName) {
+                                                           final boolean failIfTemplateHasDataStream) {
         Objects.requireNonNull(template, "attempted to resolve aliases for a null template");
         Objects.requireNonNull(componentTemplates, "attempted to resolve aliases with null component templates");
         List<Map<String, AliasMetadata>> aliases = template.composedOf().stream()

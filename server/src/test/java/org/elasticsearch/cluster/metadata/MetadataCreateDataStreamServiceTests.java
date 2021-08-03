@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.ExecutorNames;
@@ -75,19 +76,9 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         final int aliasCount = randomIntBetween(0, 3);
         Map<String, AliasMetadata> aliases = new HashMap<>(aliasCount);
         for (int k = 0; k < aliasCount; k++) {
-            final String aliasName = randomAlphaOfLength(6);
-            AliasMetadata.Builder builder = AliasMetadata.newAliasMetadataBuilder(aliasName);
-            if (randomBoolean()) {
-                builder.filter(org.elasticsearch.core.Map.of(
-                    "term",
-                    org.elasticsearch.core.Map.of(
-                        "user",
-                        org.elasticsearch.core.Map.of("value", randomAlphaOfLength(5)))
-                    )
-                );
-            }
-            builder.writeIndex(randomBoolean());
-            aliases.put(aliasName, builder.build());
+
+            final AliasMetadata am = randomAlias(null);
+            aliases.put(am.alias(), am);
         }
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
             .indexPatterns(org.elasticsearch.core.List.of(dataStreamName + "*"))
@@ -122,6 +113,83 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
             equalTo("true"));
         assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(), is(false));
+    }
+
+    public void testCreateDataStreamWithAliasFromComponentTemplate() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = "my-data-stream";
+        final int componentTemplateCount = randomIntBetween(0, 3);
+        final int aliasCount = randomIntBetween(0, 3);
+        int totalAliasCount = aliasCount;
+        Map<String, AliasMetadata> aliases = new HashMap<>();
+        for (int k = 0; k < aliasCount; k++) {
+            final AliasMetadata am = randomAlias(null);
+            aliases.put(am.alias(), am);
+        }
+
+        List<String> ctNames = new ArrayList<>();
+        List<Map<String, AliasMetadata>> allAliases = new ArrayList<>();
+        var metadataBuilder = Metadata.builder();
+        final List<ComponentTemplate> componentTemplates = new ArrayList<>(componentTemplateCount);
+        for (int k = 0; k < componentTemplateCount; k++) {
+            final String ctName = randomAlphaOfLength(5);
+            ctNames.add(ctName);
+            final int ctAliasCount = randomIntBetween(0, 3);
+            totalAliasCount += ctAliasCount;
+            final var ctAliasMap = new HashMap<String, AliasMetadata>(ctAliasCount);
+            allAliases.add(ctAliasMap);
+            for (int m = 0; m < ctAliasCount; m++) {
+                final AliasMetadata am = randomAlias(ctName);
+                ctAliasMap.put(am.alias(), am);
+            }
+            metadataBuilder.put(ctName, new ComponentTemplate(new Template(null, null, ctAliasMap), null, null));
+        }
+        allAliases.add(aliases);
+
+        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .dataStreamTemplate(new DataStreamTemplate())
+            .template(new Template(null, null, aliases))
+            .componentTemplates(ctNames)
+            .build();
+
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(metadataBuilder.put("template", template).build())
+            .build();
+        CreateDataStreamClusterStateUpdateRequest req =
+            new CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
+        ClusterState newState = MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
+        assertThat(newState.metadata().dataStreams().size(), equalTo(1));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).isSystem(), is(false));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).isHidden(), is(false));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).isReplicated(), is(false));
+        assertThat(newState.metadata().dataStreamAliases().size(), is(totalAliasCount));
+        for (var aliasMap : allAliases) {
+            for (var alias : aliasMap.values()) {
+                var actualAlias = newState.metadata().dataStreamAliases().get(alias.alias());
+                assertThat(actualAlias, is(notNullValue()));
+                assertThat(actualAlias.getName(), equalTo(alias.alias()));
+                assertThat(actualAlias.getFilter(), equalTo(alias.filter()));
+                assertThat(actualAlias.getWriteDataStream(), equalTo(alias.writeIndex() ? dataStreamName : null));
+            }
+        }
+
+        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
+        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getAliases().size(), is(0));
+        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
+            equalTo("true"));
+        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(), is(false));
+    }
+
+    private static AliasMetadata randomAlias(String prefix) {
+        final String aliasName = (Strings.isNullOrEmpty(prefix) ? "" : prefix + "-") + randomAlphaOfLength(6);
+        var builder = AliasMetadata.newAliasMetadataBuilder(aliasName);
+        if (randomBoolean()) {
+            builder.filter(Map.of("term", Map.of("user", Map.of("value", randomAlphaOfLength(5)))));
+        }
+        builder.writeIndex(randomBoolean());
+        return builder.build();
     }
 
     public void testCreateSystemDataStream() throws Exception {

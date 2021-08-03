@@ -153,7 +153,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         influencers = Collections.unmodifiableList(in.readStringList());
 
         multivariateByFields = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
             modelPruneWindow = in.readOptionalTimeValue();
         } else {
             modelPruneWindow = null;
@@ -179,7 +179,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
         out.writeOptionalBoolean(multivariateByFields);
 
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
             out.writeOptionalTimeValue(modelPruneWindow);
         }
     }

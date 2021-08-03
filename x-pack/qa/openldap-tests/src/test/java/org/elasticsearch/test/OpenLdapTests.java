@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataReso
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory;
 import org.elasticsearch.xpack.security.authc.ldap.LdapTestUtils;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetadataResolver;
@@ -94,14 +94,14 @@ public class OpenLdapTests extends ESTestCase {
         // fake realms so ssl will get loaded
         builder.put("xpack.security.authc.realms.ldap.foo.ssl.truststore.path", truststore);
         mockSecureSettings.setString("xpack.security.authc.realms.ldap.foo.ssl.truststore.secure_password", "changeit");
-        builder.put("xpack.security.authc.realms.ldap.foo.ssl.verification_mode", VerificationMode.FULL);
+        builder.put("xpack.security.authc.realms.ldap.foo.ssl.verification_mode", SslVerificationMode.FULL);
         builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.path", truststore);
         mockSecureSettings.setString("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.secure_password", "changeit");
-        builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.verification_mode", VerificationMode.CERTIFICATE);
+        builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.verification_mode", SslVerificationMode.CERTIFICATE);
 
         builder.put("xpack.security.authc.realms.ldap.vmode_full.ssl.truststore.path", truststore);
         mockSecureSettings.setString("xpack.security.authc.realms.ldap.vmode_full.ssl.truststore.secure_password", "changeit");
-        builder.put("xpack.security.authc.realms.ldap.vmode_full.ssl.verification_mode", VerificationMode.FULL);
+        builder.put("xpack.security.authc.realms.ldap.vmode_full.ssl.verification_mode", SslVerificationMode.FULL);
         globalSettings = builder.setSecureSettings(mockSecureSettings).build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
         sslService = new SSLService(environment);

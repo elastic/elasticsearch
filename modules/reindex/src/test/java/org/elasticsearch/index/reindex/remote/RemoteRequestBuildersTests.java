@@ -16,7 +16,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -25,7 +25,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.clearScroll;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearch;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.scroll;

@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -112,6 +112,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         client = new FilterClient(mockClient) {
             @Override
+            @SuppressWarnings("unchecked")
             protected <Request extends ActionRequest, Response extends ActionResponse>
             void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 requestHolder.set(request);
@@ -135,12 +136,12 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         store = new IndexServiceAccountTokenStore(Settings.EMPTY,
             threadPool,
             Clock.systemUTC(),
@@ -389,5 +390,10 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                 mock(ShardId.class), randomAlphaOfLengthBetween(3, 8), randomLong(), randomLong(), randomLong(), true
             ))
         }, randomLong());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Consumer<T> anyConsumer() {
+        return any(Consumer.class);
     }
 }

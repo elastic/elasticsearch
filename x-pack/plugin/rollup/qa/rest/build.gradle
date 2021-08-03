@@ -26,8 +26,6 @@ testClusters.all {
   setting 'xpack.security.enabled', 'false'
 }
 
-tasks.named("test").configure{enabled = false }
-
 if (BuildParams.inFipsJvm){
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
   tasks.named("yamlRestTest").configure{enabled = false }

@@ -8,11 +8,11 @@
 
 package org.elasticsearch.wildfly.transport;
 
-import javax.ws.rs.ApplicationPath;
-import javax.ws.rs.core.Application;
-
 import java.util.Collections;
 import java.util.Set;
+
+import javax.ws.rs.ApplicationPath;
+import javax.ws.rs.core.Application;
 
 @ApplicationPath("/transport")
 public class RestHighLevelClientActivator extends Application {

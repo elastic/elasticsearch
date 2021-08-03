@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.ml.aggs.kstest;
 
 import org.apache.commons.math3.stat.inference.KolmogorovSmirnovTest;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -255,7 +255,9 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
                     .limit(bucketsValue.getDocCounts().length - 1)
                     .mapToDouble(Double::valueOf)
             ).toArray()
-            : this.fractions;
+            // We prepend zero to the fractions as we prepend 0 to the doc counts and we want them to be the same length when
+            // we create the monotonically increasing values for distribution comparison.
+            : DoubleStream.concat(DoubleStream.of(0.0), Arrays.stream(this.fractions)).toArray();
         return new InternalKSTestAggregation(name(), metadata(), ksTest(fractions, bucketsValue, alternatives, samplingMethod));
     }
 }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.support;
 
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;

@@ -41,13 +41,13 @@ import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.RestApiVersion;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -248,6 +248,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         // Enable Netty leak detection and monitor logger for logged leak errors
         System.setProperty("io.netty.leakDetection.level", "paranoid");
+
+        // We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+        // other if we allow them to set the number of available processors as it's set-once in Netty.
+        System.setProperty("es.set.netty.runtime.available.processors", "false");
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -828,11 +832,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return list;
     }
 
-    public static <K, V> Map<K, V> randomMap(int minListSize, int maxListSize, Supplier<Tuple<K, V>> valueConstructor) {
-        final int size = randomIntBetween(minListSize, maxListSize);
+    public static <K, V> Map<K, V> randomMap(int minMapSize, int maxMapSize, Supplier<Tuple<K, V>> entryConstructor) {
+        final int size = randomIntBetween(minMapSize, maxMapSize);
         Map<K, V> list = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            Tuple<K, V> entry = valueConstructor.get();
+            Tuple<K, V> entry = entryConstructor.get();
             list.put(entry.v1(), entry.v2());
         }
         return list;
@@ -1091,6 +1095,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Returns size random values
      */
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> List<T> randomSubsetOf(int size, T... values) {
         List<T> list = arrayAsArrayList(values);
         return randomSubsetOf(size, list);
@@ -1155,6 +1161,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     public String compatibleMediaType(XContentType type, RestApiVersion version) {
         return type.toParsedMediaType()
             .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version.major)));
+    }
+
+    public XContentType randomVendorType() {
+        return randomFrom(XContentType.VND_JSON, XContentType.VND_SMILE, XContentType.VND_CBOR, XContentType.VND_YAML);
     }
 
     public static class GeohashGenerator extends CodepointSetGenerator {

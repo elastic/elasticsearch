@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
@@ -417,12 +417,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             for (NamedExpression ne : projections) {
                 if (ne instanceof UnresolvedStar) {
                     List<NamedExpression> expanded = expandStar((UnresolvedStar) ne, output);
+
                     // the field exists, but cannot be expanded (no sub-fields)
-                    if (expanded.isEmpty()) {
-                        result.add(ne);
-                    } else {
-                        result.addAll(expanded);
-                    }
+                    result.addAll(expanded);
                 } else if (ne instanceof UnresolvedAlias) {
                     UnresolvedAlias ua = (UnresolvedAlias) ne;
                     if (ua.child() instanceof UnresolvedStar) {
@@ -442,7 +439,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             // a qualifier is specified - since this is a star, it should be a CompoundDataType
             if (us.qualifier() != null) {
                 // resolve the so-called qualifier first
-                // since this is an unresolved start we don't know whether it's a path or an actual qualifier
+                // since this is an unresolved star we don't know whether it's a path or an actual qualifier
                 Attribute q = resolveAgainstList(us.qualifier(), output, true);
 
                 // the wildcard couldn't be expanded because the field doesn't exist at all
@@ -454,6 +451,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 // qualifier is unknown (e.g. unsupported type), bail out early
                 else if (q.resolved() == false) {
                     return singletonList(q);
+                }
+                // qualifier resolves to a non-struct field and cannot be expanded
+                else if (DataTypes.isPrimitive(q.dataType())) {
+                    return singletonList(us);
                 }
 
                 // now use the resolved 'qualifier' to match

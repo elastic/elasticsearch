@@ -390,42 +390,66 @@ public class InternalComposite
      * Format <code>obj</code> using the provided {@link DocValueFormat}.
      * If the format is equals to {@link DocValueFormat#RAW}, the object is returned as is
      * for numbers and a string for {@link BytesRef}s.
+     *
+     * This method will then attempt to parse the formatted value using the specified format,
+     * and throw an IllegalArgumentException if parsing fails.  This in turn prevents us from
+     * returning an after_key which we can't subsequently parse into the original value.
      */
     static Object formatObject(Object obj, DocValueFormat format) {
         if (obj == null) {
             return null;
         }
+        Object formatted = obj;
+        Object parsed;
         if (obj.getClass() == BytesRef.class) {
             BytesRef value = (BytesRef) obj;
             if (format == DocValueFormat.RAW) {
-                return value.utf8ToString();
+                formatted = value.utf8ToString();
             } else {
-                return format.format(value);
+                formatted = format.format(value);
+            }
+            parsed = format.parseBytesRef(formatted.toString());
+            if (parsed.equals(obj) == false) {
+                throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
+                    + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
             }
         } else if (obj.getClass() == Long.class) {
             long value = (long) obj;
             if (format == DocValueFormat.RAW) {
-                return value;
+                formatted = value;
             } else {
-                return format.format(value);
+                formatted = format.format(value);
+            }
+            parsed = format.parseLong(formatted.toString(), false, () -> {
+                throw new UnsupportedOperationException("Using now() is not supported in after keys");
+            });
+            if (parsed.equals(((Number) obj).longValue()) == false) {
+                throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
+                    + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
             }
         } else if (obj.getClass() == Double.class) {
             double value = (double) obj;
             if (format == DocValueFormat.RAW) {
-                return value;
+                formatted = value;
             } else {
-                return format.format(value);
+                formatted = format.format(value);
+            }
+            parsed = format.parseDouble(formatted.toString(), false,
+                () -> {throw new UnsupportedOperationException("Using now() is not supported in after keys");});
+            if (parsed.equals(((Number) obj).doubleValue()) == false) {
+                throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
+                    + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
             }
         }
-        return obj;
+        return formatted;
     }
 
     static class ArrayMap extends AbstractMap<String, Object> implements Comparable<ArrayMap> {
         final List<String> keys;
-        final Comparable[] values;
+        final Comparable<?>[] values;
         final List<DocValueFormat> formats;
 
-        ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable[] values) {
+        ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable<?>[] values) {
             assert keys.size() == values.length && keys.size() == formats.size();
             this.keys = keys;
             this.formats = formats;
@@ -477,6 +501,7 @@ public class InternalComposite
         }
 
         @Override
+        @SuppressWarnings({"rawtypes", "unchecked"})
         public int compareTo(ArrayMap that) {
             if (that == this) {
                 return 0;
@@ -487,7 +512,7 @@ public class InternalComposite
             while (idx < max) {
                 int compare = compareNullables(keys.get(idx), that.keys.get(idx));
                 if (compare == 0) {
-                    compare = compareNullables(values[idx], that.values[idx]);
+                    compare = compareNullables((Comparable) values[idx], (Comparable) that.values[idx]);
                 }
                 if (compare != 0) {
                     return compare;
@@ -504,7 +529,7 @@ public class InternalComposite
         }
     }
 
-    private static int compareNullables(Comparable a, Comparable b) {
+    private static <T extends Comparable<T>> int compareNullables(T a, T b) {
         if (a == b) {
             return 0;
         }

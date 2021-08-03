@@ -14,11 +14,11 @@ setup:
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             },
             "results_retention_days" : 1,
+            "system_annotations_retention_days" : 1,
             "model_snapshot_retention_days" : 1
           }
 
@@ -35,11 +35,11 @@ setup:
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             },
             "results_retention_days" : 1,
+            "system_annotations_retention_days" : 1,
             "model_snapshot_retention_days" : 1
           }
 

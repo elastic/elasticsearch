@@ -25,11 +25,12 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -40,7 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -65,6 +66,7 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
@@ -87,6 +89,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
+import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAllocationAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
@@ -98,6 +101,8 @@ import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAllocationAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
@@ -140,6 +145,7 @@ import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
+import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.SetResetModeAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
@@ -155,6 +161,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
@@ -173,6 +180,7 @@ import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
+import org.elasticsearch.xpack.ml.action.TransportCreateTrainedModelAllocationAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarEventAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteDataFrameAnalyticsAction;
@@ -184,6 +192,8 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAliasAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAllocationAction;
+import org.elasticsearch.xpack.ml.action.TransportGetDatafeedRunningStateAction;
 import org.elasticsearch.xpack.ml.action.TransportInferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.action.TransportStartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.action.TransportEstimateModelMemoryAction;
@@ -226,6 +236,7 @@ import org.elasticsearch.xpack.ml.action.TransportPutFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportPutJobAction;
 import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelAliasAction;
+import org.elasticsearch.xpack.ml.action.TransportResetJobAction;
 import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportSetResetModeAction;
 import org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction;
@@ -241,11 +252,13 @@ import org.elasticsearch.xpack.ml.action.TransportUpdateFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
+import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelAllocationStateAction;
 import org.elasticsearch.xpack.ml.action.TransportUpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
+import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
 import org.elasticsearch.xpack.ml.aggs.kstest.BucketCountKSTestAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
@@ -255,6 +268,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -267,6 +281,9 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationClusterService;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationService;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
@@ -276,6 +293,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcess
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
+import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
 import org.elasticsearch.xpack.ml.job.categorization.FirstNonBlankLineCharFilter;
 import org.elasticsearch.xpack.ml.job.categorization.FirstNonBlankLineCharFilterFactory;
@@ -366,6 +384,7 @@ import org.elasticsearch.xpack.ml.rest.job.RestOpenJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestPostDataAction;
 import org.elasticsearch.xpack.ml.rest.job.RestPostJobUpdateAction;
 import org.elasticsearch.xpack.ml.rest.job.RestPutJobAction;
+import org.elasticsearch.xpack.ml.rest.job.RestResetJobAction;
 import org.elasticsearch.xpack.ml.rest.modelsnapshots.RestDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.rest.modelsnapshots.RestGetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.rest.modelsnapshots.RestRevertModelSnapshotAction;
@@ -407,7 +426,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                                                        CircuitBreakerPlugin,
                                                        IngestPlugin,
                                                        PersistentTaskPlugin,
-                                                       SearchPlugin {
+                                                       SearchPlugin,
+                                                       ShutdownAwarePlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
@@ -538,11 +558,12 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     private final SetOnce<AutodetectProcessManager> autodetectProcessManager = new SetOnce<>();
     private final SetOnce<DatafeedConfigProvider> datafeedConfigProvider = new SetOnce<>();
-    private final SetOnce<DatafeedManager> datafeedManager = new SetOnce<>();
+    private final SetOnce<DatafeedRunner> datafeedRunner = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsManager> dataFrameAnalyticsManager = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsAuditor> dataFrameAnalyticsAuditor = new SetOnce<>();
     private final SetOnce<MlMemoryTracker> memoryTracker = new SetOnce<>();
     private final SetOnce<ActionFilter> mlUpgradeModeActionFilter = new SetOnce<>();
+    private final SetOnce<MlLifeCycleService> mlLifeCycleService = new SetOnce<>();
     private final SetOnce<CircuitBreaker> inferenceModelBreaker = new SetOnce<>();
     private final SetOnce<ModelLoadingService> modelLoadingService = new SetOnce<>();
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
@@ -694,7 +715,17 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             threadPool,
             client,
             notifier,
-            xContentRegistry);
+            xContentRegistry,
+            indexNameExpressionResolver
+        );
+        DatafeedManager datafeedManager = new DatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            xContentRegistry,
+            clusterService,
+            settings,
+            client
+        );
 
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
         JobManagerHolder jobManagerHolder = new JobManagerHolder(jobManager);
@@ -769,9 +800,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 clusterService.getNodeName());
         DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(jobConfigProvider, datafeedConfigProvider,
             jobResultsProvider);
-        DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
+        DatafeedRunner datafeedRunner = new DatafeedRunner(threadPool, client, clusterService, datafeedJobBuilder,
                 System::currentTimeMillis, anomalyDetectionAuditor, autodetectProcessManager, datafeedContextProvider);
-        this.datafeedManager.set(datafeedManager);
+        this.datafeedRunner.set(datafeedRunner);
 
         // Inference components
         final TrainedModelStatsService trainedModelStatsService = new TrainedModelStatsService(resultsPersisterService,
@@ -818,7 +849,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         this.memoryTracker.set(memoryTracker);
         MlLifeCycleService mlLifeCycleService =
             new MlLifeCycleService(
-                clusterService, datafeedManager, mlController, autodetectProcessManager, dataFrameAnalyticsManager, memoryTracker);
+                clusterService, datafeedRunner, mlController, autodetectProcessManager, dataFrameAnalyticsManager, memoryTracker);
+        this.mlLifeCycleService.set(mlLifeCycleService);
         MlAssignmentNotifier mlAssignmentNotifier = new MlAssignmentNotifier(anomalyDetectionAuditor, dataFrameAnalyticsAuditor, threadPool,
             new MlConfigMigrator(settings, client, clusterService, indexNameExpressionResolver), clusterService);
 
@@ -827,11 +859,23 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         clusterService.addListener(mlAutoUpdateService);
         // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
         final InvalidLicenseEnforcer enforcer =
-                new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
+                new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedRunner, autodetectProcessManager);
         enforcer.listenForLicenseStateChanges();
 
         // Perform node startup operations
         nativeStorageProvider.cleanupLocalTmpStorageInCaseOfUncleanShutdown();
+
+        // allocation service objects
+        final TrainedModelAllocationService trainedModelAllocationService = new TrainedModelAllocationService(
+            client,
+            clusterService,
+            threadPool
+        );
+        final TrainedModelAllocationClusterService trainedModelAllocationClusterService = new TrainedModelAllocationClusterService(
+            settings,
+            clusterService,
+            new NodeLoadDetector(memoryTracker)
+        );
 
         mlAutoscalingDeciderService.set(new MlAutoscalingDeciderService(memoryTracker, settings, clusterService));
 
@@ -847,6 +891,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 autodetectProcessManager,
                 new MlInitializationService(settings, threadPool, clusterService, client, mlAssignmentNotifier),
                 jobDataCountsPersister,
+                datafeedRunner,
                 datafeedManager,
                 anomalyDetectionAuditor,
                 dataFrameAnalyticsAuditor,
@@ -859,7 +904,10 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 dataFrameAnalyticsConfigProvider,
                 nativeStorageProvider,
                 modelLoadingService,
-                trainedModelProvider
+                trainedModelProvider,
+                trainedModelAllocationService,
+                trainedModelAllocationClusterService,
+                deploymentManager.get()
         );
     }
 
@@ -881,7 +929,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     memoryTracker.get(),
                     client,
                     expressionResolver),
-                new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedManager.get(), expressionResolver),
+                new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedRunner.get(), expressionResolver),
                 new TransportStartDataFrameAnalyticsAction.TaskExecutor(settings,
                     client,
                     clusterService,
@@ -894,12 +942,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     autodetectProcessManager.get(),
                     memoryTracker.get(),
                     expressionResolver,
-                    client),
-                new TransportStartTrainedModelDeploymentAction.TaskExecutor(settings,
-                    clusterService,
-                    expressionResolver,
-                    memoryTracker.get(),
-                    deploymentManager.get())
+                    client)
         );
     }
 
@@ -930,6 +973,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             new RestPostDataAction(),
             new RestCloseJobAction(),
             new RestFlushJobAction(),
+            new RestResetJobAction(),
             new RestValidateDetectorAction(),
             new RestValidateJobConfigAction(),
             new RestEstimateModelMemoryAction(),
@@ -1016,6 +1060,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 new ActionHandler<>(CloseJobAction.INSTANCE, TransportCloseJobAction.class),
                 new ActionHandler<>(FinalizeJobExecutionAction.INSTANCE, TransportFinalizeJobExecutionAction.class),
                 new ActionHandler<>(FlushJobAction.INSTANCE, TransportFlushJobAction.class),
+                new ActionHandler<>(ResetJobAction.INSTANCE, TransportResetJobAction.class),
                 new ActionHandler<>(ValidateDetectorAction.INSTANCE, TransportValidateDetectorAction.class),
                 new ActionHandler<>(ValidateJobConfigAction.INSTANCE, TransportValidateJobConfigAction.class),
                 new ActionHandler<>(EstimateModelMemoryAction.INSTANCE, TransportEstimateModelMemoryAction.class),
@@ -1068,6 +1113,13 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 new ActionHandler<>(StartTrainedModelDeploymentAction.INSTANCE, TransportStartTrainedModelDeploymentAction.class),
                 new ActionHandler<>(StopTrainedModelDeploymentAction.INSTANCE, TransportStopTrainedModelDeploymentAction.class),
                 new ActionHandler<>(InferTrainedModelDeploymentAction.INSTANCE, TransportInferTrainedModelDeploymentAction.class),
+                new ActionHandler<>(GetDatafeedRunningStateAction.INSTANCE, TransportGetDatafeedRunningStateAction.class),
+                new ActionHandler<>(CreateTrainedModelAllocationAction.INSTANCE, TransportCreateTrainedModelAllocationAction.class),
+                new ActionHandler<>(DeleteTrainedModelAllocationAction.INSTANCE, TransportDeleteTrainedModelAllocationAction.class),
+                new ActionHandler<>(
+                    UpdateTrainedModelAllocationStateAction.INSTANCE,
+                    TransportUpdateTrainedModelAllocationStateAction.class
+                ),
                 usageAction,
                 infoAction);
     }
@@ -1130,6 +1182,13 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     }
 
     @Override
+    public List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
+        return Arrays.asList(
+            new SignificanceHeuristicSpec<>(PValueScore.NAME, PValueScore::new, PValueScore.PARSER)
+        );
+    }
+
+    @Override
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return UnaryOperator.identity();
     }
@@ -1184,6 +1243,13 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 ModelAliasMetadata::fromXContent
             )
         );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(TrainedModelAllocationMetadata.NAME),
+                TrainedModelAllocationMetadata::fromXContent
+            )
+        );
         namedXContent.addAll(new CorrelationNamedContentProvider().getNamedXContentParsers());
         return namedXContent;
     }
@@ -1197,6 +1263,20 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelAliasMetadata.NAME, ModelAliasMetadata::readDiffFrom));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                Metadata.Custom.class,
+                TrainedModelAllocationMetadata.NAME,
+                TrainedModelAllocationMetadata::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                NamedDiff.class,
+                TrainedModelAllocationMetadata.NAME,
+                TrainedModelAllocationMetadata::readDiffFrom
+            )
+        );
 
         // Persistent tasks params
         namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DATAFEED_TASK_NAME,
@@ -1292,8 +1372,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public void cleanUpFeature(
         ClusterService clusterService,
         Client client,
-        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener) {
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
+    ) {
         logger.info("Starting machine learning feature reset");
+
+        final Map<String, Boolean> results = new ConcurrentHashMap<>();
 
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(
             success -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true), ActionListener.wrap(
@@ -1308,22 +1391,33 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     );
                 })
             ),
-            failure -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(false), ActionListener.wrap(
-                resetSuccess -> finalListener.onFailure(failure),
-                resetFailure -> {
-                    logger.error("failed to disable reset mode after state clean up failure", resetFailure);
-                    finalListener.onFailure(failure);
-                })
-            )
+            failure -> {
+                logger.error("failed to reset machine learning", failure);
+                client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(false), ActionListener.wrap(
+                    resetSuccess -> finalListener.onFailure(failure),
+                    resetFailure -> {
+                        logger.error("failed to disable reset mode after state clean up failure", resetFailure);
+                        finalListener.onFailure(failure);
+                    })
+                );
+            }
         );
-
-        Map<String, Boolean> results = new ConcurrentHashMap<>();
 
         ActionListener<ListTasksResponse> afterWaitingForTasks = ActionListener.wrap(
             listTasksResponse -> {
                 listTasksResponse.rethrowFailures("Waiting for indexing requests for .ml-* indices");
                 if (results.values().stream().allMatch(b -> b)) {
-                    // Call into the original listener to clean up the indices
+                    if (memoryTracker.get() != null) {
+                        memoryTracker.get().awaitAndClear(ActionListener.wrap(
+                            cacheCleared -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener),
+                            clearFailed -> {
+                                logger.error("failed to clear memory tracker cache via machine learning reset feature API", clearFailed);
+                                SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
+                            }
+                        ));
+                        return;
+                    }
+                    // Call into the original listener to clean up the indices and then clear ml memory cache
                     SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
                 } else {
                     final List<String> failedComponents = results.entrySet().stream()
@@ -1477,6 +1571,21 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             return List.of(mlAutoscalingDeciderService.get());
         } else {
             return List.of();
+        }
+    }
+
+    @Override
+    public boolean safeToShutdown(String nodeId, SingleNodeShutdownMetadata.Type shutdownType) {
+        if (enabled == false) {
+            return true;
+        }
+        return mlLifeCycleService.get().isNodeSafeToShutdown(nodeId);
+    }
+
+    @Override
+    public void signalShutdown(Collection<String> shutdownNodeIds) {
+        if (enabled) {
+            mlLifeCycleService.get().signalGracefulShutdown(shutdownNodeIds);
         }
     }
 }

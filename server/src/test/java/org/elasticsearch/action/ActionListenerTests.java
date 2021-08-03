@@ -8,7 +8,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

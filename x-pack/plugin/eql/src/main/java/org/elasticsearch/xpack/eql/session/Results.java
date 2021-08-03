@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.eql.session;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 import org.elasticsearch.xpack.eql.session.Payload.Type;

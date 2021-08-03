@@ -9,7 +9,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 
 import java.io.IOException;
 import java.net.SocketPermission;
@@ -32,7 +32,7 @@ final class SocketAccess {
         try {
             return AccessController.doPrivileged(operation);
         } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
+            throw causeAsIOException(e);
         }
     }
 
@@ -44,7 +44,18 @@ final class SocketAccess {
                 return null;
             });
         } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
+            throw causeAsIOException(e);
         }
+    }
+
+    private static IOException causeAsIOException(PrivilegedActionException e) {
+        final Throwable cause = e.getCause();
+        if (cause instanceof IOException) {
+            return (IOException) cause;
+        }
+        if (cause instanceof RuntimeException) {
+            throw (RuntimeException) cause;
+        }
+        throw new RuntimeException(cause);
     }
 }

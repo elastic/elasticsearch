@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.eql;
 import io.ous.jtoml.JToml;
 import io.ous.jtoml.Toml;
 import io.ous.jtoml.TomlTable;
+
 import org.elasticsearch.common.Strings;
 
 import java.io.InputStream;

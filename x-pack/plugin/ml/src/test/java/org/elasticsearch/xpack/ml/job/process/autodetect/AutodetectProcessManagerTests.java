@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -515,7 +515,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         manager.processData(jobTask, analysisRegistry, createInputStream(""), randomFrom(XContentType.values()), mock(DataLoadParams.class),
                 (dataCounts1, e) -> {
                 });
-        verify(manager).setJobState(any(), eq(JobState.OPENED));
+        verify(manager).setJobState(any(), eq(JobState.OPENED), any(), any());
         // job is created
         assertEquals(1, manager.numberOfOpenJobs());
         expectThrows(ElasticsearchException.class, () -> manager.closeJob(jobTask, null));
@@ -738,9 +738,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     private Job createJobDetails(String jobId) {
         DataDescription.Builder dd = new DataDescription.Builder();
-        dd.setFormat(DataDescription.DataFormat.DELIMITED);
         dd.setTimeFormat("epoch");
-        dd.setFieldDelimiter(',');
 
         Detector d = new Detector.Builder("metric", "value").build();
 

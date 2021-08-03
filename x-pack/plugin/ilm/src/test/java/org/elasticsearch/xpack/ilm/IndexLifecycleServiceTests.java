@@ -28,7 +28,7 @@ import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeRoles;
@@ -124,7 +124,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         threadPool = new TestThreadPool("test");
         indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, threadPool,
-            clock, () -> now, null, null);
+            clock, () -> now, null, null, null);
         Mockito.verify(clusterService).addListener(indexLifecycleService);
         Mockito.verify(clusterService).addStateApplier(indexLifecycleService);
     }
@@ -461,7 +461,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     public void testClusterChangedWaitsForTheStateToBeRecovered() {
         IndexLifecycleService ilmService = new IndexLifecycleService(Settings.EMPTY, mock(Client.class), clusterService, threadPool,
-            systemUTC(), () -> now, null, null) {
+            systemUTC(), () -> now, null, null, null) {
 
             @Override
             void onMaster(ClusterState clusterState) {

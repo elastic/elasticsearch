@@ -33,7 +33,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -52,9 +52,9 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.RefCounted;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
@@ -126,7 +126,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     /**
      * Specific {@link IOContext} indicating that we will read only the Lucene file footer (containing the file checksum)
-     * See {@link MetadataSnapshot#checksumFromLuceneFile(Directory, String, Map, Logger, Version, boolean)}
+     * See {@link MetadataSnapshot#checksumFromLuceneFile}.
      */
     public static final IOContext READONCE_CHECKSUM = new IOContext(IOContext.READONCE.context);
 
@@ -281,6 +281,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public void renameTempFilesSafe(Map<String, String> tempFileMap) throws IOException {
         // this works just like a lucene commit - we rename all temp files and once we successfully
         // renamed all the segments we rename the commit to ensure we don't leave half baked commits behind.
+        @SuppressWarnings({"rawtypes", "unchecked"})
         final Map.Entry<String, String>[] entries = tempFileMap.entrySet().toArray(new Map.Entry[0]);
         ArrayUtil.timSort(entries, (o1, o2) -> {
             String left = o1.getValue();
@@ -432,7 +433,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public static MetadataSnapshot readMetadataSnapshot(Path indexLocation, ShardId shardId, NodeEnvironment.ShardLocker shardLocker,
                                                         Logger logger) throws IOException {
         try (ShardLock lock = shardLocker.lock(shardId, "read metadata snapshot", TimeUnit.SECONDS.toMillis(5));
-             Directory dir = new SimpleFSDirectory(indexLocation)) {
+             Directory dir = new NIOFSDirectory(indexLocation)) {
             failIfCorrupted(dir);
             return new MetadataSnapshot(null, dir, logger);
         } catch (IndexNotFoundException ex) {
@@ -451,9 +452,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * be opened, an exception is thrown
      */
     public static void tryOpenIndex(Path indexLocation, ShardId shardId, NodeEnvironment.ShardLocker shardLocker,
-                                        Logger logger) throws IOException, ShardLockObtainFailedException {
+                                    Logger logger) throws IOException, ShardLockObtainFailedException {
         try (ShardLock lock = shardLocker.lock(shardId, "open index", TimeUnit.SECONDS.toMillis(5));
-             Directory dir = new SimpleFSDirectory(indexLocation)) {
+             Directory dir = new NIOFSDirectory(indexLocation)) {
             failIfCorrupted(dir);
             SegmentInfos segInfo = Lucene.readSegmentInfos(dir);
             logger.trace("{} loaded segment info [{}]", shardId, segInfo);
@@ -835,7 +836,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         maxVersion = version;
                     }
                     for (String file : info.files()) {
-                        checksumFromLuceneFile(directory, file, builder, logger, version,
+                        checksumFromLuceneFile(directory, file, builder, logger, version.toString(),
                             SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)));
                     }
                 }
@@ -843,7 +844,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     maxVersion = org.elasticsearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
                 }
                 final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
-                checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
+                checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion.toString(), true);
             } catch (CorruptIndexException | IndexNotFoundException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we either know the index is corrupted or it's just not there
                 throw ex;
@@ -869,7 +870,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         private static void checksumFromLuceneFile(Directory directory, String file, Map<String, StoreFileMetadata> builder,
-                Logger logger, Version version, boolean readFileAsHash) throws IOException {
+                Logger logger, String version, boolean readFileAsHash) throws IOException {
             final String checksum;
             final BytesRefBuilder fileHash = new BytesRefBuilder();
             try (IndexInput in = directory.openInput(file, READONCE_CHECKSUM)) {
@@ -1115,7 +1116,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     /**
      * Returns true if the file is auto-generated by the store and shouldn't be deleted during cleanup.
-     * This includes write lock and checksum files
+     * This includes write lock files
      */
     public static boolean isAutogenerated(String name) {
         return IndexWriter.WRITE_LOCK_NAME.equals(name);

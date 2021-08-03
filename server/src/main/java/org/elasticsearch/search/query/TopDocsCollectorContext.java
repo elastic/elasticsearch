@@ -41,7 +41,7 @@ import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.action.search.MaxScoreCollector;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;

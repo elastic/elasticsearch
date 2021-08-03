@@ -12,10 +12,10 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -690,6 +690,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     // All fields on the root level of the parsed SearhHit are interpreted as metadata fields
     // public because we use it in a completion suggestion option
+    @SuppressWarnings("unchecked")
     public static final ObjectParser.UnknownFieldConsumer<Map<String, Object>> unknownMetaFieldConsumer = (map, fieldName, fieldValue) -> {
         Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(
             METADATA_FIELDS, v -> new HashMap<String, DocumentField>());

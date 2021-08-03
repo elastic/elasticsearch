@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;

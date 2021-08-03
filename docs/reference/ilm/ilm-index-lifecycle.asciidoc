@@ -80,7 +80,8 @@ the rollover criteria, it could be 20 minutes before the rollover is complete.
 [[ilm-phase-actions]]
 === Phase actions
 
-{ilm-init} supports the following actions in each phase.
+{ilm-init} supports the following actions in each phase. {ilm-init} executes the
+actions in the order listed.
 
 * Hot
   - <<ilm-set-priority,Set Priority>>
@@ -89,6 +90,7 @@ the rollover criteria, it could be 20 minutes before the rollover is complete.
   - <<ilm-readonly,Read-Only>>
   - <<ilm-shrink,Shrink>>
   - <<ilm-forcemerge,Force Merge>>
+  - <<ilm-searchable-snapshot, Searchable Snapshot>>
 * Warm
   - <<ilm-set-priority,Set Priority>>
   - <<ilm-unfollow,Unfollow>>
@@ -100,10 +102,11 @@ the rollover criteria, it could be 20 minutes before the rollover is complete.
 * Cold
   - <<ilm-set-priority,Set Priority>>
   - <<ilm-unfollow,Unfollow>>
+  - <<ilm-readonly,Read-Only>>
+  - <<ilm-searchable-snapshot, Searchable Snapshot>>
   - <<ilm-allocate,Allocate>>
   - <<ilm-migrate,Migrate>>
   - <<ilm-freeze,Freeze>>
-  - <<ilm-searchable-snapshot, Searchable Snapshot>>
 * Frozen
   - <<ilm-searchable-snapshot, Searchable Snapshot>>
 * Delete

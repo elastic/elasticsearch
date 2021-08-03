@@ -8,11 +8,11 @@
 
 package org.elasticsearch.search.aggregations;
 
-import java.util.List;
-
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
+
+import java.util.List;
 
 import static java.util.Collections.singletonList;
 

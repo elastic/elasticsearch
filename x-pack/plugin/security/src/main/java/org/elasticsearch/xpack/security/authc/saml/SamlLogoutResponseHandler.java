@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.opensaml.saml.saml2.core.LogoutResponse;
 import org.w3c.dom.Element;
 

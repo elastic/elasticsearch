@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;

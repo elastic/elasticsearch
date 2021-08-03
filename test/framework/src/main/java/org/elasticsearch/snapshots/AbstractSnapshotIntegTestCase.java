@@ -7,11 +7,13 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -33,8 +35,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -50,6 +52,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -68,12 +71,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.StreamSupport;
@@ -83,12 +88,15 @@ import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VAL
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
-    private static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
+    public static final String RANDOM_SNAPSHOT_NAME_PREFIX = "snap-";
+
+    public static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
     // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
     // threads so that blocking some threads on one repository doesn't block other repositories from doing work
@@ -134,7 +142,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     clusterAdmin().prepareDeleteSnapshot(name, OLD_VERSION_SNAPSHOT_PREFIX + "*").get();
                     clusterAdmin().prepareCleanupRepository(name).get();
                 }
-                BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
+                BlobStoreTestUtil.assertConsistency(getRepositoryOnMaster(name));
             });
         } else {
             logger.info("--> skipped repo consistency checks because [{}]", skipRepoConsistencyCheckReason);
@@ -155,6 +163,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    @SuppressWarnings("cast")
     protected RepositoryData getRepositoryData(String repository) {
         return getRepositoryData((Repository) getRepositoryOnMaster(repository));
     }
@@ -216,6 +225,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockAndFailOnWriteSnapFiles();
     }
 
+    public static void blockMasterOnShardLevelSnapshotFile(final String repositoryName, String indexId) {
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockAndOnWriteShardLevelSnapFiles(indexId);
+    }
+
     @SuppressWarnings("unchecked")
     public static <T extends Repository> T getRepositoryOnMaster(String repositoryName) {
         return ((T) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repositoryName));
@@ -241,6 +254,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static void blockDataNode(String repository, String nodeName) {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, nodeName).blockOnDataFiles();
+    }
+
+    public static void blockAndFailDataNode(String repository, String nodeName) {
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, nodeName).blockAndFailOnDataFiles();
     }
 
     public static void blockAllDataNodes(String repository) {
@@ -282,6 +299,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void createRepository(String repoName, String type, Settings.Builder settings, boolean verify) {
+        createRepository(logger, repoName, type, settings, verify);
+    }
+
+    public static void createRepository(Logger logger, String repoName, String type, Settings.Builder settings, boolean verify) {
         logger.info("--> creating or updating repository [{}] [{}]", repoName, type);
         assertAcked(clusterAdmin().preparePutRepository(repoName)
                 .setVerify(verify)
@@ -298,14 +319,18 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void createRepository(String repoName, String type) {
-        createRepository(repoName, type, randomRepositorySettings());
+        createRepository(logger, repoName, type);
     }
 
     protected void createRepositoryNoVerify(String repoName, String type) {
         createRepository(repoName, type, randomRepositorySettings(), false);
     }
 
-    protected Settings.Builder randomRepositorySettings() {
+    public static void createRepository(Logger logger, String repoName, String type) {
+        createRepository(logger, repoName, type, randomRepositorySettings(), true);
+    }
+
+    public static Settings.Builder randomRepositorySettings() {
         final Settings.Builder settings = Settings.builder();
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());
         if (rarely()) {
@@ -355,6 +380,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                         downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))),
                 StandardOpenOption.TRUNCATE_EXISTING);
         final SnapshotInfo downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(
+                repoName,
                 JsonXContent.jsonXContent.createParser(
                         NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
@@ -364,7 +390,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         PlainActionFuture.get(f -> blobStoreRepository.threadPool().generic().execute(ActionRunnable.run(f, () ->
                 BlobStoreRepository.SNAPSHOT_FORMAT.write(downgradedSnapshotInfo,
                         blobStoreRepository.blobStore().blobContainer(blobStoreRepository.basePath()), snapshotInfo.snapshotId().getUUID(),
-                        randomBoolean(), internalCluster().getCurrentMasterNodeInstance(BigArrays.class)))));
+                        randomBoolean()))));
         return oldVersionSnapshot;
     }
 
@@ -442,7 +468,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID(random()));
         logger.info("--> adding old version FAILED snapshot [{}] to repository [{}]", snapshotId, repoName);
         final SnapshotInfo snapshotInfo = new SnapshotInfo(
-            snapshotId,
+            new Snapshot(repoName, snapshotId),
             Collections.emptyList(),
             Collections.emptyList(),
             Collections.emptyList(),
@@ -475,15 +501,24 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected void awaitNoMoreRunningOperations(String viaNode) throws Exception {
         logger.info("--> verify no more operations in the cluster state");
-        awaitClusterState(viaNode, state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty() &&
-                state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false);
+        awaitClusterState(
+                logger,
+                viaNode,
+                state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty()
+                    && state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                        .hasDeletionsInProgress() == false
+        );
     }
 
     protected void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {
-        awaitClusterState(internalCluster().getMasterName(), statePredicate);
+        awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
     }
 
-    protected void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
+    public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate) throws Exception {
+        awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
+    }
+
+    public static void awaitClusterState(Logger logger, String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, viaNode);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, viaNode);
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
@@ -522,6 +557,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected ActionFuture<CreateSnapshotResponse> startFullSnapshot(String repoName, String snapshotName, boolean partial) {
+        return startFullSnapshot(logger, repoName, snapshotName, partial);
+    }
+
+    public static ActionFuture<CreateSnapshotResponse> startFullSnapshot(Logger logger,
+                                                                         String repoName,
+                                                                         String snapshotName,
+                                                                         boolean partial) {
         logger.info("--> creating full snapshot [{}] to repo [{}]", snapshotName, repoName);
         return clusterAdmin().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
                 .setPartial(partial).execute();
@@ -533,14 +575,24 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().size() == count);
     }
 
+    public static void awaitNumberOfSnapshotsInProgress(Logger logger, int count) throws Exception {
+        logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
+        awaitClusterState(logger, state ->
+                state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().size() == count);
+    }
+
     protected SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {
+        return assertSuccessful(logger, future);
+    }
+
+    public static SnapshotInfo assertSuccessful(Logger logger, ActionFuture<CreateSnapshotResponse> future) throws Exception {
         logger.info("--> wait for snapshot to finish");
         final SnapshotInfo snapshotInfo = future.get().getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
         return snapshotInfo;
     }
 
-    private static final Settings SINGLE_SHARD_NO_REPLICA = indexSettingsNoReplicas(1).build();
+    public static final Settings SINGLE_SHARD_NO_REPLICA = indexSettingsNoReplicas(1).build();
 
     protected void createIndexWithContent(String indexName) {
         createIndexWithContent(indexName, SINGLE_SHARD_NO_REPLICA);
@@ -558,7 +610,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).execute();
     }
 
-    protected void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
+    protected static void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
@@ -582,7 +634,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected SnapshotInfo getSnapshot(String repository, String snapshot) {
         final List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots(repository).setSnapshots(snapshot)
-                .get().getSnapshots(repository);
+                .get().getSnapshots();
         assertThat(snapshotInfos, hasSize(1));
         return snapshotInfos.get(0);
     }
@@ -601,14 +653,32 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected List<String> createNSnapshots(String repoName, int count) throws Exception {
+        return createNSnapshots(logger, repoName, count);
+    }
+
+    public static List<String> createNSnapshots(Logger logger, String repoName, int count) throws Exception {
         final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = PlainActionFuture.newFuture();
         final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(allSnapshotsDone, count);
         final List<String> snapshotNames = new ArrayList<>(count);
-        final String prefix = "snap-" + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
+        final String prefix = RANDOM_SNAPSHOT_NAME_PREFIX + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
         for (int i = 0; i < count; i++) {
             final String snapshot = prefix + i;
             snapshotNames.add(snapshot);
-            client().admin().cluster().prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true).execute(snapshotsListener);
+            final Map<String, Object> userMetadata = randomUserMetadata();
+            clusterAdmin()
+                    .prepareCreateSnapshot(repoName, snapshot)
+                    .setWaitForCompletion(true)
+                    .setUserMetadata(userMetadata)
+                    .execute(snapshotsListener.delegateFailure((l, response) -> {
+                        final SnapshotInfo snapshotInfoInResponse = response.getSnapshotInfo();
+                        assertEquals(userMetadata, snapshotInfoInResponse.userMetadata());
+                        clusterAdmin().prepareGetSnapshots(repoName)
+                                .setSnapshots(snapshot)
+                                .execute(l.delegateFailure((ll, getResponse) -> {
+                                    assertEquals(snapshotInfoInResponse, getResponse.getSnapshots().get(0));
+                                    ll.onResponse(response);
+                                }));
+                    }));
         }
         for (CreateSnapshotResponse snapshotResponse : allSnapshotsDone.get()) {
             assertThat(snapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
@@ -626,5 +696,70 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    public static void assertSnapshotListSorted(List<SnapshotInfo> snapshotInfos, @Nullable GetSnapshotsRequest.SortBy sort,
+                                                SortOrder sortOrder) {
+        final BiConsumer<SnapshotInfo, SnapshotInfo> assertion;
+        if (sort == null) {
+            assertion = (s1, s2) -> assertThat(s2, greaterThanOrEqualTo(s1));
+        } else {
+            switch (sort) {
+                case START_TIME:
+                    assertion = (s1, s2) -> assertThat(s2.startTime(), greaterThanOrEqualTo(s1.startTime()));
+                    break;
+                case NAME:
+                    assertion = (s1, s2) -> assertThat(s2.snapshotId().getName(), greaterThanOrEqualTo(s1.snapshotId().getName()));
+                    break;
+                case DURATION:
+                    assertion =
+                        (s1, s2) -> assertThat(s2.endTime() - s2.startTime(), greaterThanOrEqualTo(s1.endTime() - s1.startTime()));
+                    break;
+                case INDICES:
+                    assertion = (s1, s2) -> assertThat(s2.indices().size(), greaterThanOrEqualTo(s1.indices().size()));
+                    break;
+                default:
+                    throw new AssertionError("unknown sort column [" + sort + "]");
+            }
+        }
+        final BiConsumer<SnapshotInfo, SnapshotInfo> orderAssertion;
+        if (sortOrder == SortOrder.ASC) {
+            orderAssertion = assertion;
+        } else {
+            orderAssertion = (s1, s2) -> assertion.accept(s2, s1);
+        }
+        for (int i = 0; i < snapshotInfos.size() - 1; i++) {
+            orderAssertion.accept(snapshotInfos.get(i), snapshotInfos.get(i + 1));
+        }
+    }
+
+    /**
+     * Randomly either generates some random snapshot user metadata or returns {@code null}.
+     *
+     * @return random snapshot user metadata or {@code null}
+     */
+    @Nullable
+    public static Map<String, Object> randomUserMetadata() {
+        if (randomBoolean()) {
+            return null;
+        }
+
+        Map<String, Object> metadata = new HashMap<>();
+        long fields = randomLongBetween(0, 4);
+        for (int i = 0; i < fields; i++) {
+            if (randomBoolean()) {
+                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2, 10)),
+                        randomAlphaOfLengthBetween(5, 5));
+            } else {
+                Map<String, Object> nested = new HashMap<>();
+                long nestedFields = randomLongBetween(0, 4);
+                for (int j = 0; j < nestedFields; j++) {
+                    nested.put(randomValueOtherThanMany(nested::containsKey, () -> randomAlphaOfLengthBetween(2, 10)),
+                            randomAlphaOfLengthBetween(5, 5));
+                }
+                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2, 10)), nested);
+            }
+        }
+        return metadata;
     }
 }

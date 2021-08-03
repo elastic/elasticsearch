@@ -27,56 +27,25 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * An utility class with a geometry parser methods supporting different shape representation formats
+ * An utility class with to read geometries from a XContentParser or generic object.
  */
 public final class GeometryParser {
 
-    private final GeoJsonGeometryFormat jsonGeometryFormat;
-    private final WKTGeometryFormat wktGeometryFormat;
-    private final boolean ignoreZValue;
+    private final boolean rightOrientation, coerce, ignoreZValue;
+    private final GeometryValidator validator;
 
     public GeometryParser(boolean rightOrientation, boolean coerce, boolean ignoreZValue) {
-        final GeometryValidator validator = StandardValidator.instance(ignoreZValue);
-        jsonGeometryFormat = new GeoJsonGeometryFormat(validator, coerce, rightOrientation);
-        wktGeometryFormat = new WKTGeometryFormat(validator, coerce);
+        this.rightOrientation = rightOrientation;
+        this.coerce = coerce;
         this.ignoreZValue = ignoreZValue;
+        this.validator = StandardValidator.instance(ignoreZValue);
     }
 
     /**
      * Parses supplied XContent into Geometry
      */
     public Geometry parse(XContentParser parser) throws IOException, ParseException {
-        return geometryFormat(parser).fromXContent(parser);
-    }
-
-    /**
-     * Returns a geometry format object that can parse and then serialize the object back to the same format.
-     */
-    public GeometryFormat<Geometry> geometryFormat(String format) {
-        if (format.equals(GeoJsonGeometryFormat.NAME)) {
-            return jsonGeometryFormat;
-        } else if (format.equals(WKTGeometryFormat.NAME)) {
-            return wktGeometryFormat;
-        } else {
-            throw new IllegalArgumentException("Unrecognized geometry format [" + format + "].");
-        }
-    }
-
-    /**
-     * Returns a geometry format object that can parse and then serialize the object back to the same format.
-     * This method automatically recognizes the format by examining the provided {@link XContentParser}.
-     */
-    public GeometryFormat<Geometry> geometryFormat(XContentParser parser) {
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            return jsonGeometryFormat;
-        } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            return wktGeometryFormat;
-        } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-            // We don't know the format of the original geometry - so going with default
-            return jsonGeometryFormat;
-        } else {
-            throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
-        }
+        return GeometryParserFormat.geometryFormat(parser).fromXContent(validator, coerce, rightOrientation, parser);
     }
 
     /**

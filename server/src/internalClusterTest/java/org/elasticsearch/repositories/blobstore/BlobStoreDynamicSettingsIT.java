@@ -52,18 +52,20 @@ public class BlobStoreDynamicSettingsIT extends AbstractSnapshotIntegTestCase {
         assertNull(currentSettings.get(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey()));
 
         createRepository(
-                repoName,
-                "mock",
-                Settings.builder().put(currentSettings).put(BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), "1b"),
-                randomBoolean()
+            repoName,
+            "mock",
+            Settings.builder().put(currentSettings).put(BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), "1b"),
+            randomBoolean()
         );
 
         assertSame(repoOnMaster, getRepositoryOnNode(repoName, masterNode));
         assertSame(repoOnDataNode, getRepositoryOnNode(repoName, dataNode));
 
         final Settings updatedSettings = repoOnMaster.getMetadata().settings();
-        assertEquals(ByteSizeValue.ofBytes(1L),
-                updatedSettings.getAsBytesSize(BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO));
+        assertEquals(
+            ByteSizeValue.ofBytes(1L),
+            updatedSettings.getAsBytesSize(BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO)
+        );
         assertNull(currentSettings.get(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey()));
 
         final ActionFuture<CreateSnapshotResponse> snapshot1 = startFullSnapshotBlockedOnDataNode("snapshot-2", repoName, dataNode);
@@ -71,10 +73,10 @@ public class BlobStoreDynamicSettingsIT extends AbstractSnapshotIntegTestCase {
         // we only run concurrent verification when we have a large SNAPSHOT pool on the data node because otherwise the verification would
         // deadlock since the small pool is already blocked by the snapshot on the data node
         createRepository(
-                repoName,
-                "mock",
-                Settings.builder().put(updatedSettings).put(BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), "1024b"),
-                largeSnapshotPool && randomBoolean()
+            repoName,
+            "mock",
+            Settings.builder().put(updatedSettings).put(BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), "1024b"),
+            largeSnapshotPool && randomBoolean()
         );
         assertSame(repoOnMaster, getRepositoryOnNode(repoName, masterNode));
         assertSame(repoOnDataNode, getRepositoryOnNode(repoName, dataNode));
@@ -84,16 +86,18 @@ public class BlobStoreDynamicSettingsIT extends AbstractSnapshotIntegTestCase {
             // this setting update will fail so we can set the verification parameter randomly even if the SNAPSHOT pool is already blocked
             // since we will never actually get to the verification step
             createRepository(
-                    repoName,
-                    "mock",
-                    Settings.builder().put(repoOnMaster.getMetadata().settings()).put("location", randomRepoPath()),
-                    randomBoolean()
+                repoName,
+                "mock",
+                Settings.builder().put(repoOnMaster.getMetadata().settings()).put("location", randomRepoPath()),
+                randomBoolean()
             );
         } catch (Exception e) {
             final Throwable ise = ExceptionsHelper.unwrap(e, IllegalStateException.class);
             assertThat(ise, instanceOf(IllegalStateException.class));
-            assertEquals(ise.getMessage(),
-                "trying to modify or unregister repository [test-repo] that is currently used (snapshot is in progress)");
+            assertEquals(
+                ise.getMessage(),
+                "trying to modify or unregister repository [test-repo] that is currently used (snapshot is in progress)"
+            );
         }
 
         logger.info("--> verify that we can update [{}] dynamically", MockRepository.DUMMY_UPDATABLE_SETTING_NAME);
@@ -101,11 +105,12 @@ public class BlobStoreDynamicSettingsIT extends AbstractSnapshotIntegTestCase {
         // we only run concurrent verification when we have a large SNAPSHOT pool on the data node because otherwise the verification would
         // deadlock since the small pool is already blocked by the snapshot on the data node
         createRepository(
-                repoName,
-                "mock",
-                Settings.builder().put(repoOnMaster.getMetadata().settings())
-                        .put(MockRepository.DUMMY_UPDATABLE_SETTING_NAME, dummySettingValue),
-                largeSnapshotPool && randomBoolean()
+            repoName,
+            "mock",
+            Settings.builder()
+                .put(repoOnMaster.getMetadata().settings())
+                .put(MockRepository.DUMMY_UPDATABLE_SETTING_NAME, dummySettingValue),
+            largeSnapshotPool && randomBoolean()
         );
         final Repository newRepoOnMaster = getRepositoryOnNode(repoName, masterNode);
         assertSame(repoOnMaster, newRepoOnMaster);

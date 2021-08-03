@@ -13,11 +13,11 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -54,7 +54,7 @@ public class XContentMapValues {
     }
 
     @SuppressWarnings({"unchecked"})
-    private static void extractRawValues(List values, Map<String, Object> part, String[] pathElements, int index) {
+    private static void extractRawValues(List<Object> values, Map<String, Object> part, String[] pathElements, int index) {
         if (index == pathElements.length) {
             return;
         }
@@ -69,9 +69,11 @@ public class XContentMapValues {
                 if (currentValue instanceof Map) {
                     extractRawValues(values, (Map<String, Object>) currentValue, pathElements, nextIndex);
                 } else if (currentValue instanceof List) {
-                    extractRawValues(values, (List) currentValue, pathElements, nextIndex);
+                    extractRawValues(values, (List<Object>) currentValue, pathElements, nextIndex);
                 } else {
-                    values.add(currentValue);
+                    if (nextIndex == pathElements.length) {
+                        values.add(currentValue);
+                    }
                 }
             }
             if (nextIndex == pathElements.length) {
@@ -83,7 +85,7 @@ public class XContentMapValues {
     }
 
     @SuppressWarnings({"unchecked"})
-    private static void extractRawValues(List values, List<Object> part, String[] pathElements, int index) {
+    private static void extractRawValues(List<Object> values, List<Object> part, String[] pathElements, int index) {
         for (Object value : part) {
             if (value == null) {
                 continue;
@@ -91,7 +93,7 @@ public class XContentMapValues {
             if (value instanceof Map) {
                 extractRawValues(values, (Map<String, Object>) value, pathElements, index);
             } else if (value instanceof List) {
-                extractRawValues(values, (List) value, pathElements, index);
+                extractRawValues(values, (List<Object>) value, pathElements, index);
             } else {
                 if (index == pathElements.length) {
                     values.add(value);
@@ -122,13 +124,14 @@ public class XContentMapValues {
     }
 
     /**
-     * For the provided nested path, return its value in the xContent map.
+     * For the provided nested path, return its source maps from the parent xContent map.
      *
      * @param nestedPath the nested field value's path in the map.
+     * @param map        the parent source map
      *
-     * @return the list associated with the path in the map or {@code null} if the path does not exits.
+     * @return a list of source maps or {@code null} if the path does not exist.
      */
-    public static List<?> extractNestedValue(String nestedPath, Map<?, ?> map) {
+    public static List<Map<?, ?>> extractNestedSources(String nestedPath, Map<?, ?> map) {
         Object extractedValue = XContentMapValues.extractValue(nestedPath, map);
         List<?> nestedParsedSource = null;
         if (extractedValue != null) {
@@ -138,12 +141,32 @@ public class XContentMapValues {
             } else if (extractedValue instanceof Map) {
                 // nested field has an object value in the _source. This just means the nested field has just one inner object,
                 // which is valid, but uncommon.
-                nestedParsedSource = Collections.singletonList(extractedValue);
+                return Collections.singletonList((Map<?, ?>)extractedValue);
             } else {
-                throw new IllegalStateException("extracted source isn't an object or an array");
+                throw new IllegalStateException("Cannot extract nested source from path [" + nestedPath +
+                    "]: got [" + extractedValue + "]");
             }
         }
-        return nestedParsedSource;
+        if (nestedParsedSource == null) {
+            return null;
+        }
+        // In some circumstances, we can end up with arrays of arrays of nested objects.  A nested
+        // source should always be a Map, so we iterate down through the arrays to pull out the
+        // leaf maps
+        List<Map<?, ?>> flattenedSource = new ArrayList<>();
+        extractObjects(nestedParsedSource, flattenedSource);
+        return flattenedSource;
+    }
+
+    private static void extractObjects(List<?> source, List<Map<?, ?>> extracted) {
+        for (Object object : source) {
+            if (object instanceof Map) {
+                extracted.add((Map<?, ?>) object);
+            }
+            else if (object instanceof List) {
+                extractObjects((List<?>) object, extracted);
+            }
+        }
     }
 
     /**
@@ -339,6 +362,7 @@ public class XContentMapValues {
                     excludeState = excludeAutomaton.step(excludeState, '.');
                 }
 
+                @SuppressWarnings("unchecked")
                 Map<String, Object> valueAsMap = (Map<String, Object>) value;
                 Map<String, Object> filteredValue = filter(valueAsMap,
                         subIncludeAutomaton, subIncludeState, excludeAutomaton, excludeState, matchAllAutomaton);
@@ -381,7 +405,8 @@ public class XContentMapValues {
                 if (excludeState != -1) {
                     excludeState = excludeAutomaton.step(excludeState, '.');
                 }
-                Map<String, Object> filteredValue = filter((Map<String, ?>)value,
+                @SuppressWarnings("unchecked")
+                Map<String, Object> filteredValue = filter((Map<String, ?>) value,
                         includeAutomaton, includeState, excludeAutomaton, excludeState, matchAllAutomaton);
                 if (filteredValue.isEmpty() == false) {
                     filtered.add(filteredValue);
@@ -548,6 +573,7 @@ public class XContentMapValues {
         return TimeValue.parseTimeValue(node.toString(), null, XContentMapValues.class.getSimpleName() + ".nodeTimeValue");
     }
 
+    @SuppressWarnings("unchecked")
     public static Map<String, Object> nodeMapValue(Object node, String desc) {
         if (node instanceof Map) {
             return (Map<String, Object>) node;
@@ -564,7 +590,7 @@ public class XContentMapValues {
      */
     public static String[] nodeStringArrayValue(Object node) {
         if (isArray(node)) {
-            List list = (List) node;
+            List<?> list = (List<?>) node;
             String[] arr = new String[list.size()];
             for (int i = 0; i < arr.length; i++) {
                 arr[i] = nodeStringValue(list.get(i), null);

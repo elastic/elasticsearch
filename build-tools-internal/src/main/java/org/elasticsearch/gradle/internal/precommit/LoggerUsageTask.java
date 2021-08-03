@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFiles;
@@ -43,7 +44,7 @@ public class LoggerUsageTask extends PrecommitTask {
     @TaskAction
     public void runLoggerUsageTask() {
         LoggedExec.javaexec(execOperations, spec -> {
-            spec.setMain("org.elasticsearch.test.loggerusage.ESLoggerUsageChecker");
+            spec.getMainClass().set("org.elasticsearch.test.loggerusage.ESLoggerUsageChecker");
             spec.classpath(getClasspath());
             getClassDirectories().forEach(spec::args);
         });
@@ -62,8 +63,7 @@ public class LoggerUsageTask extends PrecommitTask {
     @PathSensitive(PathSensitivity.RELATIVE)
     @SkipWhenEmpty
     public FileCollection getClassDirectories() {
-        return getProject().getConvention()
-            .getPlugin(JavaPluginConvention.class)
+        return getProject().getExtensions().getByType(JavaPluginExtension.class)
             .getSourceSets()
             .stream()
             // Don't pick up all source sets like the java9 ones as logger-check doesn't support the class format

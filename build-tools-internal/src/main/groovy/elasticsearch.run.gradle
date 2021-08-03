@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.RunTask
 
 // gradle has an open issue of failing applying plugins in
@@ -28,7 +29,6 @@ testClusters {
       setting 'xpack.security.enabled', 'true'
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: 'superuser'
-      systemProperty 'es.shutdown_feature_flag_enabled', 'true'
     }
   }
 }

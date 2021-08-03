@@ -25,9 +25,9 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -64,7 +64,7 @@ import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
-import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
+import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
@@ -353,8 +353,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * Send a bulk request, handling retries.
      */
     void sendBulkRequest(BulkRequest request, Runnable onSuccess) {
+        final int requestSize = request.requests().size();
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}]: sending [{}] entry, [{}] bulk request", task.getId(), request.requests().size(),
+            logger.debug("[{}]: sending [{}] entry, [{}] bulk request", task.getId(), requestSize,
                     new ByteSizeValue(request.estimatedSizeInBytes()));
         }
         if (task.isCancelled()) {
@@ -365,6 +366,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         bulkRetry.withBackoff(bulkClient::bulk, request, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse response) {
+                logger.debug("[{}]: completed [{}] entry bulk request", task.getId(), requestSize);
                 onBulkResponse(response, onSuccess);
             }
 

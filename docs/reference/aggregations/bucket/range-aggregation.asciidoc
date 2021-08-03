@@ -324,3 +324,103 @@ Response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
+[[search-aggregations-bucket-range-aggregation-histogram-fields]]
+==== Histogram fields
+
+Running a range aggregation over histogram fields computes the total number of counts for each configured range.
+
+This is done without interpolating between the histogram field values. Consequently, it is possible to have a range
+that is "in-between" two histogram values. The resulting range bucket would have a zero doc count.
+
+Here is an example, executing a range aggregation against the following index that stores pre-aggregated histograms
+with latency metrics (in milliseconds) for different networks:
+
+[source,console]
+--------------------------------------------------
+PUT metrics_index/_doc/1
+{
+  "network.name" : "net-1",
+  "latency_histo" : {
+      "values" : [1, 3, 8, 12, 15],
+      "counts" : [3, 7, 23, 12, 6]
+   }
+}
+
+PUT metrics_index/_doc/2
+{
+  "network.name" : "net-2",
+  "latency_histo" : {
+      "values" : [1, 6, 8, 12, 14],
+      "counts" : [8, 17, 8, 7, 6]
+   }
+}
+
+POST /metrics_index/_search?size=0&filter_path=aggregations
+{
+  "aggs": {
+    "latency_ranges": {
+      "range": {
+        "field": "latency_histo",
+        "ranges": [
+          {"to": 2},
+          {"from": 2, "to": 3},
+          {"from": 3, "to": 10},
+          {"from": 10}
+        ]
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+
+The `range` aggregation will sum the counts of each range computed based on the `values` and
+return the following output:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "aggregations": {
+    "latency_ranges": {
+      "buckets": [
+        {
+          "key": "*-2.0",
+          "to": 2,
+          "doc_count": 11
+        },
+        {
+          "key": "2.0-3.0",
+          "from": 2,
+          "to": 3,
+          "doc_count": 0
+        },
+        {
+          "key": "3.0-10.0",
+          "from": 3,
+          "to": 10,
+          "doc_count": 55
+        },
+        {
+          "key": "10.0-*",
+          "from": 10,
+          "doc_count": 31
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[skip:test not setup]
+
+[IMPORTANT]
+========
+Range aggregation is a bucket aggregation, which partitions documents into buckets rather than calculating metrics over fields like
+metrics aggregations do. Each bucket represents a collection of documents which sub-aggregations can run on.
+On the other hand, a histogram field is a pre-aggregated field representing multiple values inside a single field:
+buckets of numerical data and a count of items/documents for each bucket. This mismatch between the range aggregations expected input
+(expecting raw documents) and the histogram field (that provides summary information) limits the outcome of the aggregation
+to only the doc counts for each bucket.
+
+
+**Consequently, when executing a range aggregation over a histogram field, no sub-aggregations are allowed.**
+========

@@ -18,7 +18,7 @@ The queries in this group are:
 <<query-dsl-span-containing-query,`span_containing` query>>::
 Accepts a list of span queries, but only returns those spans which also match a second span query.
 
-<<query-dsl-span-field-masking-query,`field_masking_span` query>>::
+<<query-dsl-span-field-masking-query,`span_field_masking` query>>::
 Allows queries like `span-near` or `span-or` across different fields.
 
 <<query-dsl-span-first-query,`span_first` query>>::

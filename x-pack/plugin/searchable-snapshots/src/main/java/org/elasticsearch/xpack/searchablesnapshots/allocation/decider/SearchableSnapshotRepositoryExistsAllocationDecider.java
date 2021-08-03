@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 import java.util.List;
 
@@ -57,7 +57,7 @@ public class SearchableSnapshotRepositoryExistsAllocationDecider extends Allocat
 
     private static Decision allowAllocation(IndexMetadata indexMetadata, RoutingAllocation allocation) {
         final Settings settings = indexMetadata.getSettings();
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(settings)) {
+        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(settings)) {
 
             final RepositoriesMetadata repositoriesMetadata = allocation.metadata().custom(RepositoriesMetadata.TYPE);
             if (repositoriesMetadata == null || repositoriesMetadata.repositories().isEmpty()) {

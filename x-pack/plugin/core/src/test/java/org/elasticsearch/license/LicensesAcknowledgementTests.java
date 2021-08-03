@@ -9,11 +9,11 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
+import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.any;

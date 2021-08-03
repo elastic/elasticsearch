@@ -11,6 +11,7 @@ package org.elasticsearch.index.engine;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -71,15 +72,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -88,12 +86,14 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -102,10 +102,9 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -741,7 +740,7 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
 
         // create a document
-        Document document = testDocumentWithTextField();
+        LuceneDocument document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         ParsedDocument doc = testParsedDocument("1", null, document, B_1, null);
         engine.index(indexForDoc(doc));
@@ -917,10 +916,15 @@ public class InternalEngineTests extends EngineTestCase {
         MapperService mapperService = createMapperService();
         MappingLookup mappingLookup = mapperService.mappingLookup();
         DocumentParser documentParser = mapperService.documentParser();
+        LongSupplier translogGetCount = engine.translogGetCount::get;
+        long translogGetCountExpected = 0;
+        LongSupplier translogInMemorySegmentCount = engine.translogInMemorySegmentsCount::get;
+        long translogInMemorySegmentCountExpected = 0;
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser, randomSearcherWrapper())) {
             // we do not track the translog location yet
             assertTrue(get.exists());
-            assertFalse(get.isFromTranslog());
+            assertEquals(translogGetCountExpected, translogGetCount.getAsLong());
+            assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         }
         // refresh triggered, as we did not track translog location until the first realtime get.
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(0L));
@@ -928,36 +932,53 @@ public class InternalEngineTests extends EngineTestCase {
         engine.index(indexForDoc(createParsedDoc("1", null)));
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser, searcher -> searcher)) {
             assertTrue(get.exists());
-            assertTrue(get.isFromTranslog());
+            assertEquals(++translogGetCountExpected, translogGetCount.getAsLong());
+            assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         }
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(0L)); // no refresh; just read from translog
+
         if (randomBoolean()) {
             engine.index(indexForDoc(createParsedDoc("1", null)));
         }
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser,
             searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new MatchAllDocsQuery())))) {
             assertTrue(get.exists());
-            assertFalse(get.isFromTranslog());
+            assertEquals(++translogGetCountExpected, translogGetCount.getAsLong());
+            assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         }
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser,
             searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new MatchNoDocsQuery())))) {
             assertFalse(get.exists());
-            assertFalse(get.isFromTranslog());
+            assertEquals(++translogGetCountExpected, translogGetCount.getAsLong());
+            assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         }
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser,
             searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new TermQuery(newUid("1")))))) {
             assertTrue(get.exists());
-            assertFalse(get.isFromTranslog());
+            assertEquals(++translogGetCountExpected, translogGetCount.getAsLong());
+            // term query on _id field is properly faked
+            assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         }
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser,
             searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new TermQuery(newUid("2")))))) {
             assertFalse(get.exists());
-            assertFalse(get.isFromTranslog());
+            assertEquals(++translogGetCountExpected, translogGetCount.getAsLong());
+            // term query on _id field is properly faked
+            assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         }
         assertThat("no refresh, just read from translog or in-memory segment", engine.lastRefreshedCheckpoint(), equalTo(0L));
+
+        engine.index(indexForDoc(createParsedDoc("1", null)));
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser,
+            searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader,
+                new TermQuery(new Term("other_field", Uid.encodeId("test"))))))) {
+            assertEquals(++translogGetCountExpected, translogGetCount.getAsLong());
+            // term query on some other field needs in-memory index
+            assertEquals(++translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
+        }
     }
 
     public void testSearchResultRelease() throws Exception {
@@ -1621,7 +1642,7 @@ public class InternalEngineTests extends EngineTestCase {
         BiFunction<Engine.Operation, Long, Engine.Operation> seqNoUpdater = (operation, newSeqNo) -> {
             if (operation instanceof Engine.Index) {
                 Engine.Index index = (Engine.Index) operation;
-                Document doc = testDocumentWithTextField(index.docs().get(0).get("value"));
+                LuceneDocument doc = testDocumentWithTextField(index.docs().get(0).get("value"));
                 ParsedDocument parsedDocument = testParsedDocument(index.id(), index.routing(), doc, index.source(), null);
                 return new Engine.Index(index.uid(), parsedDocument, newSeqNo, index.primaryTerm(), index.version(),
                     index.versionType(), index.origin(), index.startTime(), index.getAutoGeneratedIdTimestamp(), index.isRetry(),
@@ -2471,7 +2492,7 @@ public class InternalEngineTests extends EngineTestCase {
             final DocumentParser documentParser = mapperService.documentParser();
 
             // Add document
-            Document document = testDocument();
+            LuceneDocument document = testDocument();
             document.add(new TextField("value", "test1", Field.Store.YES));
 
             ParsedDocument doc = testParsedDocument("1", null, document, B_2, null);
@@ -3743,7 +3764,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(seqID.v2(), equalTo(0L));
 
         // create a document
-        Document document = testDocumentWithTextField();
+        LuceneDocument document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         ParsedDocument doc = testParsedDocument("1", null, document, B_1, null);
         engine.index(indexForDoc(doc));
@@ -3965,7 +3986,7 @@ public class InternalEngineTests extends EngineTestCase {
         final LongSupplier sequenceNumberSupplier =
             origin == PRIMARY ? () -> UNASSIGNED_SEQ_NO : sequenceNumber::getAndIncrement;
         final Supplier<ParsedDocument> doc = () -> {
-            final Document document = testDocumentWithTextField();
+            final LuceneDocument document = testDocumentWithTextField();
             document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
             return testParsedDocument("1", null, document, B_1, null);
         };
@@ -4536,7 +4557,7 @@ public class InternalEngineTests extends EngineTestCase {
             final Field uidField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
             final Field versionField = new NumericDocValuesField("_version", 0);
             final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-            final ParseContext.Document document = new ParseContext.Document();
+            final LuceneDocument document = new LuceneDocument();
             document.add(uidField);
             document.add(versionField);
             document.add(seqID.seqNo);
@@ -4610,7 +4631,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int docId = 0; docId < numDocs; docId++) {
-                ParseContext.Document document = testDocumentWithTextField();
+                LuceneDocument document = testDocumentWithTextField();
                 document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
                 engine.index(indexForDoc(testParsedDocument(Integer.toString(docId), null, document, B_1, null)));
                 if (frequently()) {
@@ -5554,7 +5575,7 @@ public class InternalEngineTests extends EngineTestCase {
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
             try (Store store = createStore(indexSettings, newDirectory());
                     InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
-                ParsedDocument doc = testParsedDocument("1", null, new Document(),
+                ParsedDocument doc = testParsedDocument("1", null, new LuceneDocument(),
                         new BytesArray("{}".getBytes("UTF-8")), null);
                 engine.index(appendOnlyPrimary(doc, false, 1));
                 engine.refresh("test");
@@ -5644,7 +5665,6 @@ public class InternalEngineTests extends EngineTestCase {
             indexer.join();
             refresher.join();
         }
-        assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
     }
 
     public void testPruneAwayDeletedButRetainedIds() throws Exception {

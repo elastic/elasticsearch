@@ -9,7 +9,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
@@ -50,7 +49,6 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
     protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, either(instanceOf(SpanNearQuery.class))
             .or(instanceOf(SpanTermQuery.class))
-            .or(instanceOf(SpanBoostQuery.class))
             .or(instanceOf(MatchAllQueryBuilder.class)));
         if (query instanceof SpanNearQuery) {
             SpanNearQuery spanNearQuery = (SpanNearQuery) query;
@@ -63,7 +61,7 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
                 if (spanQB instanceof SpanGapQueryBuilder) continue;
                 assertThat(spanQuery, equalTo(spanQB.toQuery(context)));
             }
-        } else if (query instanceof SpanTermQuery || query instanceof SpanBoostQuery) {
+        } else if (query instanceof SpanTermQuery) {
             assertThat(queryBuilder.clauses().size(), equalTo(1));
             assertThat(query, equalTo(queryBuilder.clauses().get(0).toQuery(context)));
         }

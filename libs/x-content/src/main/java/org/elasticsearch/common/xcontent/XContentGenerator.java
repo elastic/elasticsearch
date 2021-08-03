@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 
 import java.io.Closeable;
 import java.io.Flushable;

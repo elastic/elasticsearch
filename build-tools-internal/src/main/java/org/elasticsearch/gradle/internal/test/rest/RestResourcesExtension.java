@@ -33,10 +33,6 @@ public class RestResourcesExtension {
     }
 
     void restTests(Action<? super XpackRestResourcesSpec> spec) {
-        if (BuildParams.isInternal() == false) {
-            // TODO: Separate this out into an "internal" plugin so we don't even expose this API to external folks
-            throw new UnsupportedOperationException("Including tests is not supported from external builds.");
-        }
         spec.execute(restTests);
     }
 

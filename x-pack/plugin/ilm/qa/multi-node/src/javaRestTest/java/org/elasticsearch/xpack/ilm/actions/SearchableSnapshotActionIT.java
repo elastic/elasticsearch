@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -205,8 +205,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
                     responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                 }
-                List<Object> responses = (List<Object>) responseMap.get("responses");
-                Object snapshots = ((Map<String, Object>) responses.get(0)).get("snapshots");
+                Object snapshots = responseMap.get("snapshots");
                 return ((List<Map<String, Object>>) snapshots).size() == 0;
             } catch (Exception e) {
                 logger.error(e.getMessage(), e);
@@ -401,9 +400,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
         assertThat("expected to have only one snapshot, but got: " + responseMap,
-            ((List<Map<String, Object>>)
-                ((Map<String, Object>)
-                    ((List<Object>) responseMap.get("responses")).get(0)).get("snapshots")).size(), equalTo(1));
+            ((List<Map<String, Object>>) responseMap.get("snapshots")).size(), equalTo(1));
 
         Request hitCount = new Request("GET", "/" + searchableSnapMountedIndexName + "/_count");
         Map<String, Object> count = entityAsMap(client().performRequest(hitCount));
@@ -451,13 +448,16 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
         assertThat("expected to have only one snapshot, but got: " + responseMap,
-            ((List<Map<String, Object>>)
-                ((Map<String, Object>)
-                    ((List<Object>) responseMap.get("responses")).get(0)).get("snapshots")).size(), equalTo(1));
+            ((List<Map<String, Object>>) responseMap.get("snapshots")).size(), equalTo(1));
 
         Request hitCount = new Request("GET", "/" + searchableSnapMountedIndexName + "/_count");
         Map<String, Object> count = entityAsMap(client().performRequest(hitCount));
         assertThat("expected a single document but got: " + count, (int) count.get("count"), equalTo(1));
+
+        assertBusy(() -> assertTrue(
+            "Expecting the mounted index to be deleted and to be converted to an alias",
+            aliasExists(searchableSnapMountedIndexName, SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index))
+        );
     }
 
     public void testSecondSearchableSnapshotUsingDifferentRepoThrows() throws Exception {

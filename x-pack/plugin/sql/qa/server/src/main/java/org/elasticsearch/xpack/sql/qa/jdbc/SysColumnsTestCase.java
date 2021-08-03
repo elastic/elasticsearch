@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedConsumer;
 
 import java.io.IOException;
 import java.sql.Connection;

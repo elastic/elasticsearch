@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 
@@ -80,7 +80,7 @@ public class RecoverySettings {
      * Controls the maximum number of file chunk requests that can be sent concurrently from the source node to the target node.
      */
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING =
-        Setting.intSetting("indices.recovery.max_concurrent_file_chunks", 2, 1, 5, Property.Dynamic, Property.NodeScope);
+        Setting.intSetting("indices.recovery.max_concurrent_file_chunks", 2, 1, 8, Property.Dynamic, Property.NodeScope);
 
     /**
      * Controls the maximum number of operation chunk requests that can be sent concurrently from the source node to the target node.

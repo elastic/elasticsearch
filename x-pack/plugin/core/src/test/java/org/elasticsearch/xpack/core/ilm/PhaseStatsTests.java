@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PhaseStats;
 
@@ -25,7 +25,7 @@ public class PhaseStatsTests extends AbstractWireSerializingTestCase<PhaseStats>
     public static PhaseStats createRandomInstance() {
         TimeValue after = TimeValue.parseTimeValue(randomTimeValue(), "phase_stats_tests");
         String[] actionNames = randomArray(0, 20, size -> new String[size], () -> randomAlphaOfLengthBetween(1, 20));
-        return new PhaseStats(after, actionNames);
+        return new PhaseStats(after, actionNames, ActionConfigStatsTests.createRandomInstance());
     }
 
     @Override
@@ -43,7 +43,7 @@ public class PhaseStatsTests extends AbstractWireSerializingTestCase<PhaseStats>
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new PhaseStats(after, actionNames);
+        return new PhaseStats(after, actionNames, instance.getConfigurations());
     }
 
     @Override

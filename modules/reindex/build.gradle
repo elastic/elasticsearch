@@ -32,15 +32,6 @@ testClusters.all {
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
-tasks.named("test").configure {
-  /*
-   * We have to disable setting the number of available processors as tests in the
-   * same JVM randomize processors and will step on each other if we allow them to
-   * set the number of available processors as it's set-once in Netty.
-   */
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
 dependencies {
   api project(":client:rest")
   api project(":libs:elasticsearch-ssl-config")
@@ -164,14 +155,43 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     }
   }
 }
+tasks.named("transformV7RestTests").configure({ task ->
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+})
+
+def v7compatibilityNotSupportedTests = {
+  return [
+    'reindex/20_validation/reindex without source gives useful error message', // exception with a type. Not much benefit adding _doc there.
+    'update_by_query/20_validation/update_by_query without source gives useful error message' // exception with a type. Not much benefit adding _doc there.
+  ]
+}
 
 tasks.named("yamlRestCompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
-    /*type related failures */
-    'reindex/20_validation/reindex without source gives useful error message',
-    'reindex/85_scripting/Reindex all docs with one doc deletion',
-    'delete_by_query/10_basic/Response for version conflict (seq no powered)',
-    'update_by_query/10_basic/Response for version conflict (seq no powered)',
-    'update_by_query/20_validation/update_by_query without source gives useful error message'
-  ].join(',')
+      systemProperty 'tests.rest.blacklist', v7compatibilityNotSupportedTests().join(',')
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // index is owned by server, move these to reindex specific
+  ignoreClasses 'org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollAction',
+    'org.elasticsearch.index.reindex.AbstractBaseReindexRestHandler',
+    'org.elasticsearch.index.reindex.AbstractBulkByQueryRestHandler',
+    'org.elasticsearch.index.reindex.AsyncDeleteByQueryAction',
+    'org.elasticsearch.index.reindex.BulkByScrollParallelizationHelper',
+    'org.elasticsearch.index.reindex.BulkIndexByScrollResponseContentListener',
+    'org.elasticsearch.index.reindex.ReindexPlugin',
+    'org.elasticsearch.index.reindex.ReindexSslConfig',
+    'org.elasticsearch.index.reindex.ReindexValidator',
+    'org.elasticsearch.index.reindex.Reindexer',
+    'org.elasticsearch.index.reindex.RestDeleteByQueryAction',
+    'org.elasticsearch.index.reindex.RestReindexAction',
+    'org.elasticsearch.index.reindex.RestRethrottleAction',
+    'org.elasticsearch.index.reindex.RestUpdateByQueryAction',
+    'org.elasticsearch.index.reindex.RethrottleAction',
+    'org.elasticsearch.index.reindex.RethrottleRequest',
+    'org.elasticsearch.index.reindex.RethrottleRequestBuilder',
+    'org.elasticsearch.index.reindex.TransportDeleteByQueryAction',
+    'org.elasticsearch.index.reindex.TransportReindexAction',
+    'org.elasticsearch.index.reindex.TransportRethrottleAction',
+    'org.elasticsearch.index.reindex.TransportUpdateByQueryAction',
+    'org.elasticsearch.index.reindex.package-info'
 }

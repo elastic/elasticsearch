@@ -1,5 +1,5 @@
 ---
-"Test start deployment":
+"Test start deployment fails with missing task config":
 
   - do:
       ml.put_trained_model:
@@ -25,11 +25,6 @@
           }
 
   - do:
-      ml.get_trained_models:
+      catch: /Could not find trained model definition \[distilbert-finetuned-sst\]/
+      ml.start_trained_model_deployment:
         model_id: distilbert-finetuned-sst
-  - match: { trained_model_configs.0.location.index.model_id: distilbert-finetuned-sst }
-
-#  - do:
-#      ml.start_deployment:
-#        model_id: distilbert-finetuned-sst
-

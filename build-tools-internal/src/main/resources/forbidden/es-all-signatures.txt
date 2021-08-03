@@ -4,13 +4,12 @@
 # in compliance with, at your election, the Elastic License 2.0 or the Server
 # Side Public License, v 1.
 
-java.nio.file.Paths @ Use org.elasticsearch.common.io.PathUtils.get() instead.
-java.nio.file.Path#of(java.net.URI) @ Use org.elasticsearch.common.io.PathUtils.get() instead.
-java.nio.file.Path#of(java.lang.String, java.lang.String[]) @ Use org.elasticsearch.common.io.PathUtils.get() instead.
-java.nio.file.FileSystems#getDefault() @ use org.elasticsearch.common.io.PathUtils.getDefaultFileSystem() instead.
+java.nio.file.Paths @ Use org.elasticsearch.core.PathUtils.get() instead.
+java.nio.file.Path#of(java.net.URI) @ Use org.elasticsearch.core.PathUtils.get() instead.
+java.nio.file.Path#of(java.lang.String, java.lang.String[]) @ Use org.elasticsearch.core.PathUtils.get() instead.
+java.nio.file.FileSystems#getDefault() @ use org.elasticsearch.core.PathUtils.getDefaultFileSystem() instead.
 
 java.nio.file.Files#getFileStore(java.nio.file.Path) @ Use org.elasticsearch.env.Environment.getFileStore() instead, impacted by JDK-8034057
-java.nio.file.Files#isWritable(java.nio.file.Path) @ Use org.elasticsearch.env.Environment.isWritable() instead, impacted by JDK-8034057
 
 @defaultMessage Use org.elasticsearch.common.Randomness#get for reproducible sources of randomness
 java.util.Random#<init>()
@@ -34,11 +33,11 @@ java.nio.channels.SocketChannel#connect(java.net.SocketAddress)
 
 # This method is misleading, and uses lenient boolean parsing under the hood. If you intend to parse
 # a system property as a boolean, use
-# org.elasticsearch.common.Booleans#parseBoolean(java.lang.String) on the result of
+# org.elasticsearch.core.Booleans#parseBoolean(java.lang.String) on the result of
 # java.lang.SystemProperty#getProperty(java.lang.String) instead. If you were not intending to parse
 # a system property as a boolean, but instead parse a string to a boolean, use
-# org.elasticsearch.common.Booleans#parseBoolean(java.lang.String) directly on the string.
-@defaultMessage use org.elasticsearch.common.Booleans#parseBoolean(java.lang.String)
+# org.elasticsearch.core.Booleans#parseBoolean(java.lang.String) directly on the string.
+@defaultMessage use org.elasticsearch.core.Booleans#parseBoolean(java.lang.String)
 java.lang.Boolean#getBoolean(java.lang.String)
 
 org.apache.lucene.util.IOUtils @ use @org.elasticsearch.core.internal.io instead

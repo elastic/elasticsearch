@@ -8,7 +8,7 @@
 
 package org.elasticsearch.qa.custom_logging;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;

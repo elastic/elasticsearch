@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -14,6 +15,9 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -26,10 +30,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -131,26 +135,28 @@ public class JobDataDeleter {
      * @param listener Response listener
      */
     public void deleteAllAnnotations(ActionListener<Boolean> listener) {
-        deleteAnnotationsFromTime(null, null, listener);
+        deleteAnnotations(null, null, null, listener);
     }
 
     /**
      * Asynchronously delete all the auto-generated (i.e. created by the _xpack user) annotations starting from {@code cutOffTime}
      *
-     * @param cutoffEpochMs Only annotations at and after this time will be deleted. If {@code null}, no cutoff is applied
+     * @param fromEpochMs Only annotations at and after this time will be deleted. If {@code null}, no cutoff is applied
+     * @param toEpochMs Only annotations before this time will be deleted. If {@code null}, no cutoff is applied
      * @param eventsToDelete Only annotations with one of the provided event types will be deleted.
      *                       If {@code null} or empty, no event-related filtering is applied
      * @param listener Response listener
      */
-    public void deleteAnnotationsFromTime(@Nullable Long cutoffEpochMs,
-                                          @Nullable Set<String> eventsToDelete,
-                                          ActionListener<Boolean> listener) {
+    public void deleteAnnotations(@Nullable Long fromEpochMs,
+                                  @Nullable Long toEpochMs,
+                                  @Nullable Set<String> eventsToDelete,
+                                  ActionListener<Boolean> listener) {
         BoolQueryBuilder boolQuery =
             QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
                 .filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), XPackUser.NAME));
-        if (cutoffEpochMs != null) {
-            boolQuery.filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(cutoffEpochMs));
+        if (fromEpochMs != null || toEpochMs != null) {
+            boolQuery.filter(QueryBuilders.rangeQuery(Annotation.TIMESTAMP.getPreferredName()).gte(fromEpochMs).lt(toEpochMs));
         }
         if (eventsToDelete != null && eventsToDelete.isEmpty() == false) {
             boolQuery.filter(QueryBuilders.termsQuery(Annotation.EVENT.getPreferredName(), eventsToDelete));
@@ -244,9 +250,9 @@ public class JobDataDeleter {
     /**
      * Deletes all documents associated with a job except user annotations and notifications
      */
-    public void deleteJobDocuments(String jobId, JobConfigProvider jobConfigProvider,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, ClusterState clusterState,
-                                   CheckedConsumer<Boolean, Exception> finishedHandler, Consumer<Exception> failureHandler) {
+    public void deleteJobDocuments(JobConfigProvider jobConfigProvider, IndexNameExpressionResolver indexNameExpressionResolver,
+                                   ClusterState clusterState, CheckedConsumer<Boolean, Exception> finishedHandler,
+                                   Consumer<Exception> failureHandler) {
 
         AtomicReference<String[]> indexNames = new AtomicReference<>();
 
@@ -280,17 +286,7 @@ public class JobDataDeleter {
         ActionListener<Boolean> deleteByQueryExecutor = ActionListener.wrap(
             response -> {
                 if (response && indexNames.get().length > 0) {
-                    logger.info("[{}] running delete by query on [{}]", jobId, String.join(", ", indexNames.get()));
-                    ConstantScoreQueryBuilder query =
-                        new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
-                    DeleteByQueryRequest request = new DeleteByQueryRequest(indexNames.get())
-                        .setQuery(query)
-                        .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()))
-                        .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
-                        .setAbortOnVersionConflict(false)
-                        .setRefresh(true);
-
-                    executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, dbqHandler);
+                    deleteResultsByQuery(jobId, indexNames.get(), dbqHandler);
                 } else { // We did not execute DBQ, no need to delete aliases or check the response
                     dbqHandler.onResponse(null);
                 }
@@ -412,6 +408,32 @@ public class JobDataDeleter {
 
         // Step 1. Delete the model state
         deleteModelState(jobId, deleteStateHandler);
+    }
+
+    private void deleteResultsByQuery(String jobId, String[] indices, ActionListener<BulkByScrollResponse> listener) {
+        assert indices.length > 0;
+
+        ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
+            refreshResponse -> {
+                logger.info("[{}] running delete by query on [{}]", jobId, String.join(", ", indices));
+                ConstantScoreQueryBuilder query =
+                    new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
+                DeleteByQueryRequest request = new DeleteByQueryRequest(indices)
+                    .setQuery(query)
+                    .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()))
+                    .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+                    .setAbortOnVersionConflict(false)
+                    .setRefresh(true);
+
+                executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, listener);
+            },
+            listener::onFailure
+        );
+
+        // First, we refresh the indices to ensure any in-flight docs become visible
+        RefreshRequest refreshRequest = new RefreshRequest(indices);
+        refreshRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()));
+        executeAsyncWithOrigin(client, ML_ORIGIN, RefreshAction.INSTANCE, refreshRequest, refreshListener);
     }
 
     private void deleteAliases(String jobId, ActionListener<AcknowledgedResponse> finishedHandler) {

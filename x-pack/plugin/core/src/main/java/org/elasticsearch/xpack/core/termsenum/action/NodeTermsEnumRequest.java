@@ -10,6 +10,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportRequest;
@@ -20,7 +21,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Internal terms enum request executed directly against a specific node, querying potentially many 
+ * Internal terms enum request executed directly against a specific node, querying potentially many
  * shards in one request
  */
 public class NodeTermsEnumRequest extends TransportRequest implements IndicesRequest {
@@ -36,12 +37,27 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
     private final QueryBuilder indexFilter;
     private Set<ShardId> shardIds;
     private String nodeId;
-    
+
+    public NodeTermsEnumRequest(final String nodeId,
+                                final Set<ShardId> shardIds,
+                                TermsEnumRequest request,
+                                long taskStartTimeMillis) {
+        this.field = request.field();
+        this.string = request.string();
+        this.searchAfter = request.searchAfter();
+        this.caseInsensitive = request.caseInsensitive();
+        this.size = request.size();
+        this.timeout = request.timeout().getMillis();
+        this.taskStartedTimeMillis = taskStartTimeMillis;
+        this.indexFilter = request.indexFilter();
+        this.nodeId = nodeId;
+        this.shardIds = shardIds;
+    }
 
     public NodeTermsEnumRequest(StreamInput in) throws IOException {
         super(in);
         field = in.readString();
-        string = in.readString();
+        string = in.readOptionalString();
         searchAfter = in.readOptionalString();
         caseInsensitive = in.readBoolean();
         size = in.readVInt();
@@ -56,27 +72,38 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         }
     }
 
-    public NodeTermsEnumRequest(final String nodeId, final Set<ShardId> shardIds, TermsEnumRequest request) {
-        this.field = request.field();
-        this.string = request.string();
-        this.searchAfter = request.searchAfter();
-        this.caseInsensitive = request.caseInsensitive();
-        this.size = request.size();
-        this.timeout = request.timeout().getMillis();
-        this.taskStartedTimeMillis = request.taskStartTimeMillis;
-        this.indexFilter = request.indexFilter();
-        this.nodeId = nodeId;
-        this.shardIds = shardIds;        
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(field);
+        out.writeOptionalString(string);
+        out.writeOptionalString(searchAfter);
+        out.writeBoolean(caseInsensitive);
+        out.writeVInt(size);
+        // Adjust the amount of permitted time the shard has remaining to gather terms.
+        long timeSpentSoFarInCoordinatingNode = System.currentTimeMillis() - taskStartedTimeMillis;
+        long remainingTimeForShardToUse =  (timeout - timeSpentSoFarInCoordinatingNode);
+        // TODO - if already timed out can we shortcut the trip somehow? Throw exception if remaining time < 0?
+        out.writeVLong(remainingTimeForShardToUse);
+        out.writeVLong(taskStartedTimeMillis);
+        out.writeOptionalNamedWriteable(indexFilter);
+        out.writeString(nodeId);
+        out.writeVInt(shardIds.size());
+        for (ShardId shardId : shardIds) {
+            shardId.writeTo(out);
+        }
     }
 
     public String field() {
         return field;
     }
 
+    @Nullable
     public String string() {
         return string;
     }
 
+    @Nullable
     public String searchAfter() {
         return searchAfter;
     }
@@ -84,8 +111,8 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
     public long taskStartedTimeMillis() {
         return this.taskStartedTimeMillis;
     }
-    
-    /** 
+
+    /**
      * The time this request was materialized on a node
      */
     long nodeStartedTimeMillis() {
@@ -94,12 +121,12 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
             nodeStartedTimeMillis = System.currentTimeMillis();
         }
         return this.nodeStartedTimeMillis;
-    }    
-    
+    }
+
     public void startTimerOnDataNode() {
         nodeStartedTimeMillis = System.currentTimeMillis();
     }
-    
+
     public Set<ShardId> shardIds() {
         return Collections.unmodifiableSet(shardIds);
     }
@@ -117,28 +144,6 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
     }
     public String nodeId() {
         return nodeId;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(field);
-        out.writeString(string);
-        out.writeOptionalString(searchAfter);
-        out.writeBoolean(caseInsensitive);
-        out.writeVInt(size);
-        // Adjust the amount of permitted time the shard has remaining to gather terms. 
-        long timeSpentSoFarInCoordinatingNode = System.currentTimeMillis() - taskStartedTimeMillis;
-        long remainingTimeForShardToUse =  (timeout - timeSpentSoFarInCoordinatingNode);
-        // TODO - if already timed out can we shortcut the trip somehow? Throw exception if remaining time < 0?
-        out.writeVLong(remainingTimeForShardToUse);
-        out.writeVLong(taskStartedTimeMillis);
-        out.writeOptionalNamedWriteable(indexFilter);
-        out.writeString(nodeId);
-        out.writeVInt(shardIds.size());
-        for (ShardId shardId : shardIds) {
-            shardId.writeTo(out);
-        }
     }
 
     public QueryBuilder indexFilter() {
@@ -162,5 +167,4 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
     public boolean remove(ShardId shardId) {
         return shardIds.remove(shardId);
     }
-
 }

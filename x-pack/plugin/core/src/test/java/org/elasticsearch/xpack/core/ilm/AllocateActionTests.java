@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,7 +36,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         boolean hasAtLeastOneMap = false;
         Map<String, String> includes;
         if (randomBoolean()) {
-            includes = randomMap(1, 100);
+            includes = randomAllocationRoutingMap(1, 100);
             hasAtLeastOneMap = true;
         } else {
             includes = randomBoolean() ? null : Collections.emptyMap();
@@ -43,13 +44,13 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Map<String, String> excludes;
         if (randomBoolean()) {
             hasAtLeastOneMap = true;
-            excludes = randomMap(1, 100);
+            excludes = randomAllocationRoutingMap(1, 100);
         } else {
             excludes = randomBoolean() ? null : Collections.emptyMap();
         }
         Map<String, String> requires;
         if (hasAtLeastOneMap == false || randomBoolean()) {
-            requires = randomMap(1, 100);
+            requires = randomAllocationRoutingMap(1, 100);
         } else {
             requires = randomBoolean() ? null : Collections.emptyMap();
         }
@@ -103,7 +104,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
     }
 
     public void testInvalidNumberOfReplicas() {
-        Map<String, String> include = randomMap(1, 5);
+        Map<String, String> include = randomAllocationRoutingMap(1, 5);
         Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
         Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
@@ -111,11 +112,13 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         assertEquals("[" + AllocateAction.NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0", exception.getMessage());
     }
 
-    public static Map<String, String> randomMap(int minEntries, int maxEntries) {
+    public static Map<String, String> randomAllocationRoutingMap(int minEntries, int maxEntries) {
         Map<String, String> map = new HashMap<>();
         int numIncludes = randomIntBetween(minEntries, maxEntries);
         for (int i = 0; i < numIncludes; i++) {
-            map.put(randomAlphaOfLengthBetween(2, 20), randomAlphaOfLengthBetween(2, 20));
+            String attributeName = randomValueOtherThanMany(DiscoveryNodeRole.roleNames()::contains,
+                () -> randomAlphaOfLengthBetween(2, 20));
+            map.put(attributeName, randomAlphaOfLengthBetween(2, 20));
         }
         return map;
     }

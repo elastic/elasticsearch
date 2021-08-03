@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 

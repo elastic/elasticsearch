@@ -1,7 +1,7 @@
 {
   "ml.infer_trained_model_deployment":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-infer-trained-model-deployment.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/infer-trained-model-deployment.html",
       "description":"Evaluate a trained model."
     },
     "stability":"experimental",
@@ -20,11 +20,24 @@
           "parts":{
             "model_id":{
               "type":"string",
-              "description":"The ID of the model to perform inference on"
+              "description":"The unique identifier of the trained model.",
+              "required":true
             }
           }
         }
       ]
+    },
+    "params":{
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the amount of time to wait for inference results.",
+        "default":"10s"
+      }
+    },
+    "body":{
+      "description":"The input text to be evaluated.",
+      "required":true
     }
   }
 }

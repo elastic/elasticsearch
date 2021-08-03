@@ -26,7 +26,7 @@ import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.set.Sets;
@@ -937,6 +937,9 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                         terminal.println("Passwords do not match");
                         continue;
                     }
+                }
+                if (CertificateTool.checkAndConfirmPasswordLengthForOpenSSLCompatibility(password, terminal, confirm) == false) {
+                    continue;
                 }
                 return password;
             } else {

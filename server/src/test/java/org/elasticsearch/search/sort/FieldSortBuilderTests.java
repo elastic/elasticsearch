@@ -45,9 +45,9 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
@@ -599,8 +599,10 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                 FieldSortBuilder fieldSort = SortBuilders.fieldSort("custom-date");
                 try (DirectoryReader reader = writer.getReader()) {
                     SearchExecutionContext context = createMockSearchExecutionContext(new IndexSearcher(reader));
+                    DocValueFormat[] dateValueFormat = new DocValueFormat[] {
+                        context.getFieldType("custom-date").docValueFormat(null, null) };
                     assertTrue(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { 0L }, new DocValueFormat[] { DocValueFormat.RAW })));
+                        new SearchSortValuesAndFormats(new Object[] { 0L }, dateValueFormat)));
                 }
                 for (int i = 0; i < numDocs; i++) {
                     Document doc = new Document();
@@ -613,27 +615,29 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                 }
                 try (DirectoryReader reader = writer.getReader()) {
                     SearchExecutionContext context = createMockSearchExecutionContext(new IndexSearcher(reader));
+                    DocValueFormat[] dateValueFormat = new DocValueFormat[] {
+                        context.getFieldType("custom-date").docValueFormat(null, null) };
                     assertFalse(fieldSort.isBottomSortShardDisjoint(context, null));
                     assertFalse(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { minValue }, new DocValueFormat[] { DocValueFormat.RAW })));
+                        new SearchSortValuesAndFormats(new Object[] { minValue }, dateValueFormat)));
                     assertTrue(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { minValue-1 }, new DocValueFormat[] { DocValueFormat.RAW })));
+                        new SearchSortValuesAndFormats(new Object[] { minValue-1 }, dateValueFormat)));
                     assertFalse(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { minValue+1 }, new DocValueFormat[] { DocValueFormat.RAW })));
+                        new SearchSortValuesAndFormats(new Object[] { minValue+1 }, dateValueFormat)));
                     fieldSort.order(SortOrder.DESC);
                     assertTrue(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { maxValue+1 }, new DocValueFormat[] { DocValueFormat.RAW })));
+                        new SearchSortValuesAndFormats(new Object[] { maxValue+1 }, dateValueFormat)));
                     assertFalse(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { maxValue }, new DocValueFormat[] { DocValueFormat.RAW })));
+                        new SearchSortValuesAndFormats(new Object[] { maxValue }, dateValueFormat)));
                     assertFalse(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { minValue }, new DocValueFormat[] { DocValueFormat.RAW })));
+                        new SearchSortValuesAndFormats(new Object[] { minValue }, dateValueFormat)));
                     fieldSort.setNestedSort(new NestedSortBuilder("empty"));
                     assertFalse(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { minValue-1 }, new DocValueFormat[] { DocValueFormat.RAW })));
+                        new SearchSortValuesAndFormats(new Object[] { minValue-1 }, dateValueFormat)));
                     fieldSort.setNestedSort(null);
                     fieldSort.missing("100");
                     assertFalse(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { maxValue+1 }, new DocValueFormat[] { DocValueFormat.RAW })));
+                        new SearchSortValuesAndFormats(new Object[] { maxValue+1 }, dateValueFormat)));
                 }
             }
         }

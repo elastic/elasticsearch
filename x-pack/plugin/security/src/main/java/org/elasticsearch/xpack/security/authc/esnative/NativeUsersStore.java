@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
@@ -611,6 +611,7 @@ public class NativeUsersStore {
         final String username = id.substring(USER_DOC_TYPE.length() + 1);
         try {
             String password = (String) sourceMap.get(Fields.PASSWORD.getPreferredName());
+            @SuppressWarnings("unchecked")
             String[] roles = ((List<String>) sourceMap.get(Fields.ROLES.getPreferredName())).toArray(Strings.EMPTY_ARRAY);
             String fullName = (String) sourceMap.get(Fields.FULL_NAME.getPreferredName());
             String email = (String) sourceMap.get(Fields.EMAIL.getPreferredName());
@@ -619,6 +620,7 @@ public class NativeUsersStore {
                 // fallback mechanism as a user from 2.x may not have the enabled field
                 enabled = Boolean.TRUE;
             }
+            @SuppressWarnings("unchecked")
             Map<String, Object> metadata = (Map<String, Object>) sourceMap.get(Fields.METADATA.getPreferredName());
             return new UserAndPassword(new User(username, roles, fullName, email, metadata, enabled), password.toCharArray());
         } catch (Exception e) {

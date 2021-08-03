@@ -83,13 +83,6 @@ public class NestedDocuments {
         return childObjectFilters.get(path);
     }
 
-    /**
-     * Given an object path, returns whether or not any of its parents are plain objects
-     */
-    public boolean hasNonNestedParent(String path) {
-        return mappingLookup.hasNonNestedParent(path);
-    }
-
     private class HasNestedDocuments implements LeafNestedDocuments {
 
         final LeafReaderContext ctx;

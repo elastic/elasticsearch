@@ -9,7 +9,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.LazyInitializable;
 
@@ -48,7 +48,7 @@ public class DateFormatters {
     // it results in errors sent to status logger and startup to fail.
     // Hence a lazy initialization.
     private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
-        = new LazyInitializable(() -> DeprecationLogger.getLogger(FormatNames.class));
+        = new LazyInitializable<>(() -> DeprecationLogger.getLogger(FormatNames.class));
 
     public static final WeekFields WEEK_FIELDS_ROOT = WeekFields.of(Locale.ROOT);
 

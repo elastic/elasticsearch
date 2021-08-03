@@ -8,8 +8,8 @@
 
 package org.elasticsearch.jdk;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 
 import java.io.IOException;
 import java.net.MalformedURLException;

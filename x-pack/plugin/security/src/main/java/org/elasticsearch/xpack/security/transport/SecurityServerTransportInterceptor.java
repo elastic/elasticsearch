@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -21,9 +20,9 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -45,7 +44,6 @@ import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.Executor;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
@@ -148,7 +146,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         try {
             sender.sendRequest(connection, action, request, options, handler);
         } catch (Exception e) {
-            handler.handleException(new TransportException("failed sending request", e));
+            handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
         }
     }
 
@@ -249,7 +247,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
 
         @Override
-        public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
+        public void messageReceived(T request, TransportChannel channel, Task task) {
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
                 if (licenseState.isSecurityEnabled()) {
                     String profile = channel.getProfileName();
@@ -265,35 +263,61 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         }
                     }
                     assert filter != null;
-                    final Thread executingThread = Thread.currentThread();
 
                     final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
-                    CheckedConsumer<Void, Exception> consumer = (x) -> {
-                        final Executor executor;
-                        if (executingThread == Thread.currentThread()) {
-                            // only fork off if we get called on another thread this means we moved to
-                            // an async execution and in this case we need to go back to the thread pool
-                            // that was actually executing it. it's also possible that the
-                            // thread-pool we are supposed to execute on is `SAME` in that case
-                            // the handler is OK with executing on a network thread and we can just continue even if
-                            // we are on another thread due to async operations
-                            executor = threadPool.executor(ThreadPool.Names.SAME);
-                        } else {
-                            executor = threadPool.executor(executorName);
-                        }
-
-                        try {
-                            executor.execute(receiveMessage);
-                        } catch (Exception e) {
-                            receiveMessage.onFailure(e);
-                        }
-
-                    };
-                    ActionListener<Void> filterListener = ActionListener.wrap(consumer, receiveMessage::onFailure);
+                    final ActionListener<Void> filterListener;
+                    if (ThreadPool.Names.SAME.equals(executorName)) {
+                        filterListener = new AbstractFilterListener(receiveMessage) {
+                            @Override
+                            public void onResponse(Void unused) {
+                                receiveMessage.run();
+                            }
+                        };
+                    } else {
+                        final Thread executingThread = Thread.currentThread();
+                        filterListener = new AbstractFilterListener(receiveMessage) {
+                            @Override
+                            public void onResponse(Void unused) {
+                                if (executingThread == Thread.currentThread()) {
+                                    // only fork off if we get called on another thread this means we moved to
+                                    // an async execution and in this case we need to go back to the thread pool
+                                    // that was actually executing it. it's also possible that the
+                                    // thread-pool we are supposed to execute on is `SAME` in that case
+                                    // the handler is OK with executing on a network thread and we can just continue even if
+                                    // we are on another thread due to async operations
+                                    receiveMessage.run();
+                                } else {
+                                    try {
+                                        threadPool.executor(executorName).execute(receiveMessage);
+                                    } catch (Exception e) {
+                                        onFailure(e);
+                                    }
+                                }
+                            }
+                        };
+                    }
                     filter.inbound(action, request, channel, filterListener);
                 } else {
                     getReceiveRunnable(request, channel, task).run();
                 }
+            }
+        }
+    }
+
+    private abstract static class AbstractFilterListener implements ActionListener<Void> {
+
+        protected final AbstractRunnable receiveMessage;
+
+        protected AbstractFilterListener(AbstractRunnable receiveMessage) {
+            this.receiveMessage = receiveMessage;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            try {
+                receiveMessage.onFailure(e);
+            } finally {
+                receiveMessage.onAfter();
             }
         }
     }

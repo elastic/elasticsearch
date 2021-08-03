@@ -26,11 +26,11 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
@@ -62,7 +62,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 
 /**
@@ -195,7 +195,7 @@ public class TaskManager implements ClusterStateApplier {
             if (ban != null) {
                 try {
                     holder.cancel(ban.reason);
-                    throw new TaskCancelledException("Task cancelled before it started: " + ban.reason);
+                    throw new TaskCancelledException("task cancelled before starting [" + ban.reason + ']');
                 } finally {
                     // let's clean up the registration
                     unregister(task);
@@ -449,10 +449,10 @@ public class TaskManager implements ClusterStateApplier {
      * @param onChildTasksCompleted called when all child tasks are completed or failed
      * @return a set of current connections that have outstanding child tasks
      */
-    public Collection<Transport.Connection> startBanOnChildTasks(long taskId, Runnable onChildTasksCompleted) {
+    public Collection<Transport.Connection> startBanOnChildTasks(long taskId, String reason, Runnable onChildTasksCompleted) {
         final CancellableTaskHolder holder = cancellableTasks.get(taskId);
         if (holder != null) {
-            return holder.startBan(onChildTasksCompleted);
+            return holder.startBan(reason, onChildTasksCompleted);
         } else {
             onChildTasksCompleted.run();
             return Collections.emptySet();
@@ -486,7 +486,7 @@ public class TaskManager implements ClusterStateApplier {
         private boolean finished = false;
         private List<Runnable> cancellationListeners = null;
         private ObjectIntMap<Transport.Connection> childTasksPerConnection = null;
-        private boolean banChildren = false;
+        private String banChildrenReason;
         private List<Runnable> childTaskCompletedListeners = null;
 
         CancellableTaskHolder(CancellableTask task) {
@@ -563,8 +563,8 @@ public class TaskManager implements ClusterStateApplier {
         }
 
         synchronized void registerChildConnection(Transport.Connection connection) {
-            if (banChildren) {
-                throw new TaskCancelledException("The parent task was cancelled, shouldn't start any child tasks");
+            if (banChildrenReason != null) {
+                throw new TaskCancelledException("parent task was cancelled [" + banChildrenReason + ']');
             }
             if (childTasksPerConnection == null) {
                 childTasksPerConnection = new ObjectIntHashMap<>();
@@ -588,11 +588,13 @@ public class TaskManager implements ClusterStateApplier {
             notifyListeners(listeners);
         }
 
-        Set<Transport.Connection> startBan(Runnable onChildTasksCompleted) {
+        Set<Transport.Connection> startBan(String reason, Runnable onChildTasksCompleted) {
             final Set<Transport.Connection> pendingChildConnections;
             final Runnable toRun;
             synchronized (this) {
-                banChildren = true;
+                assert reason != null;
+                //noinspection ConstantConditions just in case we get a null value with assertions disabled
+                banChildrenReason = reason == null ? "none" : reason;
                 if (childTasksPerConnection == null) {
                     pendingChildConnections = Collections.emptySet();
                 } else {

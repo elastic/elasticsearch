@@ -13,10 +13,8 @@ aggregated for the buckets created by their "parent" bucket aggregation.
 There are different bucket aggregators, each with a different "bucketing" strategy. Some define a single bucket, some
 define fixed number of multiple buckets, and others dynamically create the buckets during the aggregation process.
 
-NOTE: The maximum number of buckets allowed in a single response is limited by a
-dynamic cluster setting named
-<<search-settings-max-buckets,`search.max_buckets`>>. It defaults to 65,536.
-Requests that try to return more than the limit will fail with an exception.
+NOTE: The <<search-settings-max-buckets,`search.max_buckets`>> cluster setting
+limits the number of buckets allowed in a single response.
 
 include::bucket/adjacency-matrix-aggregation.asciidoc[]
 

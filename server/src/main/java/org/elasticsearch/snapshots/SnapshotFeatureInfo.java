@@ -8,12 +8,12 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -26,12 +26,16 @@ public class SnapshotFeatureInfo implements Writeable, ToXContentObject {
     final String pluginName;
     final List<String> indices;
 
-    static final ConstructingObjectParser<SnapshotFeatureInfo, Void> SNAPSHOT_FEATURE_INFO_PARSER =
-        new ConstructingObjectParser<>("feature_info", true, (a, name) -> {
+    static final ConstructingObjectParser<SnapshotFeatureInfo, Void> SNAPSHOT_FEATURE_INFO_PARSER = new ConstructingObjectParser<>(
+        "feature_info",
+        true,
+        (a, name) -> {
             String pluginName = (String) a[0];
+            @SuppressWarnings("unchecked")
             List<String> indices = (List<String>) a[1];
             return new SnapshotFeatureInfo(pluginName, indices);
-        });
+        }
+    );
 
     static {
         SNAPSHOT_FEATURE_INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("feature_name"));
@@ -91,8 +95,7 @@ public class SnapshotFeatureInfo implements Writeable, ToXContentObject {
         if (this == o) return true;
         if ((o instanceof SnapshotFeatureInfo) == false) return false;
         SnapshotFeatureInfo that = (SnapshotFeatureInfo) o;
-        return getPluginName().equals(that.getPluginName()) &&
-            getIndices().equals(that.getIndices());
+        return getPluginName().equals(that.getPluginName()) && getIndices().equals(that.getIndices());
     }
 
     @Override

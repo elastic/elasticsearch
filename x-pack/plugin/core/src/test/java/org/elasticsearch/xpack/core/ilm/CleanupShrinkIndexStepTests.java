@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.elasticsearch.xpack.core.ilm.GenerateUniqueIndexNameStep.generateValidIndexName;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.ml.inference;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -89,7 +89,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
     public static final ParseField LOCATION = new ParseField("location");
 
-    public static final Version VERSION_3RD_PARTY_CONFIG_ADDED = Version.V_8_0_0; 
+    public static final Version VERSION_3RD_PARTY_CONFIG_ADDED = Version.V_8_0_0;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);

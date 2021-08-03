@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 import org.supercsv.exception.SuperCsvException;

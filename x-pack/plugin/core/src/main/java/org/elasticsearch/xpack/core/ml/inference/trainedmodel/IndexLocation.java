@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -47,7 +47,7 @@ public class IndexLocation implements StrictlyParsedTrainedModelLocation, Lenien
     private final String modelId;
     private final String indexName;
 
-    IndexLocation(String modelId, String indexName) {
+    public IndexLocation(String modelId, String indexName) {
         this.modelId = Objects.requireNonNull(modelId);
         this.indexName = Objects.requireNonNull(indexName);
     }

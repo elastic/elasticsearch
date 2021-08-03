@@ -30,12 +30,12 @@ public class SqlPluginTests extends ESTestCase {
         SqlPlugin plugin = new SqlPlugin(settings);
         assertThat(plugin.createComponents(mock(Client.class), "cluster", new NamedWriteableRegistry(Cursors.getNamedWriteables())),
             hasSize(3));
-        assertThat(plugin.getActions(), hasSize(6));
+        assertThat(plugin.getActions(), hasSize(8));
         assertThat(
             plugin.getRestHandlers(Settings.EMPTY, mock(RestController.class),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, new SettingsFilter(Collections.emptyList()),
                 mock(IndexNameExpressionResolver.class), () -> mock(DiscoveryNodes.class)),
-            hasSize(4));
+            hasSize(7));
     }
 }

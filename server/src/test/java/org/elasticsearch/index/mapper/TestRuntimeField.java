@@ -13,39 +13,64 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 
-public class TestRuntimeField extends MappedFieldType implements RuntimeField {
+public final class TestRuntimeField implements RuntimeField {
 
-    private final String type;
+    public static final String CONTENT_TYPE = "test-composite";
+
+    private final String name;
+    private final Collection<MappedFieldType> subfields;
 
     public TestRuntimeField(String name, String type) {
-        super(name, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
-        this.type = type;
+        this(name, Collections.singleton(new TestRuntimeFieldType(name, type)));
+    }
+
+    public TestRuntimeField(String name, Collection<MappedFieldType> subfields) {
+        this.name = name;
+        this.subfields = subfields;
     }
 
     @Override
-    public String typeName() {
-        return type;
+    public String name() {
+        return name;
     }
 
     @Override
-    public MappedFieldType asMappedFieldType() {
-        return this;
+    public Collection<MappedFieldType> asMappedFieldTypes() {
+        return subfields;
     }
 
     @Override
-    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        throw new UnsupportedOperationException();
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(name);
+        builder.field("type", CONTENT_TYPE);
+        builder.endObject();
+        return builder;
     }
 
-    @Override
-    public Query termQuery(Object value, SearchExecutionContext context) {
-        return null;
-    }
+    public static class TestRuntimeFieldType extends MappedFieldType {
+        private final String type;
 
-    @Override
-    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        public TestRuntimeFieldType(String name, String type) {
+            super(name, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+            this.type = type;
+        }
 
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String typeName() {
+            return type;
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            return null;
+        }
     }
 }

@@ -16,7 +16,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -26,7 +26,6 @@ import org.elasticsearch.snapshots.SnapshotState;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -100,7 +99,7 @@ public class RestSnapshotAction extends AbstractCatAction {
         if (getSnapshotsResponse.isFailed()) {
             ElasticsearchException causes = null;
 
-            for (ElasticsearchException e : getSnapshotsResponse.getFailedResponses().values()) {
+            for (ElasticsearchException e : getSnapshotsResponse.getFailures().values()) {
                 if (causes == null) {
                     causes = e;
                 } else {
@@ -109,37 +108,34 @@ public class RestSnapshotAction extends AbstractCatAction {
             }
             throw new ElasticsearchException(
                     "Repositories [" +
-                            Strings.collectionToCommaDelimitedString(getSnapshotsResponse.getFailedResponses().keySet()) +
+                            Strings.collectionToCommaDelimitedString(getSnapshotsResponse.getFailures().keySet()) +
                     "] failed to retrieve snapshots", causes);
         }
 
-        for (Map.Entry<String, List<SnapshotInfo>> response : getSnapshotsResponse.getSuccessfulResponses().entrySet()) {
-            String repository = response.getKey();
-            for (SnapshotInfo snapshotStatus : response.getValue()) {
-                table.startRow();
+        for (SnapshotInfo snapshotStatus: getSnapshotsResponse.getSnapshots()) {
+            table.startRow();
 
-                table.addCell(snapshotStatus.snapshotId().getName());
-                table.addCell(repository);
-                table.addCell(snapshotStatus.state());
-                table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.startTime(), TimeUnit.MILLISECONDS));
-                table.addCell(FORMATTER.format(Instant.ofEpochMilli(snapshotStatus.startTime())));
-                table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.endTime(), TimeUnit.MILLISECONDS));
-                table.addCell(FORMATTER.format(Instant.ofEpochMilli(snapshotStatus.endTime())));
-                final long durationMillis;
-                if (snapshotStatus.state() == SnapshotState.IN_PROGRESS) {
-                    durationMillis = System.currentTimeMillis() - snapshotStatus.startTime();
-                } else {
-                    durationMillis = snapshotStatus.endTime() - snapshotStatus.startTime();
-                }
-                table.addCell(TimeValue.timeValueMillis(durationMillis));
-                table.addCell(snapshotStatus.indices().size());
-                table.addCell(snapshotStatus.successfulShards());
-                table.addCell(snapshotStatus.failedShards());
-                table.addCell(snapshotStatus.totalShards());
-                table.addCell(snapshotStatus.reason());
-
-                table.endRow();
+            table.addCell(snapshotStatus.snapshotId().getName());
+            table.addCell(snapshotStatus.repository());
+            table.addCell(snapshotStatus.state());
+            table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.startTime(), TimeUnit.MILLISECONDS));
+            table.addCell(FORMATTER.format(Instant.ofEpochMilli(snapshotStatus.startTime())));
+            table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.endTime(), TimeUnit.MILLISECONDS));
+            table.addCell(FORMATTER.format(Instant.ofEpochMilli(snapshotStatus.endTime())));
+            final long durationMillis;
+            if (snapshotStatus.state() == SnapshotState.IN_PROGRESS) {
+                durationMillis = System.currentTimeMillis() - snapshotStatus.startTime();
+            } else {
+                durationMillis = snapshotStatus.endTime() - snapshotStatus.startTime();
             }
+            table.addCell(TimeValue.timeValueMillis(durationMillis));
+            table.addCell(snapshotStatus.indices().size());
+            table.addCell(snapshotStatus.successfulShards());
+            table.addCell(snapshotStatus.failedShards());
+            table.addCell(snapshotStatus.totalShards());
+            table.addCell(snapshotStatus.reason());
+
+            table.endRow();
         }
 
         return table;

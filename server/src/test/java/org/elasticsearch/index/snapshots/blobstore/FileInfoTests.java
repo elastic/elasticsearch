@@ -39,8 +39,13 @@ public class FileInfoTests extends ESTestCase {
             for (int i = 0; i < hash.length; i++) {
                 hash.bytes[i] = randomByte();
             }
-            StoreFileMetadata meta = new StoreFileMetadata("foobar", Math.abs(randomLong()), randomAlphaOfLengthBetween(1, 10),
-                Version.LATEST, hash);
+            StoreFileMetadata meta = new StoreFileMetadata(
+                "foobar",
+                Math.abs(randomLong()),
+                randomAlphaOfLengthBetween(1, 10),
+                Version.LATEST.toString(),
+                hash
+            );
             ByteSizeValue size = new ByteSizeValue(Math.abs(randomLong()));
             BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_foobar", meta, size);
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
@@ -59,7 +64,7 @@ public class FileInfoTests extends ESTestCase {
             assertThat(info.partSize(), equalTo(parsedInfo.partSize()));
             assertThat(parsedInfo.metadata().hash().length, equalTo(hash.length));
             assertThat(parsedInfo.metadata().hash(), equalTo(hash));
-            assertThat(parsedInfo.metadata().writtenBy(), equalTo(Version.LATEST));
+            assertThat(parsedInfo.metadata().writtenBy(), equalTo(Version.LATEST.toString()));
             assertThat(parsedInfo.isSame(info.metadata()), is(true));
         }
     }
@@ -118,7 +123,7 @@ public class FileInfoTests extends ESTestCase {
                 assertThat(length, equalTo(parsedInfo.length()));
                 assertEquals("666", parsedInfo.checksum());
                 assertEquals("666", parsedInfo.metadata().checksum());
-                assertEquals(Version.LATEST, parsedInfo.metadata().writtenBy());
+                assertEquals(Version.LATEST.toString(), parsedInfo.metadata().writtenBy());
             } else {
                 try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
                     parser.nextToken();
@@ -132,16 +137,22 @@ public class FileInfoTests extends ESTestCase {
     }
 
     public void testGetPartSize() {
-        BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetadata("foo", 36, "666",
-            MIN_SUPPORTED_LUCENE_VERSION), new ByteSizeValue(6));
+        BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo(
+            "foo",
+            new StoreFileMetadata("foo", 36, "666", MIN_SUPPORTED_LUCENE_VERSION.toString()),
+            new ByteSizeValue(6)
+        );
         int numBytes = 0;
         for (int i = 0; i < info.numberOfParts(); i++) {
             numBytes += info.partBytes(i);
         }
         assertEquals(numBytes, 36);
 
-        info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetadata("foo", 35, "666",
-            MIN_SUPPORTED_LUCENE_VERSION), new ByteSizeValue(6));
+        info = new BlobStoreIndexShardSnapshot.FileInfo(
+            "foo",
+            new StoreFileMetadata("foo", 35, "666", MIN_SUPPORTED_LUCENE_VERSION.toString()),
+            new ByteSizeValue(6)
+        );
         numBytes = 0;
         for (int i = 0; i < info.numberOfParts(); i++) {
             numBytes += info.partBytes(i);
@@ -149,8 +160,12 @@ public class FileInfoTests extends ESTestCase {
         assertEquals(numBytes, 35);
         final int numIters = randomIntBetween(10, 100);
         for (int j = 0; j < numIters; j++) {
-            StoreFileMetadata metadata = new StoreFileMetadata("foo", randomIntBetween(0, 1000), "666",
-                MIN_SUPPORTED_LUCENE_VERSION);
+            StoreFileMetadata metadata = new StoreFileMetadata(
+                "foo",
+                randomIntBetween(0, 1000),
+                "666",
+                MIN_SUPPORTED_LUCENE_VERSION.toString()
+            );
             info = new BlobStoreIndexShardSnapshot.FileInfo("foo", metadata, new ByteSizeValue(randomIntBetween(1, 1000)));
             numBytes = 0;
             for (int i = 0; i < info.numberOfParts(); i++) {

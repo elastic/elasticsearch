@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 
@@ -50,7 +51,7 @@ public class RollupStep extends AsyncActionStep {
                 "] and index [" + indexName + "]"));
             return;
         }
-        RollupAction.Request request = new RollupAction.Request(indexName, rollupIndexName, config);
+        RollupAction.Request request = new RollupAction.Request(indexName, rollupIndexName, config).masterNodeTimeout(TimeValue.MAX_VALUE);
         // currently RollupAction always acknowledges action was complete when no exceptions are thrown.
         getClient().execute(RollupAction.INSTANCE, request,
             ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));

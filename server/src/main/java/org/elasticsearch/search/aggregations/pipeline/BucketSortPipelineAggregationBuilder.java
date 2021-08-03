@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -43,6 +43,7 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     private static final ParseField FROM = new ParseField("from");
     private static final ParseField SIZE = new ParseField("size");
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<BucketSortPipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(NAME,
             false, (a, context) -> new BucketSortPipelineAggregationBuilder(context, (List<FieldSortBuilder>) a[0]));
 

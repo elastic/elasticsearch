@@ -220,19 +220,19 @@ See <<commands>>.
 === Calendar resources
 
 See <<ml-get-calendar>> and
-{ml-docs}/ml-calendars.html[Calendars and scheduled events].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
 
 [role="exclude",id="ml-filter-resource"]
 === Filter resources
 
 See <<ml-get-filter>> and
-{ml-docs}/ml-rules.html[Machine learning custom rules].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-rules[Machine learning custom rules].
 
 [role="exclude",id="ml-event-resource"]
 === Scheduled event resources
 
 See <<ml-get-calendar-event>> and
-{ml-docs}/ml-calendars.html[Calendars and scheduled events].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
 
 [role="exclude",id="index-apis"]
 === Index APIs
@@ -826,7 +826,7 @@ See <<ccs-gateway-seed-nodes>> and <<ccs-min-roundtrips>>.
 [role="exclude",id="indices-component-templates"]
 === Component template APIs
 
-coming::[7.x]
+See <<index-templates-apis,index template APIs>>.
 
 [role="exclude",id="modules-indices"]
 === Indices module
@@ -1593,3 +1593,49 @@ include::redirects.asciidoc[tag=frozen-index-redirect]
 === Monitoring frozen indices
 
 include::redirects.asciidoc[tag=frozen-index-redirect]
+
+[role="exclude",id="glossary"]
+=== Glossary
+
+See the {glossary}/terms.html[Elastic glossary].
+[role="exclude",id="multi-index"]
+=== Multi-target syntax
+
+See <<api-multi-index>>. 
+
+[float]
+[[hidden]]
+==== Hidden data streams and indices
+
+See <<multi-hidden>>. 
+
+[role="exclude",id="date-math-index-names"]
+=== Date math support in system and index alias names 
+
+See <<api-date-math-index-names>>.
+
+[role="exclude",id="cron-expressions"]
+=== Cron expressions
+
+See <<api-cron-expressions>>.
+
+[role="exclude",id="url-access-control"]
+=== URL-based access control
+
+See <<api-url-access-control>>.
+
+[role="exclude",id="indices-field-usage-stats"]
+=== Field usage stats API
+
+See <<field-usage-stats>>.
+
+[role="exclude",id="security-api-enroll-kibana"]
+=== Enroll {kib} API
+
+See <<security-api-kibana-enrollment>>.
+
+[role="exclude",id="sql-rest-fields"]
+=== Supported REST parameters for SQL search API
+
+See the <<sql-search-api-request-body,request body parameters>> for the
+<<sql-search-api,SQL search API>>.

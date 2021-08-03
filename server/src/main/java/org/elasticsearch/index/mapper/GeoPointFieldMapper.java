@@ -9,6 +9,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.LeafReaderContext;
@@ -18,18 +19,19 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.GeometryFormat;
-import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.SimpleFeatureFactory;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -47,6 +49,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -187,7 +190,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     @Override
-    protected void index(ParseContext context, GeoPoint geometry) throws IOException {
+    protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
         if (fieldType().isSearchable()) {
             context.doc().add(new LatLonPoint(fieldType().name(), geometry.lat(), geometry.lon()));
         }
@@ -204,10 +207,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     @Override
-    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
         this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, point -> {
             try {
-                index(parseContext, point);
+                index(documentParserContext, point);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);  // only thrown by MultiFields which is always null
             }
@@ -221,15 +225,15 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     public static class GeoPointFieldType extends AbstractGeometryFieldType<GeoPoint> implements GeoShapeQueryable {
 
-        private static final GeometryParser PARSER = new GeometryParser(true, true, true);
         private final FieldValues<GeoPoint> scriptValues;
 
         private GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
                                   Parser<GeoPoint> parser, FieldValues<GeoPoint> scriptValues, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, true, parser, meta);
+            super(name, indexed, stored, hasDocValues, parser, meta);
             this.scriptValues = scriptValues;
         }
 
+        // only used in test
         public GeoPointFieldType(String name) {
             this(name, true, false, true, null, null, Collections.emptyMap());
         }
@@ -240,16 +244,21 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
+        protected  Function<List<GeoPoint>, List<Object>> getFormatter(String format) {
+            return GeoFormatterFactory.getFormatter(format, p -> new Point(p.getLon(), p.getLat()),
+                (z, x, y, extent) -> {
+                    final SimpleFeatureFactory featureFactory = new SimpleFeatureFactory(z, x, y, extent);
+                    return points -> List.of(featureFactory.points(points));
+                });
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (scriptValues == null) {
                 return super.valueFetcher(context, format);
             }
-            String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
-            GeometryFormat<Geometry> geometryFormat = PARSER.geometryFormat(geoFormat);
-            return FieldValues.valueFetcher(scriptValues, v -> {
-                GeoPoint p = (GeoPoint) v;
-                return geometryFormat.toXContentAsObject(new Point(p.lon(), p.lat()));
-            }, context);
+            Function<List<GeoPoint>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
+            return FieldValues.valueListFetcher(scriptValues, formatter, context);
         }
 
         @Override
@@ -258,9 +267,17 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (luceneGeometries.length == 0) {
                 return new MatchNoDocsQuery();
             }
-            Query query = LatLonPoint.newGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+            final ShapeField.QueryRelation luceneRelation;
+            if (shape.type() == ShapeType.POINT && relation == ShapeRelation.INTERSECTS) {
+                // For point queries and intersects, lucene does not match points that are encoded to Integer.MAX_VALUE.
+                // We use contains instead.
+                luceneRelation = ShapeField.QueryRelation.CONTAINS;
+            } else {
+                luceneRelation = relation.getLuceneRelation();
+            }
+            Query query = LatLonPoint.newGeometryQuery(fieldName, luceneRelation, luceneGeometries);
             if (hasDocValues()) {
-                Query dvQuery = LatLonDocValuesField.newSlowGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+                Query dvQuery = LatLonDocValuesField.newSlowGeometryQuery(fieldName, luceneRelation, luceneGeometries);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
             }
             return query;
@@ -291,17 +308,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     /** GeoPoint parser implementation */
     private static class GeoPointParser extends PointParser<GeoPoint> {
-         // Note that this parser is only used for formatting values.
-        private final GeometryParser geometryParser;
 
         GeoPointParser(String field,
-                           Supplier<GeoPoint> pointSupplier,
-                           CheckedBiFunction<XContentParser, GeoPoint, GeoPoint, IOException> objectParser,
-                           GeoPoint nullValue,
-                           boolean ignoreZValue,
-                           boolean ignoreMalformed) {
+                       Supplier<GeoPoint> pointSupplier,
+                       CheckedBiFunction<XContentParser, GeoPoint, GeoPoint, IOException> objectParser,
+                       GeoPoint nullValue,
+                       boolean ignoreZValue,
+                       boolean ignoreMalformed) {
             super(field, pointSupplier, objectParser, nullValue, ignoreZValue, ignoreMalformed);
-            this.geometryParser = new GeometryParser(true, true, true);
         }
 
         protected GeoPoint validate(GeoPoint in) {
@@ -330,12 +344,5 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         protected void reset(GeoPoint in, double x, double y) {
             in.reset(y, x);
         }
-
-        @Override
-        public Object format(GeoPoint point, String format) {
-            GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(format);
-            return geometryFormat.toXContentAsObject(new Point(point.lon(), point.lat()));
-        }
     }
-
 }

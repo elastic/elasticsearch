@@ -94,9 +94,9 @@ The response includes metadata that {es} generates for the document:
 [[add-multiple-documents]]
 ==== Add multiple documents
 
-To add multiple documents in one request, use the bulk API. Bulk data must be
-newline-delimited JSON (NDJSON). Each line must end in a newline character
-(`\n`), including the last line.
+Use the `_bulk` endpoint to add multiple documents in one request. Bulk data
+must be newline-delimited JSON (NDJSON). Each line must end in a newline
+character (`\n`), including the last line.
 
 [source,console]
 ----
@@ -113,11 +113,9 @@ PUT logs-my_app-default/_bulk
 [[qs-search-data]]
 === Step 4. Search data
 
-Indexed documents are available for search in near real-time. To search your
-data stream, use the search API.
-
-The following search matches all log entries in `logs-my_app-default` and
-sorts them by `@timestamp` in descending order.
+Indexed documents are available for search in near real-time. The following
+search matches all log entries in `logs-my_app-default` and sorts them by
+`@timestamp` in descending order.
 
 [source,console]
 ----

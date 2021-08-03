@@ -14,10 +14,10 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -213,7 +213,7 @@ public class CircleProcessorTests extends ESTestCase {
         Geometry geometry = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
 
         GeoShapeWithDocValuesFieldType shapeType
-            = new GeoShapeWithDocValuesFieldType(fieldName, true, false, ShapeBuilder.Orientation.RIGHT, null, Collections.emptyMap());
+            = new GeoShapeWithDocValuesFieldType(fieldName, true, false, Orientation.RIGHT, null, null, Collections.emptyMap());
 
         SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);
         when(mockedContext.getFieldType(any())).thenReturn(shapeType);
@@ -243,7 +243,7 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularShapePolygon(circle, numSides);
 
-        MappedFieldType shapeType = new ShapeFieldType(fieldName, true, ShapeBuilder.Orientation.RIGHT, null, Collections.emptyMap());
+        MappedFieldType shapeType = new ShapeFieldType(fieldName, true, Orientation.RIGHT, null, Collections.emptyMap());
 
         ShapeQueryProcessor processor = new ShapeQueryProcessor();
         SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);

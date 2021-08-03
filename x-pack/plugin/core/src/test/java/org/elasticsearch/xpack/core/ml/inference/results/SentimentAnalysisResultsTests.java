@@ -23,16 +23,15 @@ public class SentimentAnalysisResultsTests extends AbstractWireSerializingTestCa
 
     @Override
     protected SentimentAnalysisResults createTestInstance() {
-        return new SentimentAnalysisResults(randomDouble(), randomDouble());
+        return new SentimentAnalysisResults(randomAlphaOfLength(6), randomDouble(),
+            randomAlphaOfLength(6), randomDouble());
     }
 
     public void testAsMap() {
-        SentimentAnalysisResults testInstance = createTestInstance();
+        SentimentAnalysisResults testInstance = new SentimentAnalysisResults("foo", 1.0, "bar", 0.0);
         Map<String, Object> asMap = testInstance.asMap();
         assertThat(asMap.keySet(), hasSize(2));
-        assertThat(testInstance.getPositiveScore(),
-            closeTo((Double)asMap.get(SentimentAnalysisResults.POSITIVE_SCORE), 0.0001));
-        assertThat(testInstance.getNegativeScore(),
-            closeTo((Double)asMap.get(SentimentAnalysisResults.NEGATIVE_SCORE), 0.0001));
+        assertThat(1.0, closeTo((Double)asMap.get("foo"), 0.0001));
+        assertThat(0.0, closeTo((Double)asMap.get("bar"), 0.0001));
     }
 }

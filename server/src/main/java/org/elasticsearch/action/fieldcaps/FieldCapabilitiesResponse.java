@@ -8,18 +8,17 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -70,18 +69,10 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
 
     public FieldCapabilitiesResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            indices = in.readStringArray();
-        } else {
-            indices = Strings.EMPTY_ARRAY;
-        }
+        indices = in.readStringArray();
         this.responseMap = in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
         indexResponses = in.readList(FieldCapabilitiesIndexResponse::new);
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
-            this.failures = in.readList(FieldCapabilitiesFailure::new);
-        } else {
-            this.failures = Collections.emptyList();
-        }
+        this.failures = in.readList(FieldCapabilitiesFailure::new);
     }
 
     /**
@@ -144,14 +135,10 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeStringArray(indices);
-        }
+        out.writeStringArray(indices);
         out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);
         out.writeList(indexResponses);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
-            out.writeList(failures);
-        }
+        out.writeList(failures);
     }
 
     private static void writeField(StreamOutput out, Map<String, FieldCapabilities> map) throws IOException {

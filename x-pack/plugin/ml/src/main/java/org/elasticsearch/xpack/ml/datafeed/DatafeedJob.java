@@ -13,9 +13,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -76,6 +76,7 @@ class DatafeedJob {
     private AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
+    private volatile long consecutiveDelayedDataBuckets;
 
     DatafeedJob(String jobId, DataDescription dataDescription, long frequencyMs, long queryDelayMs,
                 DataExtractorFactory dataExtractorFactory, DatafeedTimingStatsReporter timingStatsReporter, Client client,
@@ -223,10 +224,27 @@ class DatafeedJob {
                     && annotation.getEndTimestamp().equals(lastDataCheckAnnotationWithId.v2().getEndTimestamp())) {
                     return;
                 }
-
-                // Creating a warning in addition to updating/creating our annotation. This allows the issue to be plainly visible
-                // in the job list page.
-                auditor.warning(jobId, msg);
+                if (lastDataCheckAnnotationWithId != null) {
+                    // NOTE: this check takes advantage of the following:
+                    // * Bucket span is constant
+                    // * The endtime has changed since our previous annotation
+                    // * DatafeedJob objects only ever move forward in time
+                    // All that to say, checking if the lastBucket overlaps the previous annotation end-time, that means that this current
+                    // bucket with missing data is consecutive to the previous one.
+                    if (lastBucket.getEpoch() * 1000 <= (lastDataCheckAnnotationWithId.v2().getEndTimestamp().getTime() + 1)) {
+                        consecutiveDelayedDataBuckets++;
+                    } else {
+                        consecutiveDelayedDataBuckets = 0;
+                    }
+                } else {
+                    consecutiveDelayedDataBuckets = 0;
+                }
+                // to prevent audit log spam on many consecutive buckets missing data, we should throttle writing the messages
+                if (shouldWriteDelayedDataAudit()) {
+                    // Creating a warning in addition to updating/creating our annotation. This allows the issue to be plainly visible
+                    // in the job list page.
+                    auditor.warning(jobId, msg);
+                }
 
                 if (lastDataCheckAnnotationWithId == null) {
                     lastDataCheckAnnotationWithId = annotationPersister.persistAnnotation(null, annotation);
@@ -237,6 +255,16 @@ class DatafeedJob {
                 }
             }
         }
+    }
+
+    private boolean shouldWriteDelayedDataAudit() {
+        if (consecutiveDelayedDataBuckets < 3) {
+            return true;
+        }
+        if (consecutiveDelayedDataBuckets < 100) {
+            return consecutiveDelayedDataBuckets % 10 == 0;
+        }
+        return consecutiveDelayedDataBuckets % 100 == 0;
     }
 
     private Annotation createDelayedDataAnnotation(Date startTime, Date endTime, String msg) {
@@ -287,11 +315,7 @@ class DatafeedJob {
      *         otherwise <code>false</code> is returned
      */
     public boolean stop() {
-        if (running.compareAndSet(true, false)) {
-            return true;
-        } else {
-            return false;
-        }
+        return running.compareAndSet(true, false);
     }
 
     public boolean isRunning() {

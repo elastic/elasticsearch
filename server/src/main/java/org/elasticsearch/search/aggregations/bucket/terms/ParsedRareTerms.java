@@ -9,11 +9,11 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
@@ -51,7 +51,7 @@ public abstract class ParsedRareTerms extends ParsedMultiBucketAggregation<Parse
 
     static void declareParsedTermsFields(final ObjectParser<? extends ParsedRareTerms, Void> objectParser,
                                          final CheckedFunction<XContentParser, ParsedBucket, IOException> bucketParser) {
-        declareMultiBucketAggregationFields(objectParser, bucketParser::apply, bucketParser::apply);
+        declareMultiBucketAggregationFields(objectParser, bucketParser, bucketParser);
     }
 
     public abstract static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements RareTerms.Bucket {

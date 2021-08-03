@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -480,7 +480,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     // package-private for test visibility
     static <T> T createExtension(Class<? extends T> extensionClass, Class<T> extensionPointType, Plugin plugin) {
-        //noinspection unchecked
+        @SuppressWarnings("unchecked")
         Constructor<T>[] constructors = (Constructor<T>[]) extensionClass.getConstructors();
         if (constructors.length == 0) {
             throw new IllegalStateException("no public " + extensionConstructorMessage(extensionClass, extensionPointType));

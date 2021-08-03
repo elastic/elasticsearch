@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ilm;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -23,11 +24,13 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -80,14 +83,14 @@ public class IndexLifecycleService
 
     public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool, Clock clock,
                                  LongSupplier nowSupplier, NamedXContentRegistry xContentRegistry,
-                                 ILMHistoryStore ilmHistoryStore) {
+                                 ILMHistoryStore ilmHistoryStore, XPackLicenseState licenseState) {
         super();
         this.settings = settings;
         this.clusterService = clusterService;
         this.clock = clock;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
-        this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client);
+        this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client, licenseState);
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, ilmHistoryStore, clusterService, threadPool, nowSupplier);
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         clusterService.addStateApplier(this);
@@ -99,6 +102,24 @@ public class IndexLifecycleService
     public void maybeRunAsyncAction(ClusterState clusterState, IndexMetadata indexMetadata, StepKey nextStepKey) {
         String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
         lifecycleRunner.maybeRunAsyncAction(clusterState, indexMetadata, policyName, nextStepKey);
+    }
+
+    /**
+     * Resolve the given phase, action, and name into a real {@link StepKey}. The phase is always
+     * required, but the action and name are optional. If a name is specified, an action is also required.
+     */
+    public StepKey resolveStepKey(ClusterState state, Index index, String phase, @Nullable String action, @Nullable String name) {
+        if (name == null) {
+            if (action == null) {
+                return this.policyRegistry.getFirstStepForPhase(state, index, phase);
+            } else {
+                return this.policyRegistry.getFirstStepForPhaseAndAction(state, index, phase, action);
+            }
+        } else {
+            assert action != null :
+                "action should never be null because we don't allow constructing a partial step key with only a phase and name";
+            return new StepKey(phase, action, name);
+        }
     }
 
     /**

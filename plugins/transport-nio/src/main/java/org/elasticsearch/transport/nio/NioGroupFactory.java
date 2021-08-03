@@ -11,7 +11,7 @@ package org.elasticsearch.transport.nio;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.EventHandler;

@@ -46,6 +46,8 @@ close the job, then reopen the job and restart the {dfeed} for the changes to ta
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=analysis-limits]
 +
+You can update the `analysis_limits` only while the job is closed.
++
 .Properties of `analysis_limits`
 [%collapsible%open]
 ====
@@ -54,14 +56,16 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=analysis-limits]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-ad]
 +
 --
-NOTE: You can update the `analysis_limits` only while the job is closed. The 
-`model_memory_limit` property value cannot be decreased below the current usage.
- 
-TIP: If the `memory_status` property in the
-<<ml-get-snapshot-results,`model_size_stats` object>> has a value of 
+[NOTE]
+=======
+* You cannot decrease the `model_memory_limit` value below the current usage. To
+determine the current usage, refer to the `model_bytes` value in
+the <<ml-get-job-stats,get job stats>> API.
+* If the `memory_status` property in the
+<<modelsizestats,`model_size_stats` object>> has a value of 
 `hard_limit`, this means that it was unable to process some data. You might want 
 to re-run the job with an increased `model_memory_limit`.
-
+=======
 --
 ====
 //End analysis_limits
@@ -192,6 +196,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
 ====
 //End model_plot_config
 
+`model_prune_window`::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-prune-window]
+
 `model_snapshot_retention_days`::
 (long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-snapshot-retention-days]
@@ -228,6 +236,10 @@ close the job, then reopen the job and restart the {dfeed} for the changes to ta
 (long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-retention-days]
 
+`system_annotations_retention_days`::
+(long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=system-annotations-retention-days]
+
 
 [[ml-update-job-example]]
 == {api-examples-title}
@@ -248,7 +260,8 @@ POST _ml/anomaly_detectors/low_request_rate/_update
   "renormalization_window_days": 30,
   "background_persist_interval": "2h",
   "model_snapshot_retention_days": 7,
-  "results_retention_days": 60
+  "results_retention_days": 60,
+  "system_annotations_retention_days": 60
 }
 --------------------------------------------------
 // TEST[skip:setup:Kibana sample data]

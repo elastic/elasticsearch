@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,6 +52,7 @@ public final class MappingLookup {
     private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
     private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
     private final Mapping mapping;
+    private final Set<String> shadowedFields;
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
@@ -157,6 +159,13 @@ public final class MappingLookup {
             }
         }
 
+        this.shadowedFields = new HashSet<>();
+        for (RuntimeField runtimeField : mapping.getRoot().runtimeFields()) {
+            for (MappedFieldType mft : runtimeField.asMappedFieldTypes()) {
+                shadowedFields.add(mft.name());
+            }
+        }
+
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, mapping.getRoot().runtimeFields());
         this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
@@ -199,11 +208,19 @@ public final class MappingLookup {
         return fieldMappers.values();
     }
 
+    /**
+     * @return {@code true} if the given field is shadowed by a runtime field
+     */
+    public boolean isShadowed(String field) {
+        return shadowedFields.contains(field);
+    }
+
     void checkLimits(IndexSettings settings) {
         checkFieldLimit(settings.getMappingTotalFieldsLimit());
         checkObjectDepthLimit(settings.getMappingDepthLimit());
         checkFieldNameLengthLimit(settings.getMappingFieldNameLengthLimit());
         checkNestedLimit(settings.getMappingNestedFieldsLimit());
+        checkDimensionFieldLimit(settings.getMappingDimensionFieldsLimit());
     }
 
     private void checkFieldLimit(long limit) {
@@ -214,6 +231,16 @@ public final class MappingLookup {
         if (fieldMappers.size() + objectMappers.size() + additionalFieldsToAdd - mapping.getSortedMetadataMappers().length > limit) {
             throw new IllegalArgumentException("Limit of total fields [" + limit + "] has been exceeded" +
                 (additionalFieldsToAdd > 0 ? " while adding new fields [" + additionalFieldsToAdd + "]" : ""));
+        }
+    }
+
+    private void checkDimensionFieldLimit(long limit) {
+        long dimensionFieldCount = fieldMappers.values()
+            .stream()
+            .filter(m -> m instanceof FieldMapper && ((FieldMapper) m).fieldType().isDimension())
+            .count();
+        if (dimensionFieldCount > limit) {
+            throw new IllegalArgumentException("Limit of total dimension fields [" + limit + "] has been exceeded");
         }
     }
 
@@ -353,27 +380,6 @@ public final class MappingLookup {
      */
     public Mapping getMapping() {
         return mapping;
-    }
-
-    /**
-     * Given an object path, checks to see if any of its parents are non-nested objects
-     */
-    public boolean hasNonNestedParent(String path) {
-        ObjectMapper mapper = objectMappers().get(path);
-        if (mapper == null) {
-            return false;
-        }
-        while (mapper != null) {
-            if (mapper.isNested() == false) {
-                return true;
-            }
-            if (path.contains(".") == false) {
-                return false;
-            }
-            path = path.substring(0, path.lastIndexOf("."));
-            mapper = objectMappers().get(path);
-        }
-        return false;
     }
 
     /**

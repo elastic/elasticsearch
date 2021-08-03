@@ -26,8 +26,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -125,6 +125,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         public IndicesRequest indices(String... indices) {
             this.names = indices;
             return this;
+        }
+
+        @Override
+        public boolean allowsRemoteIndices() {
+            return true;
         }
 
         @Override

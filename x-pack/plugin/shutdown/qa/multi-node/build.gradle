@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.VersionProperties
+
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
@@ -16,7 +18,6 @@ testClusters.all {
   testDistribution = 'DEFAULT'
   numberOfNodes = 4
 
-  systemProperty 'es.shutdown_feature_flag_enabled', 'true'
   setting 'xpack.security.enabled', 'true'
   user username: clusterCredentials.username, password: clusterCredentials.password, role: 'superuser'
 }

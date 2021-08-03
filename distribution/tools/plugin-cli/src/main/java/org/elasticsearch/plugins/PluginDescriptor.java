@@ -15,6 +15,22 @@ public class PluginDescriptor {
     private String url;
     private String proxy;
 
+    public PluginDescriptor() {}
+
+    public PluginDescriptor(String id, String url, String proxy) {
+        this.id = id;
+        this.url = url;
+        this.proxy = proxy;
+    }
+
+    public PluginDescriptor(String id, String url) {
+        this(id, url, null);
+    }
+
+    public PluginDescriptor(String id) {
+        this(id, null, null);
+    }
+
     public String getId() {
         return id;
     }

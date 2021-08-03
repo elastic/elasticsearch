@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;

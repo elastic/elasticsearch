@@ -28,6 +28,7 @@ import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -136,7 +137,7 @@ public class LegacyGeoShapeQueryProcessor  {
 
             @Override
             public ShapeBuilder<?, ?, ?> visit(LinearRing ring) {
-                throw new UnsupportedOperationException("circle is not supported");
+                throw new UnsupportedOperationException("LinearRing is not supported");
             }
 
             @Override
@@ -176,7 +177,7 @@ public class LegacyGeoShapeQueryProcessor  {
             public ShapeBuilder<?, ?, ?> visit(Polygon polygon) {
                 PolygonBuilder polygonBuilder =
                     new PolygonBuilder((LineStringBuilder) visit((Line) polygon.getPolygon()),
-                        ShapeBuilder.Orientation.RIGHT, false);
+                        Orientation.RIGHT, false);
                 for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
                     polygonBuilder.hole((LineStringBuilder) visit((Line) polygon.getHole(i)));
                 }

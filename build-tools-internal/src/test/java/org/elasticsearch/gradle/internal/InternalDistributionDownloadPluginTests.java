@@ -23,7 +23,7 @@ public class InternalDistributionDownloadPluginTests extends AbstractDistributio
         ElasticsearchDistributionType[] types = { InternalElasticsearchDistributionTypes.RPM, InternalElasticsearchDistributionTypes.DEB };
         for (ElasticsearchDistributionType packageType : types) {
             for (boolean bundledJdk : new boolean[] { true, false }) {
-                Project project = createProject(BWC_MINOR, true);
+                Project project = createProject(BWC_MINOR);
                 String projectName = projectName(packageType.toString(), bundledJdk);
                 Project packageProject = ProjectBuilder.builder().withParent(packagesProject).withName(projectName).build();
                 packageProject.getConfigurations().create("default");
@@ -38,10 +38,10 @@ public class InternalDistributionDownloadPluginTests extends AbstractDistributio
         for (ElasticsearchDistributionType packageType : types) {
             // note: no non bundled jdk for bwc
             String configName = projectName(packageType.toString(), true);
-            checkBwc("minor", configName, BWC_MINOR_VERSION, packageType, null, BWC_MINOR, true);
-            checkBwc("staged", configName, BWC_STAGED_VERSION, packageType, null, BWC_STAGED, true);
-            checkBwc("bugfix", configName, BWC_BUGFIX_VERSION, packageType, null, BWC_BUGFIX, true);
-            checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION, packageType, null, BWC_MAINTENANCE, true);
+            checkBwc("minor", configName, BWC_MINOR_VERSION, packageType, null, BWC_MINOR);
+            checkBwc("staged", configName, BWC_STAGED_VERSION, packageType, null, BWC_STAGED);
+            checkBwc("bugfix", configName, BWC_BUGFIX_VERSION, packageType, null, BWC_BUGFIX);
+            checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION, packageType, null, BWC_MAINTENANCE);
         }
     }
 }

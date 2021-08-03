@@ -10,12 +10,12 @@ package org.elasticsearch.action.admin.cluster.snapshots.features;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -87,9 +87,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
 
     @Override
     public String toString() {
-        return "ResetFeatureStateResponse{" +
-            "resetFeatureStateStatusList=" + resetFeatureStateStatusList +
-            '}';
+        return "ResetFeatureStateResponse{" + "resetFeatureStateStatusList=" + resetFeatureStateStatusList + '}';
     }
 
     /**
@@ -126,10 +124,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
          * @return Failure status for a feature
          */
         public static ResetFeatureStateStatus failure(String featureName, Exception exception) {
-            return new ResetFeatureStateStatus(
-                featureName,
-                Status.FAILURE,
-                exception);
+            return new ResetFeatureStateStatus(featureName, Status.FAILURE, exception);
         }
 
         private ResetFeatureStateStatus(String featureName, Status status, @Nullable Exception exception) {
@@ -218,11 +213,16 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
 
         @Override
         public String toString() {
-            return "ResetFeatureStateStatus{" +
-                "featureName='" + featureName + '\'' +
-                ", status=" + status +
-                ", exception='" + exception + '\'' +
-                '}';
+            return "ResetFeatureStateStatus{"
+                + "featureName='"
+                + featureName
+                + '\''
+                + ", status="
+                + status
+                + ", exception='"
+                + exception
+                + '\''
+                + '}';
         }
     }
 }

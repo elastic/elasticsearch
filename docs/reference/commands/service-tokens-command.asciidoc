@@ -3,8 +3,6 @@
 [[service-tokens-command]]
 == elasticsearch-service-tokens
 
-beta::[]
-
 Use the `elasticsearch-service-tokens` command to create, list, and delete file-based service account tokens.
 
 [discrete]

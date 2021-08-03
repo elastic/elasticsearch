@@ -11,13 +11,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -298,12 +298,16 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
         public static boolean match(List<String> leaderIndexPatterns,
                                     List<String> leaderIndexExclusionPatterns,
                                     IndexAbstraction indexAbstraction) {
-            boolean matches = Regex.simpleMatch(leaderIndexExclusionPatterns, indexAbstraction.getName()) == false &&
-                              Regex.simpleMatch(leaderIndexPatterns, indexAbstraction.getName());
+            boolean matches = indexAbstraction.isSystem() == false &&
+                Regex.simpleMatch(leaderIndexExclusionPatterns, indexAbstraction.getName()) == false &&
+                Regex.simpleMatch(leaderIndexPatterns, indexAbstraction.getName());
+
             if (matches) {
                 return true;
             } else {
-                return indexAbstraction.getParentDataStream() != null &&
+                final IndexAbstraction.DataStream parentDataStream = indexAbstraction.getParentDataStream();
+                return parentDataStream != null &&
+                    parentDataStream.isSystem() == false &&
                     Regex.simpleMatch(leaderIndexExclusionPatterns, indexAbstraction.getParentDataStream().getName()) == false &&
                     Regex.simpleMatch(leaderIndexPatterns, indexAbstraction.getParentDataStream().getName());
             }

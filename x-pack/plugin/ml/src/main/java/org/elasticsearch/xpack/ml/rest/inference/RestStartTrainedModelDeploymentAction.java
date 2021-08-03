@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -32,13 +32,20 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
     public List<Route> routes() {
         return Collections.singletonList(
             new Route(POST,
-                MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/deployment/_start"));
+                MachineLearning.BASE_PATH + "trained_models/{" +
+                    StartTrainedModelDeploymentAction.Request.MODEL_ID.getPreferredName() + "}/deployment/_start"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
+        String modelId = restRequest.param(StartTrainedModelDeploymentAction.Request.MODEL_ID.getPreferredName());
         StartTrainedModelDeploymentAction.Request request = new StartTrainedModelDeploymentAction.Request(modelId);
+        if (restRequest.hasParam(StartTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName())) {
+            TimeValue openTimeout = restRequest.paramAsTime(StartTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName(),
+                StartTrainedModelDeploymentAction.DEFAULT_TIMEOUT);
+            request.setTimeout(openTimeout);
+        }
+
         return channel -> client.execute(StartTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

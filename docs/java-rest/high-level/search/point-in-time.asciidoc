@@ -1,4 +1,4 @@
-[[java-rest-high-search-point-in-time]]
+[[java-rest-high-point-in-time]]
 
 === Open a point in time
 
@@ -53,18 +53,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-point-in-time]
 A search request with a point in time does not accept these parameters:
 `indices`, `indicesOptions` `routing`, `preference`, and `ccsMinimizeRoundtrips`.
 
-==== Paginate search results with point in time
 A point in time can be used in search after requests to paginate search results.
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-after-with-point-in-time]
---------------------------------------------------
-<1> Open a point in time that will be used in multiple search_after requests
-<2> Create a search request with the sort parameter
-<3> Set the search_after parameter using the sort values from the previous page
-<4> Pass a point in time to a search request
-<5> Close the point in time
 
 === Close point in time
 

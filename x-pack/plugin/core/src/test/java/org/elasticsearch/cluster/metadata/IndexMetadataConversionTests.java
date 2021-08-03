@@ -14,10 +14,11 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.Collections;
 
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.test.VersionUtils.randomIndexCompatibleVersion;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -31,7 +32,7 @@ public class IndexMetadataConversionTests extends ESTestCase {
 
         // A full_copy searchable snapshot (settings should be untouched)
         src = newIndexMeta("foo", Settings.builder()
-            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "snapshot")
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
             .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), false)
             .put("index.routing.allocation.include._tier", "data_hot")
             .put("index.routing.allocation.exclude._tier", "data_warm")
@@ -43,7 +44,7 @@ public class IndexMetadataConversionTests extends ESTestCase {
 
         // A shared_cache searchable snapshot with valid settings (metadata should be untouched)
         src = newIndexMeta("foo", Settings.builder()
-            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "snapshot")
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
             .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), false)
             .put("index.routing.allocation.include._tier_preference", "data_frozen")
             .build());
@@ -52,7 +53,7 @@ public class IndexMetadataConversionTests extends ESTestCase {
 
         // A shared_cache searchable snapshot (should have its settings converted)
         src = newIndexMeta("foo", Settings.builder()
-            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "snapshot")
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
             .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
             .put("index.routing.allocation.include._tier", "data_hot")
             .put("index.routing.allocation.exclude._tier", "data_warm")

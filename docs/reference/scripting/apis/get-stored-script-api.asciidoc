@@ -32,7 +32,7 @@ GET _scripts/my-stored-script
 [[get-stored-script-api-request]]
 ==== {api-request-title}
 
-`GET _script/<script-id>`
+`GET _scripts/<script-id>`
 
 [[get-stored-script-api-prereqs]]
 ==== {api-prereq-title}

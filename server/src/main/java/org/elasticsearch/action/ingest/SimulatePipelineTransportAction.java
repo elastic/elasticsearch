@@ -42,9 +42,10 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
         final SimulatePipelineRequest.Parsed simulateRequest;
         try {
             if (request.getId() != null) {
-                simulateRequest = SimulatePipelineRequest.parseWithPipelineId(request.getId(), source, request.isVerbose(), ingestService);
+                simulateRequest = SimulatePipelineRequest.parseWithPipelineId(request.getId(), source, request.isVerbose(), ingestService,
+                    request.getRestApiVersion());
             } else {
-                simulateRequest = SimulatePipelineRequest.parse(source, request.isVerbose(), ingestService);
+                simulateRequest = SimulatePipelineRequest.parse(source, request.isVerbose(), ingestService, request.getRestApiVersion());
             }
         } catch (Exception e) {
             listener.onFailure(e);

@@ -756,8 +756,8 @@ setup:
 ---
 "string profiler via global ordinals filters implementation":
   - skip:
-      version: " - 7.12.99"
-      reason: filters implementation first supported with sub-aggregators in 7.13.0
+      version: " - 7.99.99"
+      reason: profile info changed in 8.0.0 to be backported to 7.14.0
   - do:
       bulk:
         index: test_1
@@ -797,7 +797,7 @@ setup:
   - match: { profile.shards.0.aggregations.0.type: StringTermsAggregatorFromFilters }
   - match: { profile.shards.0.aggregations.0.description: str_terms }
   - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 0 }
-  - match: { profile.shards.0.aggregations.0.debug.delegate: FiltersAggregator.FilterByFilter }
+  - match: { profile.shards.0.aggregations.0.debug.delegate: FilterByFilterAggregator }
   - match: { profile.shards.0.aggregations.0.debug.delegate_debug.filters.0.query: "str:cow" }
   - match: { profile.shards.0.aggregations.0.debug.delegate_debug.filters.1.query: "str:pig" }
   - match: { profile.shards.0.aggregations.0.debug.delegate_debug.filters.2.query: "str:sheep" }

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.execution;
 
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;

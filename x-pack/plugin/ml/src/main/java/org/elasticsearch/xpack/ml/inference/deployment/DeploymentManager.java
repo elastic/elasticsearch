@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -26,12 +27,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentState;
-import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -45,7 +43,6 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -77,17 +74,18 @@ public class DeploymentManager {
         this.executorServiceForProcess = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
     }
 
-    public void startDeployment(TrainedModelDeploymentTask task) {
-        doStartDeployment(task);
+    public void startDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> listener) {
+        doStartDeployment(task, listener);
     }
 
-    private void doStartDeployment(TrainedModelDeploymentTask task) {
+    private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> listener) {
         logger.debug("[{}] Starting model deployment", task.getModelId());
 
         ProcessContext processContext = new ProcessContext(task.getModelId(), task.getIndex(), executorServiceForProcess);
 
-        if (processContextByAllocation.putIfAbsent(task.getAllocationId(), processContext) != null) {
-            throw ExceptionsHelper.serverError("[{}] Could not create process as one already exists", task.getModelId());
+        if (processContextByAllocation.putIfAbsent(task.getId(), processContext) != null) {
+            listener.onFailure(ExceptionsHelper.serverError("[{}] Could not create process as one already exists", task.getModelId()));
+            return;
         }
 
         String taskConfigDocId = NlpTaskConfig.documentId(task.getModelId());
@@ -95,22 +93,19 @@ public class DeploymentManager {
         ActionListener<Boolean> modelLoadedListener = ActionListener.wrap(
             success -> {
                 executorServiceForProcess.execute(() -> processContext.resultProcessor.process(processContext.process.get()));
-
-                setTaskStateToStarted(task, ActionListener.wrap(
-                    response -> logger.info("[{}] trained model loaded", task.getModelId()),
-                    e -> failTask(task,
-                        String.format(Locale.ROOT, "[%s] error setting task state to [%s] [%s]",
-                            task.getModelId(), TrainedModelDeploymentState.STARTED, e))
-                ));
+                listener.onResponse(task);
             },
-            e -> failTask(task,
-                String.format(Locale.ROOT, "[%s] error loading model [%s]", task.getModelId(), e))
+            listener::onFailure
         );
 
         ActionListener<SearchResponse> configListener = ActionListener.wrap(
             searchResponse -> {
                 if (searchResponse.getHits().getHits().length == 0) {
-                    failTask(task, Messages.getMessage(Messages.TASK_CONFIG_NOT_FOUND, task.getModelId(), taskConfigDocId));
+                    listener.onFailure(
+                        new ResourceNotFoundException(
+                            Messages.getMessage(Messages.TASK_CONFIG_NOT_FOUND, task.getModelId(), taskConfigDocId)
+                        )
+                    );
                     return;
                 }
 
@@ -121,10 +116,9 @@ public class DeploymentManager {
                 // here, we are being called back on the searching thread, which MAY be a network thread
                 // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
                 // executor.
-                executorServiceForDeployment.execute(() -> startAndLoad(task, processContext, modelLoadedListener));
+                executorServiceForProcess.execute(() -> startAndLoad(processContext, modelLoadedListener));
             },
-            e -> failTask(task,
-                String.format(Locale.ROOT, "[%s] creating NLP task from configuration failed with error [%s]", task.getModelId(), e))
+            listener::onFailure
         );
 
         SearchRequest searchRequest = taskConfigSearchRequest(taskConfigDocId, task.getIndex());
@@ -151,22 +145,19 @@ public class DeploymentManager {
         }
     }
 
-    private void startAndLoad(TrainedModelDeploymentTask task,
-                              ProcessContext processContext,
-                              ActionListener<Boolean> loadedListener) {
+    private void startAndLoad(ProcessContext processContext, ActionListener<Boolean> loadedListener) {
         try {
             processContext.startProcess();
             processContext.loadModel(loadedListener);
         } catch (Exception e) {
-            failTask(task,
-                String.format(Locale.ROOT, "[%s] loading the model failed with error [%s]", task.getModelId(), e));
+            loadedListener.onFailure(e);
         }
     }
 
     public void stopDeployment(TrainedModelDeploymentTask task) {
         ProcessContext processContext;
         synchronized (processContextByAllocation) {
-            processContext = processContextByAllocation.get(task.getAllocationId());
+            processContext = processContextByAllocation.get(task.getId());
         }
         if (processContext != null) {
             logger.info("[{}] Stopping deployment", task.getModelId());
@@ -179,7 +170,7 @@ public class DeploymentManager {
     public void infer(TrainedModelDeploymentTask task,
                       String input, TimeValue timeout,
                       ActionListener<InferenceResults> listener) {
-        ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
+        ProcessContext processContext = processContextByAllocation.get(task.getId());
 
         if (processContext == null) {
             listener.onFailure(new IllegalStateException("[" + task.getModelId() + "] process context missing"));
@@ -246,27 +237,6 @@ public class DeploymentManager {
         } catch (InterruptedException e) {
             listener.onFailure(e);
         }
-    }
-
-    private void setTaskStateToStarted(TrainedModelDeploymentTask task,
-                                     ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener) {
-        TrainedModelDeploymentTaskState startedState = new TrainedModelDeploymentTaskState(
-            TrainedModelDeploymentState.STARTED, task.getAllocationId(), null);
-        task.updatePersistentTaskState(startedState, listener);
-    }
-    private void failTask(TrainedModelDeploymentTask task,
-                          String reason) {
-
-        logger.error("[{}] failed with reason [{}]", task.getModelId(), reason);
-
-        TrainedModelDeploymentTaskState taskState =
-            new TrainedModelDeploymentTaskState(TrainedModelDeploymentState.FAILED, task.getAllocationId(), reason);
-
-        task.updatePersistentTaskState(taskState, ActionListener.wrap(
-            persistentTask -> {},
-            e -> logger.error(new ParameterizedMessage("[{}] error setting model deployment state to failed. " +
-                "Failure reason: [{}]", task.getModelId(), reason), e)
-        ));
     }
 
     class ProcessContext {

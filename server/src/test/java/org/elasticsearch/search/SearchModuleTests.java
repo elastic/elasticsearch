@@ -396,7 +396,7 @@ public class SearchModuleTests extends ESTestCase {
     private static final String[] DEPRECATED_QUERIES = new String[] {"field_masking_span", "geo_polygon"};
     private static final String[] REST_COMPATIBLE_QUERIES = new String[] {
         TypeQueryV7Builder.NAME_V7.getPreferredName(),
-        CommonTermsQueryBuilder.NAME.getPreferredName()
+        CommonTermsQueryBuilder.NAME_V7.getPreferredName()
     };
 
     /**

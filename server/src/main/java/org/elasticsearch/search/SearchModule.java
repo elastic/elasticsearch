@@ -485,7 +485,7 @@ public class SearchModule {
         );
 
         if(RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
-            registerQuery(new QuerySpec<>(CommonTermsQueryBuilder.NAME,
+            registerQuery(new QuerySpec<>(CommonTermsQueryBuilder.NAME_V7,
                 (streamInput) -> new CommonTermsQueryBuilder(), CommonTermsQueryBuilder::fromXContent));
         }
 

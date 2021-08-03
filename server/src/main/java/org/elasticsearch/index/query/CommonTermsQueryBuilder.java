@@ -24,7 +24,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     public static final String COMMON_TERMS_QUERY_DEPRECATION_MSG = "Common Terms Query usage is not supported. " +
         "Use [match] query which can efficiently skip blocks of documents if the total number of hits is not tracked.";
 
-    public static ParseField NAME = new ParseField("common")
+    public static ParseField NAME_V7 = new ParseField("common")
         .withAllDeprecated(COMMON_TERMS_QUERY_DEPRECATION_MSG)
         .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
 

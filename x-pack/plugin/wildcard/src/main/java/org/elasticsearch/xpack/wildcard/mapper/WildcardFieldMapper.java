@@ -334,10 +334,7 @@ public class WildcardFieldMapper extends FieldMapper {
             if (clauseCount > 0) {
                 // We can accelerate execution with the ngram query
                 BooleanQuery approxQuery = rewritten.build();
-                BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
-                verifyingBuilder.add(new BooleanClause(approxQuery, Occur.MUST));
-                verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
-                return new ConstantScoreQuery(verifyingBuilder.build());
+                return new ConstantScoreQuery(new ApproximationAndVerificationQuery(approxQuery, verifyingQuery));                
             } else if (numWildcardChars == 0 || numWildcardStrings > 0) {
                 // We have no concrete characters and we're not a pure length query e.g. ???
                 return new DocValuesFieldExistsQuery(name());
@@ -374,10 +371,7 @@ public class WildcardFieldMapper extends FieldMapper {
             }
 
             // We can accelerate execution with the ngram query
-            BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
-            verifyingBuilder.add(new BooleanClause(approxNgramQuery, Occur.MUST));
-            verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
-            return verifyingBuilder.build();
+            return new ApproximationAndVerificationQuery(approxNgramQuery, verifyingQuery);            
         }
 
         // Convert a regular expression to a simplified query consisting of BooleanQuery and TermQuery objects
@@ -750,11 +744,7 @@ public class WildcardFieldMapper extends FieldMapper {
             if (accelerationQuery == null) {
                 return slowQuery;
             }
-
-            BooleanQuery.Builder qBuilder = new BooleanQuery.Builder();
-            qBuilder.add(accelerationQuery, Occur.MUST);
-            qBuilder.add(slowQuery, Occur.MUST);
-            return qBuilder.build();
+            return new ApproximationAndVerificationQuery(accelerationQuery, slowQuery);
         }
 
         @Override
@@ -768,7 +758,6 @@ public class WildcardFieldMapper extends FieldMapper {
         ) {
             String searchTerm = BytesRefs.toString(value);
             try {
-                BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
                 //The approximation query can have a prefix and any number of ngrams.
                 BooleanQuery.Builder approxBuilder = new BooleanQuery.Builder();
 
@@ -824,9 +813,6 @@ public class WildcardFieldMapper extends FieldMapper {
                 }
 
                 BooleanQuery ngramQ = approxBuilder.build();
-                if (ngramQ.clauses().size()>0) {
-                    bqBuilder.add(ngramQ, Occur.MUST);
-                }
 
                 // Verification query
                 FuzzyQuery fq = new FuzzyQuery(
@@ -836,9 +822,12 @@ public class WildcardFieldMapper extends FieldMapper {
                     maxExpansions,
                     transpositions
                 );
-                bqBuilder.add(new AutomatonQueryOnBinaryDv(name(), searchTerm, fq.getAutomata().automaton), Occur.MUST);
+                Query verificationQuery = new AutomatonQueryOnBinaryDv(name(), searchTerm, fq.getAutomata().automaton);
+                if (ngramQ.clauses().size() == 0) {
+                  return verificationQuery;
+                }
 
-                return bqBuilder.build();
+                return new ApproximationAndVerificationQuery(ngramQ, verificationQuery);
             } catch (IOException ioe) {
                 throw new ElasticsearchParseException("Error parsing wildcard field fuzzy string [" + searchTerm + "]");
             }

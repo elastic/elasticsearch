@@ -53,6 +53,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
@@ -119,11 +120,12 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 when(indexShard.getOperationPrimaryTerm()).thenReturn(primaryTerm);
                 when(indexShard.getActiveOperationsCount()).then(i -> acquiredPermits.get());
                 doAnswer(invocation -> {
+                    @SuppressWarnings("unchecked")
                     ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
                     acquiredPermits.incrementAndGet();
                     callback.onResponse(acquiredPermits::decrementAndGet);
                     return null;
-                }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject(), eq(true));
+                }).when(indexShard).acquirePrimaryOperationPermit(anyActionListener(), anyString(), anyObject(), eq(true));
                 when(indexShard.getReplicationGroup()).thenReturn(
                     new ReplicationGroup(shardRoutingTable,
                         clusterService.state().metadata().index(index).inSyncAllocationIds(shardId.id()),

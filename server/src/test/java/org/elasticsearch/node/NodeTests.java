@@ -343,9 +343,14 @@ public class NodeTests extends ESTestCase {
     static MockRestApiVersion MockCompatibleVersion = Mockito.mock(MockRestApiVersion.class);
 
     static NamedXContentRegistry.Entry v7CompatibleEntries = new NamedXContentRegistry.Entry(Integer.class,
-        new ParseField("name"), Mockito.mock(ContextParser.class));
+        new ParseField("name"), mockContextParser());
     static NamedXContentRegistry.Entry v8CompatibleEntries = new NamedXContentRegistry.Entry(Integer.class,
-        new ParseField("name2"), Mockito.mock(ContextParser.class));
+        new ParseField("name2"), mockContextParser());
+
+    @SuppressWarnings("unchecked")
+    private static ContextParser<Object, Integer> mockContextParser() {
+        return Mockito.mock(ContextParser.class);
+    }
 
     public static class TestRestCompatibility1 extends Plugin {
 

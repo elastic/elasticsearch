@@ -242,9 +242,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 assertSame(searchPhaseResult.getSearchShardTarget(), hit.getShard());
             }
             int suggestSize = 0;
-            for (Suggest.Suggestion s : reducedQueryPhase.suggest) {
-                Stream<CompletionSuggestion.Entry> stream = s.getEntries().stream();
-                suggestSize += stream.collect(Collectors.summingInt(e -> e.getOptions().size()));
+            for (Suggest.Suggestion<?> s : reducedQueryPhase.suggest) {
+                suggestSize += s.getEntries().stream().mapToInt(e -> e.getOptions().size()).sum();
             }
             assertThat(suggestSize, lessThanOrEqualTo(maxSuggestSize));
             assertThat(mergedResponse.hits().getHits().length, equalTo(reducedQueryPhase.sortedTopDocs.scoreDocs.length - suggestSize));

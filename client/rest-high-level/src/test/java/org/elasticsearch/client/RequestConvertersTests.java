@@ -2146,7 +2146,9 @@ public class RequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             boolean enableFieldsEmulation = randomBoolean();
             searchRequest.setFieldsOptionEmulationEnabled(enableFieldsEmulation);
-            expectedParams.put("enable_fields_emulation", Boolean.toString(enableFieldsEmulation));
+            if (enableFieldsEmulation == true) {
+                expectedParams.put("enable_fields_emulation", Boolean.toString(enableFieldsEmulation));
+            }
         }
         if (randomBoolean()) {
             searchRequest.setMaxConcurrentShardRequests(randomIntBetween(1, Integer.MAX_VALUE));

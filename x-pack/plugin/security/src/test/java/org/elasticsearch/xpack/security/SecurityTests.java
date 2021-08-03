@@ -32,6 +32,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
@@ -40,6 +45,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -84,6 +90,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
@@ -94,6 +101,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class SecurityTests extends ESTestCase {
@@ -234,6 +242,24 @@ public class SecurityTests extends ESTestCase {
         createComponents(Settings.EMPTY);
         final List<String> filter = security.getSettingsFilter();
         assertThat(filter, hasItem("transport.profiles.*.xpack.security.*"));
+    }
+
+    public void testOnIndexModuleIsNoOpWithSecurityDisabled() throws Exception {
+        Settings settings = Settings.builder()
+                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+                .put("path.home", createTempDir())
+                .build();
+        createComponents(settings);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", Settings.EMPTY);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        AnalysisRegistry emptyAnalysisRegistry = new AnalysisRegistry(TestEnvironment.newEnvironment(settings), emptyMap(), emptyMap(),
+            emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap());
+        IndexModule indexModule = new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap(),
+            () -> true, TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()), Collections.emptyMap());
+        security.onIndexModule(indexModule);
+        // indexReaderWrapper is a SetOnce so if Security#onIndexModule had already set an ReaderWrapper we would get an exception here
+        indexModule.setReaderWrapper(null);
     }
 
     public void testFilteredSettings() throws Exception {

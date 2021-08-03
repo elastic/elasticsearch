@@ -2519,6 +2519,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         );
 
         final Repository repository = repositoriesService.repository(repoName);
+        final String taskDescription = "delete snapshot [" + repository + "]" + Arrays.toString(snapshotNames);
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
             private Snapshot runningSnapshot;
@@ -2645,7 +2646,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         listener.onResponse(null);
                     } else {
                         clusterService.submitStateUpdateTask(
-                            "delete snapshot",
+                            taskDescription,
                             createDeleteStateUpdate(outstandingDeletes, repoName, repositoryData, Priority.IMMEDIATE, listener)
                         );
                     }
@@ -2655,7 +2656,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 addListener(runningSnapshot, ActionListener.wrap(result -> {
                     logger.debug("deleted snapshot completed - deleting files");
                     clusterService.submitStateUpdateTask(
-                        "delete snapshot",
+                        taskDescription,
                         createDeleteStateUpdate(outstandingDeletes, repoName, result.v1(), Priority.IMMEDIATE, listener)
                     );
                 }, e -> {
@@ -2671,7 +2672,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 }));
             }
-        }, "delete snapshot", listener::onFailure);
+        }, taskDescription, listener::onFailure);
     }
 
     private static List<SnapshotId> matchingSnapshotIds(

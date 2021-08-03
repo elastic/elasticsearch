@@ -14,6 +14,8 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.StepListener;
@@ -1790,8 +1792,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool
                 );
                 nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
-                @SuppressWarnings("rawtypes")
-                Map<ActionType, TransportAction> actions = new HashMap<>();
+                Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
+                    new HashMap<>();
                 actions.put(
                     GlobalCheckpointSyncAction.TYPE,
                     new GlobalCheckpointSyncAction(

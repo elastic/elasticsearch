@@ -505,6 +505,10 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** Write the keystore to the given config directory. */
     public synchronized void save(Path configDir, char[] password) throws Exception {
+        save(configDir, password, true);
+    }
+
+    public synchronized void save(Path configDir, char[] password, boolean preservePermissions) throws Exception {
         ensureOpen();
 
         Directory directory = new NIOFSDirectory(configDir);
@@ -546,29 +550,54 @@ public class KeyStoreWrapper implements SecureSettings {
                 "unable to create temporary keystore at [%s], write permissions required for [%s] or run [elasticsearch-keystore upgrade]",
                 keystoreTempFile,
                 configDir);
-            Files.deleteIfExists(keystoreTempFile);
             throw new UserException(ExitCodes.CONFIG, message, e);
+        } catch (final Exception e) {
+            try {
+                Files.deleteIfExists(keystoreTempFile);
+            } catch (Exception ex) {
+                e.addSuppressed(e);
+            }
+            throw e;
         }
 
         Path keystoreFile = keystorePath(configDir);
-        // check that replace doesn't change the owner
-        if (Files.exists(keystoreFile, LinkOption.NOFOLLOW_LINKS) &&
-                false == Files.getOwner(keystoreTempFile, LinkOption.NOFOLLOW_LINKS).equals(Files.getOwner(keystoreFile,
-                        LinkOption.NOFOLLOW_LINKS))) {
-            Files.deleteIfExists(keystoreTempFile);
-            final String message = String.format(
-                    Locale.ROOT,
-                    "will not overwrite keystore at [%s], because this incurs changing the file owner",
-                    keystoreFile,
-                    configDir);
-            throw new UserException(ExitCodes.CONFIG, message);
+        if (preservePermissions) {
+            try {
+                // check that replace doesn't change the owner
+                if (Files.exists(keystoreFile, LinkOption.NOFOLLOW_LINKS) &&
+                        false == Files.getOwner(keystoreTempFile, LinkOption.NOFOLLOW_LINKS).equals(Files.getOwner(keystoreFile,
+                                LinkOption.NOFOLLOW_LINKS))) {
+                    String message = String.format(
+                            Locale.ROOT,
+                            "will not overwrite keystore at [%s], because this incurs changing the file owner",
+                            keystoreFile);
+                    throw new UserException(ExitCodes.CONFIG, message);
+                }
+                PosixFileAttributeView attrs = Files.getFileAttributeView(keystoreTempFile, PosixFileAttributeView.class);
+                if (attrs != null) {
+                    // don't rely on umask: ensure the keystore has minimal permissions
+                    attrs.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
+                }
+            } catch (Exception e) {
+                try {
+                    Files.deleteIfExists(keystoreTempFile);
+                } catch (Exception ex) {
+                    e.addSuppressed(ex);
+                }
+                throw e;
+            }
         }
-        PosixFileAttributeView attrs = Files.getFileAttributeView(keystoreTempFile, PosixFileAttributeView.class);
-        if (attrs != null) {
-            // don't rely on umask: ensure the keystore has minimal permissions
-            attrs.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
+
+        try {
+            Files.move(keystoreTempFile, keystoreFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (Exception e) {
+            try {
+                Files.deleteIfExists(keystoreTempFile);
+            } catch (Exception ex) {
+                e.addSuppressed(ex);
+            }
+            throw e;
         }
-        Files.move(keystoreTempFile, keystoreFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
     }
 
     /**

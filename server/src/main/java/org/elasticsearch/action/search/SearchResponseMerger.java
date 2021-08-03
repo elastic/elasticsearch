@@ -115,7 +115,7 @@ final class SearchResponseMerger {
         List<InternalAggregations> aggs = new ArrayList<>();
         Map<ShardIdAndClusterAlias, Integer> shards = new TreeMap<>();
         List<TopDocs> topDocsList = new ArrayList<>(searchResponses.size());
-        Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<>();
+        Map<String, List<Suggest.Suggestion<?>>> groupedSuggestions = new HashMap<>();
         Boolean trackTotalHits = null;
 
         TopDocsStats topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
@@ -138,7 +138,8 @@ final class SearchResponseMerger {
             Suggest suggest = searchResponse.getSuggest();
             if (suggest != null) {
                 for (Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> entries : suggest) {
-                    List<Suggest.Suggestion> suggestionList = groupedSuggestions.computeIfAbsent(entries.getName(), s -> new ArrayList<>());
+                    List<Suggest.Suggestion<?>> suggestionList =
+                        groupedSuggestions.computeIfAbsent(entries.getName(), s -> new ArrayList<>());
                     suggestionList.add(entries);
                 }
                 List<CompletionSuggestion> completionSuggestions = suggest.filter(CompletionSuggestion.class);
@@ -297,10 +298,10 @@ final class SearchResponseMerger {
     }
 
     private static void setSuggestShardIndex(Map<ShardIdAndClusterAlias, Integer> shards,
-                                             Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
+                                             Map<String, List<Suggest.Suggestion<?>>> groupedSuggestions) {
         assignShardIndex(shards);
-        for (List<Suggest.Suggestion> suggestions : groupedSuggestions.values()) {
-            for (Suggest.Suggestion suggestion : suggestions) {
+        for (List<Suggest.Suggestion<?>> suggestions : groupedSuggestions.values()) {
+            for (Suggest.Suggestion<?> suggestion : suggestions) {
                 if (suggestion instanceof CompletionSuggestion) {
                     CompletionSuggestion completionSuggestion = (CompletionSuggestion) suggestion;
                     for (CompletionSuggestion.Entry options : completionSuggestion) {

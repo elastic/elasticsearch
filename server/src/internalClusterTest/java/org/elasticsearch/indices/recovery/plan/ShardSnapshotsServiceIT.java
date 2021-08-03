@@ -30,6 +30,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.ShardSnapshotInfo;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -37,6 +38,7 @@ import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -50,6 +52,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 1)
@@ -234,7 +237,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
 
         PlainActionFuture<List<ShardSnapshot>> future = PlainActionFuture.newFuture();
         shardSnapshotsService.fetchAvailableSnapshots(repositoryToFetch, shardId, future);
-        expectThrows(RepositoryMissingException.class, future::get);
+        expectThrows(Exception.class, future::actionGet);
     }
 
     public void testInputValidations() {
@@ -258,8 +261,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
     private ShardSnapshotsService getShardSnapshotsService() {
         RepositoriesService repositoriesService = internalCluster().getDataNodeInstance(RepositoriesService.class);
         ThreadPool threadPool = internalCluster().getDataNodeInstance(ThreadPool.class);
-        ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(client(), repositoriesService, threadPool);
-        return shardSnapshotsService;
+        return new ShardSnapshotsService(client(), repositoriesService, threadPool);
     }
 
     private ShardId getShardIdForIndex(String indexName) {

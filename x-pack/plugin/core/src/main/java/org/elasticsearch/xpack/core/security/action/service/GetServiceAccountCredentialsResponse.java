@@ -12,89 +12,79 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
-
-import static java.util.stream.Collectors.groupingBy;
 
 public class GetServiceAccountCredentialsResponse extends ActionResponse implements ToXContentObject {
 
     private final String principal;
-    private final String nodeName;
-    private final List<TokenInfo> tokenInfos;
+    private final List<TokenInfo> indexTokenInfos;
+    private final GetServiceAccountCredentialsNodesResponse nodesResponse;
 
-    public GetServiceAccountCredentialsResponse(String principal, String nodeName, Collection<TokenInfo> tokenInfos) {
+    public GetServiceAccountCredentialsResponse(String principal, Collection<TokenInfo> indexTokenInfos,
+                                                GetServiceAccountCredentialsNodesResponse nodesResponse) {
         this.principal = principal;
-        this.nodeName = nodeName;
-        this.tokenInfos = tokenInfos == null ?
-            org.elasticsearch.core.List.of() :
-            org.elasticsearch.core.List.copyOf(tokenInfos.stream().sorted().collect(Collectors.toList()));
+        this.indexTokenInfos =
+            indexTokenInfos == null ? org.elasticsearch.core.List.of() : indexTokenInfos.stream().sorted().collect(Collectors.toList());
+        this.nodesResponse = nodesResponse;
     }
 
     public GetServiceAccountCredentialsResponse(StreamInput in) throws IOException {
         super(in);
         this.principal = in.readString();
-        this.nodeName = in.readString();
-        this.tokenInfos = in.readList(TokenInfo::new);
+        this.indexTokenInfos = in.readList(TokenInfo::new);
+        this.nodesResponse = new GetServiceAccountCredentialsNodesResponse(in);
     }
 
     public String getPrincipal() {
         return principal;
     }
 
-    public String getNodeName() {
-        return nodeName;
+    public List<TokenInfo> getIndexTokenInfos() {
+        return indexTokenInfos;
     }
 
-    public Collection<TokenInfo> getTokenInfos() {
-        return tokenInfos;
+    public GetServiceAccountCredentialsNodesResponse getNodesResponse() {
+        return nodesResponse;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(principal);
-        out.writeString(nodeName);
-        out.writeList(tokenInfos);
+        out.writeList(indexTokenInfos);
+        nodesResponse.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final Map<TokenInfo.TokenSource, List<TokenInfo>> tokenInfosBySource =
-            tokenInfos.stream().collect(groupingBy(TokenInfo::getSource, Collectors.toList()));
+        final List<TokenInfo> fileTokenInfos = nodesResponse.getFileTokenInfos();
+
         builder.startObject()
             .field("service_account", principal)
-            .field("node_name", nodeName)
-            .field("count", tokenInfos.size())
+            .field("count", indexTokenInfos.size() + fileTokenInfos.size())
             .field("tokens").startObject();
-        for (TokenInfo info : tokenInfosBySource.getOrDefault(TokenInfo.TokenSource.INDEX, org.elasticsearch.core.List.of())) {
+        for (TokenInfo info : indexTokenInfos) {
             info.toXContent(builder, params);
         }
-        builder.endObject().field("file_tokens").startObject();
-        for (TokenInfo info : tokenInfosBySource.getOrDefault(TokenInfo.TokenSource.FILE, org.elasticsearch.core.List.of())) {
+        builder.endObject().field("nodes_credentials").startObject();
+        RestActions.buildNodesHeader(builder, params, nodesResponse);
+        builder.startObject("file_tokens");
+        for (TokenInfo info : fileTokenInfos) {
             info.toXContent(builder, params);
         }
+        builder.endObject();
         builder.endObject().endObject();
         return builder;
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
-        GetServiceAccountCredentialsResponse that = (GetServiceAccountCredentialsResponse) o;
-        return Objects.equals(principal, that.principal) && Objects.equals(nodeName, that.nodeName) && Objects.equals(
-            tokenInfos, that.tokenInfos);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(principal, nodeName, tokenInfos);
+    public String toString() {
+        return "GetServiceAccountCredentialsResponse{" + "principal='"
+            + principal + '\'' + ", indexTokenInfos=" + indexTokenInfos
+            + ", nodesResponse=" + nodesResponse + '}';
     }
 }

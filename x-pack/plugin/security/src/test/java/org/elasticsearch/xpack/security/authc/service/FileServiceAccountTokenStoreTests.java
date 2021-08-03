@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -33,10 +34,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
-import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
@@ -46,20 +48,14 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FileServiceAccountTokenStoreTests extends ESTestCase {
-
-    private static Map<String, String> TOKENS = org.elasticsearch.core.Map.of(
-        "bcrypt", "46ToAwIHZWxhc3RpYwVmbGVldAZiY3J5cHQWWEU5MGVBYW9UMWlXMVctdkpmMzRxdwAAAAAAAAA",
-        "bcrypt10", "46ToAwIHZWxhc3RpYwVmbGVldAhiY3J5cHQxMBY1MmVqWGxhelJCYWZMdXpHTTVoRmNnAAAAAAAAAAAAAAAAAA",
-        "pbkdf2", "46ToAwIHZWxhc3RpYwVmbGVldAZwYmtkZjIWNURqUkNfWFJTQXFsNUhsYW1weXY3UQAAAAAAAAA",
-        "pbkdf2_50000", "46ToAwIHZWxhc3RpYwVmbGVldAxwYmtkZjJfNTAwMDAWd24wWGZ4NUlSSHkybE9LU2N2ZndyZwAAAAAAAAAAAA",
-        "pbkdf2_stretch", "46ToAwIHZWxhc3RpYwVmbGVldA5wYmtkZjJfc3RyZXRjaBZhSV8wUUxSZlJ5R0JQMVU2MFNieTJ3AAAAAAAAAA"
-    );
 
     private Settings settings;
     private Environment env;
     private ThreadPool threadPool;
+    private ClusterService clusterService;
 
     @Before
     public void init() {
@@ -72,6 +68,10 @@ public class FileServiceAccountTokenStoreTests extends ESTestCase {
             .build();
         env = TestEnvironment.newEnvironment(settings);
         threadPool = new TestThreadPool("test");
+        clusterService = mock(ClusterService.class);
+        final DiscoveryNode discoveryNode = mock(DiscoveryNode.class);
+        when(clusterService.localNode()).thenReturn(discoveryNode);
+        when(discoveryNode.getName()).thenReturn("node");
     }
 
     @After
@@ -123,7 +123,7 @@ public class FileServiceAccountTokenStoreTests extends ESTestCase {
             final AtomicInteger counter = new AtomicInteger(0);
 
             FileServiceAccountTokenStore store = new FileServiceAccountTokenStore(env, watcherService, threadPool,
-                mock(CacheInvalidatorRegistry.class));
+                clusterService, mock(CacheInvalidatorRegistry.class));
             store.addListener(counter::getAndIncrement);
             //Token name shares the hashing algorithm name for convenience
             final String qualifiedTokenName = "elastic/fleet-server/" + hashingAlgo;
@@ -209,12 +209,16 @@ public class FileServiceAccountTokenStoreTests extends ESTestCase {
         Path targetFile = configDir.resolve("service_tokens");
         Files.copy(serviceTokensSourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING);
         FileServiceAccountTokenStore store = new FileServiceAccountTokenStore(env, mock(ResourceWatcherService.class), threadPool,
-            mock(CacheInvalidatorRegistry.class));
+            clusterService, mock(CacheInvalidatorRegistry.class));
 
         final ServiceAccountId accountId = new ServiceAccountId("elastic", "fleet-server");
-        final PlainActionFuture<Collection<TokenInfo>> future1 = new PlainActionFuture<>();
-        store.findTokensFor(accountId, future1);
-        final Collection<TokenInfo> tokenInfos1 = future1.actionGet();
-        assertThat(tokenInfos1.size(), equalTo(5));
+        final List<TokenInfo> tokenInfos = store.findTokensFor(accountId);
+        assertThat(tokenInfos.size(), equalTo(5));
+        assertThat(tokenInfos.stream().map(TokenInfo::getName).collect(Collectors.toSet()),
+            equalTo(org.elasticsearch.core.Set.of("pbkdf2", "bcrypt10", "pbkdf2_stretch", "pbkdf2_50000", "bcrypt")));
+        assertThat(tokenInfos.stream().map(TokenInfo::getSource).collect(Collectors.toSet()),
+            equalTo(EnumSet.of(TokenInfo.TokenSource.FILE)));
+        assertThat(tokenInfos.stream().map(TokenInfo::getNodeNames).collect(Collectors.toSet()),
+            equalTo(org.elasticsearch.core.Set.of(org.elasticsearch.core.List.of("node"))));
     }
 }

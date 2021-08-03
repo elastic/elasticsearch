@@ -35,7 +35,9 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ServiceAccountIT extends ESRestTestCase {
 
@@ -299,8 +301,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(getTokensResponseMap1.get("service_account"), equalTo("elastic/fleet-server"));
         assertThat(getTokensResponseMap1.get("count"), equalTo(1));
         assertThat(getTokensResponseMap1.get("tokens"), equalTo(org.elasticsearch.core.Map.of()));
-        assertThat(getTokensResponseMap1.get("file_tokens"),
-            equalTo(org.elasticsearch.core.Map.of("token1", org.elasticsearch.core.Map.of())));
+        assertNodesCredentials(getTokensResponseMap1);
 
         final Request createTokenRequest1 = new Request("POST", "_security/service/elastic/fleet-server/credential/token/api-token-1");
         final Response createTokenResponse1 = client().performRequest(createTokenRequest1);
@@ -315,12 +316,11 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> getTokensResponseMap2 = responseAsMap(getTokensResponse2);
         assertThat(getTokensResponseMap2.get("service_account"), equalTo("elastic/fleet-server"));
         assertThat(getTokensResponseMap2.get("count"), equalTo(3));
-        assertThat(getTokensResponseMap2.get("file_tokens"),
-            equalTo(org.elasticsearch.core.Map.of("token1", org.elasticsearch.core.Map.of())));
         assertThat(getTokensResponseMap2.get("tokens"), equalTo(org.elasticsearch.core.Map.of(
-            "api-token-1", org.elasticsearch.core.Map.of(),
+            "api-token-1",org.elasticsearch.core. Map.of(),
             "api-token-2", org.elasticsearch.core.Map.of()
         )));
+        assertNodesCredentials(getTokensResponseMap2);
 
         final Request deleteTokenRequest1 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/api-token-2");
         final Response deleteTokenResponse1 = client().performRequest(deleteTokenRequest1);
@@ -332,11 +332,10 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> getTokensResponseMap3 = responseAsMap(getTokensResponse3);
         assertThat(getTokensResponseMap3.get("service_account"), equalTo("elastic/fleet-server"));
         assertThat(getTokensResponseMap3.get("count"), equalTo(2));
-        assertThat(getTokensResponseMap3.get("file_tokens"),
-            equalTo(org.elasticsearch.core.Map.of("token1", org.elasticsearch.core.Map.of())));
         assertThat(getTokensResponseMap3.get("tokens"), equalTo(org.elasticsearch.core.Map.of(
             "api-token-1", org.elasticsearch.core.Map.of()
         )));
+        assertNodesCredentials(getTokensResponseMap3);
 
         final Request deleteTokenRequest2 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/non-such-thing");
         final ResponseException e2 = expectThrows(ResponseException.class, () -> client().performRequest(deleteTokenRequest2));
@@ -421,5 +420,20 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> responseMap = responseAsMap(response);
         assertThat(responseMap, hasEntry(serviceAccountPrincipal, org.elasticsearch.core.Map.of("role_descriptor",
             XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2())));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertNodesCredentials(Map<String, Object> responseMap) {
+        final Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes_credentials");
+        assertThat(nodes, hasKey("_nodes"));
+        final Map<String, Object> header = (Map<String, Object>) nodes.get("_nodes");
+        assertThat(header.get("total"), equalTo(2));
+        assertThat(header.get("successful"), equalTo(2));
+        assertThat(header.get("failed"), equalTo(0));
+        assertThat(header.get("failures"), nullValue());
+        final Map<String, Object> fileTokens = (Map<String, Object>) nodes.get("file_tokens");
+        assertThat(fileTokens, hasKey("token1"));
+        final Map<String, Object> token1 = (Map<String, Object>) fileTokens.get("token1");
+        assertThat((List<String>) token1.get("nodes"), equalTo(org.elasticsearch.core.List.of("javaRestTest-0", "javaRestTest-1")));
     }
 }

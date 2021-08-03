@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.NodesResponseHeader;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
@@ -120,6 +121,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -2741,17 +2743,23 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::get-service-account-credentials-response
             final String principal = getServiceAccountCredentialsResponse.getPrincipal(); // <1>
-            final String nodeName = getServiceAccountCredentialsResponse.getNodeName(); // <2>
-            final List<ServiceTokenInfo> serviceTokenInfos = getServiceAccountCredentialsResponse.getServiceTokenInfos(); // <3>
-            final String tokenName = serviceTokenInfos.get(0).getName(); // <4>
-            final String tokenSource = serviceTokenInfos.get(0).getSource(); // <5>
+            final List<ServiceTokenInfo> indexTokenInfos = getServiceAccountCredentialsResponse.getIndexTokenInfos(); // <2>
+            final String tokenName = indexTokenInfos.get(0).getName(); // <3>
+            final String tokenSource = indexTokenInfos.get(0).getSource(); // <4>
+            final Collection<String> nodeNames = indexTokenInfos.get(0).getNodeNames(); // <5>
+            final List<ServiceTokenInfo> fileTokenInfos
+                = getServiceAccountCredentialsResponse.getNodesResponse().getFileTokenInfos(); // <6>
+            final NodesResponseHeader fileTokensResponseHeader
+                = getServiceAccountCredentialsResponse.getNodesResponse().getHeader(); // <7>
+            final int nSuccessful = fileTokensResponseHeader.getSuccessful(); // <8>
+            final int nFailed = fileTokensResponseHeader.getFailed(); // <9>
             // end::get-service-account-credentials-response
             assertThat(principal, equalTo("elastic/fleet-server"));
             // Cannot assert exactly one token because there are rare occasions where tests overlap and it will see
             // token created from other tests
-            assertThat(serviceTokenInfos.size(), greaterThanOrEqualTo(1));
-            assertThat(serviceTokenInfos.stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()), hasItem("token2"));
-            assertThat(serviceTokenInfos.stream().map(ServiceTokenInfo::getSource).collect(Collectors.toSet()), hasItem("index"));
+            assertThat(indexTokenInfos.size(), greaterThanOrEqualTo(1));
+            assertThat(indexTokenInfos.stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()), hasItem("token2"));
+            assertThat(indexTokenInfos.stream().map(ServiceTokenInfo::getSource).collect(Collectors.toSet()), hasItem("index"));
         }
 
         {
@@ -2783,8 +2791,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertNotNull(future.actionGet());
             assertThat(future.actionGet().getPrincipal(), equalTo("elastic/fleet-server"));
-            assertThat(future.actionGet().getServiceTokenInfos().size(), greaterThanOrEqualTo(1));
-            assertThat(future.actionGet().getServiceTokenInfos().stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()),
+            assertThat(future.actionGet().getIndexTokenInfos().size(), greaterThanOrEqualTo(1));
+            assertThat(future.actionGet().getIndexTokenInfos().stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()),
                 hasItem("token2"));
         }
     }

@@ -125,6 +125,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final Map<String, MappedFieldType> runtimeMappings;
+    private Predicate<String> allowedFields;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -172,7 +173,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             ),
             allowExpensiveQueries,
             valuesSourceRegistry,
-            parseRuntimeMappings(runtimeMappings, mapperService)
+            parseRuntimeMappings(runtimeMappings, mapperService),
+            null
         );
     }
 
@@ -195,7 +197,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.fullyQualifiedIndex,
             source.allowExpensiveQueries,
             source.valuesSourceRegistry,
-            source.runtimeMappings
+            source.runtimeMappings,
+            source.allowedFields
         );
     }
 
@@ -217,7 +220,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
                                    Index fullyQualifiedIndex,
                                    BooleanSupplier allowExpensiveQueries,
                                    ValuesSourceRegistry valuesSourceRegistry,
-                                   Map<String, MappedFieldType> runtimeMappings) {
+                                   Map<String, MappedFieldType> runtimeMappings,
+                                   Predicate<String> allowedFields) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -236,6 +240,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.runtimeMappings = runtimeMappings;
+        this.allowedFields = allowedFields;
     }
 
     private void reset() {
@@ -369,6 +374,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     private MappedFieldType fieldType(String name) {
+        // If the field is not allowed, behave as if it is not mapped
+        if (allowedFields != null && false == allowedFields.test(name)) {
+            return null;
+        }
         MappedFieldType fieldType = runtimeMappings.get(name);
         return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
     }
@@ -439,6 +448,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
+    }
+
+    public void setAllowedFields(Predicate<String> allowedFields) {
+        this.allowedFields = allowedFields;
     }
 
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {

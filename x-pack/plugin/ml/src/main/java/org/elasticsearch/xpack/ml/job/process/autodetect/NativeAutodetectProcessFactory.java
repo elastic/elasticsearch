@@ -39,7 +39,7 @@ import java.util.function.Consumer;
 
 public class NativeAutodetectProcessFactory implements AutodetectProcessFactory {
 
-    private static final Logger LOGGER = LogManager.getLogger(NativeAutodetectProcessFactory.class);
+    private static final Logger logger = LogManager.getLogger(NativeAutodetectProcessFactory.class);
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
 
     private final Environment env;
@@ -59,9 +59,9 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         this.env = Objects.requireNonNull(env);
         this.settings = Objects.requireNonNull(settings);
         this.nativeController = Objects.requireNonNull(nativeController);
-        this.clusterService = clusterService;
-        this.resultsPersisterService = resultsPersisterService;
-        this.auditor = auditor;
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
+        this.auditor = Objects.requireNonNull(auditor);
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
             this::setProcessConnectTimeout);
@@ -97,11 +97,11 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             return autodetect;
         } catch (IOException | EsRejectedExecutionException e) {
             String msg = "Failed to connect to autodetect for job " + job.getId();
-            LOGGER.error(msg);
+            logger.error(msg);
             try {
                 IOUtils.close(autodetect);
             } catch (IOException ioe) {
-                LOGGER.error("Can't close autodetect", ioe);
+                logger.error("Can't close autodetect", ioe);
             }
             throw ExceptionsHelper.serverError(msg, e);
         }
@@ -117,7 +117,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                     clusterService.getClusterSettings().get(AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC))
                 .build();
 
-            AutodetectBuilder autodetectBuilder = new AutodetectBuilder(job, filesToDelete, LOGGER, env,
+            AutodetectBuilder autodetectBuilder = new AutodetectBuilder(job, filesToDelete, logger, env,
                 updatedSettings, nativeController, processPipes)
                     .referencedFilters(autodetectParams.filters())
                     .scheduledEvents(autodetectParams.scheduledEvents());
@@ -130,11 +130,11 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             autodetectBuilder.build();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOGGER.warn("[{}] Interrupted while launching autodetect", job.getId());
+            logger.warn("[{}] Interrupted while launching autodetect", job.getId());
         } catch (IOException e) {
             String msg = "[" + job.getId() + "] Failed to launch autodetect";
-            LOGGER.error(msg);
-            throw ExceptionsHelper.serverError(msg, e);
+            logger.error(msg);
+            throw ExceptionsHelper.serverError(msg + " on [" + clusterService.getNodeName() + "]", e);
         }
     }
 

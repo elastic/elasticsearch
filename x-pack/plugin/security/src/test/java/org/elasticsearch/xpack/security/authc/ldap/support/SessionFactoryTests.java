@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.security.authc.ldap.support;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
 import com.unboundid.util.ssl.TrustAllSSLSocketVerifier;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -25,7 +27,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.junit.After;
 import org.junit.Before;
 
@@ -150,7 +151,7 @@ public class SessionFactoryTests extends ESTestCase {
             + "removed in a future version. use [xpack.security.authc.realms.ldap.conn_settings.ssl.verification_mode] instead");
 
         settings = Settings.builder()
-                .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+                .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), SslVerificationMode.CERTIFICATE)
                 .put("path.home", pathHome)
                 .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                 .build();
@@ -161,7 +162,7 @@ public class SessionFactoryTests extends ESTestCase {
         // Can't run in FIPS with verification_mode none, disable this check instead of duplicating the test case
         if (inFipsJvm() == false) {
             settings = Settings.builder()
-                    .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.NONE)
+                    .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), SslVerificationMode.NONE)
                     .put("path.home", pathHome)
                     .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                     .build();
@@ -172,7 +173,7 @@ public class SessionFactoryTests extends ESTestCase {
         }
 
         settings = Settings.builder()
-                .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.FULL)
+                .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), SslVerificationMode.FULL)
                 .put("path.home", pathHome)
                 .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                 .build();

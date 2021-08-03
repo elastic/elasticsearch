@@ -97,7 +97,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     private DateHistogramInterval dateHistogramInterval;
     private IntervalTypeEnum intervalType = IntervalTypeEnum.NONE;
 
-    public static <T extends DateIntervalConsumer> void declareIntervalFields(ObjectParser<T, String> parser) {
+    public static <T extends DateIntervalConsumer<T>> void declareIntervalFields(ObjectParser<T, String> parser) {
         /*
          REST version compatibility.  When in V_7 compatibility mode, continue to parse the old style interval parameter,
          but immediately adapt it into either fixed or calendar interval.

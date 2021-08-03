@@ -61,7 +61,7 @@ class BulkPrimaryExecutionContext {
     private int currentIndex = -1;
 
     private ItemProcessingState currentItemState;
-    private DocWriteRequest requestToExecute;
+    private DocWriteRequest<?> requestToExecute;
     private BulkItemResponse executionResult;
     private int retryCounter;
 
@@ -182,7 +182,7 @@ class BulkPrimaryExecutionContext {
      * sets the request that should actually be executed on the primary. This can be different then the request
      * received from the user (specifically, an update request is translated to an indexing or delete request).
      */
-    public void setRequestToExecute(DocWriteRequest writeRequest) {
+    public void setRequestToExecute(DocWriteRequest<?> writeRequest) {
         assert assertInvariants(ItemProcessingState.INITIAL);
         requestToExecute = writeRequest;
         currentItemState = ItemProcessingState.TRANSLATED;
@@ -190,6 +190,7 @@ class BulkPrimaryExecutionContext {
     }
 
     /** returns the request that should be executed on the shard. */
+    @SuppressWarnings("unchecked")
     public <T extends DocWriteRequest<T>> T getRequestToExecute() {
         assert assertInvariants(ItemProcessingState.TRANSLATED);
         return (T) requestToExecute;
@@ -224,7 +225,7 @@ class BulkPrimaryExecutionContext {
     public void failOnMappingUpdate(Exception cause) {
         assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE);
         currentItemState = ItemProcessingState.EXECUTED;
-        final DocWriteRequest docWriteRequest = getCurrentItem().request();
+        final DocWriteRequest<?> docWriteRequest = getCurrentItem().request();
         executionResult = new BulkItemResponse(getCurrentItem().id(), docWriteRequest.opType(),
             // Make sure to use getCurrentItem().index() here, if you use docWriteRequest.index() it will use the
             // concrete index instead of an alias if used!
@@ -236,7 +237,7 @@ class BulkPrimaryExecutionContext {
     public void markOperationAsExecuted(Engine.Result result) {
         assertInvariants(ItemProcessingState.TRANSLATED);
         final BulkItemRequest current = getCurrentItem();
-        DocWriteRequest docWriteRequest = getRequestToExecute();
+        DocWriteRequest<?> docWriteRequest = getRequestToExecute();
         switch (result.getResultType()) {
             case SUCCESS:
                 final DocWriteResponse response;

@@ -181,6 +181,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=influencers]
 (<<time-units,time units>>)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=latency]
 
+`model_prune_window`:::
+(Optional, <<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-prune-window]
+
 `multivariate_by_fields`:::
 (Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=multivariate-by-fields]
@@ -374,6 +378,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-index-name]
 `results_retention_days`::
 (Optional, long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-retention-days]
+
+`system_annotations_retention_days`::
+(Optional, long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=system-annotations-retention-days]
 
 [[ml-put-job-example]]
 == {api-examples-title}

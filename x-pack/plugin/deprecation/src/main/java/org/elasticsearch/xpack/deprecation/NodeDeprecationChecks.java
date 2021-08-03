@@ -94,6 +94,7 @@ class NodeDeprecationChecks {
             "Realm order will be required in next major release.",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-missing-realm-order",
             details,
+            false,
             null
         );
     }
@@ -129,7 +130,7 @@ class NodeDeprecationChecks {
             "Realm orders must be unique in next major release.",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-duplicated-realm-orders",
             details,
-            null
+           false, null
         );
     }
 
@@ -151,7 +152,7 @@ class NodeDeprecationChecks {
                 "Security is enabled by default for all licenses in the next major version.",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/migrating-7.14.html#implicitly-disabled-security",
                 details,
-                null);
+               false, null);
         }
         return null;
     }
@@ -204,6 +205,7 @@ class NodeDeprecationChecks {
             "File and/or native realms are enabled by default in next major release.",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/deprecated-7.13.html#implicitly-disabled-basic-realms",
             details,
+            false,
             null
         );
 
@@ -236,7 +238,7 @@ class NodeDeprecationChecks {
                         .map(rid -> RealmSettings.PREFIX + rid.getType() + "." + rid.getName())
                         .sorted()
                         .collect(Collectors.joining("; "))),
-                null
+               false, null
             );
         }
     }
@@ -395,7 +397,7 @@ class NodeDeprecationChecks {
             value,
             replacementSettingKey,
             replacementValue.apply(value, settings));
-        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
     }
 
     private static DeprecationIssue checkDeprecatedSetting(
@@ -438,7 +440,7 @@ class NodeDeprecationChecks {
             replacementSettingKey,
             replacementValue.apply(value, settings),
             star);
-        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
     }
 
     static DeprecationIssue checkRemovedSetting(final Settings settings, final Setting<?> removedSetting, final String url) {
@@ -458,7 +460,7 @@ class NodeDeprecationChecks {
             String.format(Locale.ROOT, "setting [%s] is deprecated and will be removed in the next major version", removedSettingKey);
         final String details =
             String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
-        return new DeprecationIssue(deprecationLevel, message, url, details, null);
+        return new DeprecationIssue(deprecationLevel, message, url, details, false, null);
     }
 
     static DeprecationIssue javaVersionCheck(Settings nodeSettings, PluginsAndModules plugins, final ClusterState clusterState,
@@ -472,7 +474,7 @@ class NodeDeprecationChecks {
                 "Java 11 will be required for future versions of Elasticsearch, this node is running version ["
                     + javaVersion.toString() + "]. Consider switching to a distribution of Elasticsearch with a bundled JDK. "
                     + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.",
-                null);
+                false, null);
         }
         return null;
     }
@@ -485,7 +487,7 @@ class NodeDeprecationChecks {
                 "multiple [path.data] entries are deprecated, use a single data directory",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes",
                 "Multiple data paths are deprecated. Instead, use RAID or other system level features to utilize multiple disks.",
-            null);
+            false, null);
         }
         return null;
     }
@@ -496,7 +498,7 @@ class NodeDeprecationChecks {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "[path.data] in a list is deprecated, use a string value",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes",
-                "Configuring [path.data] with a list is deprecated. Instead specify as a string value.", null);
+                "Configuring [path.data] with a list is deprecated. Instead specify as a string value.", false, null);
         }
         return null;
     }
@@ -509,7 +511,7 @@ class NodeDeprecationChecks {
             final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/" +
                 "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
             final String details = "Found shared data path configured. Discontinue use of this setting.";
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
         }
         return null;
     }
@@ -524,7 +526,7 @@ class NodeDeprecationChecks {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
                     "breaking-changes-7.14.html#deprecate-single-data-node-watermark",
                 String.format(Locale.ROOT, "found [%s] configured to false. Discontinue use of this setting or set it to true.", key),
-                null
+                    false, null
             );
         }
 
@@ -541,6 +543,7 @@ class NodeDeprecationChecks {
                         " Set it to true to avoid this warning." +
                         " Consider using [%s] to disable disk based allocation", key,
                     disableDiskDecider),
+                false,
                 null
             );
 
@@ -579,7 +582,7 @@ class NodeDeprecationChecks {
             passwordSettings
         );
         final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/monitoring-settings.html#http-exporter-settings";
-        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
     }
 
     static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final Settings settings,

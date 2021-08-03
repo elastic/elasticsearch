@@ -196,6 +196,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
 ====
 //End model_plot_config
 
+`model_prune_window`::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-prune-window]
+
 `model_snapshot_retention_days`::
 (long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-snapshot-retention-days]
@@ -231,6 +235,10 @@ close the job, then reopen the job and restart the {dfeed} for the changes to ta
 (long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-retention-days]
 
+`system_annotations_retention_days`::
+(long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=system-annotations-retention-days]
+
 
 [[ml-update-job-example]]
 == {api-examples-title}
@@ -251,7 +259,8 @@ POST _ml/anomaly_detectors/low_request_rate/_update
   "renormalization_window_days": 30,
   "background_persist_interval": "2h",
   "model_snapshot_retention_days": 7,
-  "results_retention_days": 60
+  "results_retention_days": 60,
+  "system_annotations_retention_days": 60
 }
 --------------------------------------------------
 // TEST[skip:setup:Kibana sample data]

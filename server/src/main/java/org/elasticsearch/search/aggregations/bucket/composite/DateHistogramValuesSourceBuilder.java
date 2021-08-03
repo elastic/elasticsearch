@@ -45,8 +45,10 @@ import java.util.function.LongConsumer;
  * A {@link CompositeValuesSourceBuilder} that builds a {@link RoundingValuesSource} from a {@link Script} or
  * a field name using the provided interval.
  */
-public class DateHistogramValuesSourceBuilder
-    extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder> implements DateIntervalConsumer {
+public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder>
+    implements
+        DateIntervalConsumer<DateHistogramValuesSourceBuilder> {
+
     @FunctionalInterface
     public interface DateHistogramCompositeSupplier {
         CompositeValuesSourceConfig apply(

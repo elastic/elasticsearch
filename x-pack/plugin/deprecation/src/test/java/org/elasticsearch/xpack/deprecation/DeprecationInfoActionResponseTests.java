@@ -123,7 +123,8 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         if (nodeIssueFound) {
             String details = foundIssue.getDetails() != null ? foundIssue.getDetails() + " " : "";
             DeprecationIssue mergedFoundIssue = new DeprecationIssue(foundIssue.getLevel(), foundIssue.getMessage(), foundIssue.getUrl(),
-                details + "(nodes impacted: [" + discoveryNode.getName() + "])", foundIssue.getMeta());
+                details + "(nodes impacted: [" + discoveryNode.getName() + "])", foundIssue.isResolveDuringRollingUpgrade(),
+                foundIssue.getMeta());
             assertThat(response.getNodeSettingsIssues(), equalTo(Collections.singletonList(mergedFoundIssue)));
         } else {
             assertTrue(response.getNodeSettingsIssues().isEmpty());

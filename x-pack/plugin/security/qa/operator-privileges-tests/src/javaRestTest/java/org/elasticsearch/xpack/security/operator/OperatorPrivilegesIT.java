@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,6 +41,29 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    protected void deleteAllNodeShutdownMetadata() throws IOException {
+        Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
+        getShutdownStatus.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
+        Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
+        if (statusResponse.containsKey("_nodes") && statusResponse.containsKey("cluster_name")) {
+            // If the response contains these two keys, the feature flag isn't enabled on this cluster, so skip out now.
+            // We can't check the system property directly because it only gets set for the cluster under test's JVM, not for the test
+            // runner's JVM.
+            return;
+        }
+        List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
+        List<String> nodeIds = nodesArray.stream()
+            .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
+            .collect(Collectors.toList());
+        for (String nodeId : nodeIds) {
+            Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
+            deleteRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
+            assertOK(adminClient().performRequest(deleteRequest));
+        }
     }
 
     public void testNonOperatorSuperuserWillFailToCallOperatorOnlyApiWhenOperatorPrivilegesIsEnabled() throws IOException {

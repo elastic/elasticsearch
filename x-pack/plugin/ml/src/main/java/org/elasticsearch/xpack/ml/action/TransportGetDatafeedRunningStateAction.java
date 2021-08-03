@@ -79,7 +79,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
         TransportStartDatafeedAction.DatafeedTask datafeedTask,
         ActionListener<Response> listener
     ) {
-        listener.onResponse(Response.fromTaskAndState(datafeedTask.getDatafeedId(), datafeedTask.getRunningState().orElse(null)));
+        listener.onResponse(Response.fromTaskAndState(datafeedTask.getDatafeedId(), datafeedTask.getRunningState()));
     }
 
     @Override

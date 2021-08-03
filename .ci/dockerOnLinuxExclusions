@@ -13,3 +13,4 @@ sles-12.3 # older version used in Vagrant image
 sles-12.5
 sles-15.1
 sles-15.2
+sles-15.3

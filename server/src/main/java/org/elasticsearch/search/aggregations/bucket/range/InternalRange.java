@@ -27,6 +27,7 @@ import java.util.Objects;
 
 public class InternalRange<B extends InternalRange.Bucket, R extends InternalRange<B, R>> extends InternalMultiBucketAggregation<R, B>
         implements Range {
+    @SuppressWarnings("rawtypes")
     static final Factory FACTORY = new Factory();
 
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
@@ -106,6 +107,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return aggregations;
         }
 
+        @SuppressWarnings("unchecked")
         protected Factory<? extends Bucket, ?> getFactory() {
             return FACTORY;
         }
@@ -261,6 +263,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         return ranges;
     }
 
+    @SuppressWarnings("unchecked")
     public Factory<B, R> getFactory() {
         return FACTORY;
     }
@@ -280,6 +283,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         reduceContext.consumeBucketsAndMaybeBreak(ranges.size());
+        @SuppressWarnings("rawtypes")
         List<B>[] rangeList = new List[ranges.size()];
         for (int i = 0; i < rangeList.length; ++i) {
             rangeList[i] = new ArrayList<>();
@@ -294,7 +298,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         final List<B> ranges = new ArrayList<>();
         for (int i = 0; i < this.ranges.size(); ++i) {
-            ranges.add((B) reduceBucket(rangeList[i], reduceContext));
+            ranges.add(reduceBucket(rangeList[i], reduceContext));
         }
         return getFactory().create(name, ranges, format, keyed, getMetadata());
     }

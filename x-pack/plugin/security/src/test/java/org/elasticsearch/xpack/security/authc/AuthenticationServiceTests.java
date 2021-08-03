@@ -299,11 +299,10 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         Authenticator authenticator = service.createAuthenticator("_action", transportRequest, true, future);
-        authenticator.extractToken((result) -> {
-            assertThat(result, notNullValue());
-            assertThat(result, is(token));
-            verifyZeroInteractions(auditTrail);
-        });
+        AuthenticationToken result = authenticator.extractToken();
+        assertThat(result, notNullValue());
+        assertThat(result, is(token));
+        verifyZeroInteractions(auditTrail);
     }
 
     public void testTokenMissing() throws Exception {
@@ -328,15 +327,14 @@ public class AuthenticationServiceTests extends ESTestCase {
             }
             PlainActionFuture<Authentication> future = new PlainActionFuture<>();
             Authenticator authenticator = service.createAuthenticator("_action", transportRequest, true, future);
-            authenticator.extractToken((token) -> {
-                assertThat(token, nullValue());
-                if (requestIdAlreadyPresent) {
-                    assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
-                } else {
-                    reqId.set(expectAuditRequestId(threadContext));
-                }
-                authenticator.handleNullToken();
-            });
+            AuthenticationToken token = authenticator.extractToken();
+            assertThat(token, nullValue());
+            if (requestIdAlreadyPresent) {
+                assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
+            } else {
+                reqId.set(expectAuditRequestId(threadContext));
+            }
+            authenticator.handleNullToken();
 
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
             assertThat(e.getMessage(), containsString("missing authentication credentials"));
@@ -656,10 +654,9 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         Authenticator authenticator = service.createAuthenticator(restRequest, true, mock(ActionListener.class));
-        authenticator.extractToken((token) -> {
-            expectAuditRequestId(threadContext);
-            assertThat(token, nullValue());
-        });
+        AuthenticationToken token = authenticator.extractToken();
+        expectAuditRequestId(threadContext);
+        assertThat(token, nullValue());
     }
 
     public void testAuthenticationInContextAndHeader() throws Exception {

@@ -38,11 +38,7 @@ public class RewritePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        RewriteExtension maybeExtension = project.getExtensions().findByType(RewriteExtension.class);
-        if (maybeExtension == null) {
-            maybeExtension = project.getExtensions().create("rewrite", RewriteExtension.class, project);
-        }
-        final RewriteExtension extension = maybeExtension;
+        final RewriteExtension extension = project.getExtensions().create("rewrite", RewriteExtension.class);
         // Rewrite module dependencies put here will be available to all rewrite tasks
         Configuration rewriteConf = project.getConfigurations().maybeCreate("rewrite");
         RewriteTask rewriteRun = project.getTasks().create(REWRITE_TASKNAME, RewriteTask.class, rewriteConf, extension);

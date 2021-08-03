@@ -2204,7 +2204,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 }
             }
-        }, "delete snapshot", listener::onFailure);
+        }, "delete snapshot [" + repository + "]" + Arrays.toString(snapshotNames), listener::onFailure);
     }
 
     private static List<SnapshotId> matchingSnapshotIds(

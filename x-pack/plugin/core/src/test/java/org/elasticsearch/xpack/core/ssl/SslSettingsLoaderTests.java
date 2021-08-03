@@ -112,7 +112,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(
             ksKeyInfo,
             equalTo(
-                new StoreKeyConfig("path", PASSWORD, "type", PASSWORD, KEY_MGR_ALGORITHM, environment.configFile())
+                new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configFile())
             )
         );
     }
@@ -129,7 +129,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(
             ksKeyInfo,
             equalTo(
-                new StoreKeyConfig("path", PASSWORD, "type", PASSWORD, KEY_MGR_ALGORITHM, environment.configFile())
+                new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configFile())
             )
         );
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
@@ -151,7 +151,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(
             ksKeyInfo,
             equalTo(
-                new StoreKeyConfig("path", PASSWORD, "type", KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
+                new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
             )
         );
     }
@@ -169,7 +169,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(
             ksKeyInfo,
             equalTo(
-                new StoreKeyConfig("path", PASSWORD, "type", KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
+                new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
             )
         );
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
@@ -192,7 +192,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(
             ksKeyInfo,
             equalTo(
-                new StoreKeyConfig("xpack/tls/path.jks", PASSWORD, "jks", KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
+                new StoreKeyConfig("xpack/tls/path.jks", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
             )
         );
     }
@@ -213,7 +213,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(
             ksKeyInfo,
             equalTo(
-                new StoreKeyConfig(path, PASSWORD, "PKCS12", KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
+                new StoreKeyConfig(path, PASSWORD, "PKCS12", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile())
             )
         );
     }
@@ -231,7 +231,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.getKeyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("xpack/tls/path.foo", PASSWORD, "jks", KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("xpack/tls/path.foo", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
         );
     }
 
@@ -252,7 +252,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.getKeyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig(path, PASSWORD, type, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig(path, PASSWORD, type, null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
         );
     }
 

@@ -152,7 +152,6 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
                     @Override
                     public void onResponse(Void complete) {
                         latch.countDown();
-                        assertThat(complete, is(true));
                     }
 
                     @Override

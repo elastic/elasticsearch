@@ -623,9 +623,9 @@
   - match: { datafeed_id: "jobs-crud-test-datafeed-1" }
 
   - do:
-      catch: /Cannot delete job \[jobs-crud-datafeed-job\] because datafeed \[jobs-crud-test-datafeed-1\] refers to it/
       ml.delete_job:
         job_id: jobs-crud-datafeed-job
+  - match: { acknowledged: true }
 
 ---
 "Test delete job that is opened":

@@ -47,7 +47,7 @@ public class IndexLocation implements StrictlyParsedTrainedModelLocation, Lenien
     private final String modelId;
     private final String indexName;
 
-    IndexLocation(String modelId, String indexName) {
+    public IndexLocation(String modelId, String indexName) {
         this.modelId = Objects.requireNonNull(modelId);
         this.indexName = Objects.requireNonNull(indexName);
     }

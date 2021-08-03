@@ -52,17 +52,17 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -1353,6 +1353,8 @@ public class RequestConvertersTests extends ESTestCase {
             });
             // scroll is not supported in the current msearch api, so unset it:
             searchRequest.scroll((Scroll) null);
+            // fields emulation is not supported in msearch api
+            searchRequest.setFieldsOptionEmulationEnabled(false);
             // only expand_wildcards, ignore_unavailable and allow_no_indices can be
             // specified from msearch api, so unset other options:
             IndicesOptions randomlyGenerated = searchRequest.indicesOptions();
@@ -2140,6 +2142,11 @@ public class RequestConvertersTests extends ESTestCase {
             if (ccsMinimizeRoundtrips == false) {
                 expectedParams.put("ccs_minimize_roundtrips", "false");
             }
+        }
+        if (randomBoolean()) {
+            boolean enableFieldsEmulation = randomBoolean();
+            searchRequest.setFieldsOptionEmulationEnabled(enableFieldsEmulation);
+            expectedParams.put("enable_fields_emulation", Boolean.toString(enableFieldsEmulation));
         }
         if (randomBoolean()) {
             searchRequest.setMaxConcurrentShardRequests(randomIntBetween(1, Integer.MAX_VALUE));

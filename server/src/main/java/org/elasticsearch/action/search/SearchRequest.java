@@ -91,7 +91,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean ccsMinimizeRoundtrips;
-    private boolean enableFieldsEmulation = false;
+
+    public static final boolean DEFAULT_FIELDS_EMULATION_ENABLED = false;
+    private boolean enableFieldsEmulation = DEFAULT_FIELDS_EMULATION_ENABLED;
 
     @Nullable
     private final Version minCompatibleShardNode;
@@ -444,7 +446,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
-     * Returns whether the "fields" option will be emulated via fetching from source on pre-7.10 nodes.
+     * Returns whether the "fields" option will be emulated via fetching from source on pre 7.10 nodes.
      * The default is false.
      */
     public boolean isFieldsOptionEmulationEnabled() {
@@ -452,7 +454,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
-     * Sets whether the "fields" option will be emulated via fetching from source on pre-7.10 nodes.
+     * Sets whether the "fields" option will be emulated via fetching from source on pre 7.10 nodes.
      */
     public void setFieldsOptionEmulationEnabled(boolean enableFieldsEmulation) {
         this.enableFieldsEmulation = enableFieldsEmulation;

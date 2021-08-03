@@ -1,52 +1,145 @@
 [[configuring-stack-security]]
-== Configure security for the Elastic Stack
-++++
-<titleabbrev>Configuring security</titleabbrev>
-++++
+== Start the Elastic Stack with security enabled
 
-When you start {es} for the first time, security features are automatically
-enabled by default. {es} handles the configuration to create a secured cluster
-out of the box without requiring you to explicitly configure anything.
+beta::[This functionality is in alpha and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Alpha features are not subject to the support SLA of official GA features.]
 
-The startup process also generates an enrollment token that you can use to
-enroll {kib} and connect it with your secured {es} cluster. You enter
-this enrollment token the first time that you start {kib} to establish a secure
-connection and ensure that traffic between {kib} and {es} is encrypted.
+Before you start {es} for the first time, run the `elasticsearch-security-config`
+tool. This tool generates certificates and keys for the transport and HTTP
+layers of your, and writes the TLS configuration settings in `elasticsearch.yml`.
 
-Use the `elasticsearch-create-enrollment-token` tool to generate enrollment
-tokens for enrolling additional nodes and configuring additional {kib}
-instances to connect with your secured {es} cluster. Without any manual
-configuration, you'll have Transport Layer Security (TLS) enabled between
-nodes, which prevents unauthorized nodes from joining your {es} cluster. 
+[discrete]
+=== Prerequisites
 
-You can then configure {beats}, {ls}, and other clients to communicate with
-{es} using TLS so that all communications are encrypted. This level of security
-is strong, and ensures that any communications in and out of your cluster are
-secure.
+Download the `elasticsearch 8.0.0-alpha1` package distribution for your
+environment.
 
-.Understanding transport contexts
-****
-Transport Layer Security (TLS) is the name of an industry standard protocol for
-applying security controls (such as encryption) to network communications. TLS
-is the modern name for what used to be called Secure Sockets Layer (SSL). The
-{es} documentation uses the terms TLS and SSL interchangeably.
+[discrete]
+=== Start {es} with security enabled
 
-Transport Protocol is the name of the protocol that {es} nodes use to
-communicate with one another. This name is specific to {es} and distinguishes
-the transport port (default `9300`) from the HTTP port (default `9200`). Nodes
-communicate with one another using the transport port, and REST clients
-communicate with {es} using the HTTP port.
+. Before starting {es} for the first time, run the
+`elasticsearch-security-config` tool from the directory where you downloaded
+the {es} package distribution:
++
+[source,shell]
+----
+./bin/elasticsearch-security-config
+----
 
-Although the word _transport_ appears in both contexts, they mean different
-things. It's possible to apply TLS to both the {es} transport port and the HTTP
-port. We know that these overlapping terms can be confusing, so to clarify, in
-this scenario we're applying TLS to the {es} transport port. In
-<<security-basic-setup-https,the next scenario>>, we'll apply TLS to the {es}
-HTTP port.
-****
+. Navigate to `$ES_PATH_CONF/auto_config_on_<timestamp>` to view the
+certificates and keys that the `elasticsearch-security-config` tool generated:
++
+--
+`http.p12`::
+Certificate for the HTTP layer, which you can use to enroll additional clients
+such as {kib}.
 
-include::securing-communications/configuring-tls-docker.asciidoc[]
-include::securing-communications/enabling-cipher-suites.asciidoc[]
-include::securing-communications/tls-versions-jdk.asciidoc[]
-include::reference/files.asciidoc[]
-include::fips-140-compliance.asciidoc[]
+`http_keystore_local_node.p12`::
+Keystore for the first {es} node in your cluster.
+
+`transport_keystore_all_nodes.p12`::
+Keystore for adding additional nodes to your cluster.
+--
++
+NOTE: The `ES_PATH_CONF` variable is the path for the {es}
+configuration files. If you installed {es} using archive distributions
+(`zip` or `tar.gz`), the variable defaults to `ES_HOME/config`. If you used
+package distributions (Debian or RPM), the variable defaults to
+`/etc/elasticsearch`.
+
+. Start {es}.
++
+[source,shell]
+----
+./bin/elasticsearch
+----
+
+. In another terminal window, run the
+<<setup-passwords,`elasticsearch-setup-passwords`>> utility from the directory
+where you downloaded the {es} package distribution:
++
+[source,shell]
+----
+./bin/elasticsearch-setup-passwords auto
+----
++
+If you want to use your own passwords, run the command with the
+`interactive` parameter instead of the `auto` parameter. Using this mode
+steps you through password configuration for all of the built-in users.
++
+[source,shell]
+----
+./bin/elasticsearch-setup-passwords interactive
+----
+
+. Save the generated passwords. You'll need them to add the built-in user to
+{kib}.
++
+WARNING: After you set a password for the `elastic` user, you cannot run the
+`elasticsearch-setup-passwords` command a second time.
+
+. Make an authenticated call to your {es} cluster and enter the password for
+the `elastic` user when prompted:
++
+[source,shell]
+----
+curl -k -uelastic https://localhost:9200
+----
+
+*Next*: <<add-kib-user,Configure {kib} to connect to {es} with a password>>
+
+[discrete]
+[[add-kib-user]]
+=== Configure {kib} to connect to {es} with a password
+
+With security enabled, users must log in to {kib} with a valid username and
+password.
+
+You'll configure {kib} to use the built-in `kibana_system` user and the password
+that you created earlier. {kib} performs some background tasks that require use
+of the `kibana_system` user.
+
+This account is not meant for individual users and does not have permission to
+log in to {kib} from a browser. Instead, you'll log in to {kib} as the `elastic`
+superuser. 
+
+. Add the `elasticsearch.username` setting to the `KIB_PATH_CONF/kibana.yml`
+file and set the value to the `kibana_system` user:
++
+[source,yaml]
+----
+elasticsearch.username: "kibana_system"
+----
++
+NOTE: The `KIB_PATH_CONF` variable is the path for the {kib}
+configuration files. If you installed {kib} using archive distributions
+(`zip` or `tar.gz`), the variable defaults to `KIB_HOME/config`. If you used
+package distributions (Debian or RPM), the variable defaults to `/etc/kibana`.
+
+. From the directory where you installed {kib}, run the following commands
+to create the {kib} keystore and add the secure settings:
+
+   a. Create the {kib} keystore:
++
+[source,shell]
+----
+./bin/kibana-keystore create
+----
+
+   b. Add the password for the `kibana_system` user to the {kib} keystore:
++
+[source,shell]
+----
+./bin/kibana-keystore add elasticsearch.password
+----
++
+When prompted, enter the password for the `kibana_system` user.
+
+. Restart {kib}. For example, if you installed {kib} with a `.tar.gz` package, run the following command from the {kib} directory:
++
+[source,shell]
+----
+./bin/kibana
+----
+
+. Log in to {kib} as the `elastic` user. Use this superuser account to 
+{kibana-ref}/tutorial-secure-access-to-kibana.html[manage spaces, create new users, and assign roles]. If you're running {kib} locally, go to `http://localhost:5601` to view the login page.

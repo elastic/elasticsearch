@@ -1,15 +1,22 @@
-== Manually configuring security
+== Manually configure security
+++++
+<titleabbrev>Configure security</titleabbrev>
+++++
 
 Security needs vary depending on whether you're developing locally on your
 laptop or securing all communications in a production environment. Because
 security needs vary, the following scenarios provide options for configuring
 the Elastic Stack.
 
-TIP: Each subsequent scenario builds on the previous one so that you can add
+Each subsequent scenario builds on the previous one so that you can add
 additional security by building on the existing layer.
 
 These scenarios don't cover every situation, but provide a framework for
 securing {es} and the Elastic Stack based on typical use cases.
+
+NOTE: If you want to enable security by default when you start {es} for the
+first time without manually configuring security, refer to
+<<configuring-stack-security,Starting the Elastic Stack with security enabled>>.
 
 image::images/elastic-security-overview.png[Elastic Security layers]
 
@@ -70,3 +77,8 @@ cluster are secure.
 include::securing-communications/security-minimal-setup.asciidoc[]
 include::securing-communications/security-basic-setup.asciidoc[]
 include::securing-communications/security-basic-setup-https.asciidoc[]
+include::securing-communications/configuring-tls-docker.asciidoc[]
+include::securing-communications/enabling-cipher-suites.asciidoc[]
+include::securing-communications/tls-versions-jdk.asciidoc[]
+include::reference/files.asciidoc[]
+include::fips-140-compliance.asciidoc[]

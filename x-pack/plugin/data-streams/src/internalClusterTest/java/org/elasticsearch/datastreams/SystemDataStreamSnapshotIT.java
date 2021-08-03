@@ -169,6 +169,8 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertSnapshotSuccess(createSnapshotResponse);
 
         assertThat(createSnapshotResponse.getSnapshotInfo().dataStreams(), not(empty()));
+
+        // TODO[wrb]: continue test, check restore
     }
 
     private void assertSnapshotSuccess(CreateSnapshotResponse createSnapshotResponse) {

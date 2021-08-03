@@ -59,17 +59,11 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class RecoveryPlannerServiceTests extends ESTestCase {
+public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
     private static final ByteSizeValue PART_SIZE = new ByteSizeValue(Long.MAX_VALUE);
     private static final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
-
-    private static final ShardRecoveryPlanner ALL_PLANNERS = new ShardRecoveryPlanners(List.of(
-        new UseLogicallyEquivalentSnapshotPlanner(),
-        new MaximizeSnapshotFileReusePlanner(),
-        new OnlySourceFilesPlanner())
-    );
 
     private String shardHistoryUUID;
 
@@ -336,8 +330,8 @@ public class RecoveryPlannerServiceTests extends ESTestCase {
                                                        int translogOps,
                                                        ShardSnapshotsService shardSnapshotsService,
                                                        boolean snapshotRecoveriesEnabled) throws Exception {
-        RecoveryPlannerService recoveryPlannerService =
-            new RecoveryPlannerService(shardSnapshotsService, ALL_PLANNERS, snapshotRecoveriesEnabled, null);
+        SnapshotsRecoveryPlannerService recoveryPlannerService =
+            new SnapshotsRecoveryPlannerService(shardSnapshotsService, snapshotRecoveriesEnabled, null);
 
         PlainActionFuture<ShardRecoveryPlan> planFuture = PlainActionFuture.newFuture();
         recoveryPlannerService.computeRecoveryPlan(shardId,

@@ -33,20 +33,6 @@ import java.util.Collections;
 import java.util.List;
 
 public class ShardSnapshotsService {
-    public static final ShardSnapshotsService NOOP_SERVICE = new ShardSnapshotsService(null, null, null) {
-        @Override
-        public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
-            listener.onResponse(Collections.emptyList());
-        }
-
-        @Override
-        public void fetchAvailableSnapshots(String repository,
-                                            ShardId shardId,
-                                            ActionListener<List<ShardSnapshot>> listener) {
-            listener.onResponse(Collections.emptyList());
-        }
-    };
-
     private final Logger logger = LogManager.getLogger(ShardSnapshotsService.class);
 
     private final Client client;
@@ -60,13 +46,19 @@ public class ShardSnapshotsService {
     }
 
     public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+        if (shardId == null) {
+            throw new IllegalArgumentException("SharId was null but a value was expected");
+        }
         final GetShardSnapshotRequest request = GetShardSnapshotRequest.latestSnapshotInAllRepositories(shardId);
         sendRequest(request, listener);
     }
 
     public void fetchAvailableSnapshots(String repository, ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
         if (Strings.isNullOrEmpty(repository)) {
-            throw new IllegalArgumentException("Repository should be specified");
+            throw new IllegalArgumentException("A repository should be specified");
+        }
+        if (shardId == null) {
+            throw new IllegalArgumentException("SharId was null but a value was expected");
         }
         GetShardSnapshotRequest request =
             GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, Collections.singletonList(repository));

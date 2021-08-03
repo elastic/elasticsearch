@@ -30,6 +30,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.ShardSnapshotInfo;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotException;
@@ -221,6 +222,29 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             assertThat(shardSnapshotInfo.getShardId(), equalTo(shardId));
             assertThat(shardSnapshotInfo.getSnapshot().getSnapshotId().getName(), equalTo(snapshotName));
         }
+    }
+
+    public void testFetchFromNonExistingRepositoryReturnsAnError() {
+        String indexName = "test";
+        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
+        ShardId shardId = getShardIdForIndex(indexName);
+
+        String repositoryToFetch = "unknown";
+        ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService();
+
+        PlainActionFuture<List<ShardSnapshot>> future = PlainActionFuture.newFuture();
+        shardSnapshotsService.fetchAvailableSnapshots(repositoryToFetch, shardId, future);
+        expectThrows(RepositoryMissingException.class, future::get);
+    }
+
+    public void testInputValidations() {
+        ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService();
+        expectThrows(IllegalArgumentException.class, () ->
+            shardSnapshotsService.fetchAvailableSnapshots(randomFrom("", null), null, null));
+        expectThrows(IllegalArgumentException.class, () ->
+            shardSnapshotsService.fetchAvailableSnapshots("repo", null, null));
+        expectThrows(IllegalArgumentException.class, () ->
+            shardSnapshotsService.fetchAvailableSnapshotsInAllRepositories(null, null));
     }
 
     private List<ShardSnapshot> getShardSnapshotShard(ShardId shardId) throws Exception {

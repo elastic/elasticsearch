@@ -68,9 +68,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.recovery.plan.OnlySourceFilesPlanner;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
-import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
+import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -126,10 +125,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
     private final ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    private final RecoveryPlannerService recoveryPlannerService = SourceOnlyRecoveryPlannerService.INSTANCE;
 
     private ThreadPool threadPool;
     private Executor recoveryExecutor;
-    private RecoveryPlannerService recoveryPlannerService;
 
     @Before
     public void setUpThreadPool() {
@@ -143,8 +142,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                     false));
             recoveryExecutor = threadPool.executor("recovery_executor");
         }
-        recoveryPlannerService =
-            new RecoveryPlannerService(ShardSnapshotsService.NOOP_SERVICE, new OnlySourceFilesPlanner(), false, null);
     }
 
     @After

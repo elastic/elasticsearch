@@ -67,9 +67,8 @@ import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
-import org.elasticsearch.indices.recovery.plan.OnlySourceFilesPlanner;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
-import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
+import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardSnapshotResult;
@@ -635,8 +634,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             logger, rNode, recoveryTarget, startingSeqNo);
         int fileChunkSizeInBytes = Math.toIntExact(
             randomBoolean() ? RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes() : randomIntBetween(1, 10 * 1024 * 1024));
-        final RecoveryPlannerService recoveryPlannerService =
-            new RecoveryPlannerService(ShardSnapshotsService.NOOP_SERVICE, new OnlySourceFilesPlanner(), false, null);
+        final RecoveryPlannerService recoveryPlannerService = SourceOnlyRecoveryPlannerService.INSTANCE;
         final RecoverySourceHandler recovery = new RecoverySourceHandler(primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()), threadPool,
             request, fileChunkSizeInBytes, between(1, 8), between(1, 8), recoveryPlannerService);

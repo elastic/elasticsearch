@@ -11,9 +11,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
+import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
@@ -21,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.stream.Collectors;
 
@@ -75,6 +80,7 @@ public class NodeLoadDetector {
             return nodeLoad.setError(Strings.collectionToCommaDelimitedString(errors)).build();
         }
         updateLoadGivenTasks(nodeLoad, persistentTasks);
+        updateLoadGivenModelAllocations(nodeLoad, TrainedModelAllocationMetadata.fromState(clusterState));
         return nodeLoad.build();
     }
 
@@ -98,6 +104,20 @@ public class NodeLoadDetector {
         }
     }
 
+    private void updateLoadGivenModelAllocations(NodeLoad.Builder nodeLoad, TrainedModelAllocationMetadata trainedModelAllocationMetadata) {
+        if (trainedModelAllocationMetadata != null && trainedModelAllocationMetadata.modelAllocations().isEmpty() == false) {
+            for (TrainedModelAllocation allocation : trainedModelAllocationMetadata.modelAllocations().values()) {
+                if (Optional.ofNullable(allocation.getNodeRoutingTable().get(nodeLoad.getNodeId()))
+                    .map(RoutingStateAndReason::getState)
+                    .orElse(RoutingState.STOPPED)
+                    .consumesMemory()) {
+                    nodeLoad.incAssignedJobMemory(allocation.getTaskParams().estimateMemoryUsageBytes());
+                    nodeLoad.incNumAssignedJobs();
+                }
+            }
+        }
+    }
+
     private static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> findAllMemoryTrackedTasks(
         PersistentTasksCustomMetadata persistentTasks, String nodeId) {
         return persistentTasks.tasks().stream()
@@ -109,8 +129,7 @@ public class NodeLoadDetector {
     private static boolean isMemoryTrackedTask(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         return MlTasks.JOB_TASK_NAME.equals(task.getTaskName())
             || MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME.equals(task.getTaskName())
-            || MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(task.getTaskName())
-            || MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME.equals(task.getTaskName());
+            || MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(task.getTaskName());
     }
 
 }

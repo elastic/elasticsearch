@@ -44,9 +44,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
+import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX;
+import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_TYPE;
+
 public class TrainedModelAllocationNodeService implements ClusterStateListener {
 
-    private static final String TASK_NAME = "trained_model_allocation";
     private static final TimeValue MODEL_LOADING_CHECK_INTERVAL = TimeValue.timeValueSeconds(1);
     private static final Logger logger = LogManager.getLogger(TrainedModelAllocationNodeService.class);
     private final TrainedModelAllocationService trainedModelAllocationService;
@@ -286,8 +288,8 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
 
     void prepareModelToLoad(StartTrainedModelDeploymentAction.TaskParams taskParams) {
         TrainedModelDeploymentTask task = (TrainedModelDeploymentTask) taskManager.register(
-            TASK_NAME,
-            taskParams.getModelId(),
+            TRAINED_MODEL_ALLOCATION_TASK_TYPE,
+            TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX + taskParams.getModelId(),
             taskAwareRequest(taskParams)
         );
         // threadsafe check to verify we are not loading/loaded the model

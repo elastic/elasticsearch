@@ -16,8 +16,12 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
@@ -38,6 +42,8 @@ public class NodeLoadDetectorTests extends ESTestCase {
 
     // To simplify the logic in this class all jobs have the same memory requirement
     private static final ByteSizeValue JOB_MEMORY_REQUIREMENT = ByteSizeValue.ofMb(10);
+
+    private static final long MODEL_MEMORY_REQUIREMENT = ByteSizeValue.ofMb(50).getBytes();
 
     private NodeLoadDetector nodeLoadDetector;
 
@@ -75,7 +81,29 @@ public class NodeLoadDetectorTests extends ESTestCase {
         PersistentTasksCustomMetadata tasks = tasksBuilder.build();
 
         final ClusterState cs = ClusterState.builder(new ClusterName("_name")).nodes(nodes)
-                .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasks)).build();
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(PersistentTasksCustomMetadata.TYPE, tasks)
+                        .putCustom(
+                            TrainedModelAllocationMetadata.NAME,
+                            TrainedModelAllocationMetadata.Builder.empty()
+                                .addNewAllocation(
+                                    new StartTrainedModelDeploymentAction.TaskParams("model1", "any-index", MODEL_MEMORY_REQUIREMENT)
+                                )
+                                .addNode("model1", "_node_id4")
+                                .addFailedNode("model1", "_node_id2", "test")
+                                .addNode("model1", "_node_id1")
+                                .updateAllocation(
+                                    "model1",
+                                    "_node_id1",
+                                    new RoutingStateAndReason(
+                                        randomFrom(RoutingState.STOPPED, RoutingState.STOPPED, RoutingState.STOPPING),
+                                        "test"
+                                    )
+                                )
+                                .build()
+                        )
+                ).build();
 
         NodeLoad load = nodeLoadDetector.detectNodeLoad(cs, true, nodes.get("_node_id1"), 10, 30, false);
         assertThat(load.getAssignedJobMemory(), equalTo(52428800L));
@@ -99,9 +127,9 @@ public class NodeLoadDetectorTests extends ESTestCase {
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
         load = nodeLoadDetector.detectNodeLoad(cs, true, nodes.get("_node_id4"), 5, 30, false);
-        assertThat(load.getAssignedJobMemory(), equalTo(41943040L));
+        assertThat(load.getAssignedJobMemory(), equalTo(429916160L));
         assertThat(load.getNumAllocatingJobs(), equalTo(0L));
-        assertThat(load.getNumAssignedJobs(), equalTo(1L));
+        assertThat(load.getNumAssignedJobs(), equalTo(2L));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
     }

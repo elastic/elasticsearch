@@ -26,10 +26,12 @@ import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
@@ -40,6 +42,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -222,18 +225,15 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      * @return The memory requirement of the trained model task specified by {@code modelId},
      *         or <code>null</code> if it cannot be found.
      */
-    public Long getTrainedModelTaskMemoryRequirement(String modelId) {
+    public Long getTrainedModelAllocationMemoryRequirement(String modelId) {
         if (isMaster == false) {
             return null;
         }
 
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        PersistentTasksCustomMetadata.PersistentTask<?> task = MlTasks.getTrainedModelDeploymentTask(modelId, tasks);
-        if (task == null) {
-            return null;
-        }
-        StartTrainedModelDeploymentAction.TaskParams taskParams = (StartTrainedModelDeploymentAction.TaskParams) task.getParams();
-        return taskParams.estimateMemoryUsageBytes();
+        return Optional.ofNullable(TrainedModelAllocationMetadata.fromState(clusterService.state()).modelAllocations().get(modelId))
+            .map(TrainedModelAllocation::getTaskParams)
+            .map(StartTrainedModelDeploymentAction.TaskParams::estimateMemoryUsageBytes)
+            .orElse(null);
     }
 
     /**
@@ -250,15 +250,11 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             return null;
         }
 
-        if (MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME.equals(taskName)) {
-            return getTrainedModelTaskMemoryRequirement(id);
-        } else {
-            Map<String, Long> memoryRequirementByJob = memoryRequirementByTaskName.get(taskName);
-            if (memoryRequirementByJob == null) {
-                return null;
-            }
-            return memoryRequirementByJob.get(id);
+        Map<String, Long> memoryRequirementByJob = memoryRequirementByTaskName.get(taskName);
+        if (memoryRequirementByJob == null) {
+            return null;
         }
+        return memoryRequirementByJob.get(id);
     }
 
     /**

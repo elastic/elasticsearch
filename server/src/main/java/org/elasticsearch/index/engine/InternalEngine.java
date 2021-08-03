@@ -30,6 +30,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -585,8 +586,7 @@ public class InternalEngine extends Engine {
             try {
                 final ElasticsearchDirectoryReader directoryReader =
                     ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
-                internalReaderManager = new ElasticsearchReaderManager(directoryReader,
-                       new RamAccountingRefreshListener(engineConfig.getCircuitBreakerService()));
+                internalReaderManager = new ElasticsearchReaderManager(directoryReader);
                 lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 ExternalReaderManager externalReaderManager = new ExternalReaderManager(internalReaderManager, externalRefreshListener);
                 success = true;
@@ -607,26 +607,31 @@ public class InternalEngine extends Engine {
         }
     }
 
+    private static final QueryCachingPolicy NEVER_CACHE_POLICY = new QueryCachingPolicy() {
+        @Override
+        public void onUse(Query query) {
+
+        }
+
+        @Override
+        public boolean shouldCache(Query query) {
+            return false;
+        }
+    };
+
+    public final AtomicLong translogGetCount = new AtomicLong(); // number of times realtime get was done on translog
+    public final AtomicLong translogInMemorySegmentsCount = new AtomicLong(); // number of times in-memory index needed to be created
+
     private GetResult getFromTranslog(Get get, Translog.Index index, MappingLookup mappingLookup, DocumentParser documentParser,
                                       Function<Searcher, Searcher> searcherWrapper) throws IOException {
         assert get.isReadFromTranslog();
-        final SingleDocDirectoryReader inMemoryReader = new SingleDocDirectoryReader(shardId, index, mappingLookup, documentParser,
-            config().getAnalyzer());
+        translogGetCount.incrementAndGet();
+        final TranslogDirectoryReader inMemoryReader = new TranslogDirectoryReader(shardId, index, mappingLookup, documentParser,
+            config().getAnalyzer(), translogInMemorySegmentsCount::incrementAndGet);
         final Engine.Searcher searcher = new Engine.Searcher("realtime_get", ElasticsearchDirectoryReader.wrap(inMemoryReader, shardId),
-            config().getSimilarity(), config().getQueryCache(), config().getQueryCachingPolicy(), inMemoryReader);
+            config().getSimilarity(), null /*query cache disabled*/, NEVER_CACHE_POLICY, inMemoryReader);
         final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
-        if (wrappedSearcher == searcher) {
-            searcher.close();
-            assert inMemoryReader.assertMemorySegmentStatus(false);
-            final TranslogLeafReader translogLeafReader = new TranslogLeafReader(index);
-            return new GetResult(new Engine.Searcher("realtime_get", translogLeafReader,
-                IndexSearcher.getDefaultSimilarity(), null, IndexSearcher.getDefaultQueryCachingPolicy(), translogLeafReader),
-                new VersionsAndSeqNoResolver.DocIdAndVersion(
-                    0, index.version(), index.seqNo(), index.primaryTerm(), translogLeafReader, 0), true);
-        } else {
-            assert inMemoryReader.assertMemorySegmentStatus(true);
-            return getFromSearcher(get, wrappedSearcher);
-        }
+        return getFromSearcher(get, wrappedSearcher, true);
     }
 
     @Override
@@ -675,10 +680,10 @@ public class InternalEngine extends Engine {
                     assert versionValue.seqNo >= 0 : versionValue;
                     refreshIfNeeded("realtime_get", versionValue.seqNo);
                 }
-                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper));
+                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
             } else {
                 // we expose what has been externally expose in a point in time snapshot via an explicit refresh
-                return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper));
+                return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
             }
         }
     }

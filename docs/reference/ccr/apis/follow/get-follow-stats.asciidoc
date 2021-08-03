@@ -94,7 +94,7 @@ NOTE: This is only an estimate and does not account for compression if enabled.
 `failed_read_requests`::
 (long) The number of failed reads.
 
-failed_write_requests`::
+`failed_write_requests`::
 (long) The number of failed bulk write requests executed on the follower.
 
 `follower_aliases_version`::
@@ -134,7 +134,7 @@ task.
 `operations_read`::
 (long) The total number of operations read from the leader.
 
-operations_written`::
+`operations_written`::
 (long) The number of operations written on the follower.
 
 `outstanding_read_requests`::
@@ -195,7 +195,7 @@ sent to the leader to the time a reply was returned to the follower.
 `write_buffer_operation_count`::
 (integer) The number of write operations queued on the follower.
 
-write_buffer_size_in_bytes`::
+`write_buffer_size_in_bytes`::
 (long) The total number of bytes of operations currently queued for writing.
 =====
 //End shards

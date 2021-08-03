@@ -124,6 +124,11 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     }
 
     @Override
+    public boolean allowsRemoteIndices() {
+        return true;
+    }
+
+    @Override
     public boolean includeDataStreams() {
         return true;
     }

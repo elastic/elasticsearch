@@ -35,7 +35,7 @@ public class NlpTask {
      * @throws ValidationException if the validation fails
      */
     public Processor createProcessor() throws ValidationException {
-        return config.getTaskType().createProcessor(tokenizer, config.getClassificationLabels());
+        return config.getTaskType().createProcessor(tokenizer, config);
     }
 
     public interface RequestBuilder {

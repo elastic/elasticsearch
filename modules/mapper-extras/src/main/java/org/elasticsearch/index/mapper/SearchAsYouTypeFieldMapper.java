@@ -416,7 +416,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) {
+        protected void parseCreateField(DocumentParserContext context) {
             throw new UnsupportedOperationException();
         }
 
@@ -455,7 +455,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) {
+        protected void parseCreateField(DocumentParserContext context) {
             throw new UnsupportedOperationException();
         }
 
@@ -570,7 +570,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value = context.parser().textOrNull();
         if (value == null) {
             return;

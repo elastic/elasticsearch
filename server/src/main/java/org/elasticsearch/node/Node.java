@@ -18,6 +18,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
@@ -194,6 +196,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.core.Types.forciblyCast;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -349,7 +352,7 @@ public class Node implements Closeable {
 
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
 
-            final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
+            final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder<?>[0]));
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             resourcesToClose.add(resourceWatcherService);
@@ -518,7 +521,7 @@ public class Node implements Closeable {
                     threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptService,
                     clusterService, client, metaStateService, engineFactoryProviders, indexStoreFactories,
                     searchModule.getValuesSourceRegistry(), recoveryStateFactories, indexFoldersDeletionListeners,
-                    snapshotCommitSuppliers);
+                    snapshotCommitSuppliers, searchModule.getRequestCacheKeyDifferentiator());
 
             final AliasValidator aliasValidator = new AliasValidator();
 
@@ -683,7 +686,11 @@ public class Node implements Closeable {
                             transportService, recoverySettings, clusterService));
                     }
                     b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
-                    pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
+                    pluginComponents.forEach(p -> {
+                        @SuppressWarnings("unchecked")
+                        Class<Object> pluginClass = (Class<Object>) p.getClass();
+                        b.bind(pluginClass).toInstance(p);
+                    });
                     b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
                     b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
                     b.bind(PersistentTasksExecutorRegistry.class).toInstance(registry);
@@ -714,8 +721,15 @@ public class Node implements Closeable {
             resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
-            client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
-                }),
+
+            // Due to Java's type erasure with generics, the injector can't give us exactly what we need, and we have
+            // to resort to some evil casting.
+            @SuppressWarnings("rawtypes")
+            Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
+                forciblyCast(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
+                }));
+
+            client.initialize(actions,
                 transportService.getTaskManager(),
                 () -> clusterService.localNode().getId(),
                 transportService.getLocalNodeConnection(),

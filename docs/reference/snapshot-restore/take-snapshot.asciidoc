@@ -54,7 +54,7 @@ PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
 // TEST[skip:cannot complete subsequent snapshot]
 
 Use the `indices` parameter to list the data streams and indices that should be included in the snapshot. This parameter supports
-<<multi-index,multi-target syntax>>, although the options that control the behavior of multi-index syntax
+<<api-multi-index,multi-target syntax>>, although the options that control the behavior of multi-index syntax
 must be supplied in the body of the request, rather than as request parameters.
 
 Data stream backups include the stream's backing indices and metadata, such as

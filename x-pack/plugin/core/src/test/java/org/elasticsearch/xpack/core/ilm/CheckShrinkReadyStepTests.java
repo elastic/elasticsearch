@@ -70,7 +70,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
     public void testNoSetting() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
@@ -96,7 +96,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
     public void testConditionMet() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
@@ -120,7 +120,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
     public void testConditionMetOnlyOneCopyAllocated() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
@@ -146,7 +146,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
     public void testConditionNotMetDueToRelocation() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
@@ -175,7 +175,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
     public void testExecuteAllocateNotComplete() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
@@ -200,7 +200,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
     public void testExecuteAllocateNotCompleteOnlyOneCopyAllocated() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
@@ -227,7 +227,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
     public void testExecuteAllocateReplicaUnassigned() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
@@ -333,7 +333,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
     public void testStepCompletableIfAllShardsActive() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
@@ -384,7 +384,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
     public void testStepBecomesUncompletable() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")

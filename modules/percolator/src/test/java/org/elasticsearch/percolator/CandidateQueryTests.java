@@ -76,12 +76,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -110,7 +110,6 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
 
     private Directory directory;
     private IndexWriter indexWriter;
-    private DocumentMapper documentMapper;
     private DirectoryReader directoryReader;
     private IndexService indexService;
     private MapperService mapperService;
@@ -147,7 +146,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 .startObject("ip_field").field("type", "ip").endObject()
                 .startObject("field").field("type", "keyword").endObject()
                 .endObject().endObject().endObject());
-        documentMapper = mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
 
         String queryField = "query_field";
         String percolatorMapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -869,10 +868,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
 
         // This will trigger using the TermsQuery instead of individual term query clauses in the CoveringQuery:
+        int origMaxClauseCount = BooleanQuery.getMaxClauseCount();
         try (Directory directory = new ByteBuffersDirectory()) {
+            final int maxClauseCount = 100;
+            BooleanQuery.setMaxClauseCount(maxClauseCount);
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
                 Document document = new Document();
-                for (int i = 0; i < 1024; i++) {
+                for (int i = 0; i < maxClauseCount; i++) {
                     int fieldNumber = 2 + i;
                     document.add(new StringField("field", "value" + fieldNumber, Field.Store.NO));
                 }
@@ -898,6 +900,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 assertEquals(1, topDocs.scoreDocs[0].doc);
                 assertEquals(2, topDocs.scoreDocs[1].doc);
             }
+        } finally {
+            BooleanQuery.setMaxClauseCount(origMaxClauseCount);
         }
     }
 
@@ -1103,10 +1107,9 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     private void addQuery(Query query, List<LuceneDocument> docs) {
-        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(
-            documentMapper.mappers(), indexService.getIndexSettings(), indexService.getIndexAnalyzers(), null, null, null);
-        fieldMapper.processQuery(query, parseContext);
-        LuceneDocument queryDocument = parseContext.doc();
+        DocumentParserContext documentParserContext = new TestDocumentParserContext();
+        fieldMapper.processQuery(query, documentParserContext);
+        LuceneDocument queryDocument = documentParserContext.doc();
         // Add to string representation of the query to make debugging easier:
         queryDocument.add(new StoredField("query_to_string", query.toString()));
         docs.add(queryDocument);

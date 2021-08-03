@@ -52,7 +52,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
     private Environment environment;
 
     @BeforeClass
-    public static void muteInFips(){
+    public static void muteInFips() {
         assumeFalse("Enrollment is not supported in FIPS 140-2 as we are using PKCS#12 keystores", inFipsJvm());
     }
 
@@ -69,9 +69,9 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             .put("xpack.security.enabled", true)
             .put("xpack.http.ssl.enabled", true)
             .put("xpack.security.authc.api_key.enabled", true)
-            .put("xpack.http.ssl.truststore.path", "httpCa.p12")
+            .put("xpack.http.ssl.truststore.path", httpCaPath)
             .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.keystore.path", "httpCa.p12")
+            .put("xpack.security.http.ssl.keystore.path", httpCaPath)
             .put("xpack.security.enrollment.enabled", "true")
             .setSecureSettings(secureSettings)
             .put("path.home", tempDir)
@@ -86,9 +86,9 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         final URL createAPIKeyURL = createEnrollmentToken.createAPIKeyUrl();
         final URL getHttpInfoURL = createEnrollmentToken.getHttpInfoUrl();
 
-        final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<String, Object>());
-        when(client.execute(anyString(), any(URL.class), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(httpResponseOK);
+        final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
+        when(client.execute(anyString(), any(URL.class), anyString(), any(SecureString.class), anyCheckedSupplier(),
+            anyCheckedFunction())).thenReturn(httpResponseOK);
 
         String createApiKeyResponseBody;
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
@@ -101,7 +101,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             createApiKeyResponseBody = Strings.toString(builder);
         }
         when(client.execute(eq("POST"), eq(createAPIKeyURL), eq(ElasticUser.NAME), any(SecureString.class),
-            any(CheckedSupplier.class), any(CheckedFunction.class)))
+            anyCheckedSupplier(), anyCheckedFunction()))
             .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, createApiKeyResponseBody));
 
         String getHttpInfoResponseBody;
@@ -126,7 +126,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             getHttpInfoResponseBody = Strings.toString(builder);
         }
         when(client.execute(eq("GET"), eq(getHttpInfoURL), eq(ElasticUser.NAME), any(SecureString.class),
-            any(CheckedSupplier.class), any(CheckedFunction.class)))
+            anyCheckedSupplier(), anyCheckedFunction()))
             .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, getHttpInfoResponseBody));
 
         final String tokenNode = createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic"));
@@ -152,9 +152,9 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
         final URL createAPIKeyURL = createEnrollmentToken.createAPIKeyUrl();
 
-        final HttpResponse httpResponseNotOK = new HttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, new HashMap<String, Object>());
-        when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(httpResponseNotOK);
+        final HttpResponse httpResponseNotOK = new HttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, new HashMap<>());
+        when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), anyCheckedSupplier(),
+            anyCheckedFunction())).thenReturn(httpResponseNotOK);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
             createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic")));
@@ -168,9 +168,9 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         final URL createAPIKeyURL = createEnrollmentToken.createAPIKeyUrl();
         final URL getHttpInfoURL = createEnrollmentToken.getHttpInfoUrl();
 
-        final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<String, Object>());
-        when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(httpResponseOK);
+        final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
+        when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), anyCheckedSupplier(),
+            anyCheckedFunction())).thenReturn(httpResponseOK);
 
         String createApiKeyResponseBody;
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
@@ -183,12 +183,12 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             createApiKeyResponseBody = Strings.toString(builder);
         }
         when(client.execute(eq("POST"), eq(createAPIKeyURL), eq(ElasticUser.NAME), any(SecureString.class),
-            any(CheckedSupplier.class), any(CheckedFunction.class)))
+            anyCheckedSupplier(), anyCheckedFunction()))
             .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, createApiKeyResponseBody));
 
-        final HttpResponse httpResponseNotOK = new HttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, new HashMap<String, Object>());
-        when(client.execute(anyString(), eq(getHttpInfoURL), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(httpResponseNotOK);
+        final HttpResponse httpResponseNotOK = new HttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, new HashMap<>());
+        when(client.execute(anyString(), eq(getHttpInfoURL), anyString(), any(SecureString.class), anyCheckedSupplier(),
+            anyCheckedFunction())).thenReturn(httpResponseNotOK);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
             createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic")));
@@ -208,7 +208,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             .put("xpack.http.ssl.enabled", true)
             .put("xpack.security.authc.api_key.enabled", true)
             .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.keystore.path", "transport.p12")
+            .put("xpack.security.http.ssl.keystore.path", httpNoCaPath)
             .put("xpack.security.enrollment.enabled", "true")
             .setSecureSettings(secureSettings)
             .put("path.home", tempDir)
@@ -220,9 +220,9 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         final URL createAPIKeyURL = createEnrollmentToken.createAPIKeyUrl();
         final URL getHttpInfoURL = createEnrollmentToken.getHttpInfoUrl();
 
-        final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<String, Object>());
-        when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(httpResponseOK);
+        final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
+        when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), anyCheckedSupplier(),
+            anyCheckedFunction())).thenReturn(httpResponseOK);
 
         String createApiKeyResponseBody;
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
@@ -235,12 +235,12 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             createApiKeyResponseBody = Strings.toString(builder);
         }
         when(client.execute(eq("POST"), eq(createAPIKeyURL), eq(ElasticUser.NAME), any(SecureString.class),
-            any(CheckedSupplier.class), any(CheckedFunction.class)))
+            anyCheckedSupplier(), anyCheckedFunction()))
             .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, createApiKeyResponseBody));
 
-        final HttpResponse httpResponseNotOK = new HttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, new HashMap<String, Object>());
-        when(client.execute(anyString(), eq(getHttpInfoURL), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(httpResponseNotOK);
+        final HttpResponse httpResponseNotOK = new HttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, new HashMap<>());
+        when(client.execute(anyString(), eq(getHttpInfoURL), anyString(), any(SecureString.class), anyCheckedSupplier(),
+            anyCheckedFunction())).thenReturn(httpResponseNotOK);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
             createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic")));
@@ -261,7 +261,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             .put("xpack.http.ssl.enabled", true)
             .put("xpack.security.authc.api_key.enabled", true)
             .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.keystore.path", "httpCa2.p12")
+            .put("xpack.security.http.ssl.keystore.path", httpNoCaPath)
             .put("xpack.security.enrollment.enabled", "true")
             .setSecureSettings(secureSettings)
             .put("path.home", tempDir)
@@ -273,9 +273,9 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         final URL createAPIKeyURL = createEnrollmentToken.createAPIKeyUrl();
         final URL getHttpInfoURL = createEnrollmentToken.getHttpInfoUrl();
 
-        final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<String, Object>());
-        when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(httpResponseOK);
+        final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
+        when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), anyCheckedSupplier(),
+            anyCheckedFunction())).thenReturn(httpResponseOK);
 
         String createApiKeyResponseBody;
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
@@ -288,12 +288,12 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             createApiKeyResponseBody = Strings.toString(builder);
         }
         when(client.execute(eq("POST"), eq(createAPIKeyURL), eq(ElasticUser.NAME), any(SecureString.class),
-            any(CheckedSupplier.class), any(CheckedFunction.class)))
+            anyCheckedSupplier(), anyCheckedFunction()))
             .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, createApiKeyResponseBody));
 
-        final HttpResponse httpResponseNotOK = new HttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, new HashMap<String, Object>());
-        when(client.execute(anyString(), eq(getHttpInfoURL), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(httpResponseNotOK);
+        final HttpResponse httpResponseNotOK = new HttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, new HashMap<>());
+        when(client.execute(anyString(), eq(getHttpInfoURL), anyString(), any(SecureString.class), anyCheckedSupplier(),
+            anyCheckedFunction())).thenReturn(httpResponseNotOK);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
             createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic")));
@@ -301,7 +301,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             "configuration Keystore contains multiple PrivateKey entries where the associated certificate is a CA certificate"));
     }
 
-    public void testNoKeyStore() throws Exception{
+    public void testNoKeyStore() throws Exception {
         final Path tempDir = createTempDir();
         final Settings settings = Settings.builder()
             .put("xpack.security.enabled", true)
@@ -330,9 +330,9 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             .put("xpack.security.enabled", true)
             .put("xpack.http.ssl.enabled", true)
             .put("xpack.security.authc.api_key.enabled", true)
-            .put("xpack.http.ssl.truststore.path", "httpCa.p12")
+            .put("xpack.http.ssl.truststore.path", httpCaPath)
             .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.keystore.path", "httpCa.p12")
+            .put("xpack.security.http.ssl.keystore.path", httpCaPath)
             .setSecureSettings(secureSettings)
             .put("path.home", tempDir)
             .build();
@@ -347,7 +347,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             "create an enrollment token"));
     }
 
-    public void testGetFilteredAddresses () throws Exception {
+    public void testGetFilteredAddresses() throws Exception {
         List<String> addresses = Arrays.asList("[::1]:9200", "127.0.0.1:9200", "192.168.0.1:9201", "172.16.254.1:9202",
             "[2001:db8:0:1234:0:567:8:1]:9203");
         List<String> filteredAddresses = getFilteredAddresses(addresses);
@@ -373,7 +373,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
 
         final List<String> invalid_addresses = Arrays.asList("nldfnbndflbnl");
         UnknownHostException ex = expectThrows(UnknownHostException.class, () -> getFilteredAddresses(invalid_addresses));
-        assertThat(ex.getMessage(), Matchers.containsString("nldfnbndflbnl:"));
+        assertThat(ex.getMessage(), Matchers.containsString("nldfnbndflbnl"));
     }
 
     private Map<String, String> getDecoded(String token) throws IOException {
@@ -391,5 +391,15 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         builder.withHttpStatus(httpStatus);
         builder.withResponseBody(responseJson);
         return builder.build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T, E extends Exception> CheckedSupplier<T, E> anyCheckedSupplier() {
+        return any(CheckedSupplier.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T, R, E extends Exception> CheckedFunction<T, R, E> anyCheckedFunction() {
+        return any(CheckedFunction.class);
     }
 }

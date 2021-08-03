@@ -469,7 +469,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 emit((long) getDoc().get(NUMBER_FIELD_NAME).get(0));
             }
         };
-        MappedFieldType dummyFt = new LongScriptFieldType("dummy", scriptFactory, new Script("test"), Map.of(), null);
+        MappedFieldType dummyFt = new LongScriptFieldType("dummy", scriptFactory, new Script("test"), Map.of());
         MappedFieldType numberFt = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
         debugTestCase(
             new RangeAggregationBuilder("r").field("dummy").addRange(0, 1).addRange(1, 2).addRange(2, 3),

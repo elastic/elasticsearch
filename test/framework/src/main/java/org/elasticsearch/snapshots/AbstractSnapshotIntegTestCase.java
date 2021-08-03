@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -164,6 +163,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    @SuppressWarnings("cast")
     protected RepositoryData getRepositoryData(String repository) {
         return getRepositoryData((Repository) getRepositoryOnMaster(repository));
     }
@@ -225,6 +225,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockAndFailOnWriteSnapFiles();
     }
 
+    public static void blockMasterOnShardLevelSnapshotFile(final String repositoryName, String indexId) {
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockAndOnWriteShardLevelSnapFiles(indexId);
+    }
+
     @SuppressWarnings("unchecked")
     public static <T extends Repository> T getRepositoryOnMaster(String repositoryName) {
         return ((T) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repositoryName));
@@ -250,6 +254,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static void blockDataNode(String repository, String nodeName) {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, nodeName).blockOnDataFiles();
+    }
+
+    public static void blockAndFailDataNode(String repository, String nodeName) {
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, nodeName).blockAndFailOnDataFiles();
     }
 
     public static void blockAllDataNodes(String repository) {
@@ -382,7 +390,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         PlainActionFuture.get(f -> blobStoreRepository.threadPool().generic().execute(ActionRunnable.run(f, () ->
                 BlobStoreRepository.SNAPSHOT_FORMAT.write(downgradedSnapshotInfo,
                         blobStoreRepository.blobStore().blobContainer(blobStoreRepository.basePath()), snapshotInfo.snapshotId().getUUID(),
-                        randomBoolean(), internalCluster().getCurrentMasterNodeInstance(BigArrays.class)))));
+                        randomBoolean()))));
         return oldVersionSnapshot;
     }
 

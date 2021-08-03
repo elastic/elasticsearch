@@ -18,9 +18,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -84,7 +84,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     /**
      * Parses a set of index-time contexts.
      */
-    public abstract Set<String> parseContext(ParseContext parseContext, XContentParser parser)
+    public abstract Set<String> parseContext(DocumentParserContext documentParserContext, XContentParser parser)
             throws IOException, ElasticsearchParseException;
 
     /**

@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -63,6 +61,81 @@ public class NodeShutdownIT extends ESRestTestCase {
         Request deleteRequest = new Request("DELETE", "_nodes/" + nodeIdToShutdown + "/shutdown");
         assertOK(client().performRequest(deleteRequest));
         assertNoShuttingDownNodes(nodeIdToShutdown);
+    }
+
+    public void testPutShutdownIsIdempotentForRestart() throws Exception {
+        checkPutShutdownIdempotency("RESTART");
+    }
+
+    public void testPutShutdownIsIdempotentForRemove() throws Exception {
+        checkPutShutdownIdempotency("REMOVE");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void checkPutShutdownIdempotency(String type) throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
+        String nodeIdToShutdown = getRandomNodeId();
+
+        // PUT the shutdown once
+        putNodeShutdown(nodeIdToShutdown, type);
+
+        // now PUT it again, the same and we shouldn't get an error
+        String newReason = "this reason is different";
+
+        // Put a shutdown request
+        Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
+        putShutdown.setJsonEntity("{\"type\":  \"" + type + "\", \"reason\":  \"" + newReason + "\"}");
+        assertOK(client().performRequest(putShutdown));
+
+        // Ensure we can read it back and it has the new reason
+        {
+            Request getShutdownStatus = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            Map<String, Object> statusResponse = responseAsMap(client().performRequest(getShutdownStatus));
+            List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
+            assertThat(nodesArray, hasSize(1));
+            assertThat(nodesArray.get(0).get("node_id"), equalTo(nodeIdToShutdown));
+            assertThat(nodesArray.get(0).get("type"), equalTo(type));
+            assertThat(nodesArray.get(0).get("reason"), equalTo(newReason));
+        }
+    }
+
+
+    public void testPutShutdownCanChangeTypeFromRestartToRemove() throws Exception {
+        checkTypeChange("RESTART", "REMOVE");
+    }
+
+    public void testPutShutdownCanChangeTypeFromRemoveToRestart() throws Exception {
+        checkTypeChange("REMOVE", "RESTART");
+    }
+
+    @SuppressWarnings("unchecked")
+    public void checkTypeChange(String fromType, String toType) throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
+        String nodeIdToShutdown = getRandomNodeId();
+        String type = fromType;
+
+        // PUT the shutdown once
+        putNodeShutdown(nodeIdToShutdown, type);
+
+        // now PUT it again, the same and we shouldn't get an error
+        String newReason = "this reason is different";
+        String newType = toType;
+
+        // Put a shutdown request
+        Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
+        putShutdown.setJsonEntity("{\"type\":  \"" + newType + "\", \"reason\":  \"" + newReason + "\"}");
+        assertOK(client().performRequest(putShutdown));
+
+        // Ensure we can read it back and it has the new reason
+        {
+            Request getShutdownStatus = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            Map<String, Object> statusResponse = responseAsMap(client().performRequest(getShutdownStatus));
+            List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
+            assertThat(nodesArray, hasSize(1));
+            assertThat(nodesArray.get(0).get("node_id"), equalTo(nodeIdToShutdown));
+            assertThat(nodesArray.get(0).get("type"), equalTo(newType));
+            assertThat(nodesArray.get(0).get("reason"), equalTo(newReason));
+        }
     }
 
     /**

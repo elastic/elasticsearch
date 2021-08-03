@@ -21,14 +21,25 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
+import org.elasticsearch.xpack.core.ilm.AllocateAction;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.ActionConfigStats;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.shouldInjectMigrateStepForPhase;
 
 public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
 
@@ -59,8 +70,15 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
             });
             List<IndexLifecycleFeatureSetUsage.PolicyStats> policyStats = lifecycleMetadata.getPolicies().values().stream().map(policy -> {
                 Map<String, IndexLifecycleFeatureSetUsage.PhaseStats> phaseStats = policy.getPhases().values().stream().map(phase -> {
-                    String[] actionNames = phase.getActions().keySet().toArray(new String[phase.getActions().size()]);
-                    return new Tuple<>(phase.getName(), new IndexLifecycleFeatureSetUsage.PhaseStats(phase.getMinimumAge(), actionNames));
+                    ActionConfigStats.Builder configurations = ActionConfigStats.builder();
+                    Stream<String> actionStream = phase.getActions().keySet().stream();
+                    if (policy.getType() instanceof TimeseriesLifecycleType && shouldInjectMigrateStepForPhase(phase)) {
+                        actionStream = Stream.concat(actionStream, Stream.of("migrate"));
+                    }
+                    String[] actionNames = actionStream.toArray(String[]::new);
+                    phase.getActions().forEach((k, v) -> collectActionConfigurations(k, v, configurations));
+                    return new Tuple<>(phase.getName(), new IndexLifecycleFeatureSetUsage.PhaseStats(phase.getMinimumAge(), actionNames,
+                        configurations.build()));
                 }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
                 return new IndexLifecycleFeatureSetUsage.PolicyStats(phaseStats, policyUsage.getOrDefault(policy.getName(), 0));
             }).collect(Collectors.toList());
@@ -69,5 +87,34 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
             usage = new IndexLifecycleFeatureSetUsage();
         }
         listener.onResponse(new XPackUsageFeatureResponse(usage));
+    }
+
+    private void collectActionConfigurations(String actionName, LifecycleAction action, ActionConfigStats.Builder consumer) {
+        switch (actionName) {
+            case AllocateAction.NAME:
+                AllocateAction allocateAction = (AllocateAction) action;
+                consumer.setAllocateNumberOfReplicas(allocateAction.getNumberOfReplicas());
+                break;
+            case ForceMergeAction.NAME:
+                ForceMergeAction forceMergeAction = (ForceMergeAction) action;
+                consumer.setForceMergeMaxNumberOfSegments(forceMergeAction.getMaxNumSegments());
+                break;
+            case RolloverAction.NAME:
+                RolloverAction rolloverAction = (RolloverAction) action;
+                consumer.setRolloverMaxAge(rolloverAction.getMaxAge());
+                consumer.setRolloverMaxDocs(rolloverAction.getMaxDocs());
+                consumer.setRolloverMaxPrimaryShardSize(rolloverAction.getMaxPrimaryShardSize());
+                consumer.setRolloverMaxSize(rolloverAction.getMaxSize());
+                break;
+            case SetPriorityAction.NAME:
+                SetPriorityAction setPriorityAction = (SetPriorityAction) action;
+                consumer.setPriority(setPriorityAction.getRecoveryPriority());
+                break;
+            case ShrinkAction.NAME:
+                ShrinkAction shrinkAction = (ShrinkAction) action;
+                consumer.setShrinkMaxPrimaryShardSize(shrinkAction.getMaxPrimaryShardSize());
+                consumer.setShrinkNumberOfShards(shrinkAction.getNumberOfShards());
+                break;
+        }
     }
 }

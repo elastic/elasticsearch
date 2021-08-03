@@ -230,9 +230,6 @@ GET /example/_search
 
 ==== Spatial Relations
 
-The <<spatial-strategy, geo_shape strategy>> mapping parameter determines which
-spatial relation operators may be used at search time.
-
 The following is a complete list of spatial relation operators available when
 searching a geo field:
 
@@ -256,12 +253,6 @@ is not mapped.
 
 [[geo-shape-query-notes]]
 ==== Notes
-
-* Geo-shape queries on geo-shapes implemented with
-  <<prefix-trees, `PrefixTrees`>> will not be executed if
-  <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>> is set
-  to false.
-
 
 * When data is indexed in a `geo_shape` field as an array of shapes, the arrays
   are treated as one shape. For this reason, the following requests are

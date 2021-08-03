@@ -206,4 +206,18 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         builder.endObject();
         return builder;
     }
+
+    @Override
+    public AsyncSearchResponse convertToFailure(Exception exc) {
+        exc.setStackTrace(new StackTraceElement[0]); // we don't need to store stack traces
+        return new AsyncSearchResponse(
+            id,
+            null,
+            exc,
+            isPartial,
+            false,
+            startTimeMillis,
+            expirationTimeMillis
+        );
+    }
 }

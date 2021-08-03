@@ -48,6 +48,9 @@ or alias.
 
 * See <<eql-required-fields>>.
 
+* experimental:[] For cross-cluster search, the local and remote clusters must
+use the same {es} version. For security, see <<cross-cluster-configuring>>.
+
 [[eql-search-api-limitations]]
 ===== Limitations
 
@@ -60,6 +63,9 @@ See <<eql-syntax-limitations,EQL limitations>>.
 (Required, string) Comma-separated list of data streams, indices, or aliases
 used to limit the request. Supports wildcards (`*`). To search all data streams
 and indices, use `*` or `_all`.
++
+experimental:[] To search a remote cluster, use the `<cluster>:<target>` syntax.
+See <<run-eql-search-across-clusters>>.
 
 [[eql-search-api-query-params]]
 ==== {api-query-parms-title}
@@ -293,6 +299,7 @@ change the sort order of hits in the response.
 
 include::{es-repo-dir}/search/search.asciidoc[tag=runtime-mappings-def]
 
+[[eql-search-api-params-size]]
 `size`::
 (Optional, integer or float)
 For <<eql-basic-syntax,basic queries>>, the maximum number of matching events to

@@ -14,7 +14,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.eql.EqlSearchRequest;
 import org.elasticsearch.client.eql.EqlSearchResponse;
@@ -24,21 +23,18 @@ import org.elasticsearch.client.eql.EqlSearchResponse.Sequence;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.StringJoiner;
 
 import static java.util.stream.Collectors.toList;
 
-public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
+public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestCase {
 
     protected static final String PARAM_FORMATTING = "%2$s";
 
@@ -51,15 +47,16 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
 
     @Before
     public void setup() throws Exception {
-        if (client().performRequest(new Request("HEAD", "/" + index)).getStatusLine().getStatusCode() == 404) {
-            DataLoader.loadDatasetIntoEs(highLevelClient(), this::createParser);
+        RestClient provisioningClient = provisioningClient();
+        if (provisioningClient.performRequest(new Request("HEAD", "/" + unqualifiedIndexName())).getStatusLine().getStatusCode() == 404) {
+            DataLoader.loadDatasetIntoEs(highLevelClient(provisioningClient), this::createParser);
         }
     }
 
     @AfterClass
     public static void wipeTestData() throws IOException {
         try {
-            adminClient().performRequest(new Request("DELETE", "/*"));
+            provisioningAdminClient().performRequest(new Request("DELETE", "/*"));
         } catch (ResponseException e) {
             // 404 here just means we had no indexes
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {
@@ -144,12 +141,7 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
 
     private RestHighLevelClient highLevelClient() {
         if (highLevelClient == null) {
-            highLevelClient = new RestHighLevelClient(
-                    client(),
-                    ignore -> {
-                    },
-                    Collections.emptyList()) {
-            };
+            highLevelClient = highLevelClient(client());
         }
         return highLevelClient;
     }
@@ -204,17 +196,7 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
 
     @Override
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
-        RestClientBuilder builder = RestClient.builder(hosts);
-        configureClient(builder, settings);
-
-        int timeout = Math.toIntExact(timeout().millis());
-        builder.setRequestConfigCallback(
-            requestConfigBuilder -> requestConfigBuilder.setConnectTimeout(timeout)
-                .setConnectionRequestTimeout(timeout)
-                .setSocketTimeout(timeout)
-        );
-        builder.setStrictDeprecationMode(true);
-        return builder.build();
+        return clientBuilder(settings, hosts);
     }
 
     protected String timestamp() {
@@ -240,7 +222,9 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
         return randomBoolean() ? "head" : "tail";
     }
 
-    protected TimeValue timeout() {
-        return TimeValue.timeValueSeconds(10);
+    // strip any qualification from the received index string
+    private String unqualifiedIndexName() {
+        int offset = index.indexOf(':');
+        return offset >= 0 ? index.substring(offset + 1) : index;
     }
 }

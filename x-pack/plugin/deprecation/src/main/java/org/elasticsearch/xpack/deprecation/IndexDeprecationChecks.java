@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 
 import java.util.Locale;
@@ -25,7 +26,8 @@ public class IndexDeprecationChecks {
                     "Index created before 7.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
                         "breaking-changes-8.0.html",
-                    "This index was created using version: " + createdWith, null);
+                    "This index was created using version: " + createdWith,
+                    false, null);
             }
         return null;
     }
@@ -39,7 +41,8 @@ public class IndexDeprecationChecks {
                     "translog retention settings are ignored",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",
                     "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored " +
-                        "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)", null);
+                        "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)",
+                    false, null);
             }
         }
         return null;
@@ -52,7 +55,20 @@ public class IndexDeprecationChecks {
             final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/" +
                 "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
             final String details = "Found index data path configured. Discontinue use of this setting.";
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+        }
+        return null;
+    }
+
+    static DeprecationIssue storeTypeSettingCheck(IndexMetadata indexMetadata) {
+        final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexMetadata.getSettings());
+        if (IndexModule.Type.SIMPLEFS.match(storeType)) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "[simplefs] is deprecated and will be removed in future versions",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-store.html",
+                "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
+                    "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
+                    "as it offers superior or equivalent performance to [simplefs].", false, null);
         }
         return null;
     }

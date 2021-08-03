@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -91,12 +92,12 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
                 parent, subFactoriesBuilder, metadata);
         }
 
-        if (childObjectMapper.nested().isNested() == false) {
+        if (childObjectMapper.isNested() == false) {
             throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
         }
         try {
-            ObjectMapper parentObjectMapper = context.nestedScope().nextLevel(childObjectMapper);
-            return new NestedAggregatorFactory(name, parentObjectMapper, childObjectMapper, context,
+            NestedObjectMapper parentObjectMapper = context.nestedScope().nextLevel((NestedObjectMapper) childObjectMapper);
+            return new NestedAggregatorFactory(name, parentObjectMapper, (NestedObjectMapper) childObjectMapper, context,
                 parent, subFactoriesBuilder, metadata);
         } finally {
             context.nestedScope().previousLevel();

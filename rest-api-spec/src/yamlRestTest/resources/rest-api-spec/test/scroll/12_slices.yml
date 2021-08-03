@@ -142,3 +142,27 @@ setup:
   - do:
         clear_scroll:
           scroll_id: $scroll_id
+
+---
+"Sliced scroll with doc values":
+
+  - do:
+      search:
+        index: test_sliced_scroll
+        sort: foo
+        scroll: 1m
+        body:
+          slice:
+            field: foo
+            id: 0
+            max: 2
+          query:
+            match_all: {}
+
+  - set: {_scroll_id: scroll_id}
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+
+  - do:
+      clear_scroll:
+        scroll_id: $scroll_id

@@ -18,13 +18,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -33,11 +33,6 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLHandshakeException;
-import javax.net.ssl.SSLParameters;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -45,6 +40,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.regex.Pattern;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.containsString;
@@ -184,19 +184,28 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
         clientSocket.setSSLParameters(params);
     }
 
-    private Settings.Builder getPemSSLSettings(String prefix, String certificatePath, String keyPath,
-                                               SslClientAuthenticationMode clientAuth, SslVerificationMode sslVerification,
-                                               String caPath) throws FileNotFoundException {
+    private Settings.Builder getPemSSLSettings(
+        String prefix,
+        String certificatePath,
+        String keyPath,
+        SslClientAuthenticationMode clientAuth,
+        SslVerificationMode verificationMode,
+        String caPath
+    ) throws FileNotFoundException {
         final Settings.Builder builder = Settings.builder()
             .put(prefix + ".enabled", true)
             .put(prefix + ".certificate", getPath(certificatePath))
             .put(prefix + ".key", getPath(keyPath))
-            .put(prefix + ".client_authentication", randomBoolean() ? clientAuth.name() : clientAuth.name().toLowerCase(Locale.ROOT))
-            .put(prefix + ".verification_mode", randomBoolean() ? sslVerification.name() : sslVerification.name().toLowerCase(Locale.ROOT));
+            .put(prefix + ".client_authentication", randomCapitalization(clientAuth))
+            .put(prefix + ".verification_mode", randomCapitalization(verificationMode));
         if (caPath != null) {
             builder.putList(prefix + ".certificate_authorities", getPath(caPath));
         }
         return builder;
+    }
+
+    private static String randomCapitalization(Enum<?> enumValue) {
+        return randomBoolean() ? enumValue.name() : enumValue.name().toLowerCase(Locale.ROOT);
     }
 
     private MockWebServer initWebServer(SSLService sslService) throws IOException {

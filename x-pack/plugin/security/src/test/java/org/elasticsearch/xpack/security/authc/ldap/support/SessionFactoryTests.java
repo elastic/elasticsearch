@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.ldap.support;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
 import com.unboundid.util.ssl.TrustAllSSLSocketVerifier;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;

@@ -28,17 +28,19 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class NativeNormalizerProcessFactory implements NormalizerProcessFactory {
 
-    private static final Logger LOGGER = LogManager.getLogger(NativeNormalizerProcessFactory.class);
+    private static final Logger logger = LogManager.getLogger(NativeNormalizerProcessFactory.class);
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
 
     private final Environment env;
     private final NativeController nativeController;
+    private final String nodeName;
     private final AtomicLong counter;
     private volatile Duration processConnectTimeout;
 
     public NativeNormalizerProcessFactory(Environment env, NativeController nativeController, ClusterService clusterService) {
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
+        this.nodeName = clusterService.getNodeName();
         this.counter = new AtomicLong(0);
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
@@ -66,11 +68,11 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
             return normalizerProcess;
         } catch (IOException | EsRejectedExecutionException e) {
             String msg = "Failed to connect to normalizer for job " + jobId;
-            LOGGER.error(msg);
+            logger.error(msg);
             try {
                 IOUtils.close(normalizerProcess);
             } catch (IOException ioe) {
-                LOGGER.error("Can't close normalizer", ioe);
+                logger.error("Can't close normalizer", ioe);
             }
             throw ExceptionsHelper.serverError(msg, e);
         }
@@ -84,11 +86,11 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
             nativeController.startProcess(command);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOGGER.warn("[{}] Interrupted while launching normalizer", jobId);
+            logger.warn("[{}] Interrupted while launching normalizer", jobId);
         } catch (IOException e) {
             String msg = "[" + jobId + "] Failed to launch normalizer";
-            LOGGER.error(msg);
-            throw ExceptionsHelper.serverError(msg, e);
+            logger.error(msg);
+            throw ExceptionsHelper.serverError(msg + " on [" + nodeName + "]", e);
         }
     }
 }

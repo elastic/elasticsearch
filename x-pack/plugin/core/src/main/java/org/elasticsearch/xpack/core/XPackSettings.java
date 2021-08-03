@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;

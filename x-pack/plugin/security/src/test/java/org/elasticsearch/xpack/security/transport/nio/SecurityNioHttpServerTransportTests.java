@@ -29,13 +29,13 @@ import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.Before;
 
-import javax.net.ssl.SSLEngine;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Path;
 import java.util.Collections;
+import javax.net.ssl.SSLEngine;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -89,7 +89,7 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
     }
 
     public void testOptionalClientAuth() throws IOException {
-        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalisation(SslClientAuthenticationMode.OPTIONAL);
+        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalization(SslClientAuthenticationMode.OPTIONAL);
         Settings settings = Settings.builder()
             .put(env.settings())
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
@@ -111,7 +111,7 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
     }
 
     public void testRequiredClientAuth() throws IOException {
-        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalisation(SslClientAuthenticationMode.REQUIRED);
+        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalization(SslClientAuthenticationMode.REQUIRED);
         Settings settings = Settings.builder()
             .put(env.settings())
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
@@ -133,7 +133,7 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
     }
 
     public void testNoClientAuth() throws IOException {
-        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalisation(SslClientAuthenticationMode.NONE);
+        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalization(SslClientAuthenticationMode.NONE);
         Settings settings = Settings.builder()
             .put(env.settings())
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)

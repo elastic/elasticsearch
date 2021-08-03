@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.transport.netty4;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.ssl.SslHandler;
+
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -27,9 +28,9 @@ import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTranspor
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.Before;
 
-import javax.net.ssl.SSLEngine;
 import java.nio.file.Path;
 import java.util.Collections;
+import javax.net.ssl.SSLEngine;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -77,7 +78,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
     }
 
     public void testOptionalClientAuth() throws Exception {
-        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalisation(SslClientAuthenticationMode.OPTIONAL);;
+        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalization(SslClientAuthenticationMode.OPTIONAL);
         Settings settings = Settings.builder()
                 .put(env.settings())
                 .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
@@ -94,7 +95,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
     }
 
     public void testRequiredClientAuth() throws Exception {
-        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalisation(SslClientAuthenticationMode.REQUIRED);;
+        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalization(SslClientAuthenticationMode.REQUIRED);
         Settings settings = Settings.builder()
                 .put(env.settings())
                 .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
@@ -111,7 +112,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
     }
 
     public void testNoClientAuth() throws Exception {
-        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalisation(SslClientAuthenticationMode.NONE);;
+        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalization(SslClientAuthenticationMode.NONE);
         Settings settings = Settings.builder()
                 .put(env.settings())
                 .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)

@@ -308,7 +308,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         assertThat(sslEngine.getWantClientAuth(), is(false));
 
         // test required client authentication
-        String value = randomCapitalisation(SslClientAuthenticationMode.REQUIRED);;
+        String value = randomCapitalization(SslClientAuthenticationMode.REQUIRED);
         Settings settings = Settings.builder().put("xpack.security.transport.ssl.client_authentication", value).build();
         try (MockTransportService service = buildService("TS_REQUIRED_CLIENT_AUTH", Version.CURRENT, settings)) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
@@ -320,7 +320,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         }
 
         // test no client authentication
-        value = randomCapitalisation(SslClientAuthenticationMode.NONE);;
+        value = randomCapitalization(SslClientAuthenticationMode.NONE);
         settings = Settings.builder().put("xpack.security.transport.ssl.client_authentication", value).build();
         try (MockTransportService service = buildService("TS_NO_CLIENT_AUTH", Version.CURRENT, settings)) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
@@ -332,7 +332,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         }
 
         // test optional client authentication
-        value = randomCapitalisation(SslClientAuthenticationMode.OPTIONAL);;
+        value = randomCapitalization(SslClientAuthenticationMode.OPTIONAL);
         settings = Settings.builder().put("xpack.security.transport.ssl.client_authentication", value).build();
         try (MockTransportService service = buildService("TS_OPTIONAL_CLIENT_AUTH", Version.CURRENT, settings)) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
@@ -344,7 +344,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         }
 
         // test profile required client authentication
-        value = randomCapitalisation(SslClientAuthenticationMode.REQUIRED);;
+        value = randomCapitalization(SslClientAuthenticationMode.REQUIRED);;
         settings = Settings.builder()
             .put("transport.profiles.client.port", "8000-9000")
             .put("transport.profiles.client.xpack.security.ssl.enabled", true)
@@ -365,7 +365,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         }
 
         // test profile no client authentication
-        value = randomCapitalisation(SslClientAuthenticationMode.NONE);;
+        value = randomCapitalization(SslClientAuthenticationMode.NONE);
         settings = Settings.builder()
             .put("transport.profiles.client.port", "8000-9000")
             .put("transport.profiles.client.xpack.security.ssl.enabled", true)
@@ -386,7 +386,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         }
 
         // test profile optional client authentication
-        value = randomCapitalisation(SslClientAuthenticationMode.OPTIONAL);;
+        value = randomCapitalization(SslClientAuthenticationMode.OPTIONAL);
         settings = Settings.builder()
             .put("transport.profiles.client.port", "8000-9000")
             .put("transport.profiles.client.xpack.security.ssl.enabled", true)
@@ -405,6 +405,10 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 assertThat(sslEngine.getWantClientAuth(), is(true));
             }
         }
+    }
+
+    public static String randomCapitalization(SslClientAuthenticationMode mode) {
+        return randomFrom(mode.name(), mode.name().toLowerCase(Locale.ROOT));
     }
 
     private SSLEngine getEngineFromAcceptedChannel(TcpTransport transport, Transport.Connection connection) throws Exception {
@@ -431,9 +435,5 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         StubbableTransport.WrappedConnection wrappedConnection = (StubbableTransport.WrappedConnection) connection;
         TcpTransport.NodeChannels nodeChannels = (TcpTransport.NodeChannels) wrappedConnection.getConnection();
         return nodeChannels.getChannels().get(0);
-    }
-
-    public static String randomCapitalisation(SslClientAuthenticationMode mode) {
-        return randomBoolean() ? mode.name() : mode.name().toLowerCase(Locale.ROOT);
     }
 }

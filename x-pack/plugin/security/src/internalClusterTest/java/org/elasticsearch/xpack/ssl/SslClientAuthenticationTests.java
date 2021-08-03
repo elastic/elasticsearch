@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SSLClientAuthTests extends SecurityIntegTestCase {
+public class SslClientAuthenticationTests extends SecurityIntegTestCase {
 
     @Override
     protected boolean addMockHttpTransport() {

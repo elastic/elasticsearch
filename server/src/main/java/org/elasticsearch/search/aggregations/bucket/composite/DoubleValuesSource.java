@@ -11,11 +11,11 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
@@ -115,7 +115,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     }
 
     @Override
-    void setAfter(Comparable value) {
+    void setAfter(Comparable<?> value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else if (value instanceof Number) {
@@ -158,7 +158,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) {
+    LeafBucketCollector getLeafCollector(Comparable<Double> value, LeafReaderContext context, LeafBucketCollector next) {
         if (value.getClass() != Double.class) {
             throw new IllegalArgumentException("Expected Double, got " + value.getClass());
         }

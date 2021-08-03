@@ -18,9 +18,7 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
@@ -30,6 +28,8 @@ import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.ssl.TrustEverythingConfig;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -50,6 +50,7 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.net.ssl.X509TrustManager;
+
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.KeyStore;
@@ -357,10 +358,14 @@ public class SSLServiceTests extends ESTestCase {
             .put("transport.profiles.foo.xpack.security.ssl.verification_mode", "full")
             .build();
         sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
-        assertThat(sslService.getSSLConfiguration("xpack.security.transport.ssl.").getVerificationMode(),
-            is(SslVerificationMode.CERTIFICATE));
-        assertThat(sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl.").getVerificationMode(),
-            is(SslVerificationMode.FULL));
+        assertThat(
+            sslService.getSSLConfiguration("xpack.security.transport.ssl.").getVerificationMode(),
+            is(SslVerificationMode.CERTIFICATE)
+        );
+        assertThat(
+            sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl.").getVerificationMode(),
+            is(SslVerificationMode.FULL)
+        );
     }
 
     public void testIsSSLClientAuthEnabled() throws Exception {

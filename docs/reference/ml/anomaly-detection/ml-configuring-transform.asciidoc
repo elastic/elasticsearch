@@ -421,7 +421,7 @@ The preview {dfeed} API returns the following results, which show that
 
 
 [[ml-configuring-transform8]]
-.Example 8: Transforming geo_point data
+.Example 8: Transforming geopoint data
 
 [source,console]
 --------------------------------------------------

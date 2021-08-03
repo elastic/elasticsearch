@@ -1,7 +1,7 @@
 [[geo-shape]]
-=== Geo-shape field type
+=== Geoshape field type
 ++++
-<titleabbrev>Geo-shape</titleabbrev>
+<titleabbrev>Geoshape</titleabbrev>
 ++++
 
 The `geo_shape` data type facilitates the indexing of and searching
@@ -10,14 +10,14 @@ used when either the data being indexed or the queries being executed
 contain shapes other than just points.
 
 You can query documents using this type using
-<<query-dsl-geo-shape-query,geo_shape Query>>.
+a <<query-dsl-geo-shape-query,`geo_shape` query>>.
 
 [[geo-shape-mapping-options]]
 [discrete]
 ==== Mapping Options
 
-The geo_shape mapping maps geo_json geometry objects to the geo_shape
-type. To enable it, users must explicitly map fields to the geo_shape
+The `geo_shape` mapping maps GeoJSON geometry objects to the `geo_shape`
+type. To enable it, users must explicitly map fields to the `geo_shape`
 type.
 
 [cols="<,<,<",options="header",]
@@ -122,7 +122,7 @@ entire document.
 
 |`ignore_z_value` |If `true` (default) three dimension points will be accepted (stored in source)
 but only latitude and longitude values will be indexed; the third dimension is ignored. If `false`,
-geo-points containing any more than latitude and longitude (two dimensions) values throw an exception
+geopoints containing any more than latitude and longitude (two dimensions) values throw an exception
 and reject the whole document.
 | `true`
 
@@ -462,8 +462,8 @@ POST /example/_doc
 --------------------------------------------------
 // TEST[catch:/mapper_parsing_exception/]
 
-An `orientation` parameter can be defined when setting the geo_shape mapping (see <<geo-shape-mapping-options>>). This will define vertex
-order for the coordinate list on the mapped geo_shape field. It can also be overridden on each document. The following is an example for
+An `orientation` parameter can be defined when setting the `geo_shape` mapping (see <<geo-shape-mapping-options>>). This will define vertex
+order for the coordinate list on the mapped `geo_shape` field. It can also be overridden on each document. The following is an example for
 overriding the orientation on a document:
 
 [source,console]
@@ -484,7 +484,7 @@ POST /example/_doc
 [[geo-multipoint]]
 ===== http://geojson.org/geojson-spec.html#id5[MultiPoint]
 
-The following is an example of a list of geojson points:
+The following is an example of a list of GeoJSON points:
 
 [source,console]
 --------------------------------------------------
@@ -513,7 +513,7 @@ POST /example/_doc
 [[geo-multilinestring]]
 ===== http://geojson.org/geojson-spec.html#id6[MultiLineString]
 
-The following is an example of a list of geojson linestrings:
+The following is an example of a list of GeoJSON linestrings:
 
 [source,console]
 --------------------------------------------------
@@ -544,7 +544,7 @@ POST /example/_doc
 [[geo-multipolygon]]
 ===== http://geojson.org/geojson-spec.html#id7[MultiPolygon]
 
-The following is an example of a list of geojson polygons (second polygon contains a hole):
+The following is an example of a list of GeoJSON polygons (second polygon contains a hole):
 
 [source,console]
 --------------------------------------------------
@@ -575,7 +575,7 @@ POST /example/_doc
 [[geo-geometry_collection]]
 ===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
 
-The following is an example of a collection of geojson geometry objects:
+The following is an example of a collection of GeoJSON geometry objects:
 
 [source,console]
 --------------------------------------------------
@@ -693,5 +693,5 @@ the units of the `radius` will default to `METERS`.
 
 Due to the complex input structure and index representation of shapes,
 it is not currently possible to sort shapes or retrieve their fields
-directly. The geo_shape value is only retrievable through the `_source`
+directly. The `geo_shape` value is only retrievable through the `_source`
 field.

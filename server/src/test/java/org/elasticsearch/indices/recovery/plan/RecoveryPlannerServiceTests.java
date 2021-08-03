@@ -96,7 +96,7 @@ public class RecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         assert false: "Unexpected call";
                     }
                 },
@@ -129,7 +129,7 @@ public class RecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         if (randomBoolean()) {
                             listener.onResponse(Collections.emptyList());
                         } else {
@@ -172,7 +172,7 @@ public class RecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         listener.onResponse(Collections.singletonList(shardSnapshotData));
                     }
                 },
@@ -211,7 +211,7 @@ public class RecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         listener.onResponse(Collections.singletonList(shardSnapshotData));
                     }
                 },
@@ -260,7 +260,7 @@ public class RecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         listener.onResponse(availableSnapshots);
                     }
                 },
@@ -312,7 +312,7 @@ public class RecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         listener.onResponse(availableSnapshots);
                     }
                 },
@@ -337,7 +337,7 @@ public class RecoveryPlannerServiceTests extends ESTestCase {
                                                        ShardSnapshotsService shardSnapshotsService,
                                                        boolean snapshotRecoveriesEnabled) throws Exception {
         RecoveryPlannerService recoveryPlannerService =
-            new RecoveryPlannerService(shardSnapshotsService, ALL_PLANNERS, () -> snapshotRecoveriesEnabled);
+            new RecoveryPlannerService(shardSnapshotsService, ALL_PLANNERS, snapshotRecoveriesEnabled, null);
 
         PlainActionFuture<ShardRecoveryPlan> planFuture = PlainActionFuture.newFuture();
         recoveryPlannerService.computeRecoveryPlan(shardId,

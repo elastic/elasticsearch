@@ -138,6 +138,39 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         assertThat(shardSnapshotData, is(empty()));
     }
 
+    public void testFetchFromSingleRepository() throws Exception {
+        String indexName = "test";
+        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
+        ShardId shardId = getShardIdForIndex(indexName);
+
+        for (int i = 0; i < randomIntBetween(1, 50); i++) {
+            index(indexName, Integer.toString(i), Collections.singletonMap("foo", "bar"));
+        }
+
+        String snapshotName = "snap";
+        final int numberOfRepos = randomIntBetween(1, 4);
+        List<String> repositories = new ArrayList<>(numberOfRepos);
+        for (int i = 0; i < numberOfRepos; i++) {
+            String repositoryName = "repo-" + i;
+            createRepository(repositoryName, "fs");
+            repositories.add(repositoryName);
+            createSnapshot(repositoryName, snapshotName, indexName);
+        }
+
+        String repositoryToFetch = randomFrom(repositories);
+        ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService();
+
+        PlainActionFuture<List<ShardSnapshot>> future = PlainActionFuture.newFuture();
+        shardSnapshotsService.fetchAvailableSnapshots(repositoryToFetch, shardId, future);
+        List<ShardSnapshot> shardSnapshots = future.get();
+
+        assertThat(shardSnapshots.size(), equalTo(1));
+        ShardSnapshot shardSnapshot = shardSnapshots.get(0);
+        assertThat(shardSnapshot.getRepository(), equalTo(repositoryToFetch));
+        assertThat(shardSnapshot.getShardSnapshotInfo().getShardId(), equalTo(shardId));
+        assertThat(shardSnapshot.getMetadataSnapshot().size(), greaterThan(0));
+    }
+
     public void testFailingReposAreTreatedAsNonExistingShardSnapshots() throws Exception {
         final String indexName = "test";
         createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
@@ -191,13 +224,18 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
     }
 
     private List<ShardSnapshot> getShardSnapshotShard(ShardId shardId) throws Exception {
+        ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService();
+
+        PlainActionFuture<List<ShardSnapshot>> future = PlainActionFuture.newFuture();
+        shardSnapshotsService.fetchAvailableSnapshotsInAllRepositories(shardId, future);
+        return future.get();
+    }
+
+    private ShardSnapshotsService getShardSnapshotsService() {
         RepositoriesService repositoriesService = internalCluster().getDataNodeInstance(RepositoriesService.class);
         ThreadPool threadPool = internalCluster().getDataNodeInstance(ThreadPool.class);
         ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(client(), repositoriesService, threadPool);
-
-        PlainActionFuture<List<ShardSnapshot>> future = PlainActionFuture.newFuture();
-        shardSnapshotsService.fetchAvailableSnapshots(shardId, future);
-        return future.get();
+        return shardSnapshotsService;
     }
 
     private ShardId getShardIdForIndex(String indexName) {

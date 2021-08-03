@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapsh
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -34,7 +35,14 @@ import java.util.List;
 public class ShardSnapshotsService {
     public static final ShardSnapshotsService NOOP_SERVICE = new ShardSnapshotsService(null, null, null) {
         @Override
-        public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+        public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+            listener.onResponse(Collections.emptyList());
+        }
+
+        @Override
+        public void fetchAvailableSnapshots(String repository,
+                                            ShardId shardId,
+                                            ActionListener<List<ShardSnapshot>> listener) {
             listener.onResponse(Collections.emptyList());
         }
     };
@@ -51,8 +59,21 @@ public class ShardSnapshotsService {
         this.threadPool = threadPool;
     }
 
-    public void fetchAvailableSnapshots(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
         final GetShardSnapshotRequest request = GetShardSnapshotRequest.latestSnapshotInAllRepositories(shardId);
+        sendRequest(request, listener);
+    }
+
+    public void fetchAvailableSnapshots(String repository, ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+        if (Strings.isNullOrEmpty(repository)) {
+            throw new IllegalArgumentException("Repository should be specified");
+        }
+        GetShardSnapshotRequest request =
+            GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, Collections.singletonList(repository));
+        sendRequest(request, listener);
+    }
+
+    private void sendRequest(GetShardSnapshotRequest request, ActionListener<List<ShardSnapshot>> listener) {
         client.execute(GetShardSnapshotAction.INSTANCE,
             request,
             new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, listener.map(this::fetchSnapshotFiles), false)

@@ -11,13 +11,14 @@ package org.elasticsearch.indices.recovery.plan;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
@@ -27,14 +28,17 @@ public class RecoveryPlannerService {
 
     private final ShardSnapshotsService shardSnapshotsService;
     private final ShardRecoveryPlanner shardRecoveryPlanner;
-    private final BooleanSupplier snapshotRecoveriesEnabled;
+    private final boolean snapshotRecoveriesEnabled;
+    private final String repository;
 
     public RecoveryPlannerService(ShardSnapshotsService shardSnapshotsService,
                                   ShardRecoveryPlanner shardRecoveryPlanner,
-                                  BooleanSupplier snapshotRecoveriesEnabled) {
+                                  boolean snapshotRecoveriesEnabled,
+                                  @Nullable String repository) {
         this.shardSnapshotsService = shardSnapshotsService;
         this.shardRecoveryPlanner = shardRecoveryPlanner;
         this.snapshotRecoveriesEnabled = snapshotRecoveriesEnabled;
+        this.repository = repository;
     }
 
     public void computeRecoveryPlan(ShardId shardId,
@@ -63,12 +67,12 @@ public class RecoveryPlannerService {
     }
 
     void fetchAvailableSnapshotsIgnoringErrors(ShardId shardId, Consumer<List<ShardSnapshot>> listener) {
-        if (snapshotRecoveriesEnabled.getAsBoolean() == false) {
+        if (snapshotRecoveriesEnabled == false) {
             listener.accept(Collections.emptyList());
             return;
         }
 
-        shardSnapshotsService.fetchAvailableSnapshots(shardId, new ActionListener<>() {
+        ActionListener<List<ShardSnapshot>> listenerIgnoringErrors = new ActionListener<>() {
             @Override
             public void onResponse(List<ShardSnapshot> shardSnapshotData) {
                 listener.accept(shardSnapshotData);
@@ -79,6 +83,12 @@ public class RecoveryPlannerService {
                 logger.warn("Unable to fetch available snapshots for shard " + shardId, e);
                 listener.accept(Collections.emptyList());
             }
-        });
+        };
+
+        if (Strings.isNullOrEmpty(repository) == false) {
+            shardSnapshotsService.fetchAvailableSnapshots(repository, shardId, listenerIgnoringErrors);
+        } else {
+            shardSnapshotsService.fetchAvailableSnapshotsInAllRepositories(shardId, listenerIgnoringErrors);
+        }
     }
 }

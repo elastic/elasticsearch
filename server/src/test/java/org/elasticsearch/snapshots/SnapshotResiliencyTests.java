@@ -1814,7 +1814,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final RecoveryPlannerService recoveryPlannerService = new RecoveryPlannerService(
                     ShardSnapshotsService.NOOP_SERVICE,
                     new OnlySourceFilesPlanner(),
-                    () -> false
+                    false,
+                    null
                 );
                 peerRecoverySourceService = new PeerRecoverySourceService(
                     transportService,

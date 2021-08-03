@@ -688,7 +688,8 @@ public class Node implements Closeable {
                             new ShardSnapshotsService(client, repositoryService, threadPool);
                         final RecoveryPlannerService recoveryPlannerService = new RecoveryPlannerService(shardSnapshotsService,
                             ShardRecoveryPlanner.DEFAULT,
-                            recoverySettings::getUseSnapshotsDuringRecovery
+                            recoverySettings.getUseSnapshotsDuringRecovery(),
+                            recoverySettings.getRepository()
                         );
                         b.bind(PeerRecoverySourceService.class).toInstance(new PeerRecoverySourceService(transportService,
                             indicesService, recoverySettings, recoveryPlannerService));

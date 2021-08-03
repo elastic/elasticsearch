@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
 import org.elasticsearch.Build;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 
@@ -158,6 +158,13 @@ public class RecoverySettings {
     public static final Setting<Boolean> INDICES_RECOVERY_USE_SNAPSHOTS_SETTING =
         Setting.boolSetting("indices.recovery.use_snapshots", false, Property.NodeScope);
 
+    /**
+     * repository to use during peer recovery to recover files from a snapshot instead of sending them from
+     * the primary
+     */
+    public static final Setting<String> INDICES_RECOVERY_REPOSITORY_SETTING =
+        Setting.simpleString("indices.recovery.repository", Property.NodeScope);
+
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
 
     private volatile ByteSizeValue maxBytesPerSec;
@@ -170,7 +177,8 @@ public class RecoverySettings {
     private volatile TimeValue internalActionTimeout;
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
-    private volatile boolean useSnapshotsDuringRecovery;
+    private final boolean useSnapshotsDuringRecovery;
+    private final String repository;
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 
@@ -194,6 +202,7 @@ public class RecoverySettings {
             rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
         }
         this.useSnapshotsDuringRecovery = INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.get(settings);
+        this.repository = INDICES_RECOVERY_REPOSITORY_SETTING.get(settings);
 
         logger.debug("using max_bytes_per_sec[{}]", maxBytesPerSec);
 
@@ -297,13 +306,17 @@ public class RecoverySettings {
         return useSnapshotsDuringRecovery;
     }
 
+    public String getRepository() {
+        return repository;
+    }
+
     public static List<Setting<?>> featureFlagEnabledSettings() {
         return featureFlagEnabledSettings(Build.CURRENT);
     }
 
     public static List<Setting<?>> featureFlagEnabledSettings(Build build) {
         if (build.isSnapshot() || (SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED != null && SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED)) {
-            return Collections.singletonList(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING);
+            return List.of(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING, INDICES_RECOVERY_REPOSITORY_SETTING);
         } else {
             return Collections.emptyList();
         }

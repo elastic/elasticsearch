@@ -83,4 +83,8 @@ This is a best-effort optimization where the system would try to recover most of
 the index files from the available snapshots to save data transfer costs in public
 cloud environments.
 
+`indices.recovery.repository`::
+(<<cluster-update-settings,Dynamic>>, Expert) Repository used when
+`indices.recovery.use_snapshots` is enabled.
+
 endif::[]

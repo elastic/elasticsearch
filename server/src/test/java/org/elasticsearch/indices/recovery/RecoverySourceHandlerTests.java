@@ -143,7 +143,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                     false));
             recoveryExecutor = threadPool.executor("recovery_executor");
         }
-        recoveryPlannerService = new RecoveryPlannerService(ShardSnapshotsService.NOOP_SERVICE, new OnlySourceFilesPlanner(), () -> false);
+        recoveryPlannerService =
+            new RecoveryPlannerService(ShardSnapshotsService.NOOP_SERVICE, new OnlySourceFilesPlanner(), false, null);
     }
 
     @After

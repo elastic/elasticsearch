@@ -636,7 +636,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         int fileChunkSizeInBytes = Math.toIntExact(
             randomBoolean() ? RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes() : randomIntBetween(1, 10 * 1024 * 1024));
         final RecoveryPlannerService recoveryPlannerService =
-            new RecoveryPlannerService(ShardSnapshotsService.NOOP_SERVICE, new OnlySourceFilesPlanner(), () -> false);
+            new RecoveryPlannerService(ShardSnapshotsService.NOOP_SERVICE, new OnlySourceFilesPlanner(), false, null);
         final RecoverySourceHandler recovery = new RecoverySourceHandler(primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()), threadPool,
             request, fileChunkSizeInBytes, between(1, 8), between(1, 8), recoveryPlannerService);

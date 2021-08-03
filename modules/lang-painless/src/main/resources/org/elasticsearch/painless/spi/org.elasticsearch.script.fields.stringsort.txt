@@ -7,17 +7,6 @@
 #
 
 # The whitelist for the fields api
-
-# API
-class org.elasticsearch.script.Field {
-  String getName()
-  boolean isEmpty()
-  List getValues()
-  def getValue(def)
-}
-
-
-# Scripts
 # The scripts must be whitelisted for painless to find the classes
 class org.elasticsearch.script.StringSortScript @no_import {
 }

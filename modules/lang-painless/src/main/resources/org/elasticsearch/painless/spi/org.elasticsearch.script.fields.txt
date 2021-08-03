@@ -8,13 +8,14 @@
 
 # The whitelist for the fields api
 
-# The scripts must be whitelisted for painless to find the classes
-class org.elasticsearch.script.NumberSortScript @no_import {
-}
-class org.elasticsearch.script.NumberSortScript$Factory @no_import {
+# API
+class org.elasticsearch.script.Field {
+  String getName()
+  boolean isEmpty()
+  List getValues()
+  def getValue(def)
 }
 
-# Class bindings
-static_import {
-    org.elasticsearch.script.Field field(org.elasticsearch.script.NumberSortScript, String) bound_to org.elasticsearch.script.NumberSortScript$FieldAccess
+class org.elasticsearch.script.DocBasedScript {
+    org.elasticsearch.script.Field field(String)
 }

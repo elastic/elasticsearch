@@ -14,6 +14,8 @@ import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
+import org.elasticsearch.script.DocReader;
+import org.elasticsearch.script.DocValuesReader;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.ScoreScript;
 
@@ -41,7 +43,14 @@ class ExpressionScoreScript implements ScoreScript.LeafFactory {
     }
 
     @Override
-    public ScoreScript newInstance(final LeafReaderContext leaf) throws IOException {
+    public ScoreScript newInstance(final DocReader docReader) throws IOException {
+        // Use DocReader to get the leaf context while transitioning to DocReader for Painless.  DocReader for expressions should follow.
+        final LeafReaderContext leaf = docReader instanceof DocValuesReader ? ((DocValuesReader)docReader).getLeafReaderContext() : null ;
+        if (leaf == null) {
+            throw new IllegalStateException(
+                    "Expected DocValueReader when creating expression ExpressionScoreScript instead of [" + docReader + "]"
+            );
+        }
         return new ScoreScript(null, null, null) {
             // Fake the scorer until setScorer is called.
             DoubleValues values = source.getValues(leaf, new DoubleValues() {

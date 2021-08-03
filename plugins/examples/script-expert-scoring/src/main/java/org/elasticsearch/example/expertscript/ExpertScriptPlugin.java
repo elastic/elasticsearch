@@ -8,12 +8,13 @@
 
 package org.elasticsearch.example.expertscript;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.DocReader;
+import org.elasticsearch.script.DocValuesReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScoreScript.LeafFactory;
 import org.elasticsearch.script.ScriptContext;
@@ -127,16 +128,17 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
             }
 
             @Override
-            public ScoreScript newInstance(LeafReaderContext context)
+            public ScoreScript newInstance(DocReader docReader)
                     throws IOException {
-                PostingsEnum postings = context.reader().postings(
-                        new Term(field, term));
+                DocValuesReader dvReader = ((DocValuesReader) docReader);
+                PostingsEnum postings = dvReader.getLeafReaderContext()
+                        .reader().postings(new Term(field, term));
                 if (postings == null) {
                     /*
                      * the field and/or term don't exist in this segment,
                      * so always return 0
                      */
-                    return new ScoreScript(params, lookup, context) {
+                    return new ScoreScript(params, lookup, docReader) {
                         @Override
                         public double execute(
                             ExplanationHolder explanation
@@ -145,7 +147,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                         }
                     };
                 }
-                return new ScoreScript(params, lookup, context) {
+                return new ScoreScript(params, lookup, docReader) {
                     int currentDocid = -1;
                     @Override
                     public void setDocument(int docid) {

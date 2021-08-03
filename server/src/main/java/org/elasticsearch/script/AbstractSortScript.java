@@ -7,24 +7,19 @@
  */
 package org.elasticsearch.script;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.ScorerAware;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.search.lookup.LeafSearchLookup;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
-abstract class AbstractSortScript implements ScorerAware, DocBasedScript {
+abstract class AbstractSortScript extends DocBasedScript implements ScorerAware {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
@@ -51,25 +46,16 @@ abstract class AbstractSortScript implements ScorerAware, DocBasedScript {
     /** A scorer that will return the score for the current document when the script is run. */
     private Scorable scorer;
 
-    /**
-     * A leaf lookup for the bound segment this script will operate on.
-     */
-    private final LeafSearchLookup leafLookup;
-
-    private final FieldProxy fieldProxy;
-
-    AbstractSortScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
-        this.leafLookup = lookup.getLeafSearchLookup(leafContext);
-        this.fieldProxy = new ReadDocValuesFieldProxy(this.leafLookup);
+    AbstractSortScript(Map<String, Object> params, DocReader docReader) {
+        super(docReader);
         Map<String, Object> parameters = new HashMap<>(params);
-        parameters.putAll(leafLookup.asMap());
+        parameters.putAll(docReader.docAsMap());
         this.params = new DynamicMap(parameters, PARAMS_FUNCTIONS);
     }
 
     protected AbstractSortScript() {
+        super(null);
         this.params = null;
-        this.leafLookup = null;
-        this.fieldProxy = null;
     }
 
     /**
@@ -91,36 +77,5 @@ abstract class AbstractSortScript implements ScorerAware, DocBasedScript {
         } catch (IOException e) {
             throw new ElasticsearchException("couldn't lookup score", e);
         }
-    }
-
-    /**
-     * The doc lookup for the Lucene segment this script was created for.
-     */
-    public Map<String, ScriptDocValues<?>> getDoc() {
-        return leafLookup.doc();
-    }
-
-    /**
-     * Set the current document to run the script on next.
-     */
-    public void setDocument(int docid) {
-        leafLookup.setDocument(docid);
-        // fieldProxy is using leafLookup, no need to call fieldProxy.setDocument(docid)
-    }
-
-    @Override
-    public Field<?> field(String fieldName) {
-        if (fieldProxy == null) {
-            return new EmptyField<>(fieldName);
-        }
-        return fieldProxy.field(fieldName);
-    }
-
-    @Override
-    public Stream<Field<?>> fields(String fieldGlob) {
-        if (fieldProxy == null) {
-            return Stream.empty();
-        }
-        return fieldProxy.fields(fieldGlob);
     }
 }

@@ -74,6 +74,7 @@ public class Realms implements Iterable<Realm> {
         this.licenseState = licenseState;
         this.threadContext = threadContext;
         this.reservedRealm = reservedRealm;
+        assert XPackSettings.SECURITY_ENABLED.get(settings) : "security must be enabled";
         assert factories.get(ReservedRealm.TYPE) == null;
         final List<RealmConfig> realmConfigs = buildRealmConfigs();
         this.realms = initRealms(realmConfigs);
@@ -114,10 +115,6 @@ public class Realms implements Iterable<Realm> {
      */
     public List<Realm> getUnlicensedRealms() {
         final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
-        // If auth is not allowed, then everything is unlicensed
-        if ( XPackSettings.SECURITY_ENABLED.get(settings) == false) {
-            return Collections.unmodifiableList(realms);
-        }
 
         // If all realms are allowed, then nothing is unlicensed
         if (licenseStateSnapshot.checkFeature(Feature.SECURITY_ALL_REALMS)) {
@@ -141,9 +138,7 @@ public class Realms implements Iterable<Realm> {
 
     public List<Realm> asList() {
         final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
-        if ( XPackSettings.SECURITY_ENABLED.get(settings) == false) {
-            return Collections.emptyList();
-        }
+
         if (licenseStateSnapshot.checkFeature(Feature.SECURITY_ALL_REALMS)) {
             return realms;
         } else if (licenseStateSnapshot.checkFeature(Feature.SECURITY_STANDARD_REALMS)) {

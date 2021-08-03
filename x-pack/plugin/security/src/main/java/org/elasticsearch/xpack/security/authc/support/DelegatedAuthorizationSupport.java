@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -43,7 +42,6 @@ public class DelegatedAuthorizationSupport {
     private final RealmUserLookup lookup;
     private final Logger logger;
     private final XPackLicenseState licenseState;
-    private final Settings settings;
 
     /**
      * Resolves the {@link DelegatedAuthorizationSettings#AUTHZ_REALMS} setting from {@code config} and calls
@@ -66,7 +64,6 @@ public class DelegatedAuthorizationSupport {
         this.lookup = new RealmUserLookup(resolvedLookupRealms, threadContext);
         this.logger = LogManager.getLogger(getClass());
         this.licenseState = licenseState;
-        this.settings = settings;
     }
 
     /**
@@ -85,7 +82,7 @@ public class DelegatedAuthorizationSupport {
      * with a meaningful diagnostic message.
      */
     public void resolve(String username, ActionListener<AuthenticationResult> resultListener) {
-        boolean authzOk =  XPackSettings.SECURITY_ENABLED.get(settings) && licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM);
+        boolean authzOk =  licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM);
         if (authzOk == false) {
             resultListener.onResponse(AuthenticationResult.unsuccessful(
                 DelegatedAuthorizationSettings.AUTHZ_REALMS_SUFFIX + " are not permitted",

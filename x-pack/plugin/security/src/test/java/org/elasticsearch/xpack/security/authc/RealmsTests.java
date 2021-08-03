@@ -16,7 +16,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -479,17 +478,6 @@ public class RealmsTests extends ESTestCase {
         // check that disabled realms are not included in unlicensed realms
         allowOnlyNativeRealms();
         assertThat(realms.getUnlicensedRealms(), hasSize(orderToIndex.size()));
-    }
-
-    public void testAuthcAuthzDisabled() throws Exception {
-        Settings settings = Settings.builder()
-                .put("path.home", createTempDir())
-                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-                .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".realm_1.order", 0)
-                .build();
-        Environment env = TestEnvironment.newEnvironment(settings);
-        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
-        assertThat(realms.iterator().hasNext(), is(false));
     }
 
     @SuppressWarnings("unchecked")

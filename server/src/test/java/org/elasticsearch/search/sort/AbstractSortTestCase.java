@@ -29,14 +29,14 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScriptEngine;
@@ -200,7 +200,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
             @Override
             public ObjectMapper getObjectMapper(String name) {
-                return new ObjectMapper.Builder(name, Version.CURRENT).nested(Nested.newNested()).build(new ContentPath());
+                return new NestedObjectMapper.Builder(name, Version.CURRENT).build(new ContentPath());
             }
         };
     }

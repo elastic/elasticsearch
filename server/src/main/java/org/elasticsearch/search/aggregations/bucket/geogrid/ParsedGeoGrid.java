@@ -25,8 +25,8 @@ public abstract class ParsedGeoGrid extends ParsedMultiBucketAggregation<ParsedG
     }
 
     public static ObjectParser<ParsedGeoGrid, Void> createParser(Supplier<ParsedGeoGrid> supplier,
-            CheckedFunction<XContentParser, ParsedBucket, IOException> bucketParser,
-            CheckedFunction<XContentParser, ParsedBucket, IOException> keyedBucketParser) {
+            CheckedFunction<XContentParser, ParsedGeoGridBucket, IOException> bucketParser,
+            CheckedFunction<XContentParser, ParsedGeoGridBucket, IOException> keyedBucketParser) {
         ObjectParser<ParsedGeoGrid, Void> parser =  new ObjectParser<>(ParsedGeoGrid.class.getSimpleName(), true, supplier);
         declareMultiBucketAggregationFields(parser, bucketParser, keyedBucketParser);
         return parser;

@@ -41,7 +41,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldNamesProvidingStoredFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -319,9 +319,9 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 throw new IllegalArgumentException("no such doc ID " + docID);
             }
             if (delegate.get() == null) {
-                if (visitor instanceof FieldsVisitor) {
+                if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
                     // override this for ShardGetService
-                    if (TRANSLOG_FIELD_NAMES.containsAll(((FieldsVisitor) visitor).getFieldNames())) {
+                    if (TRANSLOG_FIELD_NAMES.containsAll(((FieldNamesProvidingStoredFieldsVisitor) visitor).getFieldNames())) {
                         readStoredFieldsDirectly(visitor);
                         return;
                     }

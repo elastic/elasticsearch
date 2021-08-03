@@ -42,8 +42,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.getKeyStoreType;
-
 public class CertParsingUtils {
 
     private CertParsingUtils() {
@@ -208,7 +206,7 @@ public class CertParsingUtils {
     static KeyConfig createKeyConfig(X509KeyPairSettings keyPair, Settings settings, String trustStoreAlgorithm) {
         String keyPath = keyPair.keyPath.get(settings).orElse(null);
         String keyStorePath = keyPair.keystorePath.get(settings).orElse(null);
-        String keyStoreType = getKeyStoreType(keyPair.keystoreType, settings, keyStorePath);
+        String keyStoreType = SSLConfigurationSettings.getKeyStoreType(keyPair.keystoreType, settings, keyStorePath);
 
         if (keyPath != null && keyStorePath != null) {
             throw new IllegalArgumentException("you cannot specify a keystore and key file");
@@ -224,15 +222,21 @@ public class CertParsingUtils {
             return new PEMKeyConfig(keyPath, keyPassword, certPath);
         }
 
-        if (keyStorePath != null || keyStoreType.equalsIgnoreCase("pkcs11")) {
+        if (keyStorePath != null) {
             SecureString keyStorePassword = keyPair.keystorePassword.get(settings);
             String keyStoreAlgorithm = keyPair.keystoreAlgorithm.get(settings);
             SecureString keyStoreKeyPassword = keyPair.keystoreKeyPassword.get(settings);
             if (keyStoreKeyPassword.length() == 0) {
                 keyStoreKeyPassword = keyStorePassword;
             }
-            return new StoreKeyConfig(keyStorePath, keyStoreType, keyStorePassword, keyStoreKeyPassword, keyStoreAlgorithm,
-                trustStoreAlgorithm);
+            return new StoreKeyConfig(
+                keyStorePath,
+                keyStoreType,
+                keyStorePassword,
+                keyStoreKeyPassword,
+                keyStoreAlgorithm,
+                trustStoreAlgorithm
+            );
         }
         return null;
     }

@@ -17,8 +17,10 @@ import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -28,6 +30,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
 public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
@@ -72,7 +75,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             });
 
         assertQuery(API_KEY_ADMIN_AUTH_HEADER,
-            "{\"query\":{\"range\":{\"creation_time\":{\"lt\":\"now\"}}}}",
+            "{\"query\":{\"range\":{\"creation\":{\"lt\":\"now\"}}}}",
             apiKeys -> {
                 assertThat(apiKeys.size(), equalTo(6));
             });
@@ -141,6 +144,24 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         // User without manage_api_key or manage_own_api_key gets 403 trying to search API keys
         assertQueryError(TEST_USER_AUTH_HEADER, 403,
             "{ \"query\": { \"wildcard\": {\"name\": \"*alert*\"} } }");
+
+        // Invalidated API keys are returned by default, but can be filtered out
+        final String authHeader = randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER);
+        final String invalidatedApiKeyId1 = createAndInvalidateApiKey("temporary-key-1", authHeader);
+        final String queryString = randomFrom("{ \"query\": { \"term\": {\"name\": \"temporary-key-1\"} } }",
+            "{\"query\":{\"bool\":{\"must\":[{\"term\":{\"name\":{\"value\":\"temporary-key-1\"}}}," +
+                "{\"term\":{\"invalidated\":{\"value\":\"" + randomBoolean() + "\"}}}]}}}");
+
+        assertQuery(authHeader, queryString, apiKeys -> {
+            if (queryString.contains("\"invalidated\":{\"value\":\"false\"")) {
+                assertThat(apiKeys, empty());
+            } else {
+                assertThat(apiKeys.size(), equalTo(1));
+                assertThat(apiKeys.get(0).get("name"), equalTo("temporary-key-1"));
+                assertThat(apiKeys.get(0).get("id"), equalTo(invalidatedApiKeyId1));
+                assertThat(apiKeys.get(0).get("invalidated"), is(true));
+            }
+        });
     }
 
     public void testQueryShouldRespectOwnerIdentityWithApiKeyAuth() throws IOException {
@@ -176,6 +197,98 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 apiKeys.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableSet()),
                 equalTo(Set.of("power-key-1", "limit-key-1")));
         });
+
+    }
+
+    public void testPagination() throws IOException {
+        final String authHeader = randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER);
+        final int total = randomIntBetween(8, 12);
+        final List<String> apiKeyIds = new ArrayList<>(total);
+        for (int i = 0; i < total; i++) {
+            apiKeyIds.add(createApiKey(String.format(Locale.ROOT, "k-%02d", i), null, authHeader).v1());
+        }
+
+        final int from = randomIntBetween(0, 3);
+        final int size = randomIntBetween(2, 5);
+        final int remaining = total - from;
+        final String sortField = randomFrom("name", "creation");
+
+        final List<Tuple<String, Long>> apiKeyInfos = new ArrayList<>(remaining);
+        final Request request1 = new Request("GET", "/_security/_query/api_key");
+        request1.setOptions(request1.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+        request1.setJsonEntity("{\"from\":" + from + ",\"size\":" + size + ",\"sort\":[\"" + sortField + "\"]}");
+        collectApiKeys(apiKeyInfos, request1, total, size);
+
+        while (apiKeyInfos.size() < remaining) {
+            final Request request2 = new Request("GET", "/_security/_query/api_key");
+            request2.setOptions(request2.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+            final String searchAfter;
+            if (sortField.equals("name")) {
+                searchAfter = String.format(Locale.ROOT, "\"k-%02d\"", from + apiKeyInfos.size() - 1);
+            } else {
+                searchAfter = apiKeyInfos.get(apiKeyInfos.size()-1).v2().toString();
+            }
+            request2.setJsonEntity("{\"size\":" + size + ",\"sort\":[\"" + sortField + "\"],\"search_after\":[" + searchAfter + "]}");
+            collectApiKeys(apiKeyInfos, request2, total, size);
+        }
+
+        for (int i = from; i < total; i++) {
+            assertThat(apiKeyInfos.get(i - from).v1(), equalTo(apiKeyIds.get(i)));
+        }
+    }
+
+    public void testSort() throws IOException {
+        final String authHeader = randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER);
+        final List<String> apiKeyIds = new ArrayList<>(3);
+        apiKeyIds.add(createApiKey("k2", Map.of("letter", "a", "symbol", "2"), authHeader).v1());
+        apiKeyIds.add(createApiKey("k1", Map.of("letter", "b", "symbol", "2"), authHeader).v1());
+        apiKeyIds.add(createApiKey("k0", Map.of("letter", "c", "symbol", "1"), authHeader).v1());
+
+        assertQuery(authHeader, "{\"sort\":[{\"creation\":{\"order\":\"desc\"}}]}", apiKeys -> {
+            assertThat(apiKeys.size(), equalTo(3));
+            for (int i = 2, j = 0; i >=0; i--, j++) {
+                assertThat(apiKeys.get(i).get("id"), equalTo(apiKeyIds.get(j)));
+            }
+        });
+
+        assertQuery(authHeader, "{\"sort\":[{\"name\":{\"order\":\"asc\"}}]}", apiKeys -> {
+            assertThat(apiKeys.size(), equalTo(3));
+            for (int i = 2, j = 0; i >=0; i--, j++) {
+                assertThat(apiKeys.get(i).get("id"), equalTo(apiKeyIds.get(j)));
+            }
+        });
+
+        assertQuery(authHeader, "{\"sort\":[\"metadata.letter\"]}", apiKeys -> {
+            assertThat(apiKeys.size(), equalTo(3));
+            for (int i = 0; i < 3; i++) {
+                assertThat(apiKeys.get(i).get("id"), equalTo(apiKeyIds.get(i)));
+            }
+        });
+
+        assertQuery(authHeader, "{\"sort\":[\"metadata.symbol\",\"metadata.letter\"]}", apiKeys -> {
+            assertThat(apiKeys.size(), equalTo(3));
+            assertThat(apiKeys.get(0).get("id"), equalTo(apiKeyIds.get(2)));
+            assertThat(apiKeys.get(1).get("id"), equalTo(apiKeyIds.get(0)));
+            assertThat(apiKeys.get(2).get("id"), equalTo(apiKeyIds.get(1)));
+        });
+
+        final String invalidFieldName = randomFrom("doc_type", "api_key_invalidated", "metadata_flattened.letter");
+        assertQueryError(authHeader, 400, "{\"sort\":[\"" + invalidFieldName + "\"]}");
+    }
+
+    private void collectApiKeys(List<Tuple<String, Long>> apiKeyInfos, Request request, int total, int size) throws IOException {
+        final Response response = client().performRequest(request);
+        assertOK(response);
+        final Map<String, Object> responseMap = responseAsMap(response);
+        final int before = apiKeyInfos.size();
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> apiKeysMap = (List<Map<String, Object>>) responseMap.get("api_keys");
+        apiKeysMap.forEach(m -> apiKeyInfos.add(new Tuple<>((String) m.get("id"), (long) m.get("creation"))));
+        assertThat(responseMap.get("total"), equalTo(total));
+        assertThat(responseMap.get("count"), equalTo(apiKeyInfos.size() - before));
+        if (before == 0) {
+            assertThat(responseMap.get("count"), equalTo(size));
+        }
     }
 
     private void assertQueryError(String authHeader, int statusCode, String body) throws IOException {
@@ -284,6 +397,15 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         assertOK(response);
         final Map<String, Object> m = responseAsMap(response);
         return new Tuple<>((String) m.get("id"), (String) m.get("api_key"));
+    }
+
+    private String createAndInvalidateApiKey(String name, String authHeader) throws IOException {
+        final Tuple<String, String> tuple = createApiKey(name, null, authHeader);
+        final Request request = new Request("DELETE", "/_security/api_key");
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+        request.setJsonEntity("{\"ids\": [\"" + tuple.v1() + "\"],\"owner\":true}");
+        assertOK(client().performRequest(request));
+        return tuple.v1();
     }
 
     private void createUser(String name) throws IOException {

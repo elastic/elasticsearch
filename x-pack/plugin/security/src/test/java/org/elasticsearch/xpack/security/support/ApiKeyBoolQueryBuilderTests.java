@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.security.support.ApiKeyBoolQueryBuilder.FieldNameTranslators.FIELD_NAME_TRANSLATORS;
+import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.FIELD_NAME_TRANSLATORS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,7 +52,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
 
     public void testBuildFromSimpleQuery() {
         final Authentication authentication = randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null;
-        final QueryBuilder q1 = randomSimpleQuery(randomFrom("name", "creation_time", "expiration_time"));
+        final QueryBuilder q1 = randomSimpleQuery(randomFrom("name", "creation", "expiration"));
         final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(q1, authentication);
         assertCommonFilterQueries(apiKeyQb1, authentication);
         final List<QueryBuilder> mustQueries = apiKeyQb1.must();
@@ -155,7 +155,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
 
     public void testRangeQueryWithRelationIsNotAllowed() {
         final Authentication authentication = randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null;
-        final RangeQueryBuilder q1 = QueryBuilders.rangeQuery("creation_time").relation("contains");
+        final RangeQueryBuilder q1 = QueryBuilders.rangeQuery("creation").relation("contains");
         final IllegalArgumentException e1 =
             expectThrows(IllegalArgumentException.class, () -> ApiKeyBoolQueryBuilder.build(q1, authentication));
         assertThat(e1.getMessage(), containsString("range query with relation is not supported for API Key query"));
@@ -237,8 +237,8 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             "doc_type",
             "name",
             "api_key_invalidated",
-            "creation_time",
-            "expiration_time",
+            "creation",
+            "expiration",
             "metadata_flattened." + randomAlphaOfLengthBetween(1, 10),
             "creator." + randomAlphaOfLengthBetween(1, 10));
         assertTrue(predicate.test(allowedField));

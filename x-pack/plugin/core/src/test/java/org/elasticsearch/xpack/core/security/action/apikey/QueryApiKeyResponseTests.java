@@ -30,32 +30,34 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
     @Override
     protected QueryApiKeyResponse createTestInstance() {
         final List<ApiKey> apiKeys = randomList(0, 3, this::randomApiKeyInfo);
-        return new QueryApiKeyResponse(apiKeys);
+        return new QueryApiKeyResponse(randomIntBetween(apiKeys.size(), 100), apiKeys);
     }
 
     @Override
     protected QueryApiKeyResponse mutateInstance(QueryApiKeyResponse instance) throws IOException {
         final ArrayList<ApiKey> apiKeyInfos =
             Arrays.stream(instance.getApiKeyInfos()).collect(Collectors.toCollection(ArrayList::new));
-        switch (randomIntBetween(0, 2)) {
+        switch (randomIntBetween(0, 3)) {
             case 0:
                 apiKeyInfos.add(randomApiKeyInfo());
-                return new QueryApiKeyResponse(apiKeyInfos);
+                return new QueryApiKeyResponse(instance.getTotal(), apiKeyInfos);
             case 1:
                 if (false == apiKeyInfos.isEmpty()) {
-                    return new QueryApiKeyResponse(apiKeyInfos.subList(1, apiKeyInfos.size()));
+                    return new QueryApiKeyResponse(instance.getTotal(), apiKeyInfos.subList(1, apiKeyInfos.size()));
                 } else {
                     apiKeyInfos.add(randomApiKeyInfo());
-                    return new QueryApiKeyResponse(apiKeyInfos);
+                    return new QueryApiKeyResponse(instance.getTotal(), apiKeyInfos);
                 }
-            default:
+            case 2:
                 if (false == apiKeyInfos.isEmpty()) {
                     final int index = randomIntBetween(0, apiKeyInfos.size() - 1);
                     apiKeyInfos.set(index, randomApiKeyInfo());
                 } else {
                     apiKeyInfos.add(randomApiKeyInfo());
                 }
-                return new QueryApiKeyResponse(apiKeyInfos);
+                return new QueryApiKeyResponse(instance.getTotal(), apiKeyInfos);
+            default:
+                return new QueryApiKeyResponse(instance.getTotal() + 1, apiKeyInfos);
         }
     }
 

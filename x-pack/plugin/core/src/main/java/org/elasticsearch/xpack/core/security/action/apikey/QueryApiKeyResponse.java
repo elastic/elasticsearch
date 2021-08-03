@@ -27,20 +27,27 @@ import java.util.Objects;
  */
 public final class QueryApiKeyResponse extends ActionResponse implements ToXContentObject, Writeable {
 
+    private final long total;
     private final ApiKey[] foundApiKeysInfo;
 
     public QueryApiKeyResponse(StreamInput in) throws IOException {
         super(in);
+        this.total = in.readLong();
         this.foundApiKeysInfo = in.readArray(ApiKey::new, ApiKey[]::new);
     }
 
-    public QueryApiKeyResponse(Collection<ApiKey> foundApiKeysInfo) {
+    public QueryApiKeyResponse(long total, Collection<ApiKey> foundApiKeysInfo) {
+        this.total = total;
         Objects.requireNonNull(foundApiKeysInfo, "found_api_keys_info must be provided");
         this.foundApiKeysInfo = foundApiKeysInfo.toArray(new ApiKey[0]);
     }
 
     public static QueryApiKeyResponse emptyResponse() {
-        return new QueryApiKeyResponse(Collections.emptyList());
+        return new QueryApiKeyResponse(0, Collections.emptyList());
+    }
+
+    public long getTotal() {
+        return total;
     }
 
     public ApiKey[] getApiKeyInfos() {
@@ -50,12 +57,15 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
+            .field("total", total)
+            .field("count", foundApiKeysInfo.length)
             .array("api_keys", (Object[]) foundApiKeysInfo);
         return builder.endObject();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(total);
         out.writeArray(foundApiKeysInfo);
     }
 
@@ -66,17 +76,18 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         if (o == null || getClass() != o.getClass())
             return false;
         QueryApiKeyResponse that = (QueryApiKeyResponse) o;
-        return Arrays.equals(foundApiKeysInfo, that.foundApiKeysInfo);
+        return total == that.total && Arrays.equals(foundApiKeysInfo, that.foundApiKeysInfo);
     }
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(foundApiKeysInfo);
+        int result = Objects.hash(total);
+        result = 31 * result + Arrays.hashCode(foundApiKeysInfo);
+        return result;
     }
 
     @Override
     public String toString() {
-        return "QueryApiKeyResponse [foundApiKeysInfo=" + foundApiKeysInfo + "]";
+        return "QueryApiKeyResponse{" + "total=" + total + ", foundApiKeysInfo=" + Arrays.toString(foundApiKeysInfo) + '}';
     }
-
 }

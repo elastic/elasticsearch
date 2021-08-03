@@ -34,6 +34,7 @@ setup:
 ---
 "Sort with nested_path throws exception":
 - do:
+    catch: /\[nested_path\] has been removed in favour of the \[nested\] parameter/
     search:
       rest_total_hits_as_int: true
       index: "my-index"
@@ -43,11 +44,25 @@ setup:
               mode: avg
               order: asc
               nested_path: offer
-              nested_filter:
-                term:
-                  offer.color: blue
     headers:
       Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
       Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-    allowed_warnings_regex:
-      - "\\[types removal\\].*"
+
+---
+"Sort with nested_filter throws exception":
+  - do:
+      catch: /\[nested_filter\] has been removed in favour of the \[nested\] parameter/
+      search:
+        rest_total_hits_as_int: true
+        index: "my-index"
+        body:
+          sort:
+            - offer.price:
+                mode: avg
+                order: asc
+                nested_filter:
+                  term:
+                    offer.color: blue
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"

@@ -312,7 +312,12 @@ public class SettingTests extends ESTestCase {
                 Property.Filtered));
         assertThat(e2, hasToString(containsString("failed to parse value for setting [foo], must be <= [3h]")));
 
-        final Setting minSetting = Setting.timeSetting("foo", TimeValue.timeValueHours(3), TimeValue.timeValueHours(2), Property.Filtered);
+        final Setting<TimeValue> minSetting = Setting.timeSetting(
+            "foo",
+            TimeValue.timeValueHours(3),
+            TimeValue.timeValueHours(2),
+            Property.Filtered
+        );
         final Settings minSettings = Settings.builder()
             .put("foo", "not a time value")
             .build();
@@ -320,7 +325,7 @@ public class SettingTests extends ESTestCase {
         assertThat(e3, hasToString(containsString("failed to parse value for setting [foo] as a time value")));
         assertNull(e3.getCause());
 
-        final Setting maxSetting = Setting.timeSetting("foo", TimeValue.timeValueHours(3), TimeValue.timeValueHours(2),
+        final Setting<TimeValue> maxSetting = Setting.timeSetting("foo", TimeValue.timeValueHours(3), TimeValue.timeValueHours(2),
             TimeValue.timeValueHours(4), Property.Filtered);
         final Settings maxSettings = Settings.builder()
             .put("foo", "not a time value")
@@ -331,7 +336,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testFilteredBooleanSetting() {
-        Setting setting = Setting.boolSetting("foo", false, Property.Filtered);
+        Setting<Boolean> setting = Setting.boolSetting("foo", false, Property.Filtered);
         final Settings settings = Settings.builder()
             .put("foo", "not a boolean value")
             .build();
@@ -341,13 +346,13 @@ public class SettingTests extends ESTestCase {
         assertNull(e.getCause());
     }
 
-    private enum TestEnumSetting {
+    private enum TestEnum {
         ON,
         OFF
     }
 
     public void testThrowsIllegalArgumentExceptionOnInvalidEnumSetting() {
-        Setting setting = Setting.enumSetting(TestEnumSetting.class, "foo", TestEnumSetting.ON, Property.Filtered);
+        Setting<TestEnum> setting = Setting.enumSetting(TestEnum.class, "foo", TestEnum.ON, Property.Filtered);
         final Settings settings = Settings.builder().put("foo", "bar").build();
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
@@ -622,7 +627,7 @@ public class SettingTests extends ESTestCase {
                 .build();
         deprecatedListSetting.get(settings);
         nonDeprecatedListSetting.get(settings);
-        assertSettingDeprecationsAndWarnings(new Setting[]{deprecatedListSetting});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedListSetting });
     }
 
     public void testListSettings() {

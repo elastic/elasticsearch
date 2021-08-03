@@ -737,6 +737,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         return mockIndicesServices(null);
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private IndicesService mockIndicesServices(MappingLookup mappingLookup) throws Exception {
         /*
          * Throws Exception because Eclipse uses the lower bound for
@@ -755,8 +756,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 when(mapperService.mappingLookup()).thenReturn(mappingLookup);
                 when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
                 when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
-                //noinspection unchecked
-                return ((CheckedFunction) invocationOnMock.getArguments()[1]).apply(indexService);
+                return ((CheckedFunction<IndexService, ?, ?>) invocationOnMock.getArguments()[1]).apply(indexService);
             });
         return indicesService;
     }

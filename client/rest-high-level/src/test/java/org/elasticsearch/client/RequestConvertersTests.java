@@ -2146,7 +2146,7 @@ public class RequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             boolean enableFieldsEmulation = randomBoolean();
             searchRequest.setFieldsOptionEmulationEnabled(enableFieldsEmulation);
-            if (enableFieldsEmulation == true) {
+            if (enableFieldsEmulation) {
                 expectedParams.put("enable_fields_emulation", Boolean.toString(enableFieldsEmulation));
             }
         }

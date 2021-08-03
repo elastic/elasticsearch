@@ -10,13 +10,11 @@ Project mainProject = project
 
 subprojects {
   // Use tests from the root security qa project in subprojects
-  configurations.create('testArtifacts')
+  configurations.create('testArtifacts').transitive(false)
 
   dependencies {
     testImplementation project(":x-pack:plugin:core")
-    testArtifacts(testArtifact(project(mainProject.path))) {
-      transitive = false
-    }
+    testArtifacts testArtifact(project(mainProject.path))
   }
 
   testClusters.all {

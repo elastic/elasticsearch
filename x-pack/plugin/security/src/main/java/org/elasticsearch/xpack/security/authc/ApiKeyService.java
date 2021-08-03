@@ -84,12 +84,14 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.support.ApiKeyBoolQueryBuilder;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
@@ -1125,6 +1127,27 @@ public class ApiKeyService {
                     listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
                 }
             }, listener::onFailure));
+    }
+
+    public void queryApiKeys(ApiKeyBoolQueryBuilder apiKeyBoolQueryBuilder, ActionListener<QueryApiKeyResponse> listener) {
+        ensureEnabled();
+        final ActionListener<Collection<ApiKey>> wrappedListener = ActionListener.wrap(apiKeyInfos -> {
+            if (apiKeyInfos.isEmpty()) {
+                logger.debug("No active api keys found for query [{}]", apiKeyBoolQueryBuilder);
+                listener.onResponse(QueryApiKeyResponse.emptyResponse());
+            } else {
+                listener.onResponse(new QueryApiKeyResponse(apiKeyInfos));
+            }
+        }, listener::onFailure);
+
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
+            wrappedListener.onResponse(Collections.emptyList());
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            wrappedListener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else {
+            findApiKeys(apiKeyBoolQueryBuilder, true, true, wrappedListener);
+        }
     }
 
     private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {

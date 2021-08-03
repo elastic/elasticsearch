@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TypeQueryV7Builder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -243,6 +244,7 @@ public class SearchModuleTests extends ESTestCase {
         Collections.addAll(allSupportedQueries, NON_DEPRECATED_QUERIES);
         Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);
         Collections.addAll(allSupportedQueries, REST_COMPATIBLE_QUERIES);
+
         SearchModule module = new SearchModule(Settings.EMPTY, emptyList());
 
         Set<String> registeredNonDeprecated = module.getNamedXContents().stream()
@@ -392,7 +394,10 @@ public class SearchModuleTests extends ESTestCase {
 
     //add here deprecated queries to make sure we log a deprecation warnings when they are used
     private static final String[] DEPRECATED_QUERIES = new String[] {"field_masking_span", "geo_polygon"};
-    private static final String[] REST_COMPATIBLE_QUERIES = new String[] {CommonTermsQueryBuilder.NAME.getPreferredName()};
+    private static final String[] REST_COMPATIBLE_QUERIES = new String[] {
+        TypeQueryV7Builder.NAME_V7.getPreferredName(),
+        CommonTermsQueryBuilder.NAME.getPreferredName()
+    };
 
     /**
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.

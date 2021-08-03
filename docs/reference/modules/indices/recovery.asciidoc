@@ -73,8 +73,6 @@ and may interfere with indexing, search, and other activities in your cluster.
 Do not increase this setting without carefully verifying that your cluster has
 the resources available to handle the extra load that will result.
 
-ifdef::permanently-unreleased-branch[]
-
 `indices.recovery.use_snapshots`::
 (<<cluster-update-settings,Dynamic>>, Expert) Enables the usage of snapshots
 recoveries.
@@ -86,5 +84,3 @@ cloud environments.
 `indices.recovery.repository`::
 (<<cluster-update-settings,Dynamic>>, Expert) Repository used when
 `indices.recovery.use_snapshots` is enabled.
-
-endif::[]

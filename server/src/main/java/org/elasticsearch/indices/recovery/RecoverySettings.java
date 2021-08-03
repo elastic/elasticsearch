@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
-import org.elasticsearch.Build;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -25,33 +24,12 @@ import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class RecoverySettings {
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
-
-    private static final Boolean SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED;
-
-    static {
-        final String property = System.getProperty("es.snapshots_recovery_feature_flag_registered");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.snapshots_recovery_feature_flag_registered is only supported in non-snapshot builds");
-        }
-        if ("true".equals(property)) {
-            SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED = true;
-        } else if ("false".equals(property)) {
-            SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED = false;
-        } else if (property == null) {
-            SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED = null;
-        } else {
-            throw new IllegalArgumentException(
-                "expected es.snapshots_recovery_feature_flag_registered to be unset or [true|false] but was [" + property + "]"
-            );
-        }
-    }
 
     public static final Setting<ByteSizeValue> INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING =
         Setting.byteSizeSetting(
@@ -156,14 +134,14 @@ public class RecoverySettings {
      * defaults to `false`
      */
     public static final Setting<Boolean> INDICES_RECOVERY_USE_SNAPSHOTS_SETTING =
-        Setting.boolSetting("indices.recovery.use_snapshots", false, Property.NodeScope);
+        Setting.boolSetting("indices.recovery.use_snapshots", false, Property.Dynamic, Property.NodeScope);
 
     /**
      * repository to use during peer recovery to recover files from a snapshot instead of sending them from
      * the primary
      */
     public static final Setting<String> INDICES_RECOVERY_REPOSITORY_SETTING =
-        Setting.simpleString("indices.recovery.repository", Property.NodeScope);
+        Setting.simpleString("indices.recovery.repository", Property.Dynamic, Property.NodeScope);
 
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
 
@@ -177,8 +155,8 @@ public class RecoverySettings {
     private volatile TimeValue internalActionTimeout;
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
-    private final boolean useSnapshotsDuringRecovery;
-    private final String repository;
+    private volatile boolean useSnapshotsDuringRecovery;
+    private volatile String repository;
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 
@@ -216,6 +194,8 @@ public class RecoverySettings {
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING,
             this::setInternalActionLongTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING, this::setUseSnapshotsDuringRecovery);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_REPOSITORY_SETTING, this::setRepository);
     }
 
     public RateLimiter rateLimiter() {
@@ -306,19 +286,15 @@ public class RecoverySettings {
         return useSnapshotsDuringRecovery;
     }
 
+    private void setUseSnapshotsDuringRecovery(boolean useSnapshotsDuringRecovery) {
+        this.useSnapshotsDuringRecovery = useSnapshotsDuringRecovery;
+    }
+
     public String getRepository() {
         return repository;
     }
 
-    public static List<Setting<?>> featureFlagEnabledSettings() {
-        return featureFlagEnabledSettings(Build.CURRENT);
-    }
-
-    public static List<Setting<?>> featureFlagEnabledSettings(Build build) {
-        if (build.isSnapshot() || (SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED != null && SNAPSHOTS_RECOVERY_FEATURE_FLAG_REGISTERED)) {
-            return List.of(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING, INDICES_RECOVERY_REPOSITORY_SETTING);
-        } else {
-            return Collections.emptyList();
-        }
+    private void setRepository(String repository) {
+        this.repository = repository;
     }
 }

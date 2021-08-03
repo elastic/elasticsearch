@@ -53,6 +53,11 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         if (randomBoolean()) {
             TimeValue bucketSpan = TimeValue.timeValueSeconds(randomIntBetween(1, 1_000));
             builder.setBucketSpan(bucketSpan);
+
+            // There is a dependency between model_prune_window and bucket_span: model_prune window must be
+            // at least twice the size of bucket_span.
+            builder.setModelPruneWindow(TimeValue.timeValueSeconds(randomIntBetween(2, 1_000) * bucketSpan.seconds()));
+
         }
         if (isCategorization) {
             builder.setCategorizationFieldName(randomAlphaOfLength(10));
@@ -419,6 +424,19 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertFalse(config2.equals(config1));
     }
 
+    public void testEquals_GivenDifferentModelPruneWindow() {
+        AnalysisConfig.Builder builder = createConfigBuilder();
+        builder.setModelPruneWindow(TimeValue.timeValueDays(14));
+        AnalysisConfig config1 = builder.build();
+
+        builder = createConfigBuilder();
+        builder.setModelPruneWindow(TimeValue.timeValueDays(28));
+        AnalysisConfig config2 = builder.build();
+
+        assertFalse(config1.equals(config2));
+        assertFalse(config2.equals(config1));
+    }
+
     public void testEquals_GivenSummaryCountField() {
         AnalysisConfig.Builder builder = createConfigBuilder();
         builder.setSummaryCountFieldName("foo");
@@ -483,6 +501,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
                 CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(Collections.singletonList("foo")));
         builder.setInfluencers(Collections.singletonList("myInfluencer"));
         builder.setLatency(TimeValue.timeValueSeconds(3600));
+        builder.setModelPruneWindow(TimeValue.timeValueDays(30));
         builder.setSummaryCountFieldName("sumCount");
         return builder.build();
     }
@@ -701,6 +720,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
         analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
         analysisConfig.setLatency(TimeValue.ZERO);
+        analysisConfig.setModelPruneWindow(TimeValue.timeValueHours(3));
         return analysisConfig;
     }
 
@@ -710,6 +730,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
         analysisConfig.setLatency(TimeValue.ZERO);
+        analysisConfig.setModelPruneWindow(TimeValue.timeValueHours(3));
         analysisConfig.setCategorizationFieldName("msg");
         return analysisConfig;
     }
@@ -727,7 +748,12 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             builder.setDetectors(detectors);
             break;
         case 1:
-            builder.setBucketSpan(new TimeValue(instance.getBucketSpan().millis() + (between(1, 1000) * 1000)));
+            TimeValue bucketSpan = new TimeValue(instance.getBucketSpan().millis() + (between(1, 1000) * 1000));
+            builder.setBucketSpan(bucketSpan);
+
+            // There is a dependency between model_prune_window and bucket_span: model_prune window must be
+            // at least twice the size of bucket_span.
+            builder.setModelPruneWindow(new TimeValue(between(2, 1000) * bucketSpan.millis()));
             break;
         case 2:
             if (instance.getLatency() == null) {

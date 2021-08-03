@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.support;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -36,7 +37,23 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
     private ApiKeyBoolQueryBuilder() {}
 
-    public static ApiKeyBoolQueryBuilder build(QueryBuilder queryBuilder, Authentication authentication) {
+    /**
+     * Build a bool query that is specialised for query API keys information from the security index.
+     * The method processes the given QueryBuilder to ensure:
+     *   * Only fields from an allowlist are queried
+     *   * Only query types from an allowlist are used
+     *   * Field names used in the Query DSL get translated into corresponding names used at the index level.
+     *     This helps decouple the user facing and implementation level changes.
+     *   * User's security context gets applied when necessary
+     *   * Not exposing any other types of documents stored in the same security index
+     *
+     * @param queryBuilder This represents the query parsed directly from the user input. It is validated
+     *                     and transformed (see above).
+     * @param authentication The user's authentication object. If present, it will be used to filter the results
+     *                       to only include API keys owned by the user.
+     * @return A specialised query builder for API keys that is safe to run on the security index.
+     */
+    public static ApiKeyBoolQueryBuilder build(QueryBuilder queryBuilder, @Nullable Authentication authentication) {
         final ApiKeyBoolQueryBuilder finalQuery = new ApiKeyBoolQueryBuilder();
         if (queryBuilder != null) {
             QueryBuilder processedQuery = doProcess(queryBuilder);

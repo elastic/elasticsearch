@@ -8,6 +8,7 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -35,7 +36,10 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -126,6 +130,35 @@ public class SearchableSnapshotsIT extends ESRestHighLevelClientTestCase {
         }
 
         {
+            assertBusy(() -> {
+                final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "/_nodes/stats/thread_pool"));
+                assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+
+                @SuppressWarnings("unchecked")
+                final Map<String, Object> nodes = (Map<String, Object>) extractValue(responseAsMap(response), "nodes");
+                assertThat(nodes, notNullValue());
+
+                for (String node : nodes.keySet()) {
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> threadPools =
+                        (Map<String, Object>) extractValue((Map<String, Object>) nodes.get(node), "thread_pool");
+                    assertNotNull("No thread pools on node " + node, threadPools);
+
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> threadPoolStats =
+                        (Map<String, Object>) threadPools.get("searchable_snapshots_cache_fetch_async");
+                    assertNotNull("No thread pools stats on node " + node, threadPoolStats);
+
+                    final Number active = (Number) extractValue(threadPoolStats, "active");
+                    assertThat(node + " has still active tasks", active, equalTo(0));
+
+                    final Number queue = (Number) extractValue(threadPoolStats, "queue");
+                    assertThat(node + " has still enqueued tasks", queue, equalTo(0));
+                }
+            }, 30L, TimeUnit.SECONDS);
+        }
+
+        {
             final CachesStatsRequest request = new CachesStatsRequest();
             final CachesStatsResponse response = execute(request, client::cacheStats, client::cacheStatsAsync);
 
@@ -144,5 +177,10 @@ public class SearchableSnapshotsIT extends ESRestHighLevelClientTestCase {
             assertThat(stats.getBytesRead(), greaterThan(0L));
             assertThat(stats.getEvictions(), equalTo(0L));
         }
+    }
+
+
+    private static void waitForIdlingSearchableSnapshotsThreadPools() throws Exception {
+
     }
 }

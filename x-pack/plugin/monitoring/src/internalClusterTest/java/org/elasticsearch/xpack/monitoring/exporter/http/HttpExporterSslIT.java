@@ -19,7 +19,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
@@ -127,14 +127,14 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         assertExporterExists("secure");
 
         // Verify that we cannot modify the SSL settings
-        final ActionFuture<ClusterUpdateSettingsResponse> future = setVerificationMode("secure", VerificationMode.CERTIFICATE);
+        final ActionFuture<ClusterUpdateSettingsResponse> future = setVerificationMode("secure", SslVerificationMode.CERTIFICATE);
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(iae.getCause(), instanceOf(IllegalStateException.class));
         assertThat(iae.getCause().getMessage(), containsString("secure_password"));
     }
 
     public void testCanUpdateSslSettingsWithNoSecureSettings() {
-        final ActionFuture<ClusterUpdateSettingsResponse> future = setVerificationMode("plaintext", VerificationMode.CERTIFICATE);
+        final ActionFuture<ClusterUpdateSettingsResponse> future = setVerificationMode("plaintext", SslVerificationMode.CERTIFICATE);
         final ClusterUpdateSettingsResponse response = future.actionGet();
         assertThat(response, notNullValue());
         clearTransientSettings("plaintext");
@@ -150,7 +150,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
             .put("xpack.monitoring.exporters._new.host", "https://" + webServer.getHostName() + ":" + webServer.getPort())
             .put("xpack.monitoring.exporters._new.ssl.truststore.path", truststore)
             .put("xpack.monitoring.exporters._new.ssl.truststore.password", "testnode")
-            .put("xpack.monitoring.exporters._new.ssl.verification_mode", VerificationMode.CERTIFICATE.name())
+            .put("xpack.monitoring.exporters._new.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
             .build();
         updateSettings.transientSettings(settings);
         final ActionFuture<ClusterUpdateSettingsResponse> future = client().admin().cluster().updateSettings(updateSettings);
@@ -173,7 +173,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         return exporters.getExporter(name);
     }
 
-    private ActionFuture<ClusterUpdateSettingsResponse> setVerificationMode(String name, VerificationMode mode) {
+    private ActionFuture<ClusterUpdateSettingsResponse> setVerificationMode(String name, SslVerificationMode mode) {
         final ClusterUpdateSettingsRequest updateSettings = new ClusterUpdateSettingsRequest();
         final Settings settings = Settings.builder()
             .put("xpack.monitoring.exporters." + name + ".type", HttpExporter.TYPE)

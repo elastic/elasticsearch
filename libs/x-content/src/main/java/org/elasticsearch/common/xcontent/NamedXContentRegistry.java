@@ -51,8 +51,7 @@ public class NamedXContentRegistry {
          * Creates a new entry which can be stored by the registry.
          */
         public <T> Entry(Class<T> categoryClass, ParseField name, CheckedFunction<XContentParser, ? extends T, IOException> parser) {
-            this(categoryClass, name, (p, c) -> parser.apply(p),
-                RestApiVersion.onOrAfter(RestApiVersion.minimumSupported()));
+            this(categoryClass, name, (p, c) -> parser.apply(p), name.getForRestApiVersion());
         }
 
         public <T> Entry(Class<T> categoryClass, ParseField name, CheckedFunction<XContentParser, ? extends T, IOException> parser,
@@ -64,8 +63,7 @@ public class NamedXContentRegistry {
          * Prefer {@link Entry#Entry(Class, ParseField, CheckedFunction)} unless you need a context to carry around while parsing.
          */
         public <T> Entry(Class<T> categoryClass, ParseField name, ContextParser<Object, ? extends T> parser) {
-            this(categoryClass, name, parser,
-                RestApiVersion.onOrAfter(RestApiVersion.minimumSupported()));
+            this(categoryClass, name, parser, name.getForRestApiVersion());
         }
 
         public <T> Entry(Class<T> categoryClass, ParseField name, ContextParser<Object, ? extends T> parser,
@@ -81,11 +79,11 @@ public class NamedXContentRegistry {
 
 
     public NamedXContentRegistry(List<Entry> entries) {
-        this.registry = unmodifiableMap(getRegistry(entries));
+        this.registry = unmodifiableMap(createRegistry(entries));
     }
 
 
-    private  Map<RestApiVersion,Map<Class<?>, Map<String, Entry>>> getRegistry(List<Entry> entries){
+    private  Map<RestApiVersion,Map<Class<?>, Map<String, Entry>>> createRegistry(List<Entry> entries){
         if (entries.isEmpty()) {
             return emptyMap();
         }
@@ -128,6 +126,12 @@ public class NamedXContentRegistry {
      * @throws NamedObjectNotFoundException if the categoryClass or name is not registered
      */
     public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
+        Entry entry = lookupParser(categoryClass, name, parser);
+        return categoryClass.cast(entry.parser.parse(parser, context));
+    }
+
+    //scope for testing
+    public <T> Entry lookupParser(Class<T> categoryClass, String name, XContentParser parser) {
         Map<String, Entry> parsers = registry.getOrDefault(parser.getRestApiVersion(), emptyMap())
             .get(categoryClass);
         if (parsers == null) {
@@ -147,7 +151,7 @@ public class NamedXContentRegistry {
             throw new XContentParseException(parser.getTokenLocation(),
                     "unable to parse " + categoryClass.getSimpleName() + " with name [" + name + "]: parser didn't match");
         }
-        return categoryClass.cast(entry.parser.parse(parser, context));
+        return entry;
     }
 
 }

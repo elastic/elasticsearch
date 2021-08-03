@@ -233,6 +233,32 @@ on startup.
 ====
 
 [discrete]
+[[ssl-misc-changes]]
+==== Other SSL/TLS changes 
+
+.PKCS#11 keystores and trustores cannot be configured in `elasticsearch.yml`
+[%collapsible]
+====
+*Details* +
+The settings `*.ssl.keystore.type` and `*.ssl.truststore.type` no longer accept "PKCS11" as a valid type.
+This applies to all SSL settings in Elasticsearch, including
+
+- `xpack.security.http.keystore.type`
+- `xpack.security.transport.keystore.type`
+- `xpack.security.http.truststore.type`
+- `xpack.security.transport.truststore.type`
+
+As well as SSL settings for security realms, watcher and monitoring.
+
+Use of a PKCS#11 keystore or truststore as the JRE's default store is not affected.
+
+*Impact* +
+If you have a PKCS#11 keystore configured within your `elasticsearch.yml` file, you must remove that
+configuration and switch to a supported keystore type, or configure your PKCS#11 keystore as the 
+JRE default store.
+====
+
+[discrete]
 [[builtin-users-changes]]
 ===== Changes to built-in users
 

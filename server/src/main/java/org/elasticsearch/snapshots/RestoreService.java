@@ -69,6 +69,7 @@ import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -323,13 +324,28 @@ public class RestoreService implements ClusterStateApplier {
             Collections.addAll(requestIndices, indicesInRequest);
         }
 
+        // Determine system indices to restore from requested feature states
+        final Map<String, List<String>> featureStatesToRestore = getFeatureStatesToRestore(request, snapshotInfo, snapshot);
+        final Set<String> featureStateIndices = featureStatesToRestore.values()
+            .stream()
+            .flatMap(Collection::stream)
+            .collect(Collectors.toSet());
+
+        final Set<String> featureStateDataStreams = featureStatesToRestore.keySet()
+            .stream()
+            .map(name -> systemIndices.getFeatures().get(name))
+            .flatMap(feature -> feature.getDataStreamDescriptors().stream())
+            .map(SystemDataStreamDescriptor::getDataStreamName)
+            .collect(Collectors.toSet());
+
         // Get data stream metadata for requested data streams
         Tuple<Map<String, DataStream>, Map<String, DataStreamAlias>> result = getDataStreamsToRestore(
             repository,
             snapshotId,
             snapshotInfo,
             globalMetadata,
-            requestIndices,
+            // include system data stream names in argument to this method
+            Stream.concat(requestIndices.stream(), featureStateDataStreams.stream()).collect(Collectors.toList()),
             request.includeAliases()
         );
         Map<String, DataStream> dataStreamsToRestore = result.v1();
@@ -345,13 +361,6 @@ public class RestoreService implements ClusterStateApplier {
             .map(Index::getName)
             .collect(Collectors.toSet());
         requestIndices.addAll(dataStreamIndices);
-
-        // Determine system indices to restore from requested feature states
-        final Map<String, List<String>> featureStatesToRestore = getFeatureStatesToRestore(request, snapshotInfo, snapshot);
-        final Set<String> featureStateIndices = featureStatesToRestore.values()
-            .stream()
-            .flatMap(Collection::stream)
-            .collect(Collectors.toSet());
 
         // Resolve the indices that were directly requested
         final List<String> requestedIndicesInSnapshot = filterIndices(

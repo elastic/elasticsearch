@@ -10,6 +10,8 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -170,7 +172,40 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         assertThat(createSnapshotResponse.getSnapshotInfo().dataStreams(), not(empty()));
 
-        // TODO[wrb]: continue test, check restore
+        // We have to delete the data stream directly, as the feature reset API doesn't clean up system data streams yet
+        // See https://github.com/elastic/elasticsearch/issues/75818
+        {
+            DeleteDataStreamAction.Request request = new DeleteDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
+            AcknowledgedResponse response = client().execute(DeleteDataStreamAction.INSTANCE, request).get();
+            assertTrue(response.isAcknowledged());
+        }
+
+        {
+            DeleteIndexRequest request = new DeleteIndexRequest("my-index");
+            AcknowledgedResponse response = client().execute(DeleteIndexAction.INSTANCE, request).get();
+            assertTrue(response.isAcknowledged());
+        }
+
+        {
+            GetIndexResponse indicesRemaining = client().admin().indices().prepareGetIndex().addIndices("_all").get();
+            assertThat(indicesRemaining.indices(), arrayWithSize(0));
+        }
+
+        RestoreSnapshotResponse restoreSnapshotResponse = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("my-index")
+            .setFeatureStates(SystemDataStreamTestPlugin.class.getSimpleName())
+            .get();
+        assertEquals(restoreSnapshotResponse.getRestoreInfo().totalShards(), restoreSnapshotResponse.getRestoreInfo().successfulShards());
+
+        {
+            GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
+            GetDataStreamAction.Response response = client().execute(GetDataStreamAction.INSTANCE, request).get();
+            assertThat(response.getDataStreams(), hasSize(1));
+            assertTrue(response.getDataStreams().get(0).getDataStream().isSystem());
+        }
     }
 
     private void assertSnapshotSuccess(CreateSnapshotResponse createSnapshotResponse) {

@@ -269,8 +269,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Path localConfigDir = getMountedLocalConfDirWithKeystore(password, installation.config);
 
-        // restart ES with password and mounted keystore
-        Map<Path, Path> volumes = Map.of(localConfigDir, installation.config);
+        // restart ES with password and mounted config dir containing password protected keystore
+        Map<Path, Path> volumes = Map.of(localConfigDir.resolve("config"), installation.config);
         Map<String, String> envVars = Map.of(
             "KEYSTORE_PASSWORD",
             password,
@@ -294,7 +294,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Path tempDir = null;
         try {
-            tempDir = createTempDir(DockerTests.class.getSimpleName());
+            tempDir = createTempDir(KeystoreManagementTests.class.getSimpleName());
 
             String password = "keystore-password";
             String passwordFilename = "password.txt";
@@ -303,8 +303,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
             Path localConfigDir = getMountedLocalConfDirWithKeystore(password, installation.config);
 
-            // restart ES with password and mounted keystore
-            Map<Path, Path> volumes = Map.of(localConfigDir, installation.config, tempDir, Path.of("/run/secrets"));
+            // restart ES with password and mounted config dir containing password protected keystore
+            Map<Path, Path> volumes = Map.of(localConfigDir.resolve("config"), installation.config, tempDir, Path.of("/run/secrets"));
             Map<String, String> envVars = Map.of(
                 "KEYSTORE_PASSWORD_FILE",
                 "/run/secrets/" + passwordFilename,
@@ -336,8 +336,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Path localConfigPath = getMountedLocalConfDirWithKeystore(password, installation.config);
 
-        // restart ES with password and mounted config dir
-        Map<Path, Path> volumes = Map.of(localConfigPath, installation.config);
+        // restart ES with password and mounted config dir containing password protected keystore
+        Map<Path, Path> volumes = Map.of(localConfigPath.resolve("config"), installation.config);
         Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", "wrong");
         Shell.Result r = runContainerExpectingFailure(distribution(), builder().volumes(volumes).envVars(envVars));
         assertThat(r.stderr, containsString(ERROR_INCORRECT_PASSWORD));
@@ -383,7 +383,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         sh.run("bash " + dockerTemp.resolve("set-pass.sh"));
 
         // copy keystore to temp file to make it available to docker host
-        sh.run("cp " + dockerKeystore + " " + dockerTemp);
+        sh.run("cp -arf" + dockerKeystore + " " + dockerTemp);
         return tempDirectory;
     }
 

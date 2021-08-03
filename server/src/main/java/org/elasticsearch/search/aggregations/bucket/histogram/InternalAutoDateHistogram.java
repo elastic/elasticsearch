@@ -292,7 +292,7 @@ public final class InternalAutoDateHistogram extends
         for (InternalAggregation aggregation : aggregations) {
             InternalAutoDateHistogram histogram = (InternalAutoDateHistogram) aggregation;
             if (histogram.buckets.isEmpty() == false) {
-                pq.add(new IteratorAndCurrent(histogram.buckets.iterator()));
+                pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
             }
         }
 

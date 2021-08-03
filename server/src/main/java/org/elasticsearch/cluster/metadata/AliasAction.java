@@ -119,6 +119,12 @@ public abstract class AliasAction {
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             aliasValidator.validate(alias, indexRouting, filter, writeIndex);
 
+            if (index.mode().organizeIntoTimeSeries() && (indexRouting != null || searchRouting != null)) {
+                throw new IllegalArgumentException(
+                    "[" + index.getIndex().getName() + "] is in time series mode which is incompatible with routing on aliases"
+                );
+            }
+
             AliasMetadata newAliasMd = AliasMetadata.newAliasMetadataBuilder(alias).filter(filter).indexRouting(indexRouting)
                     .searchRouting(searchRouting).writeIndex(writeIndex).isHidden(isHidden).build();
 

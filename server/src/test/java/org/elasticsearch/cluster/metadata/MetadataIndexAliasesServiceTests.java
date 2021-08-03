@@ -12,11 +12,12 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -561,6 +562,20 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         assertThat(result.metadata().dataStreamAliases().get("logs-http"), nullValue());
     }
 
+    public void testIndexRoutingInTimeSeriesMode() {
+        ClusterState before = createTimeSeriesIndex(ClusterState.builder(ClusterName.DEFAULT).build(), "test");
+        AliasAction add = new AliasAction.Add("test", "alias", null, "index_routing", null, false, false);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> service.applyAliasActions(before, List.of(add)));
+        assertThat(e.getMessage(), equalTo("[test] is in time series mode which is incompatible with routing on aliases"));
+    }
+
+    public void testSearchRoutingInTimeSeriesMode() {
+        ClusterState before = createTimeSeriesIndex(ClusterState.builder(ClusterName.DEFAULT).build(), "test");
+        AliasAction add = new AliasAction.Add("test", "alias", null, "search_routing", null, false, false);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> service.applyAliasActions(before, List.of(add)));
+        assertThat(e.getMessage(), equalTo("[test] is in time series mode which is incompatible with routing on aliases"));
+    }
+
     private ClusterState applyHiddenAliasMix(ClusterState before, Boolean isHidden1, Boolean isHidden2) {
         return service.applyAliasActions(before, Arrays.asList(
             new AliasAction.Add("test", "alias", null, null, null, null, isHidden1),
@@ -577,6 +592,19 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         return ClusterState.builder(state)
                 .metadata(Metadata.builder(state.metadata()).put(indexMetadata, false))
                 .build();
+    }
+
+    private ClusterState createTimeSeriesIndex(ClusterState state, String index) {
+        IndexMetadata indexMetadata = IndexMetadata.builder(index)
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", VersionUtils.randomVersion(random()))
+                    .put(IndexSettings.MODE.getKey(), "time_series")
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        return ClusterState.builder(state).metadata(Metadata.builder(state.metadata()).put(indexMetadata, false)).build();
     }
 
     private void assertAliasesVersionUnchanged(final String index, final ClusterState before, final ClusterState after) {

@@ -55,7 +55,7 @@ public class VerifierTests extends ESTestCase {
         return line
             + ":"
             + column
-            + ": LIMIT or TOP cannot be used in a subquery if outer query contains GROUP BY, WHERE, ORDER BY or PIVOT";
+            + ": LIMIT or TOP cannot be used in a subquery if outer query contains GROUP BY, ORDER BY, PIVOT or WHERE";
     }
 
     public void testSubselectWithOrderByOnTopOfOrderByAndLimit() {
@@ -82,7 +82,7 @@ public class VerifierTests extends ESTestCase {
                       "ORDER BY int DESC NULLS FIRST")
         );
         assertEquals(
-            innerLimitMsg(1, 50) + "\nline " + innerLimitMsg(1, 71),
+            innerLimitMsg(1, 50),
             error("SELECT * FROM (SELECT * FROM (SELECT * FROM test LIMIT 10) ORDER BY 1 LIMIT 20) ORDER BY 2")
         );
     }

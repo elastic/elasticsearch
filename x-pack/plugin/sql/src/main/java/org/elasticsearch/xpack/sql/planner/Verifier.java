@@ -7,20 +7,19 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.xpack.ql.common.Failure;
+import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.sql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.sql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.sql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.plan.physical.PivotExec;
+import org.elasticsearch.xpack.sql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.sql.plan.physical.Unexecutable;
 import org.elasticsearch.xpack.sql.plan.physical.UnplannedExec;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 
@@ -63,18 +62,22 @@ abstract class Verifier {
     }
 
     private static void checkForNonCollapsableSubselects(PhysicalPlan plan, List<Failure> failures) {
-        // use a comparator to ensure deterministic order of the error messages
-        Set<LimitExec> limits = new TreeSet<>(Comparator.comparing(l -> l.source().text()));
+        Holder<LimitExec> limit = new Holder<>();
+        Holder<UnaryExec> limitedExec = new Holder<>();
 
-        plan.forEachDown(p -> {
-            if (p instanceof OrderExec || p instanceof FilterExec || p instanceof PivotExec || p instanceof AggregateExec) {
-                p.forEachDown(LimitExec.class, limits::add);
+        plan.forEachUp(p -> {
+            if (limit.get() == null && p instanceof LimitExec) {
+                limit.set((LimitExec) p);
+            } else if (limit.get() != null && limitedExec.get() == null) {
+                if (p instanceof OrderExec || p instanceof FilterExec || p instanceof PivotExec || p instanceof AggregateExec) {
+                    limitedExec.set((UnaryExec) p);
+                }
             }
         });
 
-        for (LimitExec limit : limits) {
+        if (limitedExec.get() != null) {
             failures.add(
-                fail(limit, "LIMIT or TOP cannot be used in a subquery if outer query contains GROUP BY, WHERE, ORDER BY or PIVOT")
+                fail(limit.get(), "LIMIT or TOP cannot be used in a subquery if outer query contains GROUP BY, ORDER BY, PIVOT or WHERE")
             );
         }
     }

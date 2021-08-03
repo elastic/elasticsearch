@@ -3,8 +3,6 @@
 
 No significant changes.
 
-No significant changes.
-
 [[release-notes-6.8.17]]
 == {es} version 6.8.17
 

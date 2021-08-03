@@ -311,6 +311,11 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             return;
         }
 
+        if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint) {
+            shouldStopAtCheckpointListener.onResponse(null);
+            return;
+        }
+
         // move the call to the generic thread pool, so we do not block the network thread
         getThreadPool().executor(ThreadPool.Names.GENERIC)
             .execute(() -> { getIndexer().setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener); });

@@ -256,6 +256,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     new ElasticsearchStatusException(
                         "Failed to update transform task [{}] state value should_stop_at_checkpoint from [{}] to [{}]",
                         RestStatus.CONFLICT,
+                        e,
                         transformTask.getTransformId(),
                         transformTask.getState().shouldStopAtNextCheckpoint(),
                         request.isWaitForCheckpoint()

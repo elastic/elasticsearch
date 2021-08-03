@@ -61,7 +61,7 @@ import java.util.stream.Stream;
 
 public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformIndexerPosition, TransformIndexerStats> {
 
-    private static final int PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC = 5;
+    private static final int PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC = 10;
 
     /**
      * RunState is an internal (non-persisted) state that controls the internal logic
@@ -696,7 +696,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // because save state is async we need to block the call until state is persisted, so that the job can not
             // be triggered (ensured by synchronized)
             CountDownLatch latch = new CountDownLatch(1);
-            logger.debug("[{}] persisiting stop at checkpoint", getJobId());
+            logger.debug("[{}] persisting stop at checkpoint", getJobId());
 
             doSaveState(IndexerState.STARTED, getPosition(), () -> { latch.countDown(); });
 

@@ -10,7 +10,6 @@ package org.elasticsearch.monitor.os;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -185,18 +184,10 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public Swap(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-                this.total = in.readLong();
-                assert this.total >= 0 : "expected total swap to be positive, got: " + total;
-                this.free = in.readLong();
-                assert this.free >= 0 : "expected free swap to be positive, got: " + total;
-            } else {
-                // If we have a node in the cluster without the bug fix for
-                // negative memory values, we need to coerce negative values to 0 here.
-                // The relevant bug fix was added for 7.8.0 in https://github.com/elastic/elasticsearch/pull/57317
-                this.total = Math.max(0, in.readLong());
-                this.free = Math.max(0, in.readLong());
-            }
+            this.total = in.readLong();
+            assert this.total >= 0 : "expected total swap to be positive, got: " + total;
+            this.free = in.readLong();
+            assert this.free >= 0 : "expected free swap to be positive, got: " + total;
         }
 
         @Override
@@ -256,18 +247,10 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public Mem(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-                this.total = in.readLong();
-                assert total >= 0 : "expected total memory to be positive, got: " + total;
-                this.free = in.readLong();
-                assert free >= 0 : "expected free memory to be positive, got: " + total;
-            } else {
-                // If we have a node in the cluster without the bug fix for
-                // negative memory values, we need to coerce negative values to 0 here.
-                // The relevant bug fix was added for 7.2.0 in https://github.com/elastic/elasticsearch/pull/42725
-                this.total = Math.max(0, in.readLong());
-                this.free = Math.max(0, in.readLong());
-            }
+            this.total = in.readLong();
+            assert total >= 0 : "expected total memory to be positive, got: " + total;
+            this.free = in.readLong();
+            assert free >= 0 : "expected free memory to be positive, got: " + total;
         }
 
         @Override
@@ -332,7 +315,6 @@ public class OsStats implements Writeable, ToXContentFragment {
         private final long cpuCfsPeriodMicros;
         private final long cpuCfsQuotaMicros;
         private final CpuStat cpuStat;
-        // These will be null for nodes running versions prior to 6.1.0
         private final String memoryControlGroup;
         private final String memoryLimitInBytes;
         private final String memoryUsageInBytes;

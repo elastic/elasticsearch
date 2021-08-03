@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 
@@ -108,5 +109,9 @@ public class TrainedModelDeploymentTaskState implements PersistentTaskState {
     @Override
     public int hashCode() {
         return Objects.hash(state, allocationId, reason);
+    }
+
+    public boolean isStatusStale(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+        return allocationId != task.getAllocationId();
     }
 }

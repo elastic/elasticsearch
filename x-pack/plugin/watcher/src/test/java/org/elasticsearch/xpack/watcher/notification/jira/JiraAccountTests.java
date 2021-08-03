@@ -177,6 +177,7 @@ public class JiraAccountTests extends ESTestCase {
         assertThat(request.path(), is(expectedPath));
     }
 
+    @SuppressWarnings("unchecked")
     private void addAccountSettings(String name, Settings.Builder builder) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_URL_SETTING.getKey(),

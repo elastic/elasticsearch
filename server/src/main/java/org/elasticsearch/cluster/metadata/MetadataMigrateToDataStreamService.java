@@ -193,6 +193,7 @@ public class MetadataMigrateToDataStreamService {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     public static final class MigrateToDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
 
         private final String aliasName;

@@ -1,0 +1,148 @@
+---
+"Create a snapshot and then restore it":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+      features: ["allowed_warnings"]
+
+  # Create repository
+  - do:
+      snapshot.create_repository:
+        repository: test_restore_repository
+        body:
+          type: hdfs
+          settings:
+            uri: "hdfs://localhost:9999"
+            path: "test/restore"
+
+  # Create index
+  - do:
+      indices.create:
+          index: test_index
+          body:
+            settings:
+              index:
+                mode: time_series
+                number_of_replicas: 0
+                number_of_shards: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        uid:
+                          type: keyword
+                          dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                            rx:
+                              type: long
+  - do:
+      bulk:
+        refresh: true
+        index: test_index
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434521831, "rx": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434577921, "rx": 530600088}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434587694, "rx": 530604797}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434595272, "rx": 530605511}}}}'
+
+
+  # Wait for green
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  # Take snapshot
+  - do:
+      snapshot.create:
+        repository: test_restore_repository
+        snapshot: test_restore_tsdb
+        wait_for_completion: true
+
+  - match: { snapshot.snapshot: test_restore_tsdb }
+  - match: { snapshot.state : SUCCESS }
+  - match: { snapshot.shards.successful: 2 }
+  - match: { snapshot.shards.failed : 0 }
+  - is_true: snapshot.version
+  - gt: { snapshot.version_id: 0}
+
+  # Close index
+  - do:
+      indices.close:
+        index : test_index
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+
+  # Restore index
+  - do:
+      snapshot.restore:
+        repository: test_restore_repository
+        snapshot: test_restore_tsdb
+        wait_for_completion: true
+
+  # Check recovery stats
+  - do:
+      indices.recovery:
+        index: test_index
+
+  - match: { test_index.shards.0.type: SNAPSHOT }
+  - match: { test_index.shards.0.stage: DONE }
+  - match: { test_index.shards.0.index.files.recovered: 1}
+  - gt:    { test_index.shards.0.index.size.recovered_in_bytes: 0}
+
+  # Remove our snapshot
+  - do:
+      snapshot.delete:
+        repository: test_restore_repository
+        snapshot: test_restore_tsdb
+
+  # Remove our repository
+  - do:
+     snapshot.delete_repository:
+       repository: test_restore_repository
+
+  - do:
+      search:
+        index: test_index
+        body:
+          fields:
+            - field: _tsid
+          query:
+            query_string:
+              query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}

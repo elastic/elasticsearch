@@ -36,9 +36,6 @@ import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 import org.elasticsearch.xpack.spatial.action.SpatialInfoTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialStatsTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialUsageTransportAction;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoTileGridTiler;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoHashGridTiler;
-import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
@@ -52,7 +49,10 @@ import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoGri
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeCellIdSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeHashGridAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeTileGridAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoHashGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
@@ -73,7 +73,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
         return XPackPlugin.getSharedLicenseState();
     }
     // register the vector tile factory from a different module
-    private final SetOnce<VectorTileExtension> vectorTileExtension = new SetOnce<>();
+    private final SetOnce<GeometryFormatterExtension> vectorTileExtension = new SetOnce<>();
 
     @Override
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -214,6 +214,6 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         // we only expect one vector tile extension that comes from the vector tile module.
-        loader.loadExtensions(VectorTileExtension.class).forEach(vectorTileExtension::set);
+        loader.loadExtensions(GeometryFormatterExtension.class).forEach(vectorTileExtension::set);
     }
 }

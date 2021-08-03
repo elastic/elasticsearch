@@ -1,12 +1,12 @@
-class org.elasticsearch.painless.ThisTests$TestThisBaseScript @no_import {
+class org.elasticsearch.painless.ThisTests$ThisBaseScript @no_import {
   String getBaseString();
   void setBaseString(String);
   int getBaseLength();
 }
 
 
-class org.elasticsearch.painless.ThisTests$TestThisScript @no_import {
-  String testString();
-  void testString(String);
-  int testLength();
+class org.elasticsearch.painless.ThisTests$ThisScript @no_import {
+  String thisString();
+  void thisString(String);
+  int thisLength();
 }

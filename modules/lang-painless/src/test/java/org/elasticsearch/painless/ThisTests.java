@@ -19,11 +19,11 @@ import java.util.Map;
 
 public class ThisTests extends ScriptTestCase {
 
-    public abstract static class TestThisBaseScript {
+    public abstract static class ThisBaseScript {
 
         protected String baseString;
 
-        public TestThisBaseScript(String baseString) {
+        public ThisBaseScript(String baseString) {
             this.baseString = baseString;
         }
 
@@ -40,38 +40,38 @@ public class ThisTests extends ScriptTestCase {
         }
     }
 
-    public abstract static class TestThisScript extends TestThisBaseScript {
+    public abstract static class ThisScript extends ThisBaseScript {
 
-        protected String testString;
+        protected String thisString;
 
-        public TestThisScript(String baseString, String testString) {
+        public ThisScript(String baseString, String thisString) {
             super(baseString);
 
-            this.testString = testString;
+            this.thisString = thisString;
         }
 
-        public String testString() {
-            return testString;
+        public String thisString() {
+            return thisString;
         }
 
-        public void testString(String testString) {
-            this.testString = testString;
+        public void thisString(String testString) {
+            this.thisString = testString;
         }
 
-        public int testLength() {
-            return testString.length();
+        public int thisLength() {
+            return thisString.length();
         }
 
         public abstract Object execute();
 
         public interface Factory {
 
-            TestThisScript newInstance(String baseString, String testString);
+            ThisScript newInstance(String baseString, String testString);
         }
 
         public static final String[] PARAMETERS = {};
-        public static final ScriptContext<TestThisScript.Factory> CONTEXT =
-                new ScriptContext<>("this_test", TestThisScript.Factory.class);
+        public static final ScriptContext<ThisScript.Factory> CONTEXT =
+                new ScriptContext<>("this_test", ThisScript.Factory.class);
     }
 
     @Override
@@ -79,27 +79,27 @@ public class ThisTests extends ScriptTestCase {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
         List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
         whitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.painless.this"));
-        contexts.put(TestThisScript.CONTEXT, whitelists);
+        contexts.put(ThisScript.CONTEXT, whitelists);
         return contexts;
     }
 
     public Object exec(String script, String baseString, String testString) {
-        TestThisScript.Factory factory = scriptEngine.compile(null, script, TestThisScript.CONTEXT, new HashMap<>());
-        TestThisScript testThisScript = factory.newInstance(baseString, testString);
+        ThisScript.Factory factory = scriptEngine.compile(null, script, ThisScript.CONTEXT, new HashMap<>());
+        ThisScript testThisScript = factory.newInstance(baseString, testString);
         return testThisScript.execute();
     }
 
     public void testThisMethods() {
-        assertEquals("basetest", exec("getBaseString() + testString()", "base", "test"));
-        assertEquals(8, exec("getBaseLength() + testLength()", "yyy", "xxxxx"));
+        assertEquals("basethis", exec("getBaseString() + thisString()", "base", "this"));
+        assertEquals(8, exec("getBaseLength() + thisLength()", "yyy", "xxxxx"));
 
         List<String> result = new ArrayList<>();
-        result.add("test");
+        result.add("this");
         result.add("base");
         assertEquals(result, exec("List result = []; " +
-                "testString('test');" +
+                "thisString('this');" +
                 "setBaseString('base');" +
-                "result.add(testString()); " +
+                "result.add(thisString()); " +
                 "result.add(getBaseString());" +
                 "result;", "", ""));
     }

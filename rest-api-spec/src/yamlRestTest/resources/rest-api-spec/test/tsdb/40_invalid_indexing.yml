@@ -204,6 +204,5 @@ setup:
           - '{"@timestamp": "2021-04-28T18:03:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
   - match: {items.0.index.error.reason: "alias routing incompatible the destination index [test] because it is in time series mode"}
 
-# TODO should indexing with an id fail too?
 # TODO should indexing without a @timestamp fail too?
 # TODO should an alias with search_routing fail?

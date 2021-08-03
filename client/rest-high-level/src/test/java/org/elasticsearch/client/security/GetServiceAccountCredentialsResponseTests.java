@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCre
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -38,10 +37,11 @@ public class GetServiceAccountCredentialsResponseTests
         final String[] fileTokenNames = randomArray(3, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8));
         final GetServiceAccountCredentialsNodesResponse nodesResponse = new GetServiceAccountCredentialsNodesResponse(
             new ClusterName(randomAlphaOfLength(12)),
-            List.of(new GetServiceAccountCredentialsNodesResponse.Node(new DiscoveryNode(randomAlphaOfLength(10),
+            org.elasticsearch.core.List.of(new GetServiceAccountCredentialsNodesResponse.Node(new DiscoveryNode(randomAlphaOfLength(10),
                 new TransportAddress(TransportAddress.META_ADDRESS, 9300),
                 Version.CURRENT), fileTokenNames)),
-            List.of(new FailedNodeException(randomAlphaOfLength(11), "error", new NoSuchFieldError("service_tokens"))));
+            org.elasticsearch.core.List.of(
+                new FailedNodeException(randomAlphaOfLength(11), "error", new NoSuchFieldError("service_tokens"))));
         return new org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse(
             randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8),
             randomList(0, 5, () -> TokenInfo.indexToken(randomAlphaOfLengthBetween(3, 8))),

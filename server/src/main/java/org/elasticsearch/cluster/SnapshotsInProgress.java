@@ -933,7 +933,22 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             builder.field("index", indexId);
             builder.field("shard", shardId);
             builder.field("state", status.state());
+            builder.field("generation", status.generation());
             builder.field("node", status.nodeId());
+
+            if (status.state() == ShardState.SUCCESS) {
+                final ShardSnapshotResult result = status.shardSnapshotResult();
+                builder.startObject("result");
+                builder.field("generation", result.getGeneration());
+                builder.humanReadableField("size_in_bytes", "size", result.getSize());
+                builder.field("segments", result.getSegmentCount());
+                builder.endObject();
+            }
+
+            if (status.reason() != null) {
+                builder.field("reason", status.reason());
+            }
+
             builder.endObject();
         }
 

@@ -1,7 +1,7 @@
 [[release-notes-6.8.18]]
 == {es} version 6.8.18
 
-coming::[6.8.18]
+No significant changes.
 
 No significant changes.
 

@@ -1,0 +1,5 @@
+class org.elasticsearch.painless.ThisTests$TestThisScript @no_import {
+  String getTestString();
+  void setTestString(String);
+  int getTestLength();
+}

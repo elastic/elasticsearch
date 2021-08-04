@@ -85,9 +85,6 @@ public class AllocateAction implements LifecycleAction {
             throw new IllegalArgumentException("[" + NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0");
         }
         this.numberOfReplicas = numberOfReplicas;
-        if (totalShardsPerNode != null && totalShardsPerNode < 0) {
-            throw new IllegalArgumentException("[" + TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName() + "] must be > 0");
-        }
         this.totalShardsPerNode = totalShardsPerNode;
     }
 

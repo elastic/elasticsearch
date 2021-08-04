@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -56,7 +57,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
             requires = randomBoolean() ? null : Collections.emptyMap();
         }
         Integer numberOfReplicas = randomBoolean() ? null : randomIntBetween(0, 10);
-        Integer totalShardsPerNode = randomBoolean() ? null : randomIntBetween(0, 300);
+        Integer totalShardsPerNode = randomBoolean() ? null : randomIntBetween(-300, 300);
         return new AllocateAction(numberOfReplicas, totalShardsPerNode, includes, excludes, requires);
     }
 
@@ -115,15 +116,6 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         assertEquals("[" + AllocateAction.NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0", exception.getMessage());
     }
 
-    public void testInvalidNumberOfTotalShards() {
-        Map<String, String> include = randomAllocationRoutingMap(1, 5);
-        Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
-        Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> new AllocateAction(randomIntBetween(0, 300), randomIntBetween(-1000, 0), include, exclude, require));
-        assertEquals("[" + AllocateAction.TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName() + "] must be > 0", exception.getMessage());
-    }
-
     public static Map<String, String> randomAllocationRoutingMap(int minEntries, int maxEntries) {
         Map<String, String> map = new HashMap<>();
         int numIncludes = randomIntBetween(minEntries, maxEntries);
@@ -158,6 +150,10 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
             (key, value) -> expectedSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + key, value));
         action.getRequire().forEach(
             (key, value) -> expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + key, value));
+        if (action.getTotalShardsPerNode() != null) {
+            expectedSettings.put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), action.getTotalShardsPerNode());
+        }
+
         assertThat(firstStep.getSettings(), equalTo(expectedSettings.build()));
         AllocationRoutedStep secondStep = (AllocationRoutedStep) steps.get(1);
         assertEquals(expectedSecondStepKey, secondStep.getKey());
@@ -165,7 +161,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
     }
 
     public void testTotalNumberOfShards() throws Exception {
-        Integer totalShardsPerNode = randomIntBetween(1, 1000);
+        Integer totalShardsPerNode = randomIntBetween(-1000, 1000);
         Integer numberOfReplicas = randomIntBetween(0, 4);
         AllocateAction action = new AllocateAction(numberOfReplicas, totalShardsPerNode, null, null, null);
         String phase = randomAlphaOfLengthBetween(1, 10);

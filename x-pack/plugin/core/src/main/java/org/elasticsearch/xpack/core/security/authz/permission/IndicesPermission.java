@@ -56,6 +56,7 @@ public final class IndicesPermission {
 
     private final Automaton restrictedNamesAutomaton;
     private final Group[] groups;
+    private final CharacterRunAutomaton characterRunAutomaton;
 
     public static class Builder {
 
@@ -82,6 +83,7 @@ public final class IndicesPermission {
 
     private IndicesPermission(Automaton restrictedNamesAutomaton, Group[] groups) {
         this.restrictedNamesAutomaton = restrictedNamesAutomaton;
+        this.characterRunAutomaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
         this.groups = groups;
     }
 
@@ -367,8 +369,7 @@ public final class IndicesPermission {
         if (Regex.isSimpleMatchPattern(indexPattern) || Automatons.isLuceneRegex(indexPattern)) {
             return false;
         }
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
-        return runAutomaton.run(indexPattern);
+        return characterRunAutomaton.run(indexPattern);
     }
 
     private static boolean isMappingUpdateAction(String action) {

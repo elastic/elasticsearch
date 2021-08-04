@@ -70,6 +70,8 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
@@ -95,6 +97,7 @@ import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
@@ -234,6 +237,19 @@ public class SecurityTests extends ESTestCase {
             () -> Security.additionalSettings(settingsHttp, true));
         assertThat(badHttp.getMessage(), containsString(SecurityField.NAME4));
         assertThat(badHttp.getMessage(), containsString(NetworkModule.HTTP_TYPE_KEY));
+    }
+
+    public void testNoRealmsWhenSecurityDisabled() throws Exception {
+        Settings settings = Settings.builder()
+            .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+            .put("path.home", createTempDir())
+            .build();
+        Collection<Object> components = createComponents(settings);
+        for (Object component: components) {
+            assertThat(component, not(instanceOf(Realms.class)));
+            assertThat(component, not(instanceOf(NativeUsersStore.class)));
+            assertThat(component, not(instanceOf(ReservedRealm.class)));
+        }
     }
 
     public void testSettingFilter() throws Exception {

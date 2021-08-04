@@ -68,8 +68,6 @@ TIP: If you want to replicate data across clusters in the cloud, you can
 link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. Then, you
 can <<modules-cross-cluster-search,search across clusters>> and set up {ccr}.
 
-video::https://static-www.elastic.co/v3/assets/bltefdd0b53724fa2ce/blt994089f5e841ad69/5f6265de6f40ab4648b5cf9b/ccr-setup-video-edited.mp4[width=700, height=500, options="autoplay,loop"]
-
 [[ccr-getting-started-prerequisites]]
 ==== Prerequisites
 To complete this tutorial, you need:

@@ -260,6 +260,7 @@ Features/CAT APIs::
 Features/Stats::
 * Add bulk stats track the bulk per shard {es-pull}52208[#52208] (issues: {es-issue}47345[#47345], {es-issue}50536[#50536])
 
+
 Features/Watcher::
 * Remove Watcher history clean up from monitoring {es-pull}67154[#67154]
 
@@ -307,6 +308,10 @@ Infra/REST API::
 * [REST API Compatibility] Ignore `use_field_mapping` option for docvalue {es-pull}74435[#74435] (issue: {es-issue}55622[#55622])
 * [REST API Compatibility] `_time` and `_term` sort orders {es-pull}74919[#74919] (issues: {es-issue}39450[#39450], {es-issue}51816[#51816])
 * [REST API Compatability] `template` parameter and field on PUT index template {es-pull}71238[#71238] (issues: {es-issue}49460[#49460], {es-issue}51816[#51816], {es-issue}68905[#68905])
+* [Rest Api Compatibility] Make query registration easier {es-pull}75722[#75722] (issue: {es-issue}51816[#51816])
+* [Rest Api Compatibility] Typed query {es-pull}75453[#75453] (issues: {es-issue}47207[#47207], {es-issue}51816[#51816], {es-issue}54160[#54160])
+* [Rest Api Compatibility] Deprecate the use of synced flush {es-pull}75372[#75372] (issues: {es-issue}50882[#50882], {es-issue}51816[#51816])
+* [Rest Api Compatibility] Licence `accept_enterprise` and response changes {es-pull}75479[#75479] (issues: {es-issue}50067[#50067], {es-issue}50735[#50735], {es-issue}51816[#51816], {es-issue}58217[#58217])
 
 Infra/Scripting::
 * Update `DeprecationMap` to `DynamicMap` {es-pull}56149[#56149] (issue: {es-issue}52103[#52103])
@@ -378,6 +383,7 @@ Snapshot/Restore::
 
 TLS::
 * Add `ChaCha20` TLS ciphers on Java 12+ {es-pull}42155[#42155]
+* Add support for `KeyStore` filters to ssl-config {es-pull}75407[#75407]
 * Update TLS ciphers and protocols for JDK 11 {es-pull}41808[#41808] (issues: {es-issue}38646[#38646], {es-issue}41385[#41385])
 
 

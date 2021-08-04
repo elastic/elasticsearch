@@ -84,6 +84,7 @@ the `elastic` user when prompted:
 ----
 curl -k -uelastic https://localhost:9200
 ----
+// NOTCONSOLE
 
 *Next*: <<add-kib-user,Configure {kib} to connect to {es} with a password>>
 

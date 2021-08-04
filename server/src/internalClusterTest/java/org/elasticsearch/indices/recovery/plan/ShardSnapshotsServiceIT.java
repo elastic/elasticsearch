@@ -18,7 +18,6 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -30,6 +29,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -116,8 +116,9 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        public BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots(IndexId indexId, int shardId, @Nullable String shardGen)
-            throws IOException {
+        public BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots(IndexId indexId,
+                                                                            int shardId,
+                                                                            ShardGeneration shardGen) throws IOException {
             if (failLoadShardSnapshots) {
                 throw new FileNotFoundException("Failed to get blob store index shard snapshots");
             }

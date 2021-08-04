@@ -71,6 +71,7 @@ import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
@@ -830,7 +831,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *
      * @return new shard generation
      */
-    protected String snapshotShard(final IndexShard shard,
+    protected ShardGeneration snapshotShard(final IndexShard shard,
                                    final Snapshot snapshot,
                                    final Repository repository) throws IOException {
         final Index index = shard.shardId().getIndex();
@@ -839,7 +840,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).shardGenerations().getShardGen(
                 indexId, shard.shardId().getId()));
         final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
-        final String shardGen;
+        final ShardGeneration shardGen;
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
             repository.snapshotShard(new SnapshotShardContext(shard.store(), shard.mapperService(), snapshot.getSnapshotId(), indexId,
                 indexCommitRef, null, snapshotStatus, Version.CURRENT, Collections.emptyMap(), future));

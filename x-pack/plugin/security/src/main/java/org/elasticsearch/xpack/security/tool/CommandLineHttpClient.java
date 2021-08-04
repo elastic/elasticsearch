@@ -36,6 +36,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
@@ -161,5 +162,31 @@ public class CommandLineHttpClient {
             throw new IllegalStateException("unable to determine default URL from settings, please use the -u option to explicitly " +
                 "provide the url", e);
         }
+    }
+
+    public static String getErrorCause(HttpResponse httpResponse) {
+        final Object error = httpResponse.getResponseBody().get("error");
+        if (error == null) {
+            return null;
+        }
+        if (error instanceof Map) {
+            Object reason = ((Map) error).get("reason");
+            if (reason != null) {
+                return reason.toString();
+            }
+            final Object root = ((Map) error).get("root_cause");
+            if (root != null && root instanceof Map) {
+                reason = ((Map) root).get("reason");
+                if (reason != null) {
+                    return reason.toString();
+                }
+                final Object type = ((Map) root).get("type");
+                if (type != null) {
+                    return (String) type;
+                }
+            }
+            return String.valueOf(((Map) error).get("type"));
+        }
+        return error.toString();
     }
 }

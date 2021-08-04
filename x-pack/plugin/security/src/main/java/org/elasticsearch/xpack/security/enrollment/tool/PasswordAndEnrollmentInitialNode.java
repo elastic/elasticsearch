@@ -44,8 +44,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.security.authc.esnative.tool.SetupPasswordTool.getErrorCause;
-
 public class PasswordAndEnrollmentInitialNode extends BaseClientAwareCommand {
     private static final String elasticUser = ElasticUser.NAME;
     private KeyStoreWrapper keyStoreWrapper;
@@ -126,7 +124,7 @@ public class PasswordAndEnrollmentInitialNode extends BaseClientAwareCommand {
         }
         terminal.println("CA fingerprint: " + fingerprint);
         terminal.println("Kibana enrollment token: " + token);
-        if (options.nonOptionArguments().contains("--docker") == true) {
+        if (options.nonOptionArguments().contains("--docker")) {
             nodeToken = createEnrollmentToken.createNodeEnrollmentToken(elasticUser, password);
             terminal.println("Node enrollment token: " + nodeToken);
         }
@@ -160,7 +158,7 @@ public class PasswordAndEnrollmentInitialNode extends BaseClientAwareCommand {
                 terminal.errorPrintln("");
                 terminal.errorPrintln(
                     "Unexpected response code [" + response.getHttpStatus() + "] from calling PUT " + passwordChangeUrl.toString());
-                final String cause = getErrorCause(response);
+                final String cause = client.getErrorCause(response);
                 if (cause != null) {
                     terminal.errorPrintln("Cause: " + cause);
                     terminal.errorPrintln("");

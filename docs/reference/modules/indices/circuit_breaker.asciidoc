@@ -129,3 +129,41 @@ documentation for more information.
     Limit for the number of unique dynamic scripts within a certain interval
     that are allowed to be compiled for a given context. Defaults to `75/5m`,
     meaning 75 every 5 minutes.
+
+[[regex-circuit-breaker]]
+[discrete]
+==== Regex circuit breaker
+
+Poorly written regular expressions can degrade cluster stability and
+performance. The regex circuit breaker limits the use and complexity of
+{painless}/painless-regexes.html[regex in Painless scripts].
+
+[[script-painless-regex-enabled]]
+`script.painless.regex.enabled`::
+(<<static-cluster-setting,Static>>) Enables regex in Painless scripts. Accepts:
+
+`limit` (Default):::
+Enables regex but limits complexity using the
+<<script-painless-regex-limit-factor,`script.painless.regex.limit-factor`>>
+cluster setting.
+
+`true`:::
+Enables regex with no complexity limits. Disables the regex circuit breaker.
+
+`false`:::
+Disables regex. Any Painless script containing a regular expression returns an
+error.
+
+[[script-painless-regex-limit-factor]]
+`script.painless.regex.limit-factor`::
+(<<static-cluster-setting,Static>>) Limits the number of characters a regular
+expression in a Painless script can consider. {es} calculates this limit by
+multiplying the setting value by the script input's character length.
++
+For example, the input `foobarbaz` has a character length of `9`. If
+`script.painless.regex.limit-factor` is `6`, a regular expression on `foobarbaz`
+can consider up to 54 (9 * 6) characters. If the expression exceeds this limit,
+it triggers the regex circuit breaker and returns an error.
++
+{es} only applies this limit if
+<<script-painless-regex-enabled,`script.painless.regex.enabled`>> is `limit`.

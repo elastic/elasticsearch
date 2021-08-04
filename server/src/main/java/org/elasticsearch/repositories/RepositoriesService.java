@@ -771,5 +771,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         repos.addAll(internalRepositories.values());
         repos.addAll(repositories.values());
         IOUtils.close(repos);
+        for (Repository repo : repos) {
+            repo.awaitIdle();
+        }
     }
 }

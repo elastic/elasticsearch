@@ -152,10 +152,11 @@ class InheritingState implements State {
     public void makeAllBindingsToEagerSingletons(Injector injector) {
         Map<Key<?>, Binding<?>> x = new LinkedHashMap<>();
         for (Map.Entry<Key<?>, Binding<?>> entry : this.explicitBindingsMutable.entrySet()) {
-            Key key = entry.getKey();
+            @SuppressWarnings("unchecked")
+            Key<Object> key = (Key<Object>) entry.getKey();
             BindingImpl<?> binding = (BindingImpl<?>) entry.getValue();
             Object value = binding.getProvider().get();
-            x.put(key, new InstanceBindingImpl<Object>(injector, key, SourceProvider.UNKNOWN_SOURCE, new InternalFactory.Instance(value),
+            x.put(key, new InstanceBindingImpl<>(injector, key, SourceProvider.UNKNOWN_SOURCE, new InternalFactory.Instance<>(value),
                     emptySet(), value));
         }
         this.explicitBindingsMutable.clear();

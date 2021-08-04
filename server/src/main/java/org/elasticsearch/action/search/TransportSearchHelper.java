@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -37,7 +38,7 @@ final class TransportSearchHelper {
             out.writeVInt(searchPhaseResults.asList().size());
             for (SearchPhaseResult searchPhaseResult : searchPhaseResults.asList()) {
                 out.writeString(searchPhaseResult.getContextId().getSessionId());
-                out.writeLong(searchPhaseResult.getContextId().getId());
+                CodecUtil.writeBELong(out, searchPhaseResult.getContextId().getId());
                 SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
                 if (searchShardTarget.getClusterAlias() != null) {
                     out.writeString(
@@ -70,7 +71,7 @@ final class TransportSearchHelper {
             SearchContextIdForNode[] context = new SearchContextIdForNode[in.readVInt()];
             for (int i = 0; i < context.length; ++i) {
                 final String contextUUID = includeContextUUID ? in.readString() : "";
-                long id = in.readLong();
+                long id = CodecUtil.readBELong(in);
                 String target = in.readString();
                 String clusterAlias;
                 final int index = target.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);

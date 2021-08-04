@@ -85,14 +85,14 @@ final class Checkpoint {
     }
 
     private void write(DataOutput out) throws IOException {
-        out.writeLong(offset);
+        CodecUtil.writeBELong(out, offset);
         CodecUtil.writeBEInt(out, numOps);
-        out.writeLong(generation);
-        out.writeLong(minSeqNo);
-        out.writeLong(maxSeqNo);
-        out.writeLong(globalCheckpoint);
-        out.writeLong(minTranslogGeneration);
-        out.writeLong(trimmedAboveSeqNo);
+        CodecUtil.writeBELong(out, generation);
+        CodecUtil.writeBELong(out, minSeqNo);
+        CodecUtil.writeBELong(out, maxSeqNo);
+        CodecUtil.writeBELong(out, globalCheckpoint);
+        CodecUtil.writeBELong(out, minTranslogGeneration);
+        CodecUtil.writeBELong(out, trimmedAboveSeqNo);
     }
 
     /**
@@ -115,14 +115,14 @@ final class Checkpoint {
     }
 
     static Checkpoint readCheckpointV3(final DataInput in) throws IOException {
-        final long offset = in.readLong();
+        final long offset = CodecUtil.readBELong(in);
         final int numOps = CodecUtil.readBEInt(in);
-        final long generation = in.readLong();
-        final long minSeqNo = in.readLong();
-        final long maxSeqNo = in.readLong();
-        final long globalCheckpoint = in.readLong();
-        final long minTranslogGeneration = in.readLong();
-        final long trimmedAboveSeqNo = in.readLong();
+        final long generation = CodecUtil.readBELong(in);
+        final long minSeqNo = CodecUtil.readBELong(in);
+        final long maxSeqNo = CodecUtil.readBELong(in);
+        final long globalCheckpoint = CodecUtil.readBELong(in);
+        final long minTranslogGeneration = CodecUtil.readBELong(in);
+        final long trimmedAboveSeqNo = CodecUtil.readBELong(in);
         return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
     }
 

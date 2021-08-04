@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
  * A reusable Geometry doc value reader for a previous serialized {@link org.elasticsearch.geometry.Geometry} using
@@ -72,7 +76,11 @@ public class GeometryDocValueReader {
      */
     protected int getCentroidX() {
         input.setPosition(docValueOffset + 0);
-        return input.readInt();
+        try {
+            return CodecUtil.readBEInt(input);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**
@@ -80,7 +88,11 @@ public class GeometryDocValueReader {
      */
     protected int getCentroidY() {
         input.setPosition(docValueOffset + 4);
-        return input.readInt();
+        try {
+            return CodecUtil.readBEInt(input);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     protected DimensionalShapeType getDimensionalShapeType() {

@@ -212,7 +212,7 @@ public class StoreTests extends ESTestCase {
         CodecUtil.writeBEInt(output, CodecUtil.FOOTER_MAGIC);
         CodecUtil.writeBEInt(output, 0);
         String checksum = Store.digestToString(output.getChecksum());
-        output.writeLong(output.getChecksum() + 1); // write a wrong checksum to the file
+        CodecUtil.writeBELong(output, output.getChecksum() + 1); // write a wrong checksum to the file
         output.close();
 
         IndexInput indexInput = dir.openInput("foo.bar", IOContext.DEFAULT);

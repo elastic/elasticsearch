@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.analytics.mapper;
 import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.IntArrayList;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.BinaryDocValues;
@@ -307,7 +308,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 } else if (count > 0) {
                     // we do not add elements with count == 0
                     dataOutput.writeVInt(count);
-                    dataOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
+                    CodecUtil.writeBELong(dataOutput, Double.doubleToRawLongBits(values.get(i)));
                 }
             }
             BytesRef docValue = new BytesRef(dataOutput.toArrayCopy(), 0, Math.toIntExact(dataOutput.size()));
@@ -353,10 +354,10 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean next() {
+        public boolean next() throws IOException {
             if (dataInput.eof() == false) {
                 count = dataInput.readVInt();
-                value = Double.longBitsToDouble(dataInput.readLong());
+                value = Double.longBitsToDouble(CodecUtil.readBELong(dataInput));
                 return true;
             }
             isExhausted = true;

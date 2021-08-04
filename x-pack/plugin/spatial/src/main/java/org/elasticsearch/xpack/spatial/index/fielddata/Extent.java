@@ -12,6 +12,7 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Objects;
 
 /**
@@ -90,48 +91,52 @@ class Extent {
     }
 
     static void readFromCompressed(ByteArrayDataInput input, Extent extent) {
-        final int top = input.readInt();
-        final int bottom = Math.toIntExact(top - input.readVLong());
-        final int negLeft;
-        final int negRight;
-        final int posLeft;
-        final int posRight;
-        byte type = input.readByte();
-        switch (type) {
-            case NONE_SET:
-                negLeft = Integer.MAX_VALUE;
-                negRight = Integer.MIN_VALUE;
-                posLeft = Integer.MAX_VALUE;
-                posRight = Integer.MIN_VALUE;
-                break;
-            case POSITIVE_SET:
-                posLeft = input.readVInt();
-                posRight =  Math.toIntExact(input.readVLong() + posLeft);
-                negLeft = Integer.MAX_VALUE;
-                negRight = Integer.MIN_VALUE;
-                break;
-            case NEGATIVE_SET:
-                negRight = -input.readVInt();
-                negLeft = Math.toIntExact(negRight - input.readVLong());
-                posLeft = Integer.MAX_VALUE;
-                posRight = Integer.MIN_VALUE;
-                break;
-            case CROSSES_LAT_AXIS:
-                posRight = input.readVInt();
-                negLeft = -input.readVInt();
-                posLeft = 0;
-                negRight = 0;
-                break;
-            case ALL_SET:
-                posLeft = input.readVInt();
-                posRight =  Math.toIntExact(input.readVLong() + posLeft);
-                negRight = -input.readVInt();
-                negLeft = Math.toIntExact(negRight - input.readVLong());
-                break;
-            default:
-                throw new IllegalArgumentException("invalid extent values-set byte read [" + type + "]");
+        try {
+            final int top = CodecUtil.readBEInt(input);
+            final int bottom = Math.toIntExact(top - input.readVLong());
+            final int negLeft;
+            final int negRight;
+            final int posLeft;
+            final int posRight;
+            byte type = input.readByte();
+            switch (type) {
+                case NONE_SET:
+                    negLeft = Integer.MAX_VALUE;
+                    negRight = Integer.MIN_VALUE;
+                    posLeft = Integer.MAX_VALUE;
+                    posRight = Integer.MIN_VALUE;
+                    break;
+                case POSITIVE_SET:
+                    posLeft = input.readVInt();
+                    posRight = Math.toIntExact(input.readVLong() + posLeft);
+                    negLeft = Integer.MAX_VALUE;
+                    negRight = Integer.MIN_VALUE;
+                    break;
+                case NEGATIVE_SET:
+                    negRight = -input.readVInt();
+                    negLeft = Math.toIntExact(negRight - input.readVLong());
+                    posLeft = Integer.MAX_VALUE;
+                    posRight = Integer.MIN_VALUE;
+                    break;
+                case CROSSES_LAT_AXIS:
+                    posRight = input.readVInt();
+                    negLeft = -input.readVInt();
+                    posLeft = 0;
+                    negRight = 0;
+                    break;
+                case ALL_SET:
+                    posLeft = input.readVInt();
+                    posRight = Math.toIntExact(input.readVLong() + posLeft);
+                    negRight = -input.readVInt();
+                    negLeft = Math.toIntExact(negRight - input.readVLong());
+                    break;
+                default:
+                    throw new IllegalArgumentException("invalid extent values-set byte read [" + type + "]");
+            }
+            extent.reset(top, bottom, negLeft, negRight, posLeft, posRight);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        extent.reset(top, bottom, negLeft, negRight, posLeft, posRight);
     }
 
     void writeCompressed(ByteBuffersDataOutput output) throws IOException {

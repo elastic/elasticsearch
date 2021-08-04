@@ -104,6 +104,7 @@ import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.RepositoryVerificationException;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
@@ -502,7 +503,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         SnapshotId source,
         SnapshotId target,
         RepositoryShardId shardId,
-        @Nullable String shardGeneration,
+        @Nullable ShardGeneration shardGeneration,
         ActionListener<ShardSnapshotResult> listener
     ) {
         if (isReadOnly()) {
@@ -516,18 +517,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final long startTime = threadPool.absoluteTimeInMillis();
             final BlobContainer shardContainer = shardContainer(index, shardNum);
             final BlobStoreIndexShardSnapshots existingSnapshots;
-            final String newGen;
-            final String existingShardGen;
+            final ShardGeneration newGen;
+            final ShardGeneration existingShardGen;
             if (shardGeneration == null) {
                 Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(
                     shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX).keySet(),
                     shardContainer
                 );
-                existingShardGen = String.valueOf(tuple.v2());
-                newGen = String.valueOf(tuple.v2() + 1);
+                existingShardGen = new ShardGeneration(tuple.v2());
+                newGen = new ShardGeneration(tuple.v2() + 1);
                 existingSnapshots = tuple.v1();
             } else {
-                newGen = UUIDs.randomBase64UUID();
+                newGen = ShardGeneration.newGeneration();
                 existingSnapshots = buildBlobStoreIndexShardSnapshots(Collections.emptySet(), shardContainer, shardGeneration).v1();
                 existingShardGen = shardGeneration;
             }
@@ -584,7 +585,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             INDEX_SHARD_SNAPSHOTS_FORMAT.write(
                 existingSnapshots.withClone(source.getName(), target.getName()),
                 shardContainer,
-                newGen,
+                newGen.toBlobNamePart(),
                 compress
             );
             return new ShardSnapshotResult(
@@ -2589,7 +2590,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final IndexShardSnapshotStatus snapshotStatus = context.status();
         final long startTime = threadPool.absoluteTimeInMillis();
         try {
-            final String generation = snapshotStatus.generation();
+            final ShardGeneration generation = snapshotStatus.generation();
             logger.debug("[{}] [{}] snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
             final BlobContainer shardContainer = shardContainer(context.indexId(), shardId);
             final Set<String> blobs;
@@ -2603,9 +2604,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 blobs = Collections.singleton(INDEX_FILE_PREFIX + generation);
             }
 
-            Tuple<BlobStoreIndexShardSnapshots, String> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer, generation);
+            Tuple<BlobStoreIndexShardSnapshots, ShardGeneration> tuple = buildBlobStoreIndexShardSnapshots(
+                blobs,
+                shardContainer,
+                generation
+            );
             BlobStoreIndexShardSnapshots snapshots = tuple.v1();
-            String fileListGeneration = tuple.v2();
+            ShardGeneration fileListGeneration = tuple.v2();
 
             if (snapshots.snapshots().stream().anyMatch(sf -> sf.snapshot().equals(snapshotId.getName()))) {
                 throw new IndexShardSnapshotFailedException(
@@ -2708,7 +2713,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexTotalFileSize
             );
 
-            final String indexGeneration;
+            final ShardGeneration indexGeneration;
             final boolean writeShardGens = SnapshotsService.useShardGenerations(context.getRepositoryMetaVersion());
             // build a new BlobStoreIndexShardSnapshot, that includes this one and all the saved ones
             List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
@@ -2722,16 +2727,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // When using shard generations we can safely write the index-${uuid} blob before writing out any of the actual data
                 // for this shard since the uuid named blob will simply not be referenced in case of error and thus we will never
                 // reference a generation that has not had all its files fully upload.
-                indexGeneration = UUIDs.randomBase64UUID();
+                indexGeneration = ShardGeneration.newGeneration();
                 try {
-                    INDEX_SHARD_SNAPSHOTS_FORMAT.write(updatedBlobStoreIndexShardSnapshots, shardContainer, indexGeneration, compress);
+                    INDEX_SHARD_SNAPSHOTS_FORMAT.write(
+                        updatedBlobStoreIndexShardSnapshots,
+                        shardContainer,
+                        indexGeneration.toBlobNamePart(),
+                        compress
+                    );
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(
                         shardId,
                         "Failed to write shard level snapshot metadata for ["
                             + snapshotId
                             + "] to ["
-                            + INDEX_SHARD_SNAPSHOTS_FORMAT.blobName(indexGeneration)
+                            + INDEX_SHARD_SNAPSHOTS_FORMAT.blobName(indexGeneration.toBlobNamePart())
                             + "]",
                         e
                     );
@@ -2741,8 +2751,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // When not using shard generations we can only write the index-${N} blob after all other work for this shard has
                 // completed.
                 // Also, in case of numeric shard generations the data node has to take care of deleting old shard generations.
-                final long newGen = Long.parseLong(fileListGeneration) + 1;
-                indexGeneration = Long.toString(newGen);
+                final long newGen = Long.parseLong(fileListGeneration.toBlobNamePart()) + 1;
+                indexGeneration = new ShardGeneration(newGen);
                 // Delete all previous index-N blobs
                 final List<String> blobsToDelete = blobs.stream()
                     .filter(blob -> blob.startsWith(SNAPSHOT_INDEX_PREFIX))
@@ -2750,7 +2760,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 assert blobsToDelete.stream()
                     .mapToLong(b -> Long.parseLong(b.replaceFirst(SNAPSHOT_INDEX_PREFIX, "")))
                     .max()
-                    .orElse(-1L) < Long.parseLong(indexGeneration)
+                    .orElse(-1L) < Long.parseLong(indexGeneration.toString())
                     : "Tried to delete an index-N blob newer than the current generation ["
                         + indexGeneration
                         + "] when deleting index-N blobs "
@@ -2764,7 +2774,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             "Failed to finalize snapshot creation ["
                                 + snapshotId
                                 + "] with shard index ["
-                                + INDEX_SHARD_SNAPSHOTS_FORMAT.blobName(indexGeneration)
+                                + INDEX_SHARD_SNAPSHOTS_FORMAT.blobName(indexGeneration.toBlobNamePart())
                                 + "]",
                             e
                         );
@@ -3192,17 +3202,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 newSnapshotsList.add(point);
             }
         }
-        String writtenGeneration = null;
+        ShardGeneration writtenGeneration = null;
         try {
             if (newSnapshotsList.isEmpty()) {
                 return new ShardSnapshotMetaDeleteResult(indexId, snapshotShardId, ShardGenerations.DELETED_SHARD_GEN, blobs);
             } else {
                 final BlobStoreIndexShardSnapshots updatedSnapshots = new BlobStoreIndexShardSnapshots(newSnapshotsList);
                 if (indexGeneration < 0L) {
-                    writtenGeneration = UUIDs.randomBase64UUID();
-                    INDEX_SHARD_SNAPSHOTS_FORMAT.write(updatedSnapshots, shardContainer, writtenGeneration, compress);
+                    writtenGeneration = ShardGeneration.newGeneration();
+                    INDEX_SHARD_SNAPSHOTS_FORMAT.write(updatedSnapshots, shardContainer, writtenGeneration.toBlobNamePart(), compress);
                 } else {
-                    writtenGeneration = String.valueOf(indexGeneration);
+                    writtenGeneration = new ShardGeneration(indexGeneration);
                     writeShardIndexBlobAtomic(shardContainer, indexGeneration, updatedSnapshots);
                 }
                 final Set<String> survivingSnapshotUUIDs = survivingSnapshots.stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
@@ -3219,7 +3229,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 "Failed to finalize snapshot deletion "
                     + snapshotIds
                     + " with shard index ["
-                    + INDEX_SHARD_SNAPSHOTS_FORMAT.blobName(writtenGeneration)
+                    + INDEX_SHARD_SNAPSHOTS_FORMAT.blobName(writtenGeneration.toBlobNamePart())
                     + "]",
                 e
             );
@@ -3291,7 +3301,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Loads all available snapshots in the repository using the given {@code generation} for a shard. When {@code shardGen}
      * is null it tries to load it using the BwC mode, listing the available index- blobs in the shard container.
      */
-    public BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots(IndexId indexId, int shardId, @Nullable String shardGen)
+    public BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots(IndexId indexId, int shardId, @Nullable ShardGeneration shardGen)
         throws IOException {
         final BlobContainer shardContainer = shardContainer(indexId, shardId);
 
@@ -3313,22 +3323,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *                   {@link SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}.
      * @return tuple of BlobStoreIndexShardSnapshots and the last snapshot index generation
      */
-    private Tuple<BlobStoreIndexShardSnapshots, String> buildBlobStoreIndexShardSnapshots(
+    private Tuple<BlobStoreIndexShardSnapshots, ShardGeneration> buildBlobStoreIndexShardSnapshots(
         Set<String> blobs,
         BlobContainer shardContainer,
-        @Nullable String generation
+        @Nullable ShardGeneration generation
     ) throws IOException {
         if (generation != null) {
             if (generation.equals(ShardGenerations.NEW_SHARD_GEN)) {
                 return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, ShardGenerations.NEW_SHARD_GEN);
             }
             return new Tuple<>(
-                INDEX_SHARD_SNAPSHOTS_FORMAT.read(metadata.name(), shardContainer, generation, namedXContentRegistry),
+                INDEX_SHARD_SNAPSHOTS_FORMAT.read(metadata.name(), shardContainer, generation.toBlobNamePart(), namedXContentRegistry),
                 generation
             );
         }
         final Tuple<BlobStoreIndexShardSnapshots, Long> legacyIndex = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
-        return new Tuple<>(legacyIndex.v1(), String.valueOf(legacyIndex.v2()));
+        return new Tuple<>(legacyIndex.v1(), new ShardGeneration(legacyIndex.v2()));
     }
 
     /**
@@ -3447,12 +3457,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private final int shardId;
 
         // Id of the new index-${uuid} blob that does not include the snapshot any more
-        private final String newGeneration;
+        private final ShardGeneration newGeneration;
 
         // Blob names in the shard directory that have become unreferenced in the new shard generation
         private final Collection<String> blobsToDelete;
 
-        ShardSnapshotMetaDeleteResult(IndexId indexId, int shardId, String newGeneration, Collection<String> blobsToDelete) {
+        ShardSnapshotMetaDeleteResult(IndexId indexId, int shardId, ShardGeneration newGeneration, Collection<String> blobsToDelete) {
             this.indexId = indexId;
             this.shardId = shardId;
             this.newGeneration = newGeneration;

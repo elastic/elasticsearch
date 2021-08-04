@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.AbstractDiffableWireSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -105,11 +106,11 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         if (shardState == ShardState.QUEUED) {
             return SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED;
         } else if (shardState == ShardState.SUCCESS) {
-            final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult("1", new ByteSizeValue(1L), 1);
+            final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(new ShardGeneration(1L), new ByteSizeValue(1L), 1);
             return SnapshotsInProgress.ShardSnapshotStatus.success(nodeId, shardSnapshotResult);
         } else {
             final String reason = shardState.failed() ? randomAlphaOfLength(10) : null;
-            return new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState, reason, "1");
+            return new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState, reason, new ShardGeneration(1L));
         }
     }
 
@@ -376,12 +377,17 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                             new ShardId("index", "uuid", 0),
                             SnapshotsInProgress.ShardSnapshotStatus.success(
                                 "nodeId",
-                                new ShardSnapshotResult("shardgen", new ByteSizeValue(1L), 1)
+                                new ShardSnapshotResult(new ShardGeneration("shardgen"), new ByteSizeValue(1L), 1)
                             )
                         )
                         .fPut(
                             new ShardId("index", "uuid", 1),
-                            new SnapshotsInProgress.ShardSnapshotStatus("nodeId", ShardState.FAILED, "failure-reason", "fail-gen")
+                            new SnapshotsInProgress.ShardSnapshotStatus(
+                                "nodeId",
+                                ShardState.FAILED,
+                                "failure-reason",
+                                new ShardGeneration("fail-gen")
+                            )
                         )
                         .build(),
                     null,

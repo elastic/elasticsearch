@@ -68,6 +68,7 @@ import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryShardId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
@@ -455,6 +456,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         });
     }
 
+    private static final ShardGeneration DUMMY_GENERATION = new ShardGeneration("");
+
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId index, ShardId shardId) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
@@ -469,7 +472,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 && shardRouting.active()) {
                 // we only care about the shard size here for shard allocation, populate the rest with dummy values
                 final long totalSize = shardStats.getStats().getStore().getSizeInBytes();
-                return IndexShardSnapshotStatus.newDone(0L, 0L, 1, 1, totalSize, totalSize, "");
+                return IndexShardSnapshotStatus.newDone(0L, 0L, 1, 1, totalSize, totalSize, DUMMY_GENERATION);
             }
         }
         throw new ElasticsearchException("Could not get shard stats for primary of index " + leaderIndex + " on leader cluster");
@@ -486,7 +489,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, String shardGeneration,
+    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, ShardGeneration shardGeneration,
                                    ActionListener<ShardSnapshotResult> listener) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }

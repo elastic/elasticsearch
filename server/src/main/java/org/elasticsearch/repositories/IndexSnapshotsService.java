@@ -161,7 +161,7 @@ public class IndexSnapshotsService {
 
         private BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots() throws IOException {
             BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-            final String shardGen = repositoryData.shardGenerations().getShardGen(indexId, shardId.getId());
+            final ShardGeneration shardGen = repositoryData.shardGenerations().getShardGen(indexId, shardId.getId());
             return blobStoreRepository.getBlobStoreIndexShardSnapshots(indexId, shardId.getId(), shardGen);
         }
 

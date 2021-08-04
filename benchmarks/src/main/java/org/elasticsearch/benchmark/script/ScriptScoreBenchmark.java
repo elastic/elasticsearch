@@ -14,7 +14,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -37,6 +36,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.DocReader;
+import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -160,7 +161,7 @@ public class ScriptScoreBenchmark {
 
     private Query scriptScoreQuery(ScoreScript.Factory factory) {
         ScoreScript.LeafFactory leafFactory = factory.newFactory(org.elasticsearch.core.Map.of(), lookup);
-        return new ScriptScoreQuery(new MatchAllDocsQuery(), null, leafFactory, null, "test", 0, Version.CURRENT);
+        return new ScriptScoreQuery(new MatchAllDocsQuery(), null, leafFactory, lookup, null, "test", 0, Version.CURRENT);
     }
 
     private ScoreScript.Factory bareMetalScript() {
@@ -169,9 +170,9 @@ public class ScriptScoreBenchmark {
             IndexNumericFieldData ifd = (IndexNumericFieldData) lookup.getForField(type);
             return new ScoreScript.LeafFactory() {
                 @Override
-                public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
-                    SortedNumericDocValues values = ifd.load(ctx).getLongValues();
-                    return new ScoreScript(params, lookup, ctx) {
+                public ScoreScript newInstance(DocReader docReader) throws IOException {
+                    SortedNumericDocValues values = ifd.load(((DocValuesDocReader) docReader).getLeafReaderContext()).getLongValues();
+                    return new ScoreScript(params, null, docReader) {
                         private int docId;
 
                         @Override

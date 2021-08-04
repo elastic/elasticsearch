@@ -25,7 +25,6 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.BucketAggregationSelectorScript;
 import org.elasticsearch.script.ClassPermission;
-import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.NumberSortScript;
@@ -332,9 +331,9 @@ public class ExpressionScriptEngine implements ScriptEngine {
      */
     private static FilterScript.LeafFactory newFilterScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         ScoreScript.LeafFactory searchLeafFactory = newScoreScript(expr, lookup, vars);
-        return ctx -> {
-            ScoreScript script = searchLeafFactory.newInstance(new DocValuesDocReader(lookup, ctx));
-            return new FilterScript(vars, lookup, ctx) {
+        return docReader -> {
+            ScoreScript script = searchLeafFactory.newInstance(docReader);
+            return new FilterScript(vars, lookup, docReader) {
                 @Override
                 public boolean execute() {
                     return script.execute(null) != 0.0;

@@ -37,6 +37,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.ScoreScript;
@@ -108,6 +109,11 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         Whitelist strSortField = WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.script.fields.stringsort.txt");
         strSort.add(strSortField);
         map.put(StringSortScript.CONTEXT, strSort);
+
+        List<Whitelist> filter = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        Whitelist filterWhitelist = WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.script.fields.filter.txt");
+        filter.add(filterWhitelist);
+        map.put(FilterScript.CONTEXT, filter);
 
         // Execute context gets everything
         List<Whitelist> test = new ArrayList<>(Whitelist.BASE_WHITELISTS);

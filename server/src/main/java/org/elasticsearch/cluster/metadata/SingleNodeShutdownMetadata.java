@@ -67,7 +67,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         return PARSER.apply(parser, null);
     }
 
-    public static final TimeValue DEFAULT_RESTART_SHARD_ALLOCATION_DELAY = TimeValue.timeValueMinutes(10);
+    public static final TimeValue DEFAULT_RESTART_SHARD_ALLOCATION_DELAY = TimeValue.timeValueMinutes(5);
 
     private final String nodeId;
     private final Type type;

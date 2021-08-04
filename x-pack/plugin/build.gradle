@@ -85,11 +85,6 @@ tasks.withType(RestIntegTestTask).configureEach {
 }
 
 tasks.named("yamlRestTest").configure {
-  /*
-   * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
-   * other if we allow them to set the number of available processors as it's set-once in Netty.
-   */
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
   systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
   dependsOn "copyExtraResources"
 }
@@ -139,19 +134,7 @@ def v7compatibilityNotSupportedTests = {
     'ml/datafeeds_crud/Test update datafeed to point to missing job',
     'ml/datafeeds_crud/Test update datafeed to point to different job',
     'ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed',
-  ]
-}
-
-tasks.named("yamlRestCompatTest").configure {
-  /*
-   * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
-   * other if we allow them to set the number of available processors as it's set-once in Netty.
-   */
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-
-  //TODO: blacklist specific to REST API compatibility
-  restTestBlacklist.addAll([
-    'license/30_enterprise_license/Installing enterprise license',
+    //rollup was an experimental feature
     //https://github.com/elastic/elasticsearch/pull/41227.
     'rollup/delete_job/Test basic delete_job',
     'rollup/delete_job/Test delete job twice',
@@ -160,12 +143,20 @@ tasks.named("yamlRestCompatTest").configure {
     'rollup/put_job/Test basic put_job',
     //https://github.com/elastic/elasticsearch/pull/41502
     'rollup/start_job/Test start job twice',
-    // a type field was added to cat.ml_trained_models #73660, this might need some work
+    'service_accounts/10_basic/Test service account tokens', // https://github.com/elastic/elasticsearch/pull/75200
+
+    // temporarily muted awaiting backport of https://github.com/elastic/elasticsearch/pull/76010
+    'ml/delete_job_force/Test force delete job that is referred by a datafeed',
+    'ml/jobs_crud/Test delete job that is referred by a datafeed',
+
+    // a type field was added to cat.ml_trained_models #73660, this is a backwards compatible change.
+    // still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)
     'ml/trained_model_cat_apis/Test cat trained models'
-    ] + v7compatibilityNotSupportedTests())
+  ]
+}
 
-
-  systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
+tasks.named("yamlRestCompatTest").configure {
+  systemProperty 'tests.rest.blacklist', v7compatibilityNotSupportedTests().join(',')
   dependsOn "copyExtraResources"
 }
 
@@ -220,4 +211,5 @@ tasks.named("precommit").configure {
 tasks.named("transformV7RestTests").configure({ task ->
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
+  task.addAllowedWarningRegexForTest("Including \\[accept_enterprise\\] in get license.*", "Installing enterprise license")
 })

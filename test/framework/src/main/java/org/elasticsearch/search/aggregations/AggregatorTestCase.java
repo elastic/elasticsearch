@@ -435,6 +435,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      *          for each leaf as though it were a separate index. If false this aggregates
      *          all leaves together, like we do in production.
      */
+    @SuppressWarnings("unchecked")
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSettings indexSettings,
                                                                                       IndexSearcher searcher,
                                                                                       Query query,

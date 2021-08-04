@@ -124,6 +124,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
@@ -245,11 +246,12 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(client.prepareUpdate(any(String.class), any(String.class)))
             .thenReturn(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));
         doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
             ActionListener<IndexResponse> responseActionListener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
             responseActionListener.onResponse(new IndexResponse(new ShardId(".security", UUIDs.randomBase64UUID(), randomInt()),
                     randomAlphaOfLength(4), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), true));
             return null;
-        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), anyActionListener());
         doAnswer(invocationOnMock -> {
             GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
             builder.setIndex((String) invocationOnMock.getArguments()[0])
@@ -261,12 +263,12 @@ public class AuthenticationServiceTests extends ESTestCase {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
         apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, licenseState, securityIndex, clusterService,
@@ -301,11 +303,10 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         Authenticator authenticator = service.createAuthenticator("_action", transportRequest, true, future);
-        authenticator.extractToken((result) -> {
-            assertThat(result, notNullValue());
-            assertThat(result, is(token));
-            verifyZeroInteractions(auditTrail);
-        });
+        AuthenticationToken result = authenticator.extractToken();
+        assertThat(result, notNullValue());
+        assertThat(result, is(token));
+        verifyZeroInteractions(auditTrail);
     }
 
     public void testTokenMissing() throws Exception {
@@ -330,15 +331,14 @@ public class AuthenticationServiceTests extends ESTestCase {
             }
             PlainActionFuture<Authentication> future = new PlainActionFuture<>();
             Authenticator authenticator = service.createAuthenticator("_action", transportRequest, true, future);
-            authenticator.extractToken((token) -> {
-                assertThat(token, nullValue());
-                if (requestIdAlreadyPresent) {
-                    assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
-                } else {
-                    reqId.set(expectAuditRequestId(threadContext));
-                }
-                authenticator.handleNullToken();
-            });
+            AuthenticationToken token = authenticator.extractToken();
+            assertThat(token, nullValue());
+            if (requestIdAlreadyPresent) {
+                assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
+            } else {
+                reqId.set(expectAuditRequestId(threadContext));
+            }
+            authenticator.handleNullToken();
 
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
             assertThat(e.getMessage(), containsString("missing authentication credentials"));
@@ -451,8 +451,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         verify(secondRealm, times(2)).token(threadContext);
         verify(firstRealm).supports(token);
         verify(secondRealm, times(2)).supports(token);
-        verify(firstRealm).authenticate(eq(token), any(ActionListener.class));
-        verify(secondRealm, times(2)).authenticate(eq(token), any(ActionListener.class));
+        verify(firstRealm).authenticate(eq(token), anyActionListener());
+        verify(secondRealm, times(2)).authenticate(eq(token), anyActionListener());
         verifyNoMoreInteractions(auditTrail, firstRealm, secondRealm);
 
         // Now assume some change in the backend system so that 2nd realm no longer has the user, but the 1st realm does.
@@ -478,8 +478,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
 
         verify(auditTrail).authenticationFailed(reqId.get(), SECOND_REALM_NAME, token, "_action", transportRequest);
-        verify(secondRealm, times(3)).authenticate(eq(token), any(ActionListener.class)); // 2 from above + 1 more
-        verify(firstRealm, times(2)).authenticate(eq(token), any(ActionListener.class)); // 1 from above + 1 more
+        verify(secondRealm, times(3)).authenticate(eq(token), anyActionListener()); // 2 from above + 1 more
+        verify(firstRealm, times(2)).authenticate(eq(token), anyActionListener()); // 1 from above + 1 more
     }
 
     public void testCacheClearOnSecurityIndexChange() {
@@ -576,8 +576,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         verify(secondRealm, times(2)).token(threadContext);
         verify(firstRealm, times(2)).supports(token);
         verify(secondRealm, times(2)).supports(token);
-        verify(firstRealm, times(2)).authenticate(eq(token), any(ActionListener.class));
-        verify(secondRealm, times(2)).authenticate(eq(token), any(ActionListener.class));
+        verify(firstRealm, times(2)).authenticate(eq(token), anyActionListener());
+        verify(secondRealm, times(2)).authenticate(eq(token), anyActionListener());
         verifyNoMoreInteractions(auditTrail, firstRealm, secondRealm);
     }
 
@@ -611,7 +611,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
         }, this::logAndFail));
         verifyNoMoreInteractions(auditTrail);
-        verify(firstRealm, never()).authenticate(eq(token), any(ActionListener.class));
+        verify(firstRealm, never()).authenticate(eq(token), anyActionListener());
         assertTrue(completed.get());
     }
 
@@ -656,11 +656,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(firstRealm.token(threadContext)).thenReturn(null);
         when(secondRealm.token(threadContext)).thenReturn(null);
 
+        @SuppressWarnings("unchecked")
         Authenticator authenticator = service.createAuthenticator(restRequest, true, mock(ActionListener.class));
-        authenticator.extractToken((token) -> {
-            expectAuditRequestId(threadContext);
-            assertThat(token, nullValue());
-        });
+        AuthenticationToken token = authenticator.extractToken();
+        expectAuditRequestId(threadContext);
+        assertThat(token, nullValue());
     }
 
     public void testAuthenticationInContextAndHeader() throws Exception {
@@ -1039,12 +1039,13 @@ public class AuthenticationServiceTests extends ESTestCase {
             tokenService, apiKeyService, serviceAccountService, operatorPrivilegesService);
         doAnswer(invocationOnMock -> {
             final GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             final ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             listener.onResponse(new GetResponse(new GetResult(request.index(), request.id(),
                 SequenceNumbers.UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1L, false, null,
                 Collections.emptyMap(), Collections.emptyMap())));
             return Void.TYPE;
-        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), anyActionListener());
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             boolean requestIdAlreadyPresent = randomBoolean();
             SetOnce<String> reqId = new SetOnce<>();
@@ -1330,7 +1331,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         doThrow(authenticationError("realm doesn't like authenticate"))
-            .when(secondRealm).authenticate(eq(token), any(ActionListener.class));
+            .when(secondRealm).authenticate(eq(token), anyActionListener());
         boolean requestIdAlreadyPresent = randomBoolean();
         SetOnce<String> reqId = new SetOnce<>();
         if (requestIdAlreadyPresent) {
@@ -1357,7 +1358,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         doThrow(authenticationError("realm doesn't like authenticate"))
-                .when(secondRealm).authenticate(eq(token), any(ActionListener.class));
+                .when(secondRealm).authenticate(eq(token), anyActionListener());
         try {
             authenticateBlocking(restRequest);
             fail("exception should bubble out");
@@ -1378,7 +1379,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
         mockRealmLookupReturnsNull(firstRealm, "run_as");
         doThrow(authenticationError("realm doesn't want to lookup"))
-            .when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
+            .when(secondRealm).lookupUser(eq("run_as"), anyActionListener());
         boolean requestIdAlreadyPresent = randomBoolean();
         SetOnce<String> reqId = new SetOnce<>();
         if (requestIdAlreadyPresent) {
@@ -1408,7 +1409,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
         mockRealmLookupReturnsNull(firstRealm, "run_as");
         doThrow(authenticationError("realm doesn't want to lookup"))
-                .when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
+                .when(secondRealm).lookupUser(eq("run_as"), anyActionListener());
         try {
             authenticateBlocking(restRequest);
             fail("exception should bubble out");
@@ -1437,10 +1438,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         mockAuthenticate(secondRealm, token, user);
         mockRealmLookupReturnsNull(firstRealm, "run_as");
         doAnswer((i) -> {
+            @SuppressWarnings("unchecked")
             ActionListener<User> listener = (ActionListener<User>) i.getArguments()[1];
             listener.onResponse(new User("looked up user", new String[]{"some role"}));
             return null;
-        }).when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
+        }).when(secondRealm).lookupUser(eq("run_as"), anyActionListener());
 
         final AtomicBoolean completed = new AtomicBoolean(false);
         ActionListener<Authentication> listener = ActionListener.wrap(result -> {
@@ -1497,7 +1499,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             ActionListener<User> listener = (ActionListener<User>) i.getArguments()[1];
             listener.onResponse(new User("looked up user", new String[]{"some role"}));
             return null;
-        }).when(firstRealm).lookupUser(eq("run_as"), any(ActionListener.class));
+        }).when(firstRealm).lookupUser(eq("run_as"), anyActionListener());
 
         final AtomicBoolean completed = new AtomicBoolean(false);
         ActionListener<Authentication> listener = ActionListener.wrap(result -> {
@@ -1598,7 +1600,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             ActionListener<User> listener = (ActionListener<User>) i.getArguments()[1];
             listener.onResponse(new User("looked up user", new String[]{"some role"}, null, null, Map.of(), false));
             return null;
-        }).when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
+        }).when(secondRealm).lookupUser(eq("run_as"), anyActionListener());
         User fallback = randomBoolean() ? SystemUser.INSTANCE : null;
         ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", transportRequest, fallback));
@@ -1626,7 +1628,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             ActionListener<User> listener = (ActionListener<User>) i.getArguments()[1];
             listener.onResponse(new User("looked up user", new String[]{"some role"}, null, null, Map.of(), false));
             return null;
-        }).when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
+        }).when(secondRealm).lookupUser(eq("run_as"), anyActionListener());
 
         ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking(restRequest));
@@ -1769,7 +1771,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             boolean requestIdAlreadyPresent = randomBoolean();
@@ -1845,7 +1847,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     Collections.emptyMap(), Collections.emptyMap())));
             }
             return Void.TYPE;
-        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), anyActionListener());
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             boolean requestIdAlreadyPresent = randomBoolean();
@@ -1873,6 +1875,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final String headerValue = "ApiKey " + Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8));
         doAnswer(invocationOnMock -> {
             final GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             final ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             if (request.id().equals(id)) {
                 final Map<String, Object> source = new HashMap<>();
@@ -1897,7 +1900,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     Collections.emptyMap(), Collections.emptyMap())));
             }
             return Void.TYPE;
-        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), anyActionListener());
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             boolean requestIdAlreadyPresent = randomBoolean();
@@ -2012,7 +2015,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 run.run();
             }
             return null;
-        }).when(realm).authenticate(eq(token), any(ActionListener.class));
+        }).when(realm).authenticate(eq(token), anyActionListener());
     }
 
     @SuppressWarnings("unchecked")
@@ -2025,7 +2028,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 listener.onResponse(AuthenticationResult.unsuccessful("unsuccessful, but continue authc process", e));
             }
             return null;
-        }).when(realm).authenticate(eq(token), any(ActionListener.class));
+        }).when(realm).authenticate(eq(token), anyActionListener());
     }
 
     private Tuple<Authentication, String> authenticateBlocking(RestRequest restRequest) {
@@ -2088,7 +2091,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             ActionListener<?> listener = (ActionListener<?>) i.getArguments()[1];
             listener.onResponse(null);
             return null;
-        }).when(realm).lookupUser(eq(username), any(ActionListener.class));
+        }).when(realm).lookupUser(eq(username), anyActionListener());
     }
 
     static class TestRealms extends Realms {
@@ -2114,5 +2117,10 @@ public class AuthenticationServiceTests extends ESTestCase {
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
         return new SecurityIndexManager.State(
             Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus, IndexMetadata.State.OPEN, null, "my_uuid");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Consumer<T> anyConsumer() {
+        return any(Consumer.class);
     }
 }

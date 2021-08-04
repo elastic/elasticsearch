@@ -933,6 +933,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    assertThat(exp.getStackTrace().length, equalTo(0));
                 }
             });
 
@@ -992,6 +993,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 public void handleException(TransportException exp) {
                     latch.countDown();
                     assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    assertThat(exp.getStackTrace().length, equalTo(0));
                 }
             });
 
@@ -1580,6 +1582,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    assertThat(exp.getStackTrace().length, equalTo(0));
                 }
             });
 

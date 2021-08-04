@@ -164,6 +164,10 @@ public class FeatureFactory {
         @Override
         public org.locationtech.jts.geom.Geometry visit(Polygon polygon) throws RuntimeException {
             final org.locationtech.jts.geom.Polygon jtsPolygon = buildPolygon(polygon);
+            if (jtsPolygon.isValid() == false) {
+                // we only simplify the polygon if is valid, otherwise algorithm might fail.
+                return jtsPolygon;
+            }
             if (jtsPolygon.contains(tile)) {
                 // shortcut, we return the tile
                 return tile;

@@ -240,34 +240,38 @@ public class EnrichPolicyRunner implements Runnable {
 
     private void resolveEnrichMapping(final EnrichPolicy policy, ActionListener<XContentBuilder> resultListener) {
         if (EnrichPolicy.MATCH_TYPE.equals(policy.getType())) {
-            GetFieldMappingsRequest fieldMappingsRequest = new GetFieldMappingsRequest()
-                .indices(policy.getIndices().stream().toArray(String[]::new))
-                .fields(policy.getMatchField());
+            GetFieldMappingsRequest fieldMappingsRequest = new GetFieldMappingsRequest().indices(
+                policy.getIndices().stream().toArray(String[]::new)
+            ).fields(policy.getMatchField());
             client.execute(GetFieldMappingsAction.INSTANCE, fieldMappingsRequest, listener.delegateFailure((l, response) -> {
-                List<String> types = response.mappings().values().stream()
+                List<String> types = response.mappings()
+                    .values()
+                    .stream()
                     .map(Map::values)
                     .flatMap(Collection::stream)
                     .map(toFieldMappingType(policy.getMatchField()))
                     .distinct()
                     .collect(Collectors.toList());
-                if(types.isEmpty()) {
-                    resultListener.onFailure(new ElasticsearchException(
-                        "No mapping type found for match field '{}' - indices({})",
-                        policy.getMatchField(),
-                        Strings.collectionToCommaDelimitedString(policy.getIndices())
-                    ));
-                } else if(types.size() > 1) {
-                    resultListener.onFailure(new ElasticsearchException(
-                        "Multiple distinct mapping types for match field '{}' - indices({})  types({})",
-                        policy.getMatchField(),
-                        Strings.collectionToCommaDelimitedString(policy.getIndices()),
-                        Strings.collectionToCommaDelimitedString(types)
-                    ));
+                if (types.isEmpty()) {
+                    resultListener.onFailure(
+                        new ElasticsearchException(
+                            "No mapping type found for match field '{}' - indices({})",
+                            policy.getMatchField(),
+                            Strings.collectionToCommaDelimitedString(policy.getIndices())
+                        )
+                    );
+                } else if (types.size() > 1) {
+                    resultListener.onFailure(
+                        new ElasticsearchException(
+                            "Multiple distinct mapping types for match field '{}' - indices({})  types({})",
+                            policy.getMatchField(),
+                            Strings.collectionToCommaDelimitedString(policy.getIndices()),
+                            Strings.collectionToCommaDelimitedString(types)
+                        )
+                    );
                 } else {
                     createEnrichMappingBuilder(
-                        (builder) -> builder
-                                        .field("type", resolveMatchType(types.get(0)))
-                                        .field("doc_values", false),
+                        (builder) -> builder.field("type", resolveMatchType(types.get(0))).field("doc_values", false),
                         resultListener
                     );
                 }
@@ -282,7 +286,7 @@ public class EnrichPolicyRunner implements Runnable {
 
     @SuppressWarnings("unchecked")
     private Function<GetFieldMappingsResponse.FieldMappingMetadata, String> toFieldMappingType(String field) {
-        return data -> ((Map<String,String>) data.sourceAsMap().getOrDefault(field, Map.of("type", "unknown"))).get("type");
+        return data -> ((Map<String, String>) data.sourceAsMap().getOrDefault(field, Map.of("type", "unknown"))).get("type");
     }
 
     private String resolveMatchType(String type) {

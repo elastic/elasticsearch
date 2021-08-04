@@ -257,7 +257,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     public void testRunnerMatchTypeWithIpRange() throws Exception {
         final String sourceIndexName = "source-index";
-        createIndex(sourceIndexName,Settings.EMPTY,"_doc","subnet", "type=ip_range");
+        createIndex(sourceIndexName, Settings.EMPTY, "_doc", "subnet", "type=ip_range");
         IndexResponse indexRequest = client().index(
             new IndexRequest().index(sourceIndexName)
                 .id("id")
@@ -324,9 +324,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         // Validate document structure and lookup of element in range
         SearchResponse enrichSearchResponse = client().search(
             new SearchRequest(".enrich-test1").source(
-                SearchSourceBuilder
-                    .searchSource()
-                    .query(QueryBuilders.matchQuery("subnet", "10.0.0.1"))
+                SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("subnet", "10.0.0.1"))
             )
         ).actionGet();
 

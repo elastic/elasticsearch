@@ -36,9 +36,16 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
         testRegisteredDomainProcessor(
             buildEvent("1.www.global.ssl.fastly.net"),
             "1.www.global.ssl.fastly.net",
-            "www.global.ssl.fastly.net",
             "global.ssl.fastly.net",
-            "1"
+            "ssl.fastly.net",
+            "1.www"
+        );
+        testRegisteredDomainProcessor(
+            buildEvent("www.example.ac.uk"),
+            "www.example.ac.uk",
+            "example.ac.uk",
+            "ac.uk",
+            "www"
         );
         testRegisteredDomainProcessor(
             buildEvent("www.books.amazon.co.uk"),

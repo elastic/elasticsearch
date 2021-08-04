@@ -5,7 +5,7 @@ beta::[This functionality is in alpha and is subject to change. The design and c
 
 Before you start {es} for the first time, run the `elasticsearch-security-config`
 tool. This tool generates certificates and keys for the transport and HTTP
-layers of your, and writes the TLS configuration settings in `elasticsearch.yml`.
+layers of your, and writes the TLS configuration settings to `elasticsearch.yml`.
 
 [discrete]
 === Prerequisites
@@ -24,9 +24,9 @@ the {es} package distribution:
 ----
 ./bin/elasticsearch-security-config
 ----
-
-. Navigate to `$ES_PATH_CONF/auto_config_on_<timestamp>` to view the
-certificates and keys that the `elasticsearch-security-config` tool generated:
++
+The `elasticsearch-security-config` tool generates the following security
+certificates and keys in `$ES_PATH_CONF/auto_config_on_<timestamp>`:
 +
 --
 `http.p12`::
@@ -74,17 +74,23 @@ steps you through password configuration for all of the built-in users.
 . Save the generated passwords. You'll need them to add the built-in user to
 {kib}.
 +
-WARNING: After you set a password for the `elastic` user, you cannot run the
-`elasticsearch-setup-passwords` command a second time.
+NOTE: After you set a password for the `elastic` user, you cannot run the
+`elasticsearch-setup-passwords` command a second time. If you forgot the
+password for the `elastic` user or want to change it, use the
+<<reset-elastic-password,`elasticsearch-reset-elastic-password`>> tool.
 
 . Make an authenticated call to your {es} cluster and enter the password for
 the `elastic` user when prompted:
 +
 [source,shell]
 ----
-curl -k -uelastic https://localhost:9200
+curl --cacert $ES_PATH_CONF/auto_config_on_<timestamp>/http_ca.crt \
+-u elastic https://localhost:9200
 ----
 // NOTCONSOLE
++
+`--cacert`::
+Path to the generated `http_ca.crt` certificate for the HTTP layer.
 
 *Next*: <<add-kib-user,Configure {kib} to connect to {es} with a password>>
 

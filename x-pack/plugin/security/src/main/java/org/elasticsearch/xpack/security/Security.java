@@ -1151,7 +1151,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         } else {
             extractClientCertificate = false;
         }
-        return handler -> new SecurityRestFilter(threadContext, authcService.get(), secondayAuthc.get(),
+        return handler -> new SecurityRestFilter(settings, threadContext, authcService.get(), secondayAuthc.get(),
             handler, extractClientCertificate);
     }
 

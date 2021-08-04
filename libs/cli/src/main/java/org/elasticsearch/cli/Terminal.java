@@ -11,6 +11,7 @@ package org.elasticsearch.cli;
 import java.io.BufferedReader;
 import java.io.Console;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.Reader;
@@ -225,14 +226,21 @@ public abstract class Terminal {
     }
 
     /** visible for testing */
-    static class SystemTerminal extends Terminal {
+    public static class SystemTerminal extends Terminal {
 
         private static final PrintWriter WRITER = newWriter();
 
         private BufferedReader reader;
+        private final InputStream inputStream;
 
-        SystemTerminal() {
+        public SystemTerminal() {
+            this(System.in);
+        }
+
+        // for tests only!
+        public SystemTerminal(InputStream inputStream) {
             super(System.lineSeparator());
+            this.inputStream = inputStream;
         }
 
         @SuppressForbidden(reason = "Writer for System.out")
@@ -243,7 +251,7 @@ public abstract class Terminal {
         /** visible for testing */
         BufferedReader getReader() {
             if (reader == null) {
-                reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
+                reader = new BufferedReader(new InputStreamReader(inputStream, Charset.defaultCharset()));
             }
             return reader;
         }

@@ -10,13 +10,13 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 import java.io.ByteArrayInputStream;
 import java.io.CharArrayWriter;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -24,7 +24,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
 public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
-    InputStream input;
 
     @Override
     protected Command newCommand() {
@@ -33,15 +32,10 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
             protected Environment createEnv(Map<String, String> settings) throws UserException {
                 return env;
             }
-
-            @Override
-            InputStream getStdin() {
-                return input;
-            }
         };
     }
 
-    public void testInvalidPassphrease() throws Exception {
+    public void testInvalidPassphrase() throws Exception {
         String password = "keystorepassword";
         createKeystore(password, "foo", "bar");
         terminal.addSecretInput("thewrongpassword");
@@ -58,7 +52,6 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         } else {
             assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
         }
-
     }
 
     public void testMissingPromptCreateWithoutPasswordWhenPrompted() throws Exception {
@@ -162,27 +155,30 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testStdinShort() throws Exception {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
-        terminal.addSecretInput(password);
-        setInput("secret value 1");
-        execute("-x", "foo");
+        Terminal.SystemTerminal systemTerminal = new Terminal.SystemTerminal(
+            new ByteArrayInputStream((password + System.lineSeparator() + "secret value 1").getBytes(Charset.defaultCharset()))
+        );
+        newCommand().mainWithoutErrorHandling(new String[] { "-x", "foo" }, systemTerminal);
         assertSecureString("foo", "secret value 1", password);
     }
 
     public void testStdinLong() throws Exception {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
-        terminal.addSecretInput(password);
-        setInput("secret value 2");
-        execute("--stdin", "foo");
+        Terminal.SystemTerminal systemTerminal = new Terminal.SystemTerminal(
+            new ByteArrayInputStream((password + System.lineSeparator() + "secret value 2").getBytes(Charset.defaultCharset()))
+        );
+        newCommand().mainWithoutErrorHandling(new String[] { "--stdin", "foo" }, systemTerminal);
         assertSecureString("foo", "secret value 2", password);
     }
 
     public void testStdinNoInput() throws Exception {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
-        terminal.addSecretInput(password);
-        setInput("");
-        execute("-x", "foo");
+        Terminal.SystemTerminal systemTerminal = new Terminal.SystemTerminal(
+            new ByteArrayInputStream((password + System.lineSeparator() + "").getBytes(Charset.defaultCharset()))
+        );
+        newCommand().mainWithoutErrorHandling(new String[] { "-x", "foo" }, systemTerminal);
         assertSecureString("foo", "", password);
     }
 
@@ -190,7 +186,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
         terminal.addSecretInput(password);
-        setInput("Typedthisandhitenter\n");
+        terminal.addSecretInput("Typedthisandhitenter\n");
         execute("-x", "foo");
         assertSecureString("foo", "Typedthisandhitenter", password);
     }
@@ -198,18 +194,20 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testStdinInputWithCarriageReturn() throws Exception {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
-        terminal.addSecretInput(password);
-        setInput("Typedthisandhitenter\r");
-        execute("-x", "foo");
+        Terminal.SystemTerminal systemTerminal = new Terminal.SystemTerminal(
+            new ByteArrayInputStream((password + System.lineSeparator() + "Typedthisandhitenter\r").getBytes(Charset.defaultCharset()))
+        );
+        newCommand().mainWithoutErrorHandling(new String[] { "-x", "foo" }, systemTerminal);
         assertSecureString("foo", "Typedthisandhitenter", password);
     }
 
     public void testStdinWithMultipleValues() throws Exception {
         final String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
-        terminal.addSecretInput(password);
-        setInput("bar1\nbar2\nbar3");
-        execute(randomFrom("-x", "--stdin"), "foo1", "foo2", "foo3");
+        Terminal.SystemTerminal systemTerminal = new Terminal.SystemTerminal(
+            new ByteArrayInputStream((password + System.lineSeparator() + "bar1\nbar2\nbar3").getBytes(Charset.defaultCharset()))
+        );
+        newCommand().mainWithoutErrorHandling(new String[] { randomFrom("-x", "--stdin"), "foo1", "foo2", "foo3" }, systemTerminal);
         assertSecureString("foo1", "bar1", password);
         assertSecureString("foo2", "bar2", password);
         assertSecureString("foo3", "bar3", password);
@@ -224,7 +222,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
             for (int i = 0; i < stringSize; i++) {
                 secretChars.write((char) randomIntBetween(129, 2048));
             }
-            setInput(secretChars.toString());
+            terminal.addSecretInput(secretChars.toString());
             execute("-x", "foo");
             assertSecureString("foo", secretChars.toString(), password);
         }
@@ -260,9 +258,5 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         // will not be prompted for a password
         execute("foo");
         assertSecureString("foo", "bar", password);
-    }
-
-    void setInput(String inputStr) {
-        input = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
     }
 }

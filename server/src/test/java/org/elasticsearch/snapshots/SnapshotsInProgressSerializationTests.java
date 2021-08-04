@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireSerializationTestCase<Custom> {
@@ -375,8 +376,12 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                             new ShardId("index", "uuid", 0),
                             SnapshotsInProgress.ShardSnapshotStatus.success(
                                 "nodeId",
-                                new ShardSnapshotResult("generation", new ByteSizeValue(1L), 1)
+                                new ShardSnapshotResult("shardgen", new ByteSizeValue(1L), 1)
                             )
+                        )
+                        .fPut(
+                            new ShardId("index", "uuid", 1),
+                            new SnapshotsInProgress.ShardSnapshotStatus("nodeId", ShardState.FAILED, "failure-reason", "fail-gen")
                         )
                         .build(),
                     null,
@@ -394,13 +399,31 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             String json = Strings.toString(builder);
             assertThat(
                 json,
-                equalTo(
-                    "{\"snapshots\":[{\"repository\":\"repo\",\"snapshot\":\"name\",\"uuid\":\"uuid\","
-                        + "\"include_global_state\":true,\"partial\":true,\"state\":\"SUCCESS\","
-                        + "\"indices\":[{\"name\":\"index\",\"id\":\"uuid\"}],\"start_time\":\"1970-01-01T00:20:34.567Z\","
-                        + "\"start_time_millis\":1234567,\"repository_state_id\":0,"
-                        + "\"shards\":[{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},"
-                        + "\"shard\":0,\"state\":\"SUCCESS\",\"node\":\"nodeId\"}],\"feature_states\":[],\"data_streams\":[]}]}"
+                anyOf(
+                    equalTo(
+                        "{\"snapshots\":[{\"repository\":\"repo\",\"snapshot\":\"name\",\"uuid\":\"uuid\","
+                            + "\"include_global_state\":true,\"partial\":true,\"state\":\"SUCCESS\","
+                            + "\"indices\":[{\"name\":\"index\",\"id\":\"uuid\"}],\"start_time\":\"1970-01-01T00:20:34.567Z\","
+                            + "\"start_time_millis\":1234567,\"repository_state_id\":0,\"shards\":["
+                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":0,\"state\":\"SUCCESS\","
+                            + "\"generation\":\"shardgen\",\"node\":\"nodeId\","
+                            + "\"result\":{\"generation\":\"shardgen\",\"size\":\"1b\",\"size_in_bytes\":1,\"segments\":1}},"
+                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":1,\"state\":\"FAILED\","
+                            + "\"generation\":\"fail-gen\",\"node\":\"nodeId\",\"reason\":\"failure-reason\"}"
+                            + "],\"feature_states\":[],\"data_streams\":[]}]}"
+                    ), // or the shards might be in the other order:
+                    equalTo(
+                        "{\"snapshots\":[{\"repository\":\"repo\",\"snapshot\":\"name\",\"uuid\":\"uuid\","
+                            + "\"include_global_state\":true,\"partial\":true,\"state\":\"SUCCESS\","
+                            + "\"indices\":[{\"name\":\"index\",\"id\":\"uuid\"}],\"start_time\":\"1970-01-01T00:20:34.567Z\","
+                            + "\"start_time_millis\":1234567,\"repository_state_id\":0,\"shards\":["
+                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":1,\"state\":\"FAILED\","
+                            + "\"generation\":\"fail-gen\",\"node\":\"nodeId\",\"reason\":\"failure-reason\"},"
+                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":0,\"state\":\"SUCCESS\","
+                            + "\"generation\":\"shardgen\",\"node\":\"nodeId\","
+                            + "\"result\":{\"generation\":\"shardgen\",\"size\":\"1b\",\"size_in_bytes\":1,\"segments\":1}}"
+                            + "],\"feature_states\":[],\"data_streams\":[]}]}"
+                    )
                 )
             );
         }

@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.rewrite;
 import javax.annotation.Nullable;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Consumer;
@@ -21,8 +20,6 @@ import static java.util.stream.Collectors.toList;
 
 /**
  * Provides access to Rewrite classes resolved and loaded from the supplied dependency configuration.
- * This keeps them isolated from the rest of Gradle's runtime classpath.
- * So there shouldn't be problems with conflicting transitive dependency versions or anything like that.
  */
 @SuppressWarnings({"unchecked", "UnusedReturnValue", "InnerClassMayBeStatic"})
 public class RewriteReflectiveFacade {
@@ -596,12 +593,6 @@ public class RewriteReflectiveFacade {
 
     public RewriteReflectiveFacade.JavaParserBuilder javaParserFromJavaVersion() {
         try {
-            if (System.getProperty("java.version").startsWith("1.8")) {
-                return new RewriteReflectiveFacade.JavaParserBuilder(getClassLoader()
-                        .loadClass("org.openrewrite.java.Java8Parser")
-                        .getMethod("builder")
-                        .invoke(null));
-            }
             return new RewriteReflectiveFacade.JavaParserBuilder(getClassLoader()
                     .loadClass("org.openrewrite.java.Java11Parser")
                     .getMethod("builder")

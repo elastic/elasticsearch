@@ -12,7 +12,6 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFileProperty;
-import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
@@ -86,8 +85,6 @@ public abstract class RewriteTask extends DefaultTask {
             spec.getForkOptions().jvmArgs("--add-exports");
             spec.getForkOptions().jvmArgs("jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED");
             spec.getForkOptions().workingDir(getProject().getProjectDir());
-//            spec.getForkOptions().setMaxHeapSize("1");
-
         });
 
         List<File> javaPaths = getSourceFiles().getFiles()

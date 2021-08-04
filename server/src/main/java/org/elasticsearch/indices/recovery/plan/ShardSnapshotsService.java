@@ -27,9 +27,10 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 public class ShardSnapshotsService {
     private final Logger logger = LogManager.getLogger(ShardSnapshotsService.class);
@@ -44,39 +45,49 @@ public class ShardSnapshotsService {
         this.threadPool = threadPool;
     }
 
-    public void fetchLatestSnapshot(String repository, ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+        if (shardId == null) {
+            throw new IllegalArgumentException("SharId was null but a value was expected");
+        }
+        final GetShardSnapshotRequest request = GetShardSnapshotRequest.latestSnapshotInAllRepositories(shardId);
+        sendRequest(request, listener);
+    }
+
+    public void fetchAvailableSnapshots(String repository, ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
         if (Strings.isNullOrEmpty(repository)) {
             throw new IllegalArgumentException("A repository should be specified");
         }
         if (shardId == null) {
             throw new IllegalArgumentException("SharId was null but a value was expected");
         }
-
         GetShardSnapshotRequest request =
             GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, Collections.singletonList(repository));
+        sendRequest(request, listener);
+    }
 
+    private void sendRequest(GetShardSnapshotRequest request, ActionListener<List<ShardSnapshot>> listener) {
         client.execute(GetShardSnapshotAction.INSTANCE,
             request,
-            new ThreadedActionListener<>(logger,
-                threadPool,
-                ThreadPool.Names.GENERIC,
-                listener.map(response -> fetchSnapshotFiles(repository, response)),
-                false
-            )
+            new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, listener.map(this::fetchSnapshotFiles), false)
         );
     }
 
-    private Optional<ShardSnapshot> fetchSnapshotFiles(String repository, GetShardSnapshotResponse shardSnapshotResponse) {
+    private List<ShardSnapshot> fetchSnapshotFiles(GetShardSnapshotResponse shardSnapshotResponse) {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
 
-        Optional<ShardSnapshotInfo> shardSnapshotInfoOpt = shardSnapshotResponse.getIndexShardSnapshotInfoForRepository(repository);
-        if (shardSnapshotInfoOpt.isEmpty()) {
-            return Optional.empty();
+        if (shardSnapshotResponse.getRepositoryShardSnapshots().isEmpty()) {
+            return Collections.emptyList();
         }
 
-        ShardSnapshotInfo shardSnapshotInfo = shardSnapshotInfoOpt.get();
-        List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = getSnapshotFileList(shardSnapshotInfo);
-        return Optional.of(new ShardSnapshot(shardSnapshotInfo, snapshotFiles));
+        Collection<ShardSnapshotInfo> shardSnapshots = shardSnapshotResponse.getRepositoryShardSnapshots().values();
+        List<ShardSnapshot> shardSnapshotData = new ArrayList<>(shardSnapshots.size());
+        for (ShardSnapshotInfo shardSnapshot : shardSnapshots) {
+            final List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = getSnapshotFileList(shardSnapshot);
+            if (snapshotFiles.isEmpty() == false) {
+                shardSnapshotData.add(new ShardSnapshot(shardSnapshot, snapshotFiles));
+            }
+        }
+        return shardSnapshotData;
     }
 
     private List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFileList(ShardSnapshotInfo shardSnapshotInfo) {
@@ -91,7 +102,7 @@ public class ShardSnapshotsService {
             return blobStoreIndexShardSnapshot.indexFiles();
         } catch (Exception e) {
             logger.warn(new ParameterizedMessage("Unable to fetch shard snapshot files for {}", shardSnapshotInfo), e);
-            throw e;
+            return Collections.emptyList();
         }
     }
 }

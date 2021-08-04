@@ -12,13 +12,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 
+import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -36,10 +37,10 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
 
     public SnapshotsRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService,
                                            boolean snapshotRecoveriesEnabled,
-                                           String repository) {
+                                           @Nullable String repository) {
         this.shardSnapshotsService = shardSnapshotsService;
         this.snapshotRecoveriesEnabled = snapshotRecoveriesEnabled;
-        this.repository = Objects.requireNonNull(repository);
+        this.repository = repository;
     }
 
     public void computeRecoveryPlan(ShardId shardId,
@@ -67,60 +68,56 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
                                                                Store.MetadataSnapshot targetMetadata,
                                                                long startingSeqNo,
                                                                int translogOps,
-                                                               Optional<ShardSnapshot> availableSnapshot) {
+                                                               List<ShardSnapshot> availableSnapshots) {
         Store.RecoveryDiff sourceTargetDiff = sourceMetadata.recoveryDiff(targetMetadata);
         List<StoreFileMetadata> filesMissingInTarget = concatLists(sourceTargetDiff.missing, sourceTargetDiff.different);
 
-        if (availableSnapshot.isEmpty()) {
-            return getSourceOnlyShardRecoveryPlan(sourceMetadata, startingSeqNo, translogOps, sourceTargetDiff, filesMissingInTarget);
-        }
-
-        ShardSnapshot snapshot = availableSnapshot.get();
-        // Maybe we can just rely on the diff here and remove this branch?
-        if (isLogicallyEquivalentSnapshot(sourceMetadata, snapshot, shardIdentifier)) {
-            ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover = new ShardRecoveryPlan.SnapshotFilesToRecover(
-                snapshot.getIndexId(),
-                snapshot.getRepository(),
-                snapshot.getSnapshotFiles(filesMissingInTarget)
-            );
-
-            return new ShardRecoveryPlan(snapshotFilesToRecover,
-                emptyList(),
-                sourceTargetDiff.identical,
-                startingSeqNo,
-                translogOps,
-                sourceMetadata
-            );
-        }
-
-        // If we couldn't find an identical snapshot try to maximize the number of snapshot files used
         Store.MetadataSnapshot filesToRecoverFromSourceSnapshot = toMetadataSnapshot(filesMissingInTarget);
-        Store.RecoveryDiff snapshotDiff = filesToRecoverFromSourceSnapshot.recoveryDiff(snapshot.getMetadataSnapshot());
-        if (snapshotDiff.identical.size() > 0) {
-            ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover =
-                new ShardRecoveryPlan.SnapshotFilesToRecover(snapshot.getIndexId(),
+
+        ShardRecoveryPlan plan = null;
+        int filesToRecoverFromSnapshot = 0;
+        for (ShardSnapshot snapshot : availableSnapshots) {
+            // Maybe we can just rely on the diff here and remove this branch?
+            if (isLogicallyEquivalentSnapshot(sourceMetadata, snapshot, shardIdentifier)) {
+                ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover = new ShardRecoveryPlan.SnapshotFilesToRecover(
+                    snapshot.getIndexId(),
                     snapshot.getRepository(),
-                    snapshot.getSnapshotFiles(snapshotDiff.identical)
+                    snapshot.getSnapshotFiles(filesMissingInTarget)
                 );
 
-            return new ShardRecoveryPlan(snapshotFilesToRecover,
-                concatLists(snapshotDiff.missing, snapshotDiff.different),
-                sourceTargetDiff.identical,
-                startingSeqNo,
-                translogOps,
-                sourceMetadata
-            );
+                return new ShardRecoveryPlan(snapshotFilesToRecover,
+                    emptyList(),
+                    sourceTargetDiff.identical,
+                    startingSeqNo,
+                    translogOps,
+                    sourceMetadata
+                );
+            }
+
+            // If we couldn't find an identical snapshot try to maximize the number of snapshot files used
+            Store.RecoveryDiff snapshotDiff = filesToRecoverFromSourceSnapshot.recoveryDiff(snapshot.getMetadataSnapshot());
+            if (snapshotDiff.identical.size() > filesToRecoverFromSnapshot) {
+                ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover =
+                    new ShardRecoveryPlan.SnapshotFilesToRecover(snapshot.getIndexId(),
+                        snapshot.getRepository(),
+                        snapshot.getSnapshotFiles(snapshotDiff.identical));
+
+                plan = new ShardRecoveryPlan(snapshotFilesToRecover,
+                    concatLists(snapshotDiff.missing, snapshotDiff.different),
+                    sourceTargetDiff.identical,
+                    startingSeqNo,
+                    translogOps,
+                    sourceMetadata
+                );
+                filesToRecoverFromSnapshot = plan.getSnapshotFilesToRecover().size();
+            }
+        }
+
+        if (plan != null) {
+            return plan;
         }
 
         // If we couldn't find any valid recovery plan using snapshots, fallback to the source
-        return getSourceOnlyShardRecoveryPlan(sourceMetadata, startingSeqNo, translogOps, sourceTargetDiff, filesMissingInTarget);
-    }
-
-    private ShardRecoveryPlan getSourceOnlyShardRecoveryPlan(Store.MetadataSnapshot sourceMetadata,
-                                                             long startingSeqNo,
-                                                             int translogOps,
-                                                             Store.RecoveryDiff sourceTargetDiff,
-                                                             List<StoreFileMetadata> filesMissingInTarget) {
         return new ShardRecoveryPlan(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY,
             filesMissingInTarget,
             sourceTargetDiff.identical,
@@ -144,24 +141,30 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         return snapshotDiff.different.isEmpty() == false && snapshotDiff.missing.isEmpty() == false;
     }
 
-    private void fetchAvailableSnapshotsIgnoringErrors(ShardId shardId, Consumer<Optional<ShardSnapshot>> listener) {
+    private void fetchAvailableSnapshotsIgnoringErrors(ShardId shardId, Consumer<List<ShardSnapshot>> listener) {
         if (snapshotRecoveriesEnabled == false) {
-            listener.accept(Optional.empty());
+            listener.accept(Collections.emptyList());
             return;
         }
 
-        shardSnapshotsService.fetchLatestSnapshot(repository, shardId, new ActionListener<>() {
+        ActionListener<List<ShardSnapshot>> listenerIgnoringErrors = new ActionListener<>() {
             @Override
-            public void onResponse(Optional<ShardSnapshot> shardSnapshotData) {
+            public void onResponse(List<ShardSnapshot> shardSnapshotData) {
                 listener.accept(shardSnapshotData);
             }
 
             @Override
             public void onFailure(Exception e) {
                 logger.warn(new ParameterizedMessage("Unable to fetch available snapshots for shard {}", shardId), e);
-                listener.accept(Optional.empty());
+                listener.accept(Collections.emptyList());
             }
-        });
+        };
+
+        if (Strings.isNullOrEmpty(repository) == false) {
+            shardSnapshotsService.fetchAvailableSnapshots(repository, shardId, listenerIgnoringErrors);
+        } else {
+            shardSnapshotsService.fetchAvailableSnapshotsInAllRepositories(shardId, listenerIgnoringErrors);
+        }
     }
 
     private Store.MetadataSnapshot toMetadataSnapshot(List<StoreFileMetadata> files) {

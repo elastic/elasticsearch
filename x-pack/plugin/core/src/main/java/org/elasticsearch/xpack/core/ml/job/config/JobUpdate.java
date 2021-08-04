@@ -143,9 +143,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
         modelSnapshotRetentionDays = in.readOptionalLong();
         dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
-        if (in.getVersion().onOrAfter(Version.V_7_15_0) && in.getVersion().before(Version.V_8_0_0)) {
-            /* systemAnnotationsRetentionDays = */ in.readOptionalLong();
-        }
         if (in.readBoolean()) {
             categorizationFilters = in.readStringList();
         } else {
@@ -192,9 +189,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalLong(modelSnapshotRetentionDays);
         out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
         out.writeOptionalLong(resultsRetentionDays);
-        if (out.getVersion().onOrAfter(Version.V_7_15_0) && out.getVersion().before(Version.V_8_0_0)) {
-            out.writeOptionalLong(resultsRetentionDays);
-        }
         out.writeBoolean(categorizationFilters != null);
         if (categorizationFilters != null) {
             out.writeStringCollection(categorizationFilters);

@@ -252,6 +252,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
         Map<String, Long> memoryRequirementByJob = memoryRequirementByTaskName.get(taskName);
         if (memoryRequirementByJob == null) {
+            assert false: "Unknown taskName type [" + taskName +"]";
             return null;
         }
         return memoryRequirementByJob.get(id);

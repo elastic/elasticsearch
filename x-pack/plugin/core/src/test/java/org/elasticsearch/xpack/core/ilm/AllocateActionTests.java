@@ -115,6 +115,15 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         assertEquals("[" + AllocateAction.NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0", exception.getMessage());
     }
 
+    public void testInvalidNumberOfTotalShards() {
+        Map<String, String> include = randomAllocationRoutingMap(1, 5);
+        Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
+        Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> new AllocateAction(randomIntBetween(0, 300), randomIntBetween(-1000, 0), include, exclude, require));
+        assertEquals("[" + AllocateAction.TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName() + "] must be > 0", exception.getMessage());
+    }
+
     public static Map<String, String> randomAllocationRoutingMap(int minEntries, int maxEntries) {
         Map<String, String> map = new HashMap<>();
         int numIncludes = randomIntBetween(minEntries, maxEntries);

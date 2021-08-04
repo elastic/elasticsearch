@@ -28,6 +28,7 @@ import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryShardId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -74,7 +75,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final SnapshotId targetSnapshotId = new SnapshotId("target-snapshot", UUIDs.randomBase64UUID(random()));
 
-        final String currentShardGen;
+        final ShardGeneration currentShardGen;
         if (useBwCFormat) {
             currentShardGen = null;
         } else {
@@ -83,11 +84,10 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final ShardSnapshotResult shardSnapshotResult = PlainActionFuture.get(
             f -> repository.cloneShardSnapshot(sourceSnapshotInfo.snapshotId(), targetSnapshotId, repositoryShardId, currentShardGen, f)
         );
-        final String newShardGeneration = shardSnapshotResult.getGeneration();
+        final ShardGeneration newShardGeneration = shardSnapshotResult.getGeneration();
 
         if (useBwCFormat) {
-            final long gen = Long.parseLong(newShardGeneration);
-            assertEquals(gen, 1L); // Initial snapshot brought it to 0, clone increments it to 1
+            assertEquals(newShardGeneration, new ShardGeneration(1L)); // Initial snapshot brought it to 0, clone increments it to 1
         }
 
         final BlobStoreIndexShardSnapshot targetShardSnapshot = readShardSnapshot(repository, repositoryShardId, targetSnapshotId);
@@ -786,7 +786,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     private static BlobStoreIndexShardSnapshots readShardGeneration(
         BlobStoreRepository repository,
         RepositoryShardId repositoryShardId,
-        String generation
+        ShardGeneration generation
     ) {
         return PlainActionFuture.get(
             f -> repository.threadPool()
@@ -797,7 +797,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
                         () -> BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT.read(
                             repository.getMetadata().name(),
                             repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
-                            generation,
+                            generation.toBlobNamePart(),
                             NamedXContentRegistry.EMPTY
                         )
                     )

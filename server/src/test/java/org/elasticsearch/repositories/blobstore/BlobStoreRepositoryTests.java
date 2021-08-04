@@ -29,6 +29,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -337,7 +338,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             int numIndices = inclIndices ? randomIntBetween(0, 20) : 0;
             final ShardGenerations.Builder builder = ShardGenerations.builder();
             for (int j = 0; j < numIndices; j++) {
-                builder.put(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()), 0, "1");
+                builder.put(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()), 0, new ShardGeneration(1L));
             }
             final ShardGenerations shardGenerations = builder.build();
             final Map<IndexId, String> indexLookup = shardGenerations.indices()

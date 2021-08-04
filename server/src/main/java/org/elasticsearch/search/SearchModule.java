@@ -11,7 +11,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.NamedRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -21,8 +20,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
@@ -67,6 +68,7 @@ import org.elasticsearch.index.query.SpanWithinQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.TermsSetQueryBuilder;
+import org.elasticsearch.index.query.TypeQueryV7Builder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ExponentialDecayFunctionBuilder;
@@ -839,6 +841,10 @@ public class SearchModule {
         }
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
+
+        if (RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
+            registerQuery(new QuerySpec<>(TypeQueryV7Builder.NAME_V7, TypeQueryV7Builder::new, TypeQueryV7Builder::fromXContent));
+        }
     }
 
     private void registerIntervalsSourceProviders() {
@@ -881,10 +887,10 @@ public class SearchModule {
     private void registerQuery(QuerySpec<?> spec) {
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class, spec.getName(),
-                (p, c) -> spec.getParser().fromXContent(p)));
+                (p, c) -> spec.getParser().fromXContent(p), spec.getName().getForRestApiVersion()));
     }
 
-    private void registerBoolQuery(ParseField name, Writeable.Reader reader) {
+    private void registerBoolQuery(ParseField name, Writeable.Reader<QueryBuilder> reader) {
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, name.getPreferredName(), reader));
         namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class, name,
             (p, c) -> BoolQueryBuilder.fromXContent(p, (Integer) c)));
@@ -893,4 +899,5 @@ public class SearchModule {
     public FetchPhase getFetchPhase() {
         return new FetchPhase(fetchSubPhases);
     }
+
 }

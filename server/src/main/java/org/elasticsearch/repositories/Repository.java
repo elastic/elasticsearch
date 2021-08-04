@@ -309,7 +309,7 @@ public interface Repository extends LifecycleComponent {
         SnapshotId source,
         SnapshotId target,
         RepositoryShardId shardId,
-        @Nullable String shardGeneration,
+        @Nullable ShardGeneration shardGeneration,
         ActionListener<ShardSnapshotResult> listener
     );
 
@@ -320,6 +320,15 @@ public interface Repository extends LifecycleComponent {
     default Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
         return userMetadata;
     }
+
+    /**
+     * Block until all in-flight operations for this repository have completed. Must only be called after this instance has been closed
+     * by a call to stop {@link #close()}.
+     * Waiting for ongoing operations should be implemented here instead of in {@link #stop()} or {@link #close()} hooks of this interface
+     * as these are expected to be called on the cluster state applier thread (which must not block) if a repository is removed from the
+     * cluster. This method is intended to be called on node shutdown instead as a means to ensure no repository operations are leaked.
+     */
+    void awaitIdle();
 
     static boolean assertSnapshotMetaThread() {
         final String threadName = Thread.currentThread().getName();

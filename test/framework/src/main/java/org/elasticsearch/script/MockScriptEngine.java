@@ -108,8 +108,8 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(NumberSortScript.class)) {
             NumberSortScript.Factory factory = (parameters, lookup) -> new NumberSortScript.LeafFactory() {
                 @Override
-                public NumberSortScript newInstance(final LeafReaderContext ctx) {
-                    return new NumberSortScript(parameters, lookup, ctx) {
+                public NumberSortScript newInstance(DocReader reader) {
+                    return new NumberSortScript(parameters, lookup, reader) {
                         @Override
                         public double execute() {
                             Map<String, Object> vars = new HashMap<>(parameters);
@@ -605,9 +605,9 @@ public class MockScriptEngine implements ScriptEngine {
                 }
 
                 @Override
-                public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
+                public ScoreScript newInstance(DocReader docReader) throws IOException {
                     Scorable[] scorerHolder = new Scorable[1];
-                    return new ScoreScript(params, lookup, ctx) {
+                    return new ScoreScript(params, null, docReader) {
                         @Override
                         public double execute(ExplanationHolder explanation) {
                             Map<String, Object> vars = new HashMap<>(getParams());
@@ -705,8 +705,8 @@ public class MockScriptEngine implements ScriptEngine {
         @Override public boolean isResultDeterministic() { return script.isResultDeterministic(); }
 
         @Override
-        public StringSortScript.LeafFactory newFactory(Map<String, Object> parameters, SearchLookup lookup) {
-            return ctx -> new StringSortScript(parameters, lookup, ctx) {
+        public StringSortScript.LeafFactory newFactory(Map<String, Object> parameters) {
+            return docReader -> new StringSortScript(parameters, docReader) {
                 @Override
                 public String execute() {
                     Map<String, Object> vars = new HashMap<>(parameters);

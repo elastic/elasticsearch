@@ -110,6 +110,56 @@
   - match: { analysis_limits.model_memory_limit: "2048mb" }
 
 ---
+"Test put job with model_prune_window":
+  - do:
+      ml.put_job:
+        job_id: job-model-prune-window
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "15m",
+                "detectors" :[{"function":"count"}],
+                "model_prune_window": "14d"
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "job-model-prune-window" }
+  - match: { analysis_config.bucket_span: "15m" }
+  - match: { analysis_config.model_prune_window: "14d" }
+
+  - do:
+      catch: /model_prune_window \[29m\] must be a multiple of bucket_span \[15m\]/
+      ml.put_job:
+        job_id: job-invalid-model-prune-window
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "15m",
+                "detectors" :[{"function":"count"}],
+                "model_prune_window": "29m"
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      catch: /model_prune_window \[15m\] must be at least 2 times greater than bucket_span \[15m\]/
+      ml.put_job:
+        job_id: job-model-prune-window
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "15m",
+                "detectors" :[{"function":"count"}],
+                "model_prune_window": "15m"
+            },
+            "data_description" : {
+            }
+          }
+
+
+---
 "Test put job with model_memory_limit as string and lazy open":
   - skip:
       features: headers
@@ -312,7 +362,8 @@
                 "detectors" :[{"function":"mean","field_name":"responsetime","by_field_name":"airline"},
                     {"function":"count","by_field_name":"mlcategory"}],
                 "categorization_field_name": "some_category",
-                "categorization_filters" : ["cat1.*", "cat2.*"]
+                "categorization_filters" : ["cat1.*", "cat2.*"],
+                "model_prune_window": "30d"
             },
             "data_description" : {
             },
@@ -328,6 +379,7 @@
             "model_snapshot_retention_days": 3,
             "daily_model_snapshot_retention_after_days": 2,
             "results_retention_days": 4,
+            "system_annotations_retention_days": 5,
             "custom_settings": {
               "setting1": "custom1",
               "setting2": "custom2"
@@ -340,6 +392,8 @@
   - match: { analysis_config.categorization_analyzer.char_filter.0: "first_non_blank_line" }
   - match: { analysis_config.categorization_analyzer.char_filter.1.pattern: "cat1.*" }
   - match: { analysis_config.categorization_analyzer.char_filter.2.pattern: "cat2.*" }
+  - match: { analysis_config.bucket_span: "5m" }
+  - match: { analysis_config.model_prune_window: "30d" }
 
   - do:
       ml.open_job:
@@ -372,6 +426,7 @@
                 "description": "updated description"
               }
             ],
+            "model_prune_window": "60d",
             "model_plot_config": {
               "enabled": false,
               "terms": "foobar"
@@ -380,6 +435,7 @@
             "background_persist_interval": "3h",
             "model_snapshot_retention_days": 30,
             "results_retention_days": 40,
+            "system_annotations_retention_days": 50,
             "custom_settings": {
               "setting3": "custom3"
             }
@@ -400,6 +456,9 @@
   - match: { model_snapshot_retention_days: 30 }
   - match: { daily_model_snapshot_retention_after_days: 2 }
   - match: { results_retention_days: 40 }
+  - match: { analysis_config.bucket_span: "5m" }
+  - match: { analysis_config.model_prune_window: "60d" }
+  - match: { system_annotations_retention_days: 50 }
 
   - do:
       catch: "/Cannot update analysis_limits while the job is open/"
@@ -427,6 +486,43 @@
             }
           }
   - match: { analysis_limits.model_memory_limit: "20mb" }
+
+  - do:
+      ml.update_job:
+        job_id: jobs-crud-update-job
+        body:  >
+          {
+              "model_prune_window": "12h"
+          }
+  - match: { analysis_config.model_prune_window: "12h" }
+
+  - do:
+      catch: /model_prune_window \[5m\] must be at least 2 times greater than bucket_span \[5m\]/
+      ml.update_job:
+        job_id: jobs-crud-update-job
+        body:  >
+          {
+              "model_prune_window": "5m"
+          }
+
+  - do:
+      catch: /model_prune_window \[2m\] must be a multiple of bucket_span \[5m\]/
+      ml.update_job:
+        job_id: jobs-crud-update-job
+        body:  >
+          {
+              "model_prune_window": "2m"
+          }
+
+  - do:
+      catch: /\[job_update\] failed to parse field \[model_prune_window\]/
+      ml.update_job:
+        job_id: jobs-crud-update-job
+        body:  >
+          {
+              "model_prune_window": "8w"
+          }
+  - match: { analysis_config.model_prune_window: null }
 
   - do:
       ml.update_job:
@@ -527,9 +623,9 @@
   - match: { datafeed_id: "jobs-crud-test-datafeed-1" }
 
   - do:
-      catch: /Cannot delete job \[jobs-crud-datafeed-job\] because datafeed \[jobs-crud-test-datafeed-1\] refers to it/
       ml.delete_job:
         job_id: jobs-crud-datafeed-job
+  - match: { acknowledged: true }
 
 ---
 "Test delete job that is opened":

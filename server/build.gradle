@@ -306,8 +306,6 @@ tasks.named('splitPackagesAudit').configure {
     'org.apache.lucene.queryparser.classic.XQueryParser',
     'org.apache.lucene.queries.BinaryDocValuesRangeQuery',
     'org.apache.lucene.queries.BlendedTermQuery',
-    'org.apache.lucene.queries.MinDocQuery',
-    'org.apache.lucene.queries.SearchAfterSortedDocQuery',
     'org.apache.lucene.queries.SpanMatchNoDocsQuery',
     'org.apache.lucene.search.grouping.CollapseTopFieldDocs',
     'org.apache.lucene.search.grouping.CollapsingDocValuesSource',
@@ -341,7 +339,7 @@ tasks.named('splitPackagesAudit').configure {
     'org.elasticsearch.cli.LoggingAwareMultiCommand',
 
     // these should be temporary, query needs package private access to TermScorer though
-   'org.apache.lucene.search.XCombinedFieldQuery', 
-   'org.apache.lucene.search.XMultiNormsLeafSimScorer' 
+   'org.apache.lucene.search.XCombinedFieldQuery',
+   'org.apache.lucene.search.XMultiNormsLeafSimScorer'
 
 }

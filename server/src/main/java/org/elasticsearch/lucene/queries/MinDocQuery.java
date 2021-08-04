@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.apache.lucene.queries;
+package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;

@@ -18,10 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
@@ -38,13 +35,9 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
-public class PasswordAndEnrollmentInitialNode extends BaseClientAwareCommand {
+public class BootstrapPasswordAndEnrollmentForInitialNode extends BaseClientAwareCommand {
     private static final String elasticUser = ElasticUser.NAME;
     private KeyStoreWrapper keyStoreWrapper;
     private SecureString password;
@@ -76,7 +69,7 @@ public class PasswordAndEnrollmentInitialNode extends BaseClientAwareCommand {
     KeyStoreWrapper getKeyStoreWrapper(Environment env) throws Exception { return keyStoreFunction.apply(env); }
     OptionParser getParser() { return parser; }
 
-    PasswordAndEnrollmentInitialNode () {
+    BootstrapPasswordAndEnrollmentForInitialNode() {
         this(
             environment -> new CommandLineHttpClient(environment),
             environment -> KeyStoreWrapper.load(environment.configFile()),
@@ -84,16 +77,16 @@ public class PasswordAndEnrollmentInitialNode extends BaseClientAwareCommand {
         );
     }
 
-    PasswordAndEnrollmentInitialNode (Function<Environment, CommandLineHttpClient> clientFunction,
-                                      CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction,
-                                      CheckedFunction<Environment, CreateEnrollmentToken, Exception> createEnrollmentTokenFunction){
+    BootstrapPasswordAndEnrollmentForInitialNode(Function<Environment, CommandLineHttpClient> clientFunction,
+                                                 CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction,
+                                                 CheckedFunction<Environment, CreateEnrollmentToken, Exception> createEnrollmentTokenFunction){
         super(clientFunction, keyStoreFunction, "Set elastic password and generate enrollment token for initial node");
         this.createEnrollmentTokenFunction = createEnrollmentTokenFunction;
         parser.allowsUnrecognizedOptions();
     }
 
     public static void main(String[] args) throws Exception {
-        exit(new PasswordAndEnrollmentInitialNode().main(args, Terminal.DEFAULT));
+        exit(new BootstrapPasswordAndEnrollmentForInitialNode().main(args, Terminal.DEFAULT));
     }
 
     @Override
@@ -116,8 +109,7 @@ public class PasswordAndEnrollmentInitialNode extends BaseClientAwareCommand {
             password = bootstrapPassword;
         }
         token = createEnrollmentToken.createKibanaEnrollmentToken(elasticUser, password);
-        final Map<String, String> infoNode = getDecoded(token);
-        fingerprint = infoNode.get("fgr");
+        fingerprint = createEnrollmentToken.getFingerprint();
 
         if (Strings.isNullOrEmpty(bootstrapPassword.toString())) {
             terminal.println("'elastic' user password: " + password);
@@ -199,19 +191,5 @@ public class PasswordAndEnrollmentInitialNode extends BaseClientAwareCommand {
     URL changeElasticUserPasswordUrl(CommandLineHttpClient client) throws MalformedURLException, URISyntaxException {
         return createURL(new URL(client.getDefaultURL()), "/_security/user/" + elasticUser + "/_password",
             "?pretty");
-    }
-
-    private Map<String, String> getDecoded(String token) throws Exception {
-        final String jsonString = new String(Base64.getDecoder().decode(token), StandardCharsets.UTF_8);
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-            LoggingDeprecationHandler.INSTANCE, jsonString)) {
-            final Map<String, Object> info = parser.map();
-            if (info == null) {
-                throw new UserException(ExitCodes.DATA_ERROR,
-                    "Unable to decode enrollment token.");
-            }
-            return info.entrySet().stream()
-                .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().toString()));
-        }
     }
 }

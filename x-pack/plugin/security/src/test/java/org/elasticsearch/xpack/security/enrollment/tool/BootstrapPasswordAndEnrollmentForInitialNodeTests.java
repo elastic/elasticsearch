@@ -43,7 +43,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class PasswordAndEnrollmentInitialNodeTests extends ESTestCase {
+public class BootstrapPasswordAndEnrollmentForInitialNodeTests extends ESTestCase {
     private Environment environment;
 
     @BeforeClass
@@ -75,14 +75,16 @@ public class PasswordAndEnrollmentInitialNodeTests extends ESTestCase {
     }
 
     public void testGenerateNewPasswordSuccess() throws Exception {
-        PasswordAndEnrollmentInitialNode command_util = mock(PasswordAndEnrollmentInitialNode.class);
+        BootstrapPasswordAndEnrollmentForInitialNode command_util = mock(BootstrapPasswordAndEnrollmentForInitialNode.class);
         CommandLineHttpClient client_util = mock(CommandLineHttpClient.class);
         doReturn(client_util).when(command_util).getClient(environment);
         Terminal terminal = new MockTerminal();
         CommandLineHttpClient client = new CommandLineHttpClient(environment);
         doReturn(client.getDefaultURL()).when(client_util).getDefaultURL();
         CreateEnrollmentToken createEnrollmentToken = mock(CreateEnrollmentToken.class);
-        PasswordAndEnrollmentInitialNode command = new PasswordAndEnrollmentInitialNode() {
+        doReturn("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d")
+            .when(createEnrollmentToken).getFingerprint();
+        BootstrapPasswordAndEnrollmentForInitialNode command = new BootstrapPasswordAndEnrollmentForInitialNode() {
             @Override
             protected CommandLineHttpClient getClient(Environment env) {
                 return client_util;
@@ -154,14 +156,16 @@ public class PasswordAndEnrollmentInitialNodeTests extends ESTestCase {
             .build();
         final Environment bootstrapPasswordEnvironment = new Environment(settings, tempDir);
 
-        PasswordAndEnrollmentInitialNode command_util = mock(PasswordAndEnrollmentInitialNode.class);
+        BootstrapPasswordAndEnrollmentForInitialNode command_util = mock(BootstrapPasswordAndEnrollmentForInitialNode.class);
         CommandLineHttpClient client_util = mock(CommandLineHttpClient.class);
         doReturn(client_util).when(command_util).getClient(bootstrapPasswordEnvironment);
         Terminal terminal = new MockTerminal();
         CommandLineHttpClient client = new CommandLineHttpClient(bootstrapPasswordEnvironment);
         doReturn(client.getDefaultURL()).when(client_util).getDefaultURL();
         CreateEnrollmentToken createEnrollmentToken = mock(CreateEnrollmentToken.class);
-        PasswordAndEnrollmentInitialNode command = new PasswordAndEnrollmentInitialNode() {
+        doReturn("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d")
+            .when(createEnrollmentToken).getFingerprint();
+        BootstrapPasswordAndEnrollmentForInitialNode command = new BootstrapPasswordAndEnrollmentForInitialNode() {
             @Override
             protected CommandLineHttpClient getClient(Environment env) {
                 return client_util;
@@ -214,13 +218,13 @@ public class PasswordAndEnrollmentInitialNodeTests extends ESTestCase {
     }
 
     public void testClusterHealthIsRed() throws Exception {
-        PasswordAndEnrollmentInitialNode command_util = mock(PasswordAndEnrollmentInitialNode.class);
+        BootstrapPasswordAndEnrollmentForInitialNode command_util = mock(BootstrapPasswordAndEnrollmentForInitialNode.class);
         CommandLineHttpClient client_util = mock(CommandLineHttpClient.class);
         doReturn(client_util).when(command_util).getClient(environment);
         Terminal terminal = new MockTerminal();
         CommandLineHttpClient client = new CommandLineHttpClient(environment);
         doReturn(client.getDefaultURL()).when(client_util).getDefaultURL();
-        PasswordAndEnrollmentInitialNode command = new PasswordAndEnrollmentInitialNode() {
+        BootstrapPasswordAndEnrollmentForInitialNode command = new BootstrapPasswordAndEnrollmentForInitialNode() {
             @Override
             protected CommandLineHttpClient getClient(Environment env) { return client_util; }
             @Override
@@ -250,14 +254,14 @@ public class PasswordAndEnrollmentInitialNodeTests extends ESTestCase {
     }
 
     public void testFailedToSetPassword() throws Exception {
-        PasswordAndEnrollmentInitialNode command_util = mock(PasswordAndEnrollmentInitialNode.class);
+        BootstrapPasswordAndEnrollmentForInitialNode command_util = mock(BootstrapPasswordAndEnrollmentForInitialNode.class);
         CommandLineHttpClient client_util = mock(CommandLineHttpClient.class);
         doReturn(client_util).when(command_util).getClient(environment);
         Terminal terminal = new MockTerminal();
         CommandLineHttpClient client = new CommandLineHttpClient(environment);
         doReturn(client.getDefaultURL()).when(client_util).getDefaultURL();
         CreateEnrollmentToken cet = mock(CreateEnrollmentToken.class);
-        PasswordAndEnrollmentInitialNode command = new PasswordAndEnrollmentInitialNode() {
+        BootstrapPasswordAndEnrollmentForInitialNode command = new BootstrapPasswordAndEnrollmentForInitialNode() {
             @Override
             protected CommandLineHttpClient getClient(Environment env) {
                 return client_util;
@@ -309,7 +313,7 @@ public class PasswordAndEnrollmentInitialNodeTests extends ESTestCase {
     }
 
     public void testNoExplicitAcknowledgment() {
-        PasswordAndEnrollmentInitialNode command = new PasswordAndEnrollmentInitialNode();
+        BootstrapPasswordAndEnrollmentForInitialNode command = new BootstrapPasswordAndEnrollmentForInitialNode();
         Terminal terminal = mock(Terminal.class);
         OptionSet option = command.getParser().parse(Strings.toStringArray(Collections.singletonList("")));
         UserException ex = expectThrows(UserException.class, () ->

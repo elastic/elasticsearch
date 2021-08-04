@@ -54,6 +54,11 @@ public class CreateEnrollmentToken {
     private final SSLService sslService;
     private final CommandLineHttpClient client;
     private final URL defaultUrl;
+    private String apiKey;
+    private String fingerprint;
+
+    public String getApiKey() { return apiKey; }
+    public String getFingerprint() { return fingerprint; }
 
     public CreateEnrollmentToken(Environment environment) throws MalformedURLException {
         this(environment, new CommandLineHttpClient(environment));
@@ -79,8 +84,8 @@ public class CreateEnrollmentToken {
         if (XPackSettings.ENROLLMENT_ENABLED.get(environment.settings()) != true) {
             throw new IllegalStateException("[xpack.security.enrollment.enabled] must be set to `true` to create an enrollment token");
         }
-        final String fingerprint = getCaFingerprint();
-        final String apiKey = getApiKeyCredentials(user, password, action);
+        fingerprint = getCaFingerprint();
+        apiKey = getApiKeyCredentials(user, password, action);
         final Tuple<List<String>, String> httpInfo = getNodeInfo(user, password);
 
         try {

@@ -264,7 +264,12 @@ public class EnrichPolicyRunner implements Runnable {
                         Strings.collectionToCommaDelimitedString(types)
                     ));
                 } else {
-                    createEnrichMappingBuilder((builder) -> builder.field("type", resolveMatchType(types.get(0))).field("doc_values", false), resultListener);
+                    createEnrichMappingBuilder(
+                        (builder) -> builder
+                                        .field("type", resolveMatchType(types.get(0)))
+                                        .field("doc_values", false),
+                        resultListener
+                    );
                 }
             }));
             // No need to also configure index_options, because keyword type defaults to 'docs'.
@@ -295,7 +300,10 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private void createEnrichMappingBuilder(CheckedFunction<XContentBuilder, XContentBuilder , IOException> matchFieldMapping, ActionListener<XContentBuilder> resultListener) {
+    private void createEnrichMappingBuilder(
+        CheckedFunction<XContentBuilder, XContentBuilder, IOException> matchFieldMapping,
+        ActionListener<XContentBuilder> resultListener
+    ) {
         // Enable _source on enrich index. Explicitly mark key mapping type.
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();

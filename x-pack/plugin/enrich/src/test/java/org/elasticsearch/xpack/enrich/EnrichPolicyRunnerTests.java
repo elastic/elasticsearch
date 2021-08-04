@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -324,7 +323,11 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate document structure and lookup of element in range
         SearchResponse enrichSearchResponse = client().search(
-            new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("subnet", "10.0.0.1")))
+            new SearchRequest(".enrich-test1").source(
+                SearchSourceBuilder
+                    .searchSource()
+                    .query(QueryBuilders.matchQuery("subnet", "10.0.0.1"))
+            )
         ).actionGet();
 
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));

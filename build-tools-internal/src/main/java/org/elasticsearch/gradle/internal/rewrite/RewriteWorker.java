@@ -56,7 +56,6 @@ public abstract class RewriteWorker implements WorkAction<RewriteParameters> {
     protected RewriteWorker.ResultsContainer listResults() {
         Path baseDir = getParameters().getProjectDirectory().get().getAsFile().toPath();
         RewriteReflectiveFacade.Environment env = environment();
-        env.listRecipeDescriptors().forEach( d -> logger.debug("recipe " + d.getDisplayName()));
         List<String> activeRecipes = getParameters().getActiveRecipes().get();
         List<String> activeStyles = getParameters().getActiveStyles().get();
         logger.lifecycle(String.format("Using active recipe(s) %s", activeRecipes));

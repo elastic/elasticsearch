@@ -41,14 +41,14 @@ public class RewritePlugin implements Plugin<Project> {
         final RewriteExtension extension = project.getExtensions().create("rewrite", RewriteExtension.class);
         // Rewrite module dependencies put here will be available to all rewrite tasks
         Configuration rewriteConf = project.getConfigurations().maybeCreate("rewrite");
-        RewriteTask rewriteRun = project.getTasks().create(REWRITE_TASKNAME, RewriteTask.class, rewriteConf, extension);
-        rewriteRun.getActiveRecipes().convention(providerFactory.provider(() -> extension.getActiveRecipes()));
-        rewriteRun.getConfigFile().convention(projectLayout.file(providerFactory.provider(() -> extension.getConfigFile())));
+        RewriteTask rewriteTask = project.getTasks().create(REWRITE_TASKNAME, RewriteTask.class, rewriteConf, extension);
+        rewriteTask.getActiveRecipes().convention(providerFactory.provider(() -> extension.getActiveRecipes()));
+        rewriteTask.getConfigFile().convention(projectLayout.file(providerFactory.provider(() -> extension.getConfigFile())));
         project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
             JavaPluginExtension javaPluginExtension = project.getExtensions().getByType(JavaPluginExtension.class);
             javaPluginExtension.getSourceSets().all( sourceSet -> {
-                rewriteRun.getSourceFiles().from(sourceSet.getAllSource());
-                rewriteRun.getDependencyFiles().from(sourceSet.getCompileClasspath());
+                rewriteTask.getSourceFiles().from(sourceSet.getAllSource());
+                rewriteTask.getDependencyFiles().from(sourceSet.getCompileClasspath());
             });
         });
     }

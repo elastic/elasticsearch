@@ -47,6 +47,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -63,8 +64,9 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
     private static final ByteSizeValue PART_SIZE = new ByteSizeValue(Long.MAX_VALUE);
-    private static final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
 
+    private static final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
+    private static final String repositoryName = "repo";
     private String shardHistoryUUID;
 
     @Before
@@ -90,7 +92,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchLatestSnapshot(String repository, ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         assert false: "Unexpected call";
                     }
                 },
@@ -123,9 +125,9 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                    public void fetchLatestSnapshot(String repository, ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         if (randomBoolean()) {
-                            listener.onResponse(Collections.emptyList());
+                            listener.onResponse(Optional.empty());
                         } else {
                             listener.onFailure(new IOException("Boom!"));
                         }
@@ -151,7 +153,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             writeRandomDocs(store, randomIntBetween(10, 100));
             Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
 
-            ShardSnapshot shardSnapshotData = createShardSnapshotThatSharesSegmentFiles(store, "repo");
+            ShardSnapshot shardSnapshotData = createShardSnapshotThatSharesSegmentFiles(store);
             // The shardStateIdentifier is shared with the latest snapshot,
             // meaning that the current shard and the snapshot are logically equivalent
             String shardStateIdentifier = shardSnapshotData.getShardStateIdentifier();
@@ -166,8 +168,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
-                        listener.onResponse(Collections.singletonList(shardSnapshotData));
+                    public void fetchLatestSnapshot(String repository, ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                        listener.onResponse(Optional.of(shardSnapshotData));
                     }
                 },
                 true
@@ -192,7 +194,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
 
             // The snapshot shardStateIdentifier is the same as the source, but the files are different.
             // This can happen after a primary fail-over.
-            ShardSnapshot shardSnapshotData = createShardSnapshotThatDoNotShareSegmentFiles("repo");
+            ShardSnapshot shardSnapshotData = createShardSnapshotThatDoNotShareSegmentFiles();
             String shardStateIdentifier = shardSnapshotData.getShardStateIdentifier();
 
             long startingSeqNo = randomNonNegativeLong();
@@ -205,8 +207,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
-                        listener.onResponse(Collections.singletonList(shardSnapshotData));
+                    public void fetchLatestSnapshot(String repository, ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                        listener.onResponse(Optional.of(shardSnapshotData));
                     }
                 },
                 true
@@ -230,13 +232,13 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
 
             int numberOfStaleSnapshots = randomIntBetween(0, 5);
             for (int i = 0; i < numberOfStaleSnapshots; i++) {
-                availableSnapshots.add(createShardSnapshotThatDoNotShareSegmentFiles("stale-repo-" + i));
+                availableSnapshots.add(createShardSnapshotThatDoNotShareSegmentFiles());
             }
 
             int numberOfValidSnapshots = randomIntBetween(0, 10);
             for (int i = 0; i < numberOfValidSnapshots; i++) {
                 writeRandomDocs(store, randomIntBetween(10, 100));
-                availableSnapshots.add(createShardSnapshotThatSharesSegmentFiles(store, "repo-" + i));
+                availableSnapshots.add(createShardSnapshotThatSharesSegmentFiles(store));
             }
 
             // Write new segments
@@ -254,8 +256,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
-                        listener.onResponse(availableSnapshots);
+                    public void fetchLatestSnapshot(String repository, ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                        listener.onResponse(Optional.of(availableSnapshots.get(availableSnapshots.size() - 1)));
                     }
                 },
                 true
@@ -286,7 +288,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             int numberOfValidSnapshots = randomIntBetween(1, 4);
             for (int i = 0; i < numberOfValidSnapshots; i++) {
                 writeRandomDocs(store, randomIntBetween(10, 100));
-                availableSnapshots.add(createShardSnapshotThatSharesSegmentFiles(store, "repo-" + i));
+                availableSnapshots.add(createShardSnapshotThatSharesSegmentFiles(store));
             }
 
             // Simulate a restore/stale primary allocation
@@ -306,8 +308,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null) {
                     @Override
-                    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
-                        listener.onResponse(availableSnapshots);
+                    public void fetchLatestSnapshot(String repository, ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                        listener.onResponse(Optional.of(availableSnapshots.get(availableSnapshots.size() - 1)));
                     }
                 },
                 true
@@ -331,7 +333,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                                                        ShardSnapshotsService shardSnapshotsService,
                                                        boolean snapshotRecoveriesEnabled) throws Exception {
         SnapshotsRecoveryPlannerService recoveryPlannerService =
-            new SnapshotsRecoveryPlannerService(shardSnapshotsService, snapshotRecoveriesEnabled, null);
+            new SnapshotsRecoveryPlannerService(shardSnapshotsService, snapshotRecoveriesEnabled, repositoryName);
 
         PlainActionFuture<ShardRecoveryPlan> planFuture = PlainActionFuture.newFuture();
         recoveryPlannerService.computeRecoveryPlan(shardId,
@@ -466,17 +468,16 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         writer.close();
     }
 
-    private ShardSnapshot createShardSnapshotThatDoNotShareSegmentFiles(String repoName) {
+    private ShardSnapshot createShardSnapshotThatDoNotShareSegmentFiles() {
         List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = randomList(randomIntBetween(10, 20), () -> {
             StoreFileMetadata storeFileMetadata = randomStoreFileMetadata();
             return new BlobStoreIndexShardSnapshot.FileInfo(randomAlphaOfLength(10), storeFileMetadata, PART_SIZE);
         });
 
-        return createShardSnapshot(repoName, snapshotFiles);
+        return createShardSnapshot(snapshotFiles);
     }
 
-    private ShardSnapshot createShardSnapshotThatSharesSegmentFiles(Store store,
-                                                                    String repository) throws Exception {
+    private ShardSnapshot createShardSnapshotThatSharesSegmentFiles(Store store) throws Exception {
         Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
         assertThat(sourceMetadata.size(), is(greaterThan(1)));
 
@@ -486,14 +487,13 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 new BlobStoreIndexShardSnapshot.FileInfo(randomAlphaOfLength(10), storeFileMetadata, PART_SIZE);
             snapshotFiles.add(fileInfo);
         }
-        return createShardSnapshot(repository, snapshotFiles);
+        return createShardSnapshot(snapshotFiles);
     }
 
-    private ShardSnapshot createShardSnapshot(String repoName,
-                                              List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles) {
+    private ShardSnapshot createShardSnapshot(List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles) {
         String shardIdentifier = randomAlphaOfLength(10);
 
-        Snapshot snapshot = new Snapshot(repoName, new SnapshotId("snap", UUIDs.randomBase64UUID(random())));
+        Snapshot snapshot = new Snapshot(repositoryName, new SnapshotId("snap", UUIDs.randomBase64UUID(random())));
         IndexId indexId = randomIndexId();
         ShardSnapshotInfo shardSnapshotInfo =
             new ShardSnapshotInfo(indexId, shardId, snapshot, randomAlphaOfLength(10), shardIdentifier);

@@ -180,16 +180,16 @@ public class FeatureFactory {
             final org.locationtech.jts.geom.Polygon[] polygons = new org.locationtech.jts.geom.Polygon[multiPolygon.size()];
             for (int i = 0; i < multiPolygon.size(); i++) {
                 final org.locationtech.jts.geom.Polygon jtsPolygon = buildPolygon(multiPolygon.get(i));
-                if (jtsPolygon.contains(tile)) {
-                    // shortcut, we return the tile
-                    return tile;
-                }
                 polygons[i] = jtsPolygon;
             }
             org.locationtech.jts.geom.MultiPolygon jtsMultiPolygon = geomFactory.createMultiPolygon(polygons);
             if (jtsMultiPolygon.isValid() == false) {
                 // we only simplify the multi-polygon if is valid, otherwise algorithm might fail.
                 return jtsMultiPolygon;
+            }
+            if (jtsMultiPolygon.contains(tile)) {
+                // shortcut, we return the tile
+                return tile;
             }
             return TopologyPreservingSimplifier.simplify(jtsMultiPolygon, pixelPrecision);
         }

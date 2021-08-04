@@ -37,7 +37,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.script.DocValuesReader;
+import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.StringSortScript;
@@ -259,7 +259,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     StringSortScript leafScript;
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = searchScript.newInstance(new DocValuesReader(searchLookup, context));
+                        leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
                             @Override
@@ -295,7 +295,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     NumberSortScript leafScript;
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = numberSortScript.newInstance(new DocValuesReader(searchLookup, context));
+                        leafScript = numberSortScript.newInstance(new DocValuesDocReader(searchLookup, context));
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
                             public boolean advanceExact(int doc) throws IOException {

@@ -69,7 +69,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.DateFieldScript;
-import org.elasticsearch.script.DocValuesReader;
+import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.GeoPointFieldScript;
@@ -533,7 +533,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     SearchLookup lookup = context.lookup();
                     ScoreScript.LeafFactory leafFactory =
                             factory.newFactory(request.getScript().getParams(), lookup);
-                    ScoreScript scoreScript = leafFactory.newInstance(new DocValuesReader(lookup, leafReaderContext));
+                    ScoreScript scoreScript = leafFactory.newInstance(new DocValuesDocReader(lookup, leafReaderContext));
                     scoreScript.setDocument(0);
 
                     if (request.contextSetup.query != null) {

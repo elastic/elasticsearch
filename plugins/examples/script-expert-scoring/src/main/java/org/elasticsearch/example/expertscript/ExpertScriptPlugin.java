@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.DocReader;
-import org.elasticsearch.script.DocValuesReader;
+import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScoreScript.LeafFactory;
 import org.elasticsearch.script.ScriptContext;
@@ -130,7 +130,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
             @Override
             public ScoreScript newInstance(DocReader docReader)
                     throws IOException {
-                DocValuesReader dvReader = ((DocValuesReader) docReader);
+                DocValuesDocReader dvReader = ((DocValuesDocReader) docReader);
                 PostingsEnum postings = dvReader.getLeafReaderContext()
                         .reader().postings(new Term(field, term));
                 if (postings == null) {

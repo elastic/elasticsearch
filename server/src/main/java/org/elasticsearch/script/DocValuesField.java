@@ -12,11 +12,11 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.util.List;
 
-public class ReadDocValuesField<T> implements Field<T> {
+public class DocValuesField<T> implements Field<T> {
     protected final String name;
     protected final ScriptDocValues<T> scriptDocValues;
 
-    public ReadDocValuesField(String name, ScriptDocValues<T> scriptDocValues) {
+    public DocValuesField(String name, ScriptDocValues<T> scriptDocValues) {
         this.name = name;
         this.scriptDocValues = scriptDocValues;
     }

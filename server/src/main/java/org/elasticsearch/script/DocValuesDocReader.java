@@ -16,7 +16,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.Map;
 import java.util.stream.Stream;
 
-public class DocValuesReader implements DocReader, LeafReaderContextSupplier {
+public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier {
     /** A leaf lookup for the bound segment this proxy will operate on. */
     protected LeafSearchLookup leafLookup;
 
@@ -26,7 +26,7 @@ public class DocValuesReader implements DocReader, LeafReaderContextSupplier {
     // backwards compatibility access for random score script
     protected final int docBase;
 
-    public DocValuesReader(SearchLookup lookup, LeafReaderContext leafContext) {
+    public DocValuesDocReader(SearchLookup lookup, LeafReaderContext leafContext) {
         this.leafReaderContext = leafContext;
         this.leafLookup = lookup.getLeafSearchLookup(leafReaderContext);
         this.docBase = leafContext.docBase;
@@ -39,7 +39,7 @@ public class DocValuesReader implements DocReader, LeafReaderContextSupplier {
         if (doc.containsKey(fieldName) == false) {
             return new EmptyField<Number>(fieldName);
         }
-        return new ReadDocValuesField<>(fieldName, doc.get(fieldName));
+        return new DocValuesField<>(fieldName, doc.get(fieldName));
     }
 
 
@@ -50,9 +50,7 @@ public class DocValuesReader implements DocReader, LeafReaderContextSupplier {
 
     @Override
     public void setDocument(int docID) {
-        if (leafLookup != null) {
-            leafLookup.setDocument(docID);
-        }
+        leafLookup.setDocument(docID);
     }
 
     @Override

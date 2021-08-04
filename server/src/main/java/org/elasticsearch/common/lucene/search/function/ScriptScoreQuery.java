@@ -26,7 +26,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
-import org.elasticsearch.script.DocValuesReader;
+import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScoreScript.ExplanationHolder;
 import org.elasticsearch.script.Script;
@@ -147,7 +147,7 @@ public class ScriptScoreQuery extends Query {
             }
 
             private ScoreScript makeScoreScript(LeafReaderContext context) throws IOException {
-                final ScoreScript scoreScript = scriptBuilder.newInstance(new DocValuesReader(lookup, context));
+                final ScoreScript scoreScript = scriptBuilder.newInstance(new DocValuesDocReader(lookup, context));
                 scoreScript._setIndexName(indexName);
                 scoreScript._setShard(shardId);
                 return scoreScript;

@@ -23,10 +23,13 @@ import java.util.List;
  */
 public interface Field<T> {
     String getName();
+
     /** Does the field have any values? An unmapped field may have values from source */
     boolean isEmpty();
+
     /** Get all values of a multivalued field.  If {@code isEmpty()} this returns an empty list */
     List<T> getValues();
+
     /** Get the first value of a field, if {@code isEmpty()} return defaultValue instead */
     T getValue(T defaultValue);
 }

@@ -19,7 +19,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.DocReader;
-import org.elasticsearch.script.DocValuesReader;
+import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.ExplainableScoreScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -82,7 +82,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
 
                         @Override
                         public ScoreScript newInstance(DocReader docReader) throws IOException {
-                            return new MyScript(params1, lookup, ((DocValuesReader) docReader).getLeafReaderContext());
+                            return new MyScript(params1, lookup, ((DocValuesDocReader) docReader).getLeafReaderContext());
                         }
                     };
                     return context.factoryClazz.cast(factory);
@@ -99,7 +99,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
     static class MyScript extends ScoreScript implements ExplainableScoreScript {
 
         MyScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
-            super(params, null, new DocValuesReader(lookup, leafContext));
+            super(params, null, new DocValuesDocReader(lookup, leafContext));
         }
 
         @Override

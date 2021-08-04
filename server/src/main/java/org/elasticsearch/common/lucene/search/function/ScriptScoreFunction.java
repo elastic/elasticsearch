@@ -11,7 +11,7 @@ package org.elasticsearch.common.lucene.search.function;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.script.DocValuesReader;
+import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.ExplainableScoreScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -56,7 +56,7 @@ public class ScriptScoreFunction extends ScoreFunction {
 
     @Override
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
-        final ScoreScript leafScript = script.newInstance(new DocValuesReader(lookup, ctx));
+        final ScoreScript leafScript = script.newInstance(new DocValuesDocReader(lookup, ctx));
         final CannedScorer scorer = new CannedScorer();
         leafScript.setScorer(scorer);
         leafScript._setIndexName(indexName);

@@ -35,7 +35,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.DocReader;
-import org.elasticsearch.script.DocValuesReader;
+import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -165,7 +165,7 @@ public class ScriptScoreBenchmark {
             return new ScoreScript.LeafFactory() {
                 @Override
                 public ScoreScript newInstance(DocReader docReader) throws IOException {
-                    SortedNumericDocValues values = ifd.load(((DocValuesReader) docReader).getLeafReaderContext()).getLongValues();
+                    SortedNumericDocValues values = ifd.load(((DocValuesDocReader) docReader).getLeafReaderContext()).getLongValues();
                     return new ScoreScript(params, null, docReader) {
                         private int docId;
 

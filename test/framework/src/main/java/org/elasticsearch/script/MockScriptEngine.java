@@ -16,7 +16,6 @@ import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Term;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
-import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -383,13 +382,12 @@ public class MockScriptEngine implements ScriptEngine {
             this.script = script;
         }
 
-        public FilterScript newInstance(LeafReaderContext context) throws IOException {
-            LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
-            Map<String, Object> ctx = new HashMap<>(leafLookup.asMap());
+        public FilterScript newInstance(DocReader docReader) throws IOException {
+            Map<String, Object> ctx = new HashMap<>(docReader.docAsMap());
             if (vars != null) {
                 ctx.putAll(vars);
             }
-            return new FilterScript(ctx, lookup, context) {
+            return new FilterScript(ctx, lookup, docReader) {
                 @Override
                 public boolean execute() {
                     return (boolean) script.apply(ctx);
@@ -397,7 +395,7 @@ public class MockScriptEngine implements ScriptEngine {
 
                 @Override
                 public void setDocument(int doc) {
-                    leafLookup.setDocument(doc);
+                    docReader.setDocument(doc);
                 }
             };
         }

@@ -534,9 +534,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else if (scriptContext == FilterScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     FilterScript.Factory factory = scriptService.compile(request.script, FilterScript.CONTEXT);
-                    FilterScript.LeafFactory leafFactory =
-                            factory.newFactory(request.getScript().getParams(), context.lookup());
-                    FilterScript filterScript = leafFactory.newInstance(leafReaderContext);
+                    SearchLookup lookup = context.lookup();
+                    FilterScript.LeafFactory leafFactory = factory.newFactory(request.getScript().getParams(), lookup);
+                    FilterScript filterScript = leafFactory.newInstance(new DocValuesDocReader(lookup, leafReaderContext));
                     filterScript.setDocument(0);
                     boolean result = filterScript.execute();
                     return new Response(result);

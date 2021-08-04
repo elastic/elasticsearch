@@ -153,8 +153,8 @@ cluster setting.
 Enables regex with no complexity limits. Disables the regex circuit breaker.
 
 `false`:::
-Disables regex. Any Painless script containing a regular expression triggers the
-regex circuit breaker and returns an error.
+Disables regex. Any Painless script containing a regular expression returns an
+error.
 
 [[script-painless-regex-limit-factor]]
 `script.painless.regex.limit-factor`::

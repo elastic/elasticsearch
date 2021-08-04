@@ -550,14 +550,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 snapshotName,
                 "cannot "
                     + reason
-                    + " while a repository cleanup is in-progress in ["
-                    + Strings.collectionToCommaDelimitedString(
-                        repositoryCleanupInProgress.entries()
-                            .stream()
-                            .map(RepositoryCleanupInProgress.Entry::repository)
-                            .collect(Collectors.toSet())
-                    )
-                    + ']'
+                    + " while a repository cleanup is in-progress in "
+                    + repositoryCleanupInProgress.entries()
+                        .stream()
+                        .map(RepositoryCleanupInProgress.Entry::repository)
+                        .collect(Collectors.toSet())
             );
         }
     }
@@ -2036,11 +2033,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     public void deleteSnapshots(final DeleteSnapshotRequest request, final ActionListener<Void> listener) {
         final String repositoryName = request.repository();
-        final String[] snapshots = request.snapshots();
+        final String[] snapshotNames = request.snapshots();
         logger.info(
             () -> new ParameterizedMessage(
                 "deleting snapshots [{}] from repository [{}]",
-                Strings.arrayToCommaDelimitedString(snapshots),
+                Strings.arrayToCommaDelimitedString(snapshotNames),
                 repositoryName
             )
         );
@@ -2069,7 +2066,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
                     final SnapshotId snapshotId = entry.snapshot().getSnapshotId();
-                    if (entry.repository().equals(repositoryName) && Regex.simpleMatch(snapshots, snapshotId.getName())) {
+                    if (entry.repository().equals(repositoryName) && Regex.simpleMatch(snapshotNames, snapshotId.getName())) {
                         snapshotIds.add(snapshotId);
                     }
                 }
@@ -2078,7 +2075,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final Map<String, SnapshotId> snapshotsIdsInRepository = repositoryData.getSnapshotIds()
                     .stream()
                     .collect(Collectors.toMap(SnapshotId::getName, Function.identity()));
-                for (String snapshotOrPattern : snapshots) {
+                for (String snapshotOrPattern : snapshotNames) {
                     if (Regex.isSimpleMatchPattern(snapshotOrPattern)) {
                         for (Map.Entry<String, SnapshotId> entry : snapshotsIdsInRepository.entrySet()) {
                             if (Regex.simpleMatch(snapshotOrPattern, entry.getKey())) {
@@ -2088,7 +2085,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     } else {
                         final SnapshotId foundId = snapshotsIdsInRepository.get(snapshotOrPattern);
                         if (foundId == null) {
-
                             if (snapshotIds.stream().noneMatch(snapshotId -> snapshotId.getName().equals(snapshotOrPattern))) {
                                 throw new SnapshotMissingException(repositoryName, snapshotOrPattern);
                             }
@@ -2246,7 +2242,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 }
             }
-        }, "delete snapshot [" + repository + "]" + Arrays.toString(snapshots), listener::onFailure);
+        }, "delete snapshot [" + repository + "]" + Arrays.toString(snapshotNames), listener::onFailure);
     }
 
     /**

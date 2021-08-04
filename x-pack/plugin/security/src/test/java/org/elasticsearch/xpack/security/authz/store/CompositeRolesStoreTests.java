@@ -1460,6 +1460,27 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
     }
 
+    // async search can't read/write audit trail
+    public void testAsyncSearchUserCannotReadAuditTrail() {
+        final String action = randomFrom(GetAction.NAME, SearchAction.NAME);
+        final Predicate<IndexAbstraction> predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
+        assertThat(predicate.test(mockIndexAbstraction(getAuditLogName())), Matchers.is(false));
+    }
+
+    public void testAsyncSearchUserCannotWriteToAuditTrail() {
+        final String action = randomFrom(IndexAction.NAME, UpdateAction.NAME);
+        final Predicate<IndexAbstraction> predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
+        assertThat(predicate.test(mockIndexAbstraction(getAuditLogName())), Matchers.is(false));
+    }
+
+
+    public void testXpackUserHasClusterPrivileges() {
+        for (String action : Arrays.asList(ClusterStateAction.NAME, GetWatchAction.NAME, ClusterStatsAction.NAME, NodesStatsAction.NAME)) {
+            assertThat(getXPackUserRole().cluster().check(action, mock(TransportRequest.class), mock(Authentication.class)),
+                Matchers.is(true));
+        }
+    }
+
     private Role getXPackUserRole() {
         CompositeRolesStore compositeRolesStore =
             buildCompositeRolesStore(SECURITY_ENABLED_SETTINGS, null, null, null, null, null, null, null, null, null);

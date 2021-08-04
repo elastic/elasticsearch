@@ -69,7 +69,7 @@ public class FeatureFactory {
     public List<byte[]> getFeatures(Geometry geometry) {
         final org.locationtech.jts.geom.Geometry jtsGeometry = geometry.visit(builder);
         if (jtsGeometry.isValid() == false) {
-            return List.of();
+            return org.elasticsearch.core.List.of();
         }
         final TileGeomResult tileGeom = JtsAdapter.createTileGeom(
             JtsAdapter.flatFeatureList(jtsGeometry),

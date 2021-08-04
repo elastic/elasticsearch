@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
@@ -32,6 +34,8 @@ import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
+
+    private static final Logger logger = LogManager.getLogger(QuerySearchResult.class);
 
     private int from;
     private int size;
@@ -169,6 +173,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     private void setTopDocs(TopDocsAndMaxScore topDocsAndMaxScore) {
+        logger.info("Setting topdocs with {} score docs", topDocsAndMaxScore.topDocs.scoreDocs.length);
         this.topDocsAndMaxScore = topDocsAndMaxScore;
         this.totalHits = topDocsAndMaxScore.topDocs.totalHits;
         this.maxScore = topDocsAndMaxScore.maxScore;

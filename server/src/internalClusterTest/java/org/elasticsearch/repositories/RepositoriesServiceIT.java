@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -81,5 +82,11 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
 
         final Repository updatedRepository = repositoriesService.repository(repositoryName);
         assertThat(updatedRepository, updated ? not(sameInstance(originalRepository)) : sameInstance(originalRepository));
+
+        // check that a noop update does not verify.
+        internalCluster().startDataOnlyNode(Settings.builder().put(Environment.PATH_REPO_SETTING.getKey(), createTempDir()).build());
+        assertAcked(
+            client.admin().cluster().preparePutRepository(repositoryName).setType(updatedRepositoryType).setSettings(repoSettings).get()
+        );
     }
 }

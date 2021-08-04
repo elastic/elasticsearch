@@ -14,6 +14,11 @@ sees runtime fields no differently. You can define runtime fields in the
 <<runtime-search-request,search request>>. Your choice, which is part of the
 inherent flexibility of runtime fields.
 
+Use the <<search-fields,`fields`>> parameter on the `_search` API to
+<<runtime-retrieving-fields,retrieve the values of runtime fields>>. Runtime
+fields won't display in `_source`, but the `fields` API works for all fields,
+even those that were not sent as part of the original `_source`.
+
 Runtime fields are useful when working with log data
 (see <<runtime-examples,examples>>), especially when you're unsure about the
 data structure. Your search speed decreases, but your index size is much
@@ -632,6 +637,7 @@ which still returns in the response:
 
 [[runtime-retrieving-fields]]
 === Retrieve a runtime field
+
 Use the <<search-fields,`fields`>> parameter on the `_search` API to retrieve
 the values of runtime fields. Runtime fields won't display in `_source`, but
 the `fields` API works for all fields, even those that were not sent as part of

@@ -60,16 +60,4 @@ public abstract class DocBasedScript {
         }
         return docReader.doc();
     }
-
-    public static class FieldAccess {
-        private final DocBasedScript script;
-
-        public FieldAccess(DocBasedScript script) {
-            this.script = script;
-        }
-
-        public Field<?> field(String fieldName) {
-            return script.field(fieldName);
-        }
-    }
 }

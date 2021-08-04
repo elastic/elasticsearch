@@ -35,16 +35,4 @@ public abstract class StringSortScript extends AbstractSortScript {
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params);
     }
-
-    public static class FieldAccess {
-        private final StringSortScript script;
-
-        public FieldAccess(StringSortScript script) {
-            this.script = script;
-        }
-
-        public Field<?> field(String fieldName) {
-            return script.field(fieldName);
-        }
-    }
 }

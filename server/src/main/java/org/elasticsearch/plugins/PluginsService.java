@@ -568,7 +568,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             union.addAll(bundle.urls);
             JarHell.checkJarHell(union, logger::debug);
         } catch (Exception e) {
-            throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " due to jar hell", e);
+            if(intersection.isEmpty() == false) {
+                throw new (bundle.plugin.getName() + " due to jar hell", e);
+            } else {
+                throw new IllegalStateException("failed to load plugin ", e);
+            }
         }
     }
 

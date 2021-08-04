@@ -3030,6 +3030,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     if (store.isClosing()) {
                         throw new AlreadyClosedException("store is closing");
                     }
+                    if (lifecycle.started() == false) {
+                        throw new AlreadyClosedException("repository [" + metadata.name() + "] closed");
+                    }
                 }
 
             }.restore(snapshotFiles, store, l);

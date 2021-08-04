@@ -56,6 +56,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private String eventCategoryField = FIELD_EVENT_CATEGORY;
     private int size = RequestDefaults.SIZE;
     private int fetchSize = RequestDefaults.FETCH_SIZE;
+    private boolean ccsMinimizeRoundtrips = RequestDefaults.CCS_MINIMIZE_ROUNDTRIPS;
     private String query;
     private String resultPosition = "tail";
     private List<FieldAndFormat> fetchFields;
@@ -346,6 +347,15 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     public EqlSearchRequest keepOnCompletion(boolean keepOnCompletion) {
         this.keepOnCompletion = keepOnCompletion;
         return this;
+    }
+
+    public EqlSearchRequest ccsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
+        this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
+        return this;
+    }
+
+    public boolean ccsMinimizeRoundtrips() {
+        return ccsMinimizeRoundtrips;
     }
 
     public String resultPosition() {

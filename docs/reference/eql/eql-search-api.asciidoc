@@ -89,6 +89,17 @@ request that targets only `bar*` still returns an error.
 +
 Defaults to `true`.
 
+`ccs_minimize_roundtrips`::
+(Optional, Boolean)
++
+If `true`, network round-trips between the local and the remote cluster are
+minimized when executing cross-cluster search (CCS) requests.
++
+This setting is currently only effective if the request does not include both
+local and remote indices and only when one remote cluster is targeted.
++
+Defaults to `true`.
+
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +

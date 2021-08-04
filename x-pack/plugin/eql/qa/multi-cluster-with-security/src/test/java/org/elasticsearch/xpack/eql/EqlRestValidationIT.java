@@ -17,7 +17,7 @@ public class EqlRestValidationIT extends EqlRestValidationTestCase {
 
     @Override
     protected String getInexistentIndexErrorMessage() {
-        return "\"caused_by\":{\"type\":\"verification_exception\",\"reason\":\"Found 1 problem\\nline -1:-1: Unknown index ";
+        return "\"root_cause\":[{\"type\":\"index_not_found_exception\",\"reason\":\"no such index ";
     }
 
     protected void assertErrorMessageWhenAllowNoIndicesIsFalse(String reqParameter) throws IOException {

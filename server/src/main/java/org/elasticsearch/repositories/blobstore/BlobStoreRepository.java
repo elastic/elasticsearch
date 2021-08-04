@@ -2922,8 +2922,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 } else {
                     return;
                 }
-                ActionListener.onResponse(onEmptyListeners, null);
             }
+            ActionListener.onResponse(onEmptyListeners, null);
         }), l -> {
             final BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(container, snapshotId);
             final SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles(), null);

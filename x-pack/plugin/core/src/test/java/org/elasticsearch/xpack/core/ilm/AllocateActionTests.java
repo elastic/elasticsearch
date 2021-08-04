@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> {
@@ -152,6 +153,24 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         AllocationRoutedStep secondStep = (AllocationRoutedStep) steps.get(1);
         assertEquals(expectedSecondStepKey, secondStep.getKey());
         assertEquals(nextStepKey, secondStep.getNextStepKey());
+    }
+
+    public void testTotalNumberOfShards() throws Exception {
+        Integer totalShardsPerNode = randomIntBetween(1, 1000);
+        Integer numberOfReplicas = randomIntBetween(0, 4);
+        AllocateAction action = new AllocateAction(numberOfReplicas, totalShardsPerNode, null, null, null);
+        String phase = randomAlphaOfLengthBetween(1, 10);
+        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10));
+        List<Step> steps = action.toSteps(null, phase, nextStepKey);
+        UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(0);
+        assertEquals(totalShardsPerNode, firstStep.getSettings().getAsInt(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), null));
+
+        totalShardsPerNode = null;
+        action = new AllocateAction(numberOfReplicas, totalShardsPerNode, null, null, null);
+        steps = action.toSteps(null, phase, nextStepKey);
+        firstStep = (UpdateSettingsStep) steps.get(0);
+        assertEquals(null, firstStep.getSettings().get(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
     }
 
 }

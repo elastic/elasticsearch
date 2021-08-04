@@ -35,7 +35,7 @@ The API returns the following response:
 }
 --------------------------------------------------
 
-The "complete" flag is false if time or space constraints were met and the
+The "complete" flag is false if time or space constraints were not met and the
 set of terms examined was not the full set of available values.
 
 [[search-terms-enum-api-request]]

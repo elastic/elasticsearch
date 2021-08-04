@@ -76,6 +76,7 @@ public class ReadOnlyEngine extends Engine {
 
     protected volatile TranslogStats translogStats;
     private final String commitId;
+    private final Function<DirectoryReader, DirectoryReader> readerWrapperFunction;
 
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
@@ -116,7 +117,8 @@ public class ReadOnlyEngine extends Engine {
                 this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 this.lazilyLoadSoftDeletes = lazilyLoadSoftDeletes;
-                reader = wrapReader(open(indexCommit), readerWrapperFunction);
+                this.readerWrapperFunction = readerWrapperFunction;
+                reader = wrapReader(open(indexCommit));
                 readerManager = new ElasticsearchReaderManager(reader);
                 assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
@@ -192,8 +194,7 @@ public class ReadOnlyEngine extends Engine {
         // reopened as an internal engine, which would be the path to fix the issue.
     }
 
-    protected final ElasticsearchDirectoryReader wrapReader(DirectoryReader reader,
-                                                    Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
+    protected final ElasticsearchDirectoryReader wrapReader(DirectoryReader reader) throws IOException {
         reader = readerWrapperFunction.apply(reader);
         return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
     }

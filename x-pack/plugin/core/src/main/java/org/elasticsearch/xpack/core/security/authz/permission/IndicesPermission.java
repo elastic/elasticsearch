@@ -62,19 +62,20 @@ public final class IndicesPermission {
         Automaton restrictedNamesAutomaton;
         List<Group> groups = new ArrayList<>();
 
-        Builder(Automaton restrictedNamesAutomaton) {
+        public Builder(Automaton restrictedNamesAutomaton) {
             this.restrictedNamesAutomaton = restrictedNamesAutomaton;
         }
 
-        void addGroup(IndexPrivilege privilege,
+        public Builder addGroup(IndexPrivilege privilege,
                       FieldPermissions fieldPermissions,
                       @Nullable Set<BytesReference> query,
                       boolean allowRestrictedIndices,
                       String... indices) {
             groups.add(new Group(privilege, fieldPermissions, query, allowRestrictedIndices, restrictedNamesAutomaton, indices));
+            return this;
         }
 
-        IndicesPermission build() {
+        public IndicesPermission build() {
             return new IndicesPermission(restrictedNamesAutomaton, groups.toArray(new Group[0]));
         }
     }

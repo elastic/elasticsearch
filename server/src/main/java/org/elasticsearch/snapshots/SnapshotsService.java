@@ -80,6 +80,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryShardId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -2351,7 +2352,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         T shardId,
         ImmutableOpenMap<T, ShardSnapshotStatus> statesToUpdate
     ) {
-        final String newGeneration = finishedShardState.generation();
+        final ShardGeneration newGeneration = finishedShardState.generation();
         final ShardSnapshotStatus stateToUpdate = statesToUpdate.get(shardId);
         if (stateToUpdate != null
             && stateToUpdate.state() == ShardState.SUCCESS
@@ -3481,9 +3482,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 assert indexRoutingTable != null;
                 for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
                     final ShardId shardId = indexRoutingTable.shard(i).shardId();
-                    final String shardRepoGeneration;
+                    final ShardGeneration shardRepoGeneration;
                     if (useShardGenerations) {
-                        final String inFlightGeneration = inFlightShardStates.generationForShard(index, shardId.id(), shardGenerations);
+                        final ShardGeneration inFlightGeneration = inFlightShardStates.generationForShard(
+                            index,
+                            shardId.id(),
+                            shardGenerations
+                        );
                         if (inFlightGeneration == null && isNewIndex) {
                             assert shardGenerations.getShardGen(index, shardId.getId()) == null
                                 : "Found shard generation for new index [" + index + "]";
@@ -3515,7 +3520,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param primary             primary routing entry for the shard
      * @return                    shard snapshot status
      */
-    private static ShardSnapshotStatus initShardSnapshotStatus(String shardRepoGeneration, ShardRouting primary) {
+    private static ShardSnapshotStatus initShardSnapshotStatus(ShardGeneration shardRepoGeneration, ShardRouting primary) {
         ShardSnapshotStatus shardSnapshotStatus;
         if (primary == null || primary.assignedToNode() == false) {
             shardSnapshotStatus = new ShardSnapshotStatus(null, ShardState.MISSING, "primary shard is not allocated", shardRepoGeneration);
@@ -3797,7 +3802,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             private <T> void startShardOperation(
                 ImmutableOpenMap.Builder<T, ShardSnapshotStatus> newStates,
                 String nodeId,
-                String generation,
+                ShardGeneration generation,
                 T shardId
             ) {
                 startShardOperation(newStates, shardId, new ShardSnapshotStatus(nodeId, generation));
@@ -3882,7 +3887,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
 
-            private void tryStartSnapshotAfterCloneFinish(RepositoryShardId repoShardId, String generation) {
+            private void tryStartSnapshotAfterCloneFinish(RepositoryShardId repoShardId, ShardGeneration generation) {
                 assert entry.source() == null;
                 // current entry is a snapshot operation so we must translate the repository shard id to a routing shard id
                 final IndexMetadata indexMeta = currentState.metadata().index(repoShardId.indexName());

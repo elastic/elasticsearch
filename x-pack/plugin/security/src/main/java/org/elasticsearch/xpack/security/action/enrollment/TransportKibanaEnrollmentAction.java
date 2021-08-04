@@ -91,7 +91,7 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
         } else {
             String httpCa;
             try {
-                httpCa = Base64.getUrlEncoder().encodeToString(caCertificates.get(0).getEncoded());
+                httpCa = Base64.getEncoder().encodeToString(caCertificates.get(0).getEncoded());
             } catch (CertificateEncodingException cee) {
                 listener.onFailure(new ElasticsearchException(
                     "Unable to enroll kibana instance. Elasticsearch node HTTP layer SSL configuration uses a malformed CA certificate",

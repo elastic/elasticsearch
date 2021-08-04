@@ -78,6 +78,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76059")
     public void testFetchVectorTile() throws IOException {
         fetchVectorTile(GeometryTestUtils.randomPoint());
         fetchVectorTile(GeometryTestUtils.randomMultiPoint(false));

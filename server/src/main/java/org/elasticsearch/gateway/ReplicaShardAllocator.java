@@ -12,6 +12,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -37,6 +38,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
@@ -99,11 +101,14 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                                 currentNode, nodeWithHighestMatch);
                         final Set<String> failedNodeIds =
                             shard.unassignedInfo() == null ? Collections.emptySet() : shard.unassignedInfo().getFailedNodeIds();
+                        boolean nodeIsRestarting = Optional.ofNullable(metadata.nodeShutdowns().get(shard.currentNodeId()))
+                            .map(shutdownInfo -> shutdownInfo.getType().equals(SingleNodeShutdownMetadata.Type.RESTART))
+                            .orElse(false);
                         UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
                             "existing allocation of replica to [" + currentNode + "] cancelled, can perform a noop recovery on ["+
                                 nodeWithHighestMatch + "]",
                             null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false,
-                            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodeIds, null);
+                            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodeIds, null, nodeIsRestarting);
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
                         shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo,
                             metadata.getIndexSafe(shard.index()), allocation.changes()));

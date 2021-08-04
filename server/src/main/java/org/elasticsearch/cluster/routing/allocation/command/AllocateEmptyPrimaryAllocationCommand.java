@@ -129,7 +129,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
                 ", " + shardRouting.unassignedInfo().getMessage();
             unassignedInfoToUpdate = new UnassignedInfo(UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY, unassignedInfoMessage,
                 shardRouting.unassignedInfo().getFailure(), 0, System.nanoTime(), System.currentTimeMillis(), false,
-                shardRouting.unassignedInfo().getLastAllocationStatus(), Collections.emptySet(), null);
+                shardRouting.unassignedInfo().getLastAllocationStatus(), Collections.emptySet(), null, false);
         }
 
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, unassignedInfoToUpdate,

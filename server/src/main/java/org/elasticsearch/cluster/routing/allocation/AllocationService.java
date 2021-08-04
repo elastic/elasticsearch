@@ -210,9 +210,12 @@ public class AllocationService {
                     failedNodeIds = Collections.emptySet();
                 }
                 String message = "failed shard on node [" + shardToFail.currentNodeId() + "]: " + failedShardEntry.getMessage();
+                boolean nodeIsRestarting = Optional.ofNullable(clusterState.metadata().nodeShutdowns().get(shardToFail.currentNodeId()))
+                    .map(shutdownInfo -> shutdownInfo.getType().equals(Type.RESTART))
+                    .orElse(false);
                 UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, message,
                     failedShardEntry.getFailure(), failedAllocations + 1, currentNanoTime, System.currentTimeMillis(), false,
-                    AllocationStatus.NO_ATTEMPT, failedNodeIds, shardToFail.currentNodeId());
+                    AllocationStatus.NO_ATTEMPT, failedNodeIds, shardToFail.currentNodeId(), nodeIsRestarting);
                 if (failedShardEntry.markAsStale()) {
                     allocation.removeAllocationId(failedShard);
                 }
@@ -320,8 +323,8 @@ public class AllocationService {
                             false,
                             unassignedInfo.getLastAllocationStatus(),
                             unassignedInfo.getFailedNodeIds(),
-                            unassignedInfo.getLastAllocatedNodeId()
-                        ),
+                            unassignedInfo.getLastAllocatedNodeId(),
+                            unassignedInfo.isLastAllocatedNodeIsRestarting()),
                         shardRouting.recoverySource(),
                         allocation.changes()
                     );
@@ -349,8 +352,8 @@ public class AllocationService {
                     unassignedInfo.isDelayed(),
                     unassignedInfo.getLastAllocationStatus(),
                     Collections.emptySet(),
-                    unassignedInfo.getLastAllocatedNodeId()
-                ),
+                    unassignedInfo.getLastAllocatedNodeId(),
+                    unassignedInfo.isLastAllocatedNodeIsRestarting()),
                 shardRouting.recoverySource(),
                 allocation.changes()
             );
@@ -505,9 +508,12 @@ public class AllocationService {
                     .orElse(false);
                 boolean delayed = delayedDueToKnownRestart
                     || INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).nanos() > 0;
+                boolean nodeIsRestarting = Optional.ofNullable(nodesShutdownMetadata.get(shardRouting.currentNodeId()))
+                    .map(shutdownInfo -> shutdownInfo.getType().equals(Type.RESTART))
+                    .orElse(false);
                 UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "node_left [" + node.nodeId() + "]",
                     null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), delayed, AllocationStatus.NO_ATTEMPT,
-                    Collections.emptySet(), shardRouting.currentNodeId());
+                    Collections.emptySet(), shardRouting.currentNodeId(), nodeIsRestarting);
                 allocation.routingNodes().failShard(logger, shardRouting, unassignedInfo, indexMetadata, allocation.changes());
             }
             // its a dead node, remove it, note, its important to remove it *after* we apply failed shard

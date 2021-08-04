@@ -15,6 +15,7 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -38,6 +39,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -65,6 +67,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final Map<ShardId, List<ShardRouting>> assignedShards = new HashMap<>();
 
+    private final Map<String, SingleNodeShutdownMetadata> nodeShutdowns;
+
     private final boolean readOnly;
 
     private int inactivePrimaryCount = 0;
@@ -83,6 +87,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     public RoutingNodes(ClusterState clusterState, boolean readOnly) {
         this.readOnly = readOnly;
         final RoutingTable routingTable = clusterState.routingTable();
+        nodeShutdowns = clusterState.metadata().nodeShutdowns();
 
         Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = new HashMap<>();
         // fill in the nodeToShards with the "live" nodes
@@ -533,6 +538,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         // re-resolve replica as earlier iteration could have changed source/target of replica relocation
                         ShardRouting replicaShard = getByAllocationId(routing.shardId(), routing.allocationId().getId());
                         assert replicaShard != null : "failed to re-resolve " + routing + " when failing replicas";
+                        boolean nodeIsRestarting = Optional.ofNullable(nodeShutdowns.get(replicaShard.currentNodeId()))
+                            .map(shutdownInfo -> shutdownInfo.getType().equals(SingleNodeShutdownMetadata.Type.RESTART))
+                            .orElse(false);
                         UnassignedInfo primaryFailedUnassignedInfo = new UnassignedInfo(
                             UnassignedInfo.Reason.PRIMARY_FAILED,
                             "primary failed while replica initializing",
@@ -543,8 +551,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             false,
                             AllocationStatus.NO_ATTEMPT,
                             Collections.emptySet(),
-                            routing.currentNodeId()
-                        );
+                            routing.currentNodeId(),
+                            nodeIsRestarting);
                         failShard(logger, replicaShard, primaryFailedUnassignedInfo, indexMetadata, routingChangesObserver);
                     }
                 }
@@ -877,8 +885,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         currInfo.isDelayed(),
                         allocationStatus,
                         currInfo.getFailedNodeIds(),
-                        currInfo.getLastAllocatedNodeId()
-                    );
+                        currInfo.getLastAllocatedNodeId(),
+                        currInfo.isLastAllocatedNodeIsRestarting());
                     ShardRouting updatedShard = shard.updateUnassigned(newInfo, shard.recoverySource());
                     changes.unassignedInfoUpdated(shard, newInfo);
                     shard = updatedShard;

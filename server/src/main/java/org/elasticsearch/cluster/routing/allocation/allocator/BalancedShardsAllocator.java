@@ -138,11 +138,23 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final ShardRouting shardRouting = unassignedIterator.next();
             final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
             if (shardRouting.primary() && unassignedInfo.getLastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
-                unassignedIterator.updateUnassigned(new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo.getMessage(),
-                        unassignedInfo.getFailure(), unassignedInfo.getNumFailedAllocations(), unassignedInfo.getUnassignedTimeInNanos(),
-                        unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(), AllocationStatus.DECIDERS_NO,
-                        unassignedInfo.getFailedNodeIds(), unassignedInfo.getLastAllocatedNodeId()),
-                    shardRouting.recoverySource(), allocation.changes());
+                unassignedIterator.updateUnassigned(
+                    new UnassignedInfo(
+                        unassignedInfo.getReason(),
+                        unassignedInfo.getMessage(),
+                        unassignedInfo.getFailure(),
+                        unassignedInfo.getNumFailedAllocations(),
+                        unassignedInfo.getUnassignedTimeInNanos(),
+                        unassignedInfo.getUnassignedTimeInMillis(),
+                        unassignedInfo.isDelayed(),
+                        AllocationStatus.DECIDERS_NO,
+                        unassignedInfo.getFailedNodeIds(),
+                        unassignedInfo.getLastAllocatedNodeId(),
+                        unassignedInfo.isLastAllocatedNodeIsRestarting()
+                    ),
+                    shardRouting.recoverySource(),
+                    allocation.changes()
+                );
             }
         }
     }

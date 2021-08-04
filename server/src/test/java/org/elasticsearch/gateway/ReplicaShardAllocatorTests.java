@@ -190,8 +190,19 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null);
         } else {
             failedNodeIds = new HashSet<>(randomSubsetOf(Set.of("node-4", "node-5", "node-6", "node-7")));
-            unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, null, null, randomIntBetween(1, 10),
-                System.nanoTime(), System.currentTimeMillis(), false, UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodeIds, null);
+            unassignedInfo = new UnassignedInfo(
+                UnassignedInfo.Reason.ALLOCATION_FAILED,
+                null,
+                null,
+                randomIntBetween(1, 10),
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                failedNodeIds,
+                null,
+                false
+            );
         }
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders(), unassignedInfo);
         long retainingSeqNo = randomLongBetween(1, Long.MAX_VALUE);
@@ -375,8 +386,19 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         if (randomBoolean()) {
             unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null);
         } else {
-            unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, null, null, randomIntBetween(1, 10),
-                System.nanoTime(), System.currentTimeMillis(), false, UnassignedInfo.AllocationStatus.NO_ATTEMPT, Set.of("node-4"), null);
+            unassignedInfo = new UnassignedInfo(
+                UnassignedInfo.Reason.ALLOCATION_FAILED,
+                null,
+                null,
+                randomIntBetween(1, 10),
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Set.of("node-4"),
+                null,
+                false
+            );
         }
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders(), unassignedInfo);
         List<RetentionLease> retentionLeases = new ArrayList<>();
@@ -417,7 +439,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         }
         UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, null, null,
             randomIntBetween(failedNodes.size(), 10), System.nanoTime(), System.currentTimeMillis(), false,
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodes, null);
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodes, null, false);
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders(), unassignedInfo);
         long retainingSeqNoOnPrimary = randomLongBetween(0, Long.MAX_VALUE);
         List<RetentionLease> retentionLeases = Arrays.asList(
@@ -454,7 +476,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                                             RecoverySource.PeerRecoverySource.INSTANCE,
                                             new UnassignedInfo(reason, null, null, failedAllocations, System.nanoTime(),
                                                 System.currentTimeMillis(), delayed, UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                                                Collections.emptySet(), null)))
+                                                Collections.emptySet(), null, false)))
                                         .build())
                 )
                 .build();

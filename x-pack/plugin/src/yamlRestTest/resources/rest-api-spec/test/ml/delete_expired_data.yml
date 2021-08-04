@@ -18,7 +18,6 @@ setup:
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             },
             "results_retention_days" : 1,
-            "system_annotations_retention_days" : 1,
             "model_snapshot_retention_days" : 1
           }
 
@@ -39,7 +38,6 @@ setup:
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             },
             "results_retention_days" : 1,
-            "system_annotations_retention_days" : 1,
             "model_snapshot_retention_days" : 1
           }
 

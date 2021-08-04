@@ -79,7 +79,8 @@ public class BootstrapPasswordAndEnrollmentForInitialNode extends BaseClientAwar
 
     BootstrapPasswordAndEnrollmentForInitialNode(Function<Environment, CommandLineHttpClient> clientFunction,
                                                  CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction,
-                                                 CheckedFunction<Environment, CreateEnrollmentToken, Exception> createEnrollmentTokenFunction){
+                                                 CheckedFunction<Environment, CreateEnrollmentToken, Exception>
+                                                     createEnrollmentTokenFunction){
         super(clientFunction, keyStoreFunction, "Set elastic password and generate enrollment token for initial node");
         this.createEnrollmentTokenFunction = createEnrollmentTokenFunction;
         parser.allowsUnrecognizedOptions();

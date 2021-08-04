@@ -115,7 +115,7 @@ setup:
   - match: { testindex.shards.0.stats.fields.price.inverted_index.proximity: 0 }
   - match: { testindex.shards.0.stats.fields.price.stored_fields: 0 }
   - gt: { testindex.shards.0.stats.fields.price.doc_values: 0 }
-  - match: { testindex.shards.0.stats.fields.price.points: 0 }
+  - match: { testindex.shards.0.stats.fields.price.points: 1 }
   - match: { testindex.shards.0.stats.fields.price.norms: 0 }
   - match: { testindex.shards.0.stats.fields.price.term_vectors: 0 }
   - match: { testindex.shards.0.stats.fields.price.inverted_index.term_frequencies: 0 }

@@ -12,7 +12,7 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest;
 
 class AutobackportFuncTest extends AbstractGradleFuncTest {
 
-    def "can run rewrite"() {
+    def "can run rewrite to backport java util methods"() {
         when:
         setupRewriteYamlConfig()
         def sourceFile = file("src/main/java/org/acme/SomeClass.java")
@@ -55,7 +55,7 @@ class SomeClass {
         """
 
         then:
-        gradleRunner("rewriteRun").build()
+        gradleRunner("rewrite").build()
 
         sourceFile.text == """
 package org.acme;

@@ -29,7 +29,7 @@ import javax.inject.Inject;
  */
 public class RewritePlugin implements Plugin<Project> {
 
-    public static final String REWRITE_TASKNAME = "rewriteRun";
+    public static final String REWRITE_TASKNAME = "rewrite";
     private ProviderFactory providerFactory;
     private ProjectLayout projectLayout;
 
@@ -44,13 +44,10 @@ public class RewritePlugin implements Plugin<Project> {
         final RewriteExtension extension = project.getExtensions().create("rewrite", RewriteExtension.class);
         // Rewrite module dependencies put here will be available to all rewrite tasks
         Configuration rewriteConf = project.getConfigurations().maybeCreate("rewrite");
-        rewriteConf.getResolutionStrategy().eachDependency(new Action<DependencyResolveDetails>() {
-            @Override
-            public void execute(DependencyResolveDetails details) {
-                ModuleVersionSelector requested = details.getRequested();
-                if (requested.getGroup().equals("org.openrewrite") && requested.getVersion().isBlank() ||  requested.getVersion() == null) {
-                    details.useVersion(extension.getRewriteVersion());
-                }
+        rewriteConf.getResolutionStrategy().eachDependency(details -> {
+            ModuleVersionSelector requested = details.getRequested();
+            if (requested.getGroup().equals("org.openrewrite") && requested.getVersion().isBlank() ||  requested.getVersion() == null) {
+                details.useVersion(extension.getRewriteVersion());
             }
         });
         RewriteTask rewriteTask = project.getTasks().create(REWRITE_TASKNAME, RewriteTask.class, rewriteConf, extension);

@@ -229,7 +229,7 @@ public class MetadataCreateDataStreamService {
 
         List<String> aliases = new ArrayList<>();
         List<Map<String, AliasMetadata>> resolvedAliases =
-            MetadataIndexTemplateService.resolveAliases(currentState.metadata(), template, false);
+            MetadataIndexTemplateService.resolveAliases(currentState.metadata(), template);
         for (Map<String, AliasMetadata> resolvedAliasMap : resolvedAliases) {
             for (AliasMetadata alias : resolvedAliasMap.values()) {
                 aliases.add(alias.getAlias());

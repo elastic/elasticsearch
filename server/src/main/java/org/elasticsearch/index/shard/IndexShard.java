@@ -306,8 +306,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final Runnable globalCheckpointSyncer,
             final RetentionLeaseSyncer retentionLeaseSyncer,
             final CircuitBreakerService circuitBreakerService,
-            final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-            boolean isDataStreamIndex) throws IOException {
+            final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -390,7 +389,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
-        this.isDataStreamIndex = isDataStreamIndex;
+        this.isDataStreamIndex = mapperService.mappingLookup().isDataStreamTimestampFieldEnabled();
     }
 
     public ThreadPool getThreadPool() {

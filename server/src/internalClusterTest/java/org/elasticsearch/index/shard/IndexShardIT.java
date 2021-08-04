@@ -578,8 +578,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 () -> {},
                 RetentionLeaseSyncer.EMPTY,
                 cbs,
-                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-                false);
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
     }
 
     private static ShardRouting getInitializingShardRouting(ShardRouting existingShardRouting) {

@@ -396,8 +396,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     globalCheckpointSyncer,
                     retentionLeaseSyncer,
                     breakerService,
-                    IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-                    false);
+                    IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
         } finally {

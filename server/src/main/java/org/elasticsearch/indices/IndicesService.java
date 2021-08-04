@@ -771,14 +771,13 @@ public class IndicesService extends AbstractLifecycleComponent
             final Consumer<ShardId> globalCheckpointSyncer,
             final RetentionLeaseSyncer retentionLeaseSyncer,
             final DiscoveryNode targetNode,
-            final DiscoveryNode sourceNode,
-            final boolean isDataStreamIndex) throws IOException {
+            final DiscoveryNode sourceNode) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer, isDataStreamIndex);
+        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService,
             mapping -> {

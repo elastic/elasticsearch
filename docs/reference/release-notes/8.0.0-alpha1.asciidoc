@@ -383,7 +383,7 @@ Snapshot/Restore::
 
 TLS::
 * Add `ChaCha20` TLS ciphers on Java 12+ {es-pull}42155[#42155]
-* Add support for `KeyStore` filters to ssl-config {es-pull}75407[#75407]
+* Add support for `KeyStore` filters to `ssl-config` {es-pull}75407[#75407]
 * Update TLS ciphers and protocols for JDK 11 {es-pull}41808[#41808] (issues: {es-issue}38646[#38646], {es-issue}41385[#41385])
 
 
@@ -470,5 +470,4 @@ Snapshot/Restore::
 
 Lucene::
 * Upgrade to Lucene 8.9.0 {es-pull}74729[#74729]
-
 

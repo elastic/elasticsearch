@@ -900,6 +900,15 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(targetRoutingNumberOfShards, is(9));
     }
 
+    public void testGetIndexNumberOfRoutingShardsWhenNullConfigured() {
+        Settings indexSettings = settings(Version.CURRENT)
+            .put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), (String) null)
+            .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
+            .build();
+        int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, null);
+        assertThat(targetRoutingNumberOfShards, is(1024));
+    }
+
     public void testGetIndexNumberOfRoutingShardsYieldsSourceNumberOfShards() {
         Settings indexSettings = Settings.builder()
             .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)

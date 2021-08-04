@@ -2911,7 +2911,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return;
             }
             final boolean added = ongoingRestores.add(shardId);
-            assert added : "tried to add restore for [" + shardId + "] but one was already running";
+            assert added : "add restore for [" + shardId + "] that already has an existing restore";
         }
         executor.execute(ActionRunnable.wrap(ActionListener.runAfter(restoreListener, () -> {
             final List<ActionListener<Void>> onEmptyListeners;

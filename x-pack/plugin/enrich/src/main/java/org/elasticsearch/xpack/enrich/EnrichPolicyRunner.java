@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.enrich;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.document.FieldType;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -18,6 +19,9 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
@@ -53,11 +57,14 @@ import org.elasticsearch.xpack.enrich.action.EnrichReindexAction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
@@ -232,19 +239,59 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy) {
-        // Currently the only supported policy type is EnrichPolicy.MATCH_TYPE, which is a keyword type
-        final String keyType;
-        final CheckedFunction<XContentBuilder, XContentBuilder, IOException> matchFieldMapping;
+    private void resolveEnrichMapping(final EnrichPolicy policy, ActionListener<XContentBuilder> resultListener) {
         if (EnrichPolicy.MATCH_TYPE.equals(policy.getType())) {
-            matchFieldMapping = (builder) -> builder.field("type", "keyword").field("doc_values", false);
+            GetFieldMappingsRequest fieldMappingsRequest = new GetFieldMappingsRequest()
+                .indices(policy.getIndices().stream().toArray(String[]::new))
+                .fields(policy.getMatchField());
+            client.execute(GetFieldMappingsAction.INSTANCE, fieldMappingsRequest, listener.delegateFailure((l, response) -> {
+                List<String> types = response.mappings().values().stream()
+                    .map(Map::values)
+                    .flatMap(Collection::stream)
+                    .map(data -> ((Map<String,String>)data.sourceAsMap().getOrDefault(policy.getMatchField(), Map.of("type", "unknown"))).get("type"))
+                    .distinct()
+                    .collect(Collectors.toList());
+                if(types.isEmpty()) {
+                    resultListener.onFailure(new ElasticsearchException(
+                        "No mapping type found for match field '{}' - indices({})",
+                        policy.getMatchField(),
+                        Strings.collectionToCommaDelimitedString(policy.getIndices())
+                    ));
+                } else if(types.size() > 1) {
+                    resultListener.onFailure(new ElasticsearchException(
+                        "Multiple distinct mapping types for match field '{}' - indices({})  types({})",
+                        policy.getMatchField(),
+                        Strings.collectionToCommaDelimitedString(policy.getIndices()),
+                        Strings.collectionToCommaDelimitedString(types)
+                    ));
+                } else {
+                    createEnrichMappingBuilder((builder) -> builder.field("type", resolveMatchType(types.get(0))).field("doc_values", false), resultListener);
+                }
+            }));
             // No need to also configure index_options, because keyword type defaults to 'docs'.
         } else if (EnrichPolicy.GEO_MATCH_TYPE.equals(policy.getType())) {
-            matchFieldMapping = (builder) -> builder.field("type", "geo_shape");
+            createEnrichMappingBuilder((builder) -> builder.field("type", "geo_shape"), resultListener);
         } else {
-            throw new ElasticsearchException("Unrecognized enrich policy type [{}]", policy.getType());
+            resultListener.onFailure(new ElasticsearchException("Unrecognized enrich policy type [{}]", policy.getType()));
         }
+    }
 
+    private String resolveMatchType(String type) {
+        switch (type) {
+            case "integer_range":
+            case "float_range":
+            case "long_range":
+            case "double_range":
+            case "date_range":
+            case "ip_range":
+                return type;
+            case "text": // exact matching only ?
+            default:
+                return "keyword";
+        }
+    }
+
+    private void createEnrichMappingBuilder(CheckedFunction<XContentBuilder, XContentBuilder , IOException> matchFieldMapping, ActionListener<XContentBuilder> resultListener) {
         // Enable _source on enrich index. Explicitly mark key mapping type.
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
@@ -277,9 +324,9 @@ public class EnrichPolicyRunner implements Runnable {
                 builder.endObject();
             }
             builder.endObject();
-            return builder;
+            resultListener.onResponse(builder);
         } catch (IOException ioe) {
-            throw new UncheckedIOException("Could not render enrich mapping", ioe);
+            resultListener.onFailure(new UncheckedIOException("Could not render enrich mapping", ioe));
         }
     }
 
@@ -294,15 +341,17 @@ public class EnrichPolicyRunner implements Runnable {
             // This disables eager global ordinals loading for all fields:
             .put("index.warmer.enabled", false)
             .build();
-        CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
-        createEnrichIndexRequest.mapping(resolveEnrichMapping(policy));
-        logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);
-        enrichOriginClient().admin()
-            .indices()
-            .create(
-                createEnrichIndexRequest,
-                listener.delegateFailure((l, createIndexResponse) -> prepareReindexOperation(enrichIndexName))
-            );
+        resolveEnrichMapping(policy, listener.delegateFailure((listener, result) -> {
+            CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
+            createEnrichIndexRequest.mapping(result);
+            logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);
+            enrichOriginClient().admin()
+                .indices()
+                .create(
+                    createEnrichIndexRequest,
+                    listener.delegateFailure((l, createIndexResponse) -> prepareReindexOperation(enrichIndexName))
+                );
+        }));
     }
 
     private void prepareReindexOperation(final String destinationIndexName) {

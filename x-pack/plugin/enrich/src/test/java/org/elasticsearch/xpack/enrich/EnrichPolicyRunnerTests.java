@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -247,6 +248,91 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(enrichDocument.size(), is(equalTo(2)));
         assertThat(enrichDocument.get("location"), is(equalTo("POINT(10.0 10.0)")));
         assertThat(enrichDocument.get("zipcode"), is(equalTo(90210)));
+
+        // Validate segments
+        validateSegments(createdEnrichIndex, 1);
+
+        // Validate Index is read only
+        ensureEnrichIndexIsReadOnly(createdEnrichIndex);
+    }
+
+    public void testRunnerMatchTypeWithIpRange() throws Exception {
+        final String sourceIndexName = "source-index";
+        createIndex(sourceIndexName,Settings.EMPTY,"_doc","subnet", "type=ip_range");
+        IndexResponse indexRequest = client().index(
+            new IndexRequest().index(sourceIndexName)
+                .id("id")
+                .source("{" + "\"subnet\":" + "\"10.0.0.0/8\"," + "\"department\":\"research\"" + "}", XContentType.JSON)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        ).actionGet();
+        assertEquals(RestStatus.CREATED, indexRequest.status());
+
+        GetIndexResponse sourceIndex = client().admin().indices().getIndex(new GetIndexRequest().indices(sourceIndexName)).actionGet();
+        // Validate Mapping
+        Map<String, Object> sourceIndexMapping = sourceIndex.getMappings().get(sourceIndexName).sourceAsMap();
+        Map<?, ?> sourceIndexProperties = (Map<?, ?>) sourceIndexMapping.get("properties");
+        Map<?, ?> subnetField = (Map<?, ?>) sourceIndexProperties.get("subnet");
+        assertNotNull(subnetField);
+        assertThat(subnetField.get("type"), is(equalTo("ip_range")));
+
+        SearchResponse sourceSearchResponse = client().search(
+            new SearchRequest(sourceIndexName).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
+        ).actionGet();
+        assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+        Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
+        assertNotNull(sourceDocMap);
+        assertThat(sourceDocMap.get("subnet"), is(equalTo("10.0.0.0/8")));
+        assertThat(sourceDocMap.get("department"), is(equalTo("research")));
+
+        List<String> enrichFields = List.of("department");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndexName), "subnet", enrichFields);
+        String policyName = "test1";
+
+        final long createTime = randomNonNegativeLong();
+        final AtomicReference<Exception> exception = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
+
+        logger.info("Starting policy run");
+        enrichPolicyRunner.run();
+        latch.await();
+        if (exception.get() != null) {
+            throw exception.get();
+        }
+
+        // Validate Index definition
+        String createdEnrichIndex = ".enrich-test1-" + createTime;
+        GetIndexResponse enrichIndex = client().admin().indices().getIndex(new GetIndexRequest().indices(".enrich-test1")).actionGet();
+        assertThat(enrichIndex.getIndices().length, equalTo(1));
+        assertThat(enrichIndex.getIndices()[0], equalTo(createdEnrichIndex));
+        Settings settings = enrichIndex.getSettings().get(createdEnrichIndex);
+        assertNotNull(settings);
+        assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
+
+        // Validate Mapping
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
+        validateMappingMetadata(mapping, policyName, policy);
+        assertThat(mapping.get("dynamic"), is("false"));
+        Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
+        assertNotNull(properties);
+        assertThat(properties.size(), is(equalTo(1)));
+        Map<?, ?> field1 = (Map<?, ?>) properties.get("subnet");
+        assertNotNull(field1);
+        assertThat(field1.get("type"), is(equalTo("ip_range")));
+        assertThat(field1.get("doc_values"), is(false));
+
+        // Validate document structure and lookup of element in range
+        SearchResponse enrichSearchResponse = client().search(
+            new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("subnet", "10.0.0.1")))
+        ).actionGet();
+
+        assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+        Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
+        assertNotNull(enrichDocument);
+        assertThat(enrichDocument.size(), is(equalTo(2)));
+        assertThat(enrichDocument.get("subnet"), is(equalTo("10.0.0.0/8")));
+        assertThat(enrichDocument.get("department"), is(equalTo("research")));
 
         // Validate segments
         validateSegments(createdEnrichIndex, 1);

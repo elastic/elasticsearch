@@ -107,6 +107,9 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceKeyInDo("rollup.start_job", "xpack-rollup.start_job")
   task.replaceKeyInDo("rollup.stop_job", "xpack-rollup.stop_job")
   task.addAllowedWarningRegex(".*_xpack/rollup.* is deprecated.*")
+
+  task.replaceKeyInDo("ssl.certificates", "xpack-ssl.certificates")
+  task.addAllowedWarningRegex(".*_xpack/ssl.* is deprecated.*")
 })
 def v7compatibilityNotSupportedTests = {
   return [

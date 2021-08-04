@@ -124,7 +124,7 @@ public final class BinaryDocValuesRangeQuery extends Query {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (sameClassAs(o) == false) return false;
         BinaryDocValuesRangeQuery that = (BinaryDocValuesRangeQuery) o;
         return Objects.equals(fieldName, that.fieldName) &&
                 queryType == that.queryType &&
@@ -135,7 +135,7 @@ public final class BinaryDocValuesRangeQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(getClass(), fieldName, queryType, lengthType, from, to);
+        return Objects.hash(classHash(), fieldName, queryType, lengthType, from, to);
     }
 
     public enum QueryType {

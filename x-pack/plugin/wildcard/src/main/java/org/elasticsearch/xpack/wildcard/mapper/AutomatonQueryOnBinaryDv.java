@@ -91,9 +91,9 @@ public class AutomatonQueryOnBinaryDv extends Query {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
+        if (sameClassAs(obj) == false) {
             return false;
-          }
+        }
         AutomatonQueryOnBinaryDv other = (AutomatonQueryOnBinaryDv) obj;
         return Objects.equals(field, other.field)  && Objects.equals(matchPattern, other.matchPattern)
             && Objects.equals(bytesMatcher, other.bytesMatcher);
@@ -101,7 +101,7 @@ public class AutomatonQueryOnBinaryDv extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, matchPattern, bytesMatcher);
+        return Objects.hash(classHash(), field, matchPattern, bytesMatcher);
     }
 
     @Override

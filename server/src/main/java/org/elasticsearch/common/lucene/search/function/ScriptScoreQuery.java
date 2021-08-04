@@ -167,7 +167,7 @@ public class ScriptScoreQuery extends Query {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (sameClassAs(o) == false) return false;
         ScriptScoreQuery that = (ScriptScoreQuery) o;
         return shardId == that.shardId &&
             subQuery.equals(that.subQuery) &&
@@ -179,7 +179,7 @@ public class ScriptScoreQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(subQuery, script, minScore, indexName, shardId, indexVersion);
+        return Objects.hash(classHash(), subQuery, script, minScore, indexName, shardId, indexVersion);
     }
 
 

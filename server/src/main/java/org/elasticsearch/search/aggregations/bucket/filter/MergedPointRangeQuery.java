@@ -173,7 +173,7 @@ public class MergedPointRangeQuery extends Query {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
+        if (sameClassAs(obj) == false) {
             return false;
         }
         MergedPointRangeQuery other = (MergedPointRangeQuery) obj;

@@ -163,16 +163,7 @@ public class FeatureFactory {
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(Polygon polygon) throws RuntimeException {
-            final org.locationtech.jts.geom.Polygon jtsPolygon = buildPolygon(polygon);
-            if (jtsPolygon.isValid() == false) {
-                // we only simplify the polygon if is valid, otherwise algorithm might fail.
-                return jtsPolygon;
-            }
-            if (jtsPolygon.contains(tile)) {
-                // shortcut, we return the tile
-                return tile;
-            }
-            return TopologyPreservingSimplifier.simplify(jtsPolygon, pixelPrecision);
+            return simplifyGeometry(buildPolygon(polygon));
         }
 
         @Override
@@ -182,16 +173,19 @@ public class FeatureFactory {
                 final org.locationtech.jts.geom.Polygon jtsPolygon = buildPolygon(multiPolygon.get(i));
                 polygons[i] = jtsPolygon;
             }
-            org.locationtech.jts.geom.MultiPolygon jtsMultiPolygon = geomFactory.createMultiPolygon(polygons);
-            if (jtsMultiPolygon.isValid() == false) {
-                // we only simplify the multi-polygon if is valid, otherwise algorithm might fail.
-                return jtsMultiPolygon;
+            return simplifyGeometry(geomFactory.createMultiPolygon(polygons));
+        }
+
+        private org.locationtech.jts.geom.Geometry simplifyGeometry(org.locationtech.jts.geom.Geometry geometry) {
+            if (geometry.isValid() == false) {
+                // we only simplify the geometry if it is valid, otherwise algorithm might fail.
+                return geometry;
             }
-            if (jtsMultiPolygon.contains(tile)) {
+            if (geometry.contains(tile)) {
                 // shortcut, we return the tile
                 return tile;
             }
-            return TopologyPreservingSimplifier.simplify(jtsMultiPolygon, pixelPrecision);
+            return TopologyPreservingSimplifier.simplify(geometry, pixelPrecision);
         }
 
         private org.locationtech.jts.geom.Polygon buildPolygon(Polygon polygon) {

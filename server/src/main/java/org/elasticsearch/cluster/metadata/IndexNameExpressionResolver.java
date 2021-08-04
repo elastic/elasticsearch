@@ -764,10 +764,6 @@ public class IndexNameExpressionResolver {
         return false;
     }
 
-    public boolean isSystemName(String name) {
-        return systemIndices.isSystemName(name);
-    }
-
     public SystemIndexAccessLevel getSystemIndexAccessLevel() {
         final SystemIndexAccessLevel accessLevel = systemIndices.getSystemIndexAccessLevel(threadContext);
         assert accessLevel != SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY

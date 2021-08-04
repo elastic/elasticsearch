@@ -61,6 +61,11 @@ public abstract class IpFieldScript extends AbstractFieldScript {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
                 return new IpFieldScript(leafFieldName, params, searchLookup, ctx) {
                     @Override
+                    public void setDocument(int docId) {
+                        compositeFieldScript.setDocument(docId);
+                    }
+
+                    @Override
                     public void execute() {
                         emitFromCompositeScript(compositeFieldScript);
                     }

@@ -97,7 +97,7 @@ query:
             response:
               terms:
                 field: http.response
-  - match: {hits.total.value: 6}
+  - match: {hits.total.value: 7}
   - match: {aggregations.response.buckets.0.key: 200 }
   - match: {aggregations.response.buckets.0.doc_count: 5 }
   - match: {aggregations.response.buckets.1.key: 304 }

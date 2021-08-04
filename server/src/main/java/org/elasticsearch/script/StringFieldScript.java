@@ -47,6 +47,11 @@ public abstract class StringFieldScript extends AbstractFieldScript {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
                 return new StringFieldScript(leafFieldName, params, searchLookup, ctx) {
                     @Override
+                    public void setDocument(int docId) {
+                        compositeFieldScript.setDocument(docId);
+                    }
+
+                    @Override
                     public void execute() {
                         emitFromCompositeScript(compositeFieldScript);
                     }

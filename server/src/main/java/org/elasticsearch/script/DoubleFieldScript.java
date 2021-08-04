@@ -40,6 +40,11 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
                 return new DoubleFieldScript(leafFieldName, params, searchLookup, ctx) {
                     @Override
+                    public void setDocument(int docId) {
+                        compositeFieldScript.setDocument(docId);
+                    }
+
+                    @Override
                     public void execute() {
                         emitFromCompositeScript(compositeFieldScript);
                     }

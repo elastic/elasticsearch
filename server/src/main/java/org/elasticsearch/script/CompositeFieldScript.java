@@ -93,6 +93,9 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
          * @param subfields the map that holds the key-value pairs
          */
         public void emit(Map<String, Object> subfields) {
+            if (subfields == null) {
+                return;
+            }
             for (Map.Entry<String, Object> entry : subfields.entrySet()) {
                 script.emit(entry.getKey(), entry.getValue());
             }

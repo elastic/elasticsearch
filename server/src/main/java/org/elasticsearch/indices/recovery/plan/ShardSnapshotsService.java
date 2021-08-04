@@ -11,6 +11,7 @@ package org.elasticsearch.indices.recovery.plan;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotRequest;
@@ -31,6 +32,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.indices.recovery.RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION;
 
 public class ShardSnapshotsService {
     private final Logger logger = LogManager.getLogger(ShardSnapshotsService.class);
@@ -38,11 +42,16 @@ public class ShardSnapshotsService {
     private final Client client;
     private final RepositoriesService repositoriesService;
     private final ThreadPool threadPool;
+    private final Supplier<Version> masterNodeVersionSupplier;
 
-    public ShardSnapshotsService(Client client, RepositoriesService repositoriesService, ThreadPool threadPool) {
+    public ShardSnapshotsService(Client client,
+                                 RepositoriesService repositoriesService,
+                                 ThreadPool threadPool,
+                                 Supplier<Version> masterNodeVersionSupplier) {
         this.client = client;
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
+        this.masterNodeVersionSupplier = masterNodeVersionSupplier;
     }
 
     public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
@@ -66,6 +75,10 @@ public class ShardSnapshotsService {
     }
 
     private void sendRequest(GetShardSnapshotRequest request, ActionListener<List<ShardSnapshot>> listener) {
+        if (masterNodeVersionSupplier.get().onOrAfter(SNAPSHOT_RECOVERIES_SUPPORTED_VERSION) == false) {
+            listener.onResponse(Collections.emptyList());
+        }
+
         client.execute(GetShardSnapshotAction.INSTANCE,
             request,
             new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, listener.map(this::fetchSnapshotFiles), false)

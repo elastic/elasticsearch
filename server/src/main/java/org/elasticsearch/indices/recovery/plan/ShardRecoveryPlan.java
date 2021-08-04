@@ -30,11 +30,11 @@ public class ShardRecoveryPlan {
     private final int translogOps;
 
     public ShardRecoveryPlan(SnapshotFilesToRecover snapshotFilesToRecover,
-                      List<StoreFileMetadata> sourceFilesToRecover,
-                      List<StoreFileMetadata> filesPresentInTarget,
-                      long startingSeqNo,
-                      int translogOps,
-                      Store.MetadataSnapshot sourceMetadataSnapshot) {
+                             List<StoreFileMetadata> sourceFilesToRecover,
+                             List<StoreFileMetadata> filesPresentInTarget,
+                             long startingSeqNo,
+                             int translogOps,
+                             Store.MetadataSnapshot sourceMetadataSnapshot) {
         this.snapshotFilesToRecover = snapshotFilesToRecover;
         this.sourceFilesToRecover = sourceFilesToRecover;
         this.filesPresentInTarget = filesPresentInTarget;

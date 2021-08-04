@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.recovery.plan;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -19,5 +20,6 @@ public interface RecoveryPlannerService {
                              Store.MetadataSnapshot targetMetadata,
                              long startingSeqNo,
                              int translogOps,
+                             Version targetVersion,
                              ActionListener<ShardRecoveryPlan> listener);
 }

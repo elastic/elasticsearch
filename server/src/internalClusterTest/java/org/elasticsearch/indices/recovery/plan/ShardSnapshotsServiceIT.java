@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.recovery.plan;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -253,6 +254,27 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             shardSnapshotsService.fetchAvailableSnapshotsInAllRepositories(null, null));
     }
 
+    public void testFetchingInformationFromAnIncompatibleMasterNodeReturnsAnEmptyList() {
+        String indexName = "test";
+        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
+        ShardId shardId = getShardIdForIndex(indexName);
+
+        for (int i = 0; i < randomIntBetween(1, 50); i++) {
+            index(indexName, Integer.toString(i), Collections.singletonMap("foo", "bar"));
+        }
+
+        String snapshotName = "snap";
+        String repositoryName = "repo";
+        createRepository(repositoryName, "fs", randomRepoPath());
+        createSnapshot(repositoryName, snapshotName, indexName);
+
+        ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService(Version.V_7_14_0);
+
+        PlainActionFuture<List<ShardSnapshot>> latestSnapshots = PlainActionFuture.newFuture();
+        shardSnapshotsService.fetchAvailableSnapshotsInAllRepositories(shardId, latestSnapshots);
+        assertThat(latestSnapshots.actionGet(), is(empty()));
+    }
+
     private List<ShardSnapshot> getShardSnapshotShard(ShardId shardId) throws Exception {
         ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService();
 
@@ -262,9 +284,13 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
     }
 
     private ShardSnapshotsService getShardSnapshotsService() {
+        return getShardSnapshotsService(Version.CURRENT);
+    }
+
+    private ShardSnapshotsService getShardSnapshotsService(Version masterVersion) {
         RepositoriesService repositoriesService = internalCluster().getDataNodeInstance(RepositoriesService.class);
         ThreadPool threadPool = internalCluster().getDataNodeInstance(ThreadPool.class);
-        return new ShardSnapshotsService(client(), repositoriesService, threadPool);
+        return new ShardSnapshotsService(client(), repositoriesService, threadPool, () -> masterVersion);
     }
 
     private ShardId getShardIdForIndex(String indexName) {

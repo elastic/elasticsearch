@@ -479,6 +479,7 @@ public class RecoverySourceHandler {
                     request.metadataSnapshot(),
                     startingSeqNo,
                     translogOps.getAsInt(),
+                    getRequest().targetNode().getVersion(),
                     ActionListener.wrap(plan ->
                         recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, listener), listener::onFailure)
                 );

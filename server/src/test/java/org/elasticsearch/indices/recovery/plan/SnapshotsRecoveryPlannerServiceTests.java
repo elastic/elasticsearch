@@ -88,7 +88,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 targetMetadataSnapshot,
                 startingSeqNo,
                 translogOps,
-                new ShardSnapshotsService(null, null, null) {
+                new ShardSnapshotsService(null, null, null, null) {
                     @Override
                     public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         assert false: "Unexpected call";
@@ -121,7 +121,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 targetMetadataSnapshot,
                 startingSeqNo,
                 translogOps,
-                new ShardSnapshotsService(null, null, null) {
+                new ShardSnapshotsService(null, null, null, null) {
                     @Override
                     public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         if (randomBoolean()) {
@@ -164,7 +164,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 targetSourceMetadata,
                 startingSeqNo,
                 translogOps,
-                new ShardSnapshotsService(null, null, null) {
+                new ShardSnapshotsService(null, null, null, null) {
                     @Override
                     public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         listener.onResponse(Collections.singletonList(shardSnapshotData));
@@ -203,7 +203,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 targetSourceMetadata,
                 startingSeqNo,
                 translogOps,
-                new ShardSnapshotsService(null, null, null) {
+                new ShardSnapshotsService(null, null, null, null) {
                     @Override
                     public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         listener.onResponse(Collections.singletonList(shardSnapshotData));
@@ -252,7 +252,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 targetMetadataSnapshot,
                 startingSeqNo,
                 translogOps,
-                new ShardSnapshotsService(null, null, null) {
+                new ShardSnapshotsService(null, null, null, null) {
                     @Override
                     public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         listener.onResponse(availableSnapshots);
@@ -304,7 +304,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 targetMetadataSnapshot,
                 startingSeqNo,
                 translogOps,
-                new ShardSnapshotsService(null, null, null) {
+                new ShardSnapshotsService(null, null, null, null) {
                     @Override
                     public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
                         listener.onResponse(availableSnapshots);
@@ -323,6 +323,43 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         });
     }
 
+    public void testFallbacksToSourceOnlyPlanIfTargetNodeIsInUnsupportedVersion() throws Exception {
+        createStore(store -> {
+            Store.MetadataSnapshot targetMetadataSnapshot = generateRandomTargetState(store);
+
+            writeRandomDocs(store, randomIntBetween(10, 100));
+            ShardSnapshot shardSnapshot = createShardSnapshotThatSharesSegmentFiles(store, "repo");
+
+            Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
+
+            long startingSeqNo = randomNonNegativeLong();
+            int translogOps = randomIntBetween(0, 100);
+            ShardRecoveryPlan shardRecoveryPlan = computeShardRecoveryPlan(
+                "shard-id",
+                sourceMetadata,
+                targetMetadataSnapshot,
+                startingSeqNo,
+                translogOps,
+                new ShardSnapshotsService(null, null, null, null) {
+                    @Override
+                    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+                        listener.onResponse(Collections.singletonList(shardSnapshot));
+                    }
+                },
+                true,
+                Version.V_7_14_0 // Unsupported version
+            );
+
+            assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
+            assertAllSourceFilesAreAvailableInSource(shardRecoveryPlan, sourceMetadata);
+            assertAllIdenticalFilesAreAvailableInTarget(shardRecoveryPlan, targetMetadataSnapshot);
+            assertThat(shardRecoveryPlan.getSnapshotFilesToRecover(), is(equalTo(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY)));
+
+            assertThat(shardRecoveryPlan.getStartingSeqNo(), equalTo(startingSeqNo));
+            assertThat(shardRecoveryPlan.getTranslogOps(), equalTo(translogOps));
+        });
+    }
+
     private ShardRecoveryPlan computeShardRecoveryPlan(String shardIdentifier,
                                                        Store.MetadataSnapshot sourceMetadataSnapshot,
                                                        Store.MetadataSnapshot targetMetadataSnapshot,
@@ -330,6 +367,25 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                                                        int translogOps,
                                                        ShardSnapshotsService shardSnapshotsService,
                                                        boolean snapshotRecoveriesEnabled) throws Exception {
+        return computeShardRecoveryPlan(shardIdentifier,
+            sourceMetadataSnapshot,
+            targetMetadataSnapshot,
+            startingSeqNo,
+            translogOps,
+            shardSnapshotsService,
+            snapshotRecoveriesEnabled,
+            Version.CURRENT
+        );
+    }
+
+    private ShardRecoveryPlan computeShardRecoveryPlan(String shardIdentifier,
+                                                       Store.MetadataSnapshot sourceMetadataSnapshot,
+                                                       Store.MetadataSnapshot targetMetadataSnapshot,
+                                                       long startingSeqNo,
+                                                       int translogOps,
+                                                       ShardSnapshotsService shardSnapshotsService,
+                                                       boolean snapshotRecoveriesEnabled,
+                                                       Version version) throws Exception {
         SnapshotsRecoveryPlannerService recoveryPlannerService =
             new SnapshotsRecoveryPlannerService(shardSnapshotsService, snapshotRecoveriesEnabled, null);
 
@@ -340,6 +396,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             targetMetadataSnapshot,
             startingSeqNo,
             translogOps,
+            version,
             planFuture
         );
         final ShardRecoveryPlan shardRecoveryPlan = planFuture.get();

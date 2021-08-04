@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class RecoverySettings {
+    public static final Version SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = Version.V_7_15_0;
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
 

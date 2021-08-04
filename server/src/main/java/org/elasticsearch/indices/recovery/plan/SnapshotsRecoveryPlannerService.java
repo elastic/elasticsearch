@@ -11,12 +11,14 @@ package org.elasticsearch.indices.recovery.plan;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 
 import java.util.Collections;
 import java.util.List;
@@ -49,7 +51,23 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
                                     Store.MetadataSnapshot targetMetadata,
                                     long startingSeqNo,
                                     int translogOps,
+                                    Version targetVersion,
                                     ActionListener<ShardRecoveryPlan> listener) {
+        // Fallback to source only recovery if the target node is in an incompatible version
+        if (targetVersion.onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION) == false) {
+            Store.RecoveryDiff sourceTargetDiff = sourceMetadata.recoveryDiff(targetMetadata);
+            listener.onResponse(
+                new ShardRecoveryPlan(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY,
+                    concatLists(sourceTargetDiff.missing, sourceTargetDiff.different),
+                    sourceTargetDiff.identical,
+                    startingSeqNo,
+                    translogOps,
+                    sourceMetadata
+                )
+            );
+            return;
+        }
+
         fetchAvailableSnapshotsIgnoringErrors(shardId, availableSnapshots ->
             ActionListener.completeWith(listener, () ->
                 computeRecoveryPlanWithSnapshots(shardIdentifier,

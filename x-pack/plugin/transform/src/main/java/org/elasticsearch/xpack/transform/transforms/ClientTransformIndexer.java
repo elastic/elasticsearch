@@ -362,6 +362,12 @@ class ClientTransformIndexer extends TransformIndexer {
         }));
     }
 
+    /**
+     * Runs the persistent part of state storage
+     *
+     * Important: Might call into TransformTask, this should _only_ be called with an acquired indexer lock if and only if
+     * the lock for TransformTask has been acquired, too. See gh#75846
+     */
     private void doSaveState(TransformState state, ActionListener<Void> listener) {
         // This could be `null` but the putOrUpdateTransformStoredDoc handles that case just fine
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = getSeqNoPrimaryTermAndIndex();

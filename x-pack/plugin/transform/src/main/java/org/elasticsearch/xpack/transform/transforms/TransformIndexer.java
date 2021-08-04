@@ -61,7 +61,7 @@ import java.util.stream.Stream;
 
 public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformIndexerPosition, TransformIndexerStats> {
 
-    private static final int PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC = 10;
+    private static final int PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC = 5;
 
     /**
      * RunState is an internal (non-persisted) state that controls the internal logic
@@ -755,7 +755,18 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
     }
 
-    synchronized void handleFailure(Exception e) {
+    /**
+     * Checks the given exception and handles the error based on it.
+     *
+     * In case the error is permanent or the number for failures exceed the number of retries, sets the indexer
+     * to `FAILED`.
+     *
+     * Important: Might call into TransformTask, this should _only_ be called with an acquired indexer lock if and only if
+     * the lock for TransformTask has been acquired, too. See gh#75846
+     *
+     * (Note: originally this method was synchronized, which is not necessary)
+     */
+    void handleFailure(Exception e) {
         logger.warn(new ParameterizedMessage("[{}] transform encountered an exception: ", getJobId()), e);
         Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
 

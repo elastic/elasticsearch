@@ -300,6 +300,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         boolean shouldStopAtCheckpoint,
         ActionListener<Void> shouldStopAtCheckpointListener
     ) {
+        // this should be called from the generic threadpool
+        assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
         logger.debug(
             "[{}] attempted to set task to stop at checkpoint [{}] with state [{}]",
             getTransformId(),
@@ -316,9 +318,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             return;
         }
 
-        // move the call to the generic thread pool, so we do not block the network thread
-        getThreadPool().executor(ThreadPool.Names.GENERIC)
-            .execute(() -> { getIndexer().setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener); });
+        getIndexer().setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
     }
 
     public synchronized void stop(boolean force, boolean shouldStopAtCheckpoint) {

@@ -79,7 +79,8 @@ To view the `logs` policy in {kib}:
 . Select the `logs` policy.
 
 The `logs` policy uses the recommended rollover defaults: Start writing to a new
-index when the current write index reaches 50GB or becomes 30 days old.
+index when the current write index's primary shard reaches 50GB or becomes 30
+days old.
 
 To view or change the rollover settings, click **Advanced settings** for the hot
 phase. Then disable **Use recommended defaults** to display the rollover

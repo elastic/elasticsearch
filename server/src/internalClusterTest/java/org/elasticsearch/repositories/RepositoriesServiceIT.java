@@ -83,7 +83,8 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
         final Repository updatedRepository = repositoriesService.repository(repositoryName);
         assertThat(updatedRepository, updated ? not(sameInstance(originalRepository)) : sameInstance(originalRepository));
 
-        // check that a noop update does not verify.
+        // check that a noop update does not verify. Since the new data node does not share the same `path.repo`, verification will fail if
+        // it runs.
         internalCluster().startDataOnlyNode(Settings.builder().put(Environment.PATH_REPO_SETTING.getKey(), createTempDir()).build());
         assertAcked(
             client.admin().cluster().preparePutRepository(repositoryName).setType(updatedRepositoryType).setSettings(repoSettings).get()

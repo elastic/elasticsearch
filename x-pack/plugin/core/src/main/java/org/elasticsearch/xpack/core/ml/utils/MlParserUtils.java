@@ -51,7 +51,15 @@ public final class MlParserUtils {
         return values;
     }
 
-    public static double[][][] parseArrayOfArraysOfArrays(String fieldName, XContentParser parser) throws IOException {
+    /**
+     * Parses a 3 dimensional array of doubles.
+     *
+     * @param fieldName the field name
+     * @param parser the outer parser
+     * @return The 3D array of doubles
+     * @throws IOException
+     */
+    public static double[][][] parseArrayOfArraysOfArraysOfDoubles(String fieldName, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
         }
@@ -63,7 +71,6 @@ public final class MlParserUtils {
 
             List<List<Double>> innerList = new ArrayList<>();
 
-
             while(parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
                     throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
@@ -73,20 +80,17 @@ public final class MlParserUtils {
                     throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
                 }
 
-                List<Double> inin = new ArrayList<>();
+                List<Double> innerInner = new ArrayList<>();
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                     if (parser.currentToken().isValue() == false) {
                         throw new IllegalStateException("expected non-null value but got [" + parser.currentToken() + "] " +
                             "for [" + fieldName + "]");
                     }
-                    inin.add(parser.doubleValue());
+                    innerInner.add(parser.doubleValue());
                 }
-
-                innerList.add(inin);
+                innerList.add(innerInner);
             }
-
             values.add(innerList);
-
         }
 
         double [][][] val = new double[values.size()][values.get(0).size()][values.get(0).get(0).size()];

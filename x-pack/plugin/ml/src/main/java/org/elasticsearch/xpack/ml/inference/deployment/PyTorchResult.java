@@ -42,7 +42,7 @@ public class PyTorchResult implements ToXContentObject, Writeable {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REQUEST_ID);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
             (p, c) ->
-                MlParserUtils.parseArrayOfArraysOfArrays(INFERENCE.getPreferredName(), p),
+                MlParserUtils.parseArrayOfArraysOfArraysOfDoubles(INFERENCE.getPreferredName(), p),
             INFERENCE,
             ObjectParser.ValueType.VALUE_ARRAY
         );
@@ -133,7 +133,6 @@ public class PyTorchResult implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
         out.writeString(requestId);
         if (inference == null) {
             out.writeBoolean(false);

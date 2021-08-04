@@ -51,7 +51,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
-@ESIntegTestCase.ClusterScope(minNumDataNodes = 1)
 public class ShardSnapshotsServiceIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

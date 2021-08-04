@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.TransportSearchAction.FieldsOptionSourceAdapter;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.RescoreDocIds;
@@ -168,7 +167,7 @@ final class FetchSearchPhase extends SearchPhase {
         if (querySearchResult instanceof WrappedQuerySearchResult) {
             adapter = ((WrappedQuerySearchResult) querySearchResult).getAdapter();
         } else {
-            adapter = TransportSearchAction.NOOP_FIELDSADAPTER;
+            adapter = FieldsOptionSourceAdapter.NOOP_ADAPTER;
         }
         context.getSearchTransport().sendExecuteFetch(connection, fetchSearchRequest, context.getTask(),
             new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {

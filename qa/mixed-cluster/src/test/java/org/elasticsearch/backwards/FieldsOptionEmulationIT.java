@@ -75,11 +75,15 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testFieldOptionAdapterAllFields() throws Exception {
-        for (String includeSource : new String[] { "true", "false" }) {
+        for (String includeSource : new String[] { "true", "false", null }) {
             Request matchAllRequest = new Request("POST", "test_field_*/_search");
             matchAllRequest.addParameter("enable_fields_emulation", "true");
-
-            matchAllRequest.setJsonEntity("{\"_source\":" + includeSource + " ,\"fields\":[\"*\"]}");
+            if (includeSource == null) {
+                // omit _source parameter, this should behave the same as _source: true
+                matchAllRequest.setJsonEntity("{\"fields\":[\"*\"]}");
+            } else {
+                matchAllRequest.setJsonEntity("{\"_source\":" + includeSource + " ,\"fields\":[\"*\"]}");
+            }
             try (
                 RestClient client = buildClient(
                     restClientSettings(),
@@ -101,7 +105,7 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
                         // if all nodes are > 7.10 we should get full "fields" output even for subfields
                         assertTrue(((List<?>) fieldsMap.get("test.keyword")).get(0).toString().startsWith("test_"));
                     }
-                    if (includeSource.equals("true")) {
+                    if (includeSource == null || includeSource.equals("true")) {
                         assertNotNull(hit.get("_source"));
                     } else {
                         assertNull(hit.get("_source"));

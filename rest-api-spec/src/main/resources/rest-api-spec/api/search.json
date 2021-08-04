@@ -252,6 +252,11 @@
       "min_compatible_shard_node":{
         "type":"string",
         "description":"The minimum compatible version that all shards involved in search should have for this request to be successful"
+      },
+      "enable_fields_emulation":{
+        "type":"boolean",
+        "description":"Specify if fields option should be emulated on pre 7.10 nodes by fetching from source",
+        "default":"false"
       }
     },
     "body":{

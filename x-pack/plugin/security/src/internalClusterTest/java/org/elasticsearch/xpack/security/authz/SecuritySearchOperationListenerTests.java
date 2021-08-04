@@ -19,13 +19,11 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.LegacyReaderContext;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -64,25 +62,6 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         shard = indexService.getShard(0);
     }
 
-    public void testUnlicensed() {
-        final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
-        when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
-        try (LegacyReaderContext readerContext =
-                 new LegacyReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L), indexService, shard,
-                     shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
-            ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-            final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-            AuditTrailService auditTrailService = mock(AuditTrailService.class);
-            SearchContext searchContext = mock(SearchContext.class);
-            Settings disabledSecurity = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
-            SecuritySearchOperationListener listener =
-                new SecuritySearchOperationListener(securityContext, disabledSecurity, auditTrailService);
-            listener.onNewScrollContext(readerContext);
-            listener.validateReaderContext(readerContext, Empty.INSTANCE);
-            verifyZeroInteractions(auditTrailService, searchContext);
-        }
-    }
-
     public void testOnNewContextSetsAuthentication() throws Exception {
         final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
         when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
@@ -98,7 +77,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
 
             SecuritySearchOperationListener listener =
-                new SecuritySearchOperationListener(securityContext, Settings.EMPTY, auditTrailService);
+                new SecuritySearchOperationListener(securityContext, auditTrailService);
             listener.onNewScrollContext(readerContext);
 
             Authentication contextAuth = readerContext.getFromContext(AuthenticationField.AUTHENTICATION_KEY);
@@ -125,10 +104,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
             AuditTrail auditTrail = mock(AuditTrail.class);
             AuditTrailService auditTrailService =
-                new AuditTrailService(Collections.singletonList(auditTrail), licenseState, Settings.EMPTY);
+                new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
 
             SecuritySearchOperationListener listener =
-                new SecuritySearchOperationListener(securityContext, Settings.EMPTY, auditTrailService);
+                new SecuritySearchOperationListener(securityContext, auditTrailService);
             try (StoredContext ignore = threadContext.newStoredContext(false)) {
                 Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
                 authentication.writeToContext(threadContext);
@@ -215,7 +194,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
         AuditTrail auditTrail = mock(AuditTrail.class);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState, Settings.EMPTY);
+        AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
 
         final String auditId = randomAlphaOfLengthBetween(8, 20);
         ensureAuthenticatedUserIsSame(original, current, auditTrailService, contextId, action, request, auditId,

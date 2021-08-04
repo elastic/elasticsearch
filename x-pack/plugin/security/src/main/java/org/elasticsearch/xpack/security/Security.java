@@ -459,7 +459,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final List<AuditTrail> auditTrails = XPackSettings.AUDIT_ENABLED.get(settings)
                 ? Collections.singletonList(new LoggingAuditTrail(settings, clusterService, threadPool))
                 : Collections.emptyList();
-        final AuditTrailService auditTrailService = new AuditTrailService(auditTrails, getLicenseState(), settings);
+        final AuditTrailService auditTrailService = new AuditTrailService(auditTrails, getLicenseState());
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
@@ -849,7 +849,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             // attaches information to the scroll context so that we can validate the user that created the scroll against
             // the user that is executing a scroll operation
             module.addSearchOperationListener(
-                    new SecuritySearchOperationListener(securityContext.get(), settings, auditTrailService.get()));
+                    new SecuritySearchOperationListener(securityContext.get(), auditTrailService.get()));
         }
     }
 
@@ -1151,7 +1151,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         } else {
             extractClientCertificate = false;
         }
-        return handler -> new SecurityRestFilter(settings, threadContext, authcService.get(), secondayAuthc.get(),
+        return handler -> new SecurityRestFilter(threadContext, authcService.get(), secondayAuthc.get(),
             handler, extractClientCertificate);
     }
 
@@ -1184,9 +1184,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         if (enabled) {
             return index -> {
                 XPackLicenseState licenseState = getLicenseState();
-                if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
-                }
                 IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(
                         AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 if (indicesAccessControl == null) {
@@ -1881,6 +1878,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         if (enabled == false) {
             return null;
         }
-        return new DlsFlsRequestCacheDifferentiator(getLicenseState(), securityContext, scriptServiceReference, settings);
+        return new DlsFlsRequestCacheDifferentiator(getLicenseState(), securityContext, scriptServiceReference);
     }
 }

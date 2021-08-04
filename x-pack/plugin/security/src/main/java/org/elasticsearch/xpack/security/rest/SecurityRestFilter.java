@@ -13,7 +13,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.MediaType;
@@ -26,7 +25,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
@@ -42,13 +40,11 @@ public class SecurityRestFilter implements RestHandler {
     private final RestHandler restHandler;
     private final AuthenticationService authenticationService;
     private final SecondaryAuthenticator secondaryAuthenticator;
-    private final Settings settings;
     private final ThreadContext threadContext;
     private final boolean extractClientCertificate;
 
-    public SecurityRestFilter(Settings settings, ThreadContext threadContext, AuthenticationService authenticationService,
+    public SecurityRestFilter(ThreadContext threadContext, AuthenticationService authenticationService,
                               SecondaryAuthenticator secondaryAuthenticator, RestHandler restHandler, boolean extractClientCertificate) {
-        this.settings = settings;
         this.threadContext = threadContext;
         this.authenticationService = authenticationService;
         this.secondaryAuthenticator = secondaryAuthenticator;
@@ -68,34 +64,29 @@ public class SecurityRestFilter implements RestHandler {
             restHandler.handleRequest(request, channel, client);
             return;
         }
-
-        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
-            if (extractClientCertificate) {
+        if (extractClientCertificate) {
                 HttpChannel httpChannel = request.getHttpChannel();
                 SSLEngineUtils.extractClientCertificates(logger, threadContext, httpChannel);
-            }
-
-            final String requestUri = request.uri();
-            authenticationService.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(
-                authentication -> {
-                    if (authentication == null) {
-                        logger.trace("No authentication available for REST request [{}]", requestUri);
-                    } else {
-                        logger.trace("Authenticated REST request [{}] as {}", requestUri, authentication);
-                    }
-                    secondaryAuthenticator.authenticateAndAttachToContext(request, ActionListener.wrap(
-                        secondaryAuthentication -> {
-                            if (secondaryAuthentication != null) {
-                                logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, requestUri);
-                            }
-                            RemoteHostHeader.process(request, threadContext);
-                            restHandler.handleRequest(request, channel, client);
-                        },
-                        e -> handleException("Secondary authentication", request, channel, e)));
-                }, e -> handleException("Authentication", request, channel, e)));
-        } else {
-            restHandler.handleRequest(request, channel, client);
         }
+
+        final String requestUri = request.uri();
+        authenticationService.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(
+            authentication -> {
+                if (authentication == null) {
+                    logger.trace("No authentication available for REST request [{}]", requestUri);
+                } else {
+                    logger.trace("Authenticated REST request [{}] as {}", requestUri, authentication);
+                }
+                secondaryAuthenticator.authenticateAndAttachToContext(request, ActionListener.wrap(
+                    secondaryAuthentication -> {
+                        if (secondaryAuthentication != null) {
+                            logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, requestUri);
+                        }
+                        RemoteHostHeader.process(request, threadContext);
+                        restHandler.handleRequest(request, channel, client);
+                    },
+                    e -> handleException("Secondary authentication", request, channel, e)));
+            }, e -> handleException("Authentication", request, channel, e)));
     }
 
     private void handleException(String actionType, RestRequest request, RestChannel channel, Exception e) {

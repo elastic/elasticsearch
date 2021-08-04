@@ -229,7 +229,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             Collections.singletonList(firstRealm)));
 
         auditTrail = mock(AuditTrail.class);
-        auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState, settings);
+        auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
         client = mock(Client.class);
         threadPool = new ThreadPool(settings,
             new FixedExecutorBuilder(settings, THREAD_POOL_NAME, 1, 1000,

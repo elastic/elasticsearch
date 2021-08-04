@@ -11,13 +11,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -32,23 +30,17 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
     private final XPackLicenseState licenseState;
     private final SetOnce<SecurityContext> securityContextHolder;
     private final SetOnce<ScriptService> scriptServiceReference;
-    private final Settings settings;
 
     public DlsFlsRequestCacheDifferentiator(XPackLicenseState licenseState,
                                             SetOnce<SecurityContext> securityContextReference,
-                                            SetOnce<ScriptService> scriptServiceReference,
-                                            Settings settings) {
+                                            SetOnce<ScriptService> scriptServiceReference) {
         this.licenseState = licenseState;
         this.securityContextHolder = securityContextReference;
         this.scriptServiceReference = scriptServiceReference;
-        this.settings = settings;
     }
 
     @Override
     public void accept(ShardSearchRequest request, StreamOutput out) throws IOException {
-        if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
-            return;
-        }
         var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS));
         final SecurityContext securityContext = securityContextHolder.get();
         final IndicesAccessControl indicesAccessControl =

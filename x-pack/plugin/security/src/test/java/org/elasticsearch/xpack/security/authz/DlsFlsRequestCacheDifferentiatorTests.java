@@ -18,7 +18,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -55,9 +54,8 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         threadContext = new ThreadContext(Settings.EMPTY);
         out = new BytesStreamOutput();
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
         differentiator = new DlsFlsRequestCacheDifferentiator(
-            licenseState, new SetOnce<>(securityContext), new SetOnce<>(mock(ScriptService.class)), settings);
+            licenseState, new SetOnce<>(securityContext), new SetOnce<>(mock(ScriptService.class)));
         shardSearchRequest = mock(ShardSearchRequest.class);
         indexName = randomAlphaOfLengthBetween(3, 8);
         dlsIndexName = "dls-" + randomAlphaOfLengthBetween(3, 8);
@@ -98,13 +96,4 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         assertThat(out.position(), equalTo(0L));
     }
 
-    public void testWillDoNothingIfSecurityIsNotEnabled() throws IOException {
-        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
-        differentiator = new DlsFlsRequestCacheDifferentiator(
-            licenseState, new SetOnce<>(securityContext), new SetOnce<>(mock(ScriptService.class)), settings);
-        when(shardSearchRequest.shardId()).thenReturn(new ShardId(dlsFlsIndexName, randomAlphaOfLength(10), randomIntBetween(0, 3)));
-        differentiator.accept(shardSearchRequest, out);
-        assertThat(out.position(), equalTo(0L));
-    }
 }

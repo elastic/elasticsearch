@@ -64,7 +64,7 @@ public class IPFilterTests extends ESTestCase {
         when(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING)).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
         auditTrail = mock(AuditTrail.class);
-        auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState, Settings.EMPTY);
+        auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(
                 IPFilter.HTTP_FILTER_ALLOW_SETTING,
                 IPFilter.HTTP_FILTER_DENY_SETTING,

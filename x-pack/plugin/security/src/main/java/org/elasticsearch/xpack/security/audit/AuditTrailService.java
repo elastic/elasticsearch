@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.audit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
@@ -37,7 +36,7 @@ public class AuditTrailService {
     private final Duration minLogPeriod = Duration.ofMinutes(30);
     protected AtomicReference<Instant> nextLogInstantAtomic = new AtomicReference<>(Instant.EPOCH);
 
-    public AuditTrailService(List<AuditTrail> auditTrails, XPackLicenseState licenseState, Settings settings) {
+    public AuditTrailService(List<AuditTrail> auditTrails, XPackLicenseState licenseState) {
         this.compositeAuditTrail = new CompositeAuditTrail(Collections.unmodifiableList(auditTrails));
         this.licenseState = licenseState;
     }

@@ -71,7 +71,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -786,13 +785,10 @@ public class ApiKeyService {
     }
 
     private boolean isEnabled() {
-        return enabled && XPackSettings.SECURITY_ENABLED.get(settings);
+        return enabled;
     }
 
     public void ensureEnabled() {
-        if ( XPackSettings.SECURITY_ENABLED.get(settings) == false) {
-            throw LicenseUtils.newComplianceException("security is not enabled");
-        }
         if (enabled == false) {
             throw new FeatureNotEnabledException(Feature.API_KEY_SERVICE, "api keys are not enabled");
         }

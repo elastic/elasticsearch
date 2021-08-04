@@ -530,7 +530,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
         out.writeOptionalLong(resultsRetentionDays);
         if (out.getVersion().onOrAfter(Version.V_7_15_0) && out.getVersion().before(Version.V_8_0_0)) {
-            out.writeOptionalLong(null);
+            out.writeOptionalLong(resultsRetentionDays);
         }
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
@@ -1010,7 +1010,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
             out.writeOptionalLong(resultsRetentionDays);
             if (out.getVersion().onOrAfter(Version.V_7_15_0) && out.getVersion().before(Version.V_8_0_0)) {
-                out.writeOptionalLong(null);
+                out.writeOptionalLong(resultsRetentionDays);
             }
             out.writeMap(customSettings);
             out.writeOptionalString(modelSnapshotId);

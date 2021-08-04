@@ -193,7 +193,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
         out.writeOptionalLong(resultsRetentionDays);
         if (out.getVersion().onOrAfter(Version.V_7_15_0) && out.getVersion().before(Version.V_8_0_0)) {
-            out.writeOptionalLong(null);
+            out.writeOptionalLong(resultsRetentionDays);
         }
         out.writeBoolean(categorizationFilters != null);
         if (categorizationFilters != null) {

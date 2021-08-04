@@ -409,7 +409,15 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (NESTED_FIELD.match(currentName, parser.getDeprecationHandler())) {
+                if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
+                    NESTED_FILTER_FIELD.match(currentName, parser.getDeprecationHandler())) {
+                    deprecationLogger.compatibleApiWarning("nested_filter",
+                        "[nested_filter] has been removed in favour of the [nested] parameter");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[nested_filter] has been removed in favour of the [nested] parameter",
+                        currentName);
+                } else if (NESTED_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     nestedSort = NestedSortBuilder.fromXContent(parser);
                 } else {
                     // the json in the format of -> field : { lat : 30, lon : 12 }
@@ -426,7 +434,15 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     geoPoints.add(point);
                 }
             } else if (token.isValue()) {
-                if (ORDER_FIELD.match(currentName, parser.getDeprecationHandler())) {
+                if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
+                    NESTED_PATH_FIELD.match(currentName, parser.getDeprecationHandler())) {
+                    deprecationLogger.compatibleApiWarning("nested_path",
+                        "[nested_path] has been removed in favour of the [nested] parameter");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[nested_path] has been removed in favour of the [nested] parameter",
+                        currentName);
+                } else if (ORDER_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     order = SortOrder.fromString(parser.text());
                 } else if (UNIT_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     unit = DistanceUnit.fromString(parser.text());
@@ -438,13 +454,13 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     sortMode = SortMode.fromString(parser.text());
                 } else if (IGNORE_UNMAPPED.match(currentName, parser.getDeprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (token == Token.VALUE_STRING){
+                } else if (token == Token.VALUE_STRING) {
                     if (fieldName != null && fieldName.equals(currentName) == false) {
                         throw new ParsingException(
-                                parser.getTokenLocation(),
-                                "Trying to reset fieldName to [{}], already set to [{}].",
-                                currentName,
-                                fieldName);
+                            parser.getTokenLocation(),
+                            "Trying to reset fieldName to [{}], already set to [{}].",
+                            currentName,
+                            fieldName);
                     }
 
                     GeoPoint point = new GeoPoint();
@@ -455,22 +471,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     throw new ParsingException(
                         parser.getTokenLocation(),
                         "Only geohashes of type string supported for field [{}]",
-                        currentName);
-                } else if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
-                    NESTED_PATH_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    deprecationLogger.compatibleApiWarning("nested_path",
-                        "[nested_path] has been removed in favour of the [nested] parameter");
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        "[nested_path] has been removed in favour of the [nested] parameter",
-                        currentName);
-                } else if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
-                    NESTED_FILTER_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    deprecationLogger.compatibleApiWarning("nested_filter",
-                        "[nested_filter] has been removed in favour of the [nested] parameter");
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        "[nested_filter] has been removed in favour of the [nested] parameter",
                         currentName);
                 } else {
                     throw new ParsingException(

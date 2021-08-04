@@ -74,12 +74,20 @@ Do not increase this setting without carefully verifying that your cluster has
 the resources available to handle the extra load that will result.
 
 `indices.recovery.use_snapshots`::
-(<<cluster-update-settings,Dynamic>>, Expert) Enables the usage of snapshots
-recoveries.
+(<<cluster-update-settings,Dynamic>>, Expert) Enables snapshot-based peer recoveries.
 +
-This is a best-effort optimization where the system would try to recover most of
-the index files from the available snapshots to save data transfer costs in public
-cloud environments.
+{es} recovers replicas and relocates primary shards using the _peer recovery_
+process, which involves constructing a new copy of a shard on the target node.
+When `indices.recovery.use_snapshots` is `false` {es} will construct this new
+copy by transferring the index data from the current primary. When this setting
+is `true` {es} will attempt to copy the index data from a recent snapshot
+first, and will only copy data from the primary if it cannot identify a
+suitable snapshot.
++
+Setting this option to `true` reduces your operating costs if your cluster runs
+in an environment where the node-to-node data transfer costs are higher than
+the costs of recovering data from a snapshot. It also reduces the amount of
+work that the primary must do during a recovery.
 
 `indices.recovery.repository`::
 (<<cluster-update-settings,Dynamic>>, Expert) Repository used when

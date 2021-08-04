@@ -16,7 +16,7 @@ import org.apache.lucene.analysis.TokenizerFactory;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.util.SPIClassIterator;
+import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;

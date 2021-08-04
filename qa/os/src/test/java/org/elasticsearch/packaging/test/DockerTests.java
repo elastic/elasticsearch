@@ -115,8 +115,8 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test011SecurityEnabledStatus() throws Exception {
         waitForElasticsearch(installation, USERNAME, PASSWORD);
-        final int statusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200"), USERNAME, PASSWORD, null);
-        assertThat(statusCode, equalTo(200));
+        final int statusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200"), USERNAME, "wrong_password", null);
+        assertThat(statusCode, equalTo(401));
 
         // restart container with security disabled
         runContainer(distribution(), builder().envVars(Map.of("xpack.security.enabled", "false")));

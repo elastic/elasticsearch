@@ -15,8 +15,6 @@ class AutobackportFuncTest extends AbstractGradleFuncTest {
     def "can run rewrite"() {
         when:
         setupRewriteYamlConfig()
-
-
         def sourceFile = file("src/main/java/org/acme/SomeClass.java")
         sourceFile << """
 package org.acme;
@@ -39,9 +37,8 @@ class SomeClass {
           id 'java'
           id 'elasticsearch.rewrite'
         }
-        def rewriteVersionString = "7.10.0"
         rewrite {
-            rewriteVersion = rewriteVersionString
+            rewriteVersion = "7.10.0"
             activeRecipe("org.elasticsearch.java.backport.ListOfBackport",
                     "org.elasticsearch.java.backport.MapOfBackport",
                     "org.elasticsearch.java.backport.SetOfBackport")
@@ -52,46 +49,13 @@ class SomeClass {
             mavenCentral()
         }
         
-        configurations {
-            rewriteRun {
-                resolutionStrategy {
-                    force 'org.jetbrains:annotations:21.0.1'
-                    force 'org.slf4j:slf4j-api:1.7.31'
-                    force 'org.jetbrains.kotlin:kotlin-stdlib:1.5.10'
-                    force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.5.10'
-                }
-            }
-            rewriteDryRun {
-                resolutionStrategy {
-                    force 'org.jetbrains:annotations:21.0.1'
-                    force 'org.slf4j:slf4j-api:1.7.31'
-                    force 'org.jetbrains.kotlin:kotlin-stdlib:1.5.10'
-                    force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.5.10'
-                }
-            }
-            rewrite {
-                extendsFrom rewriteRun
-                resolutionStrategy {
-                    force 'org.jetbrains:annotations:21.0.1'
-                    force 'org.slf4j:slf4j-api:1.7.31'
-                    force 'org.jetbrains.kotlin:kotlin-stdlib:1.5.10'
-                    force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.5.10'
-                }
-            }
-        }
-        
         dependencies {
-            rewriteRun "org.openrewrite:rewrite-java-11:" + rewriteVersionString
-            rewriteRun "org.openrewrite:rewrite-java-8:" + rewriteVersionString
-            rewriteRun "org.openrewrite:rewrite-maven:" + rewriteVersionString
-            rewriteRun "org.openrewrite:rewrite-xml:" + rewriteVersionString
-            rewriteRun "org.openrewrite:rewrite-yaml:" + rewriteVersionString
-            rewriteRun "org.openrewrite:rewrite-properties:" + rewriteVersionString
+            rewrite "org.openrewrite:rewrite-java-11"
         }
         """
 
         then:
-        gradleRunner("build", "rewriteRun", "-i").build()
+        gradleRunner("rewriteRun").build()
 
         sourceFile.text == """
 package org.acme;

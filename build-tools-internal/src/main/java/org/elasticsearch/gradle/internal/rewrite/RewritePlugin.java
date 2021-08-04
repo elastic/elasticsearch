@@ -8,10 +8,16 @@
 
 package org.elasticsearch.gradle.internal.rewrite;
 
+import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.DependencyResolveDetails;
+import org.gradle.api.artifacts.DependencySet;
+import org.gradle.api.artifacts.ModuleVersionSelector;
+import org.gradle.api.artifacts.ResolutionStrategy;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -41,6 +47,15 @@ public class RewritePlugin implements Plugin<Project> {
         final RewriteExtension extension = project.getExtensions().create("rewrite", RewriteExtension.class);
         // Rewrite module dependencies put here will be available to all rewrite tasks
         Configuration rewriteConf = project.getConfigurations().maybeCreate("rewrite");
+        rewriteConf.getResolutionStrategy().eachDependency(new Action<DependencyResolveDetails>() {
+            @Override
+            public void execute(DependencyResolveDetails details) {
+                ModuleVersionSelector requested = details.getRequested();
+                if (requested.getGroup().equals("org.openrewrite") && requested.getVersion().isBlank() ||  requested.getVersion() == null) {
+                    details.useVersion(extension.getRewriteVersion());
+                }
+            }
+        });
         RewriteTask rewriteTask = project.getTasks().create(REWRITE_TASKNAME, RewriteTask.class, rewriteConf, extension);
         rewriteTask.getActiveRecipes().convention(providerFactory.provider(() -> extension.getActiveRecipes()));
         rewriteTask.getConfigFile().convention(projectLayout.file(providerFactory.provider(() -> extension.getConfigFile())));

@@ -185,6 +185,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                     .add(buildNode("ml-node-without-room", true, 1000L))
                     .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes()))
                     .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes()))
+                    .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes()))
                     .build()
             )
             .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down")))
@@ -220,6 +221,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                     .add(buildNode("ml-node-without-room", true, 1000L))
                     .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes()))
                     .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes()))
+                    .add(buildOldNode("old-versioned-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes()))
                     .build()
             )
             .metadata(
@@ -632,6 +634,10 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String name, boolean isML, long nativeMemory) {
+        return buildNode(name, isML, nativeMemory, Version.CURRENT);
+    }
+
+    private static DiscoveryNode buildNode(String name, boolean isML, long nativeMemory, Version version) {
         return new DiscoveryNode(
             name,
             name,
@@ -642,8 +648,12 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                 .put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, String.valueOf(10))
                 .map(),
             isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            version
         );
+    }
+
+    private static DiscoveryNode buildOldNode(String name, boolean isML, long nativeMemory) {
+        return buildNode(name, isML, nativeMemory, Version.V_7_15_0);
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String modelId, long modelSize) {

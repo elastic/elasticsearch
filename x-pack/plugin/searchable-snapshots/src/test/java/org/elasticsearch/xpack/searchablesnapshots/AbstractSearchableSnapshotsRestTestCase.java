@@ -471,7 +471,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     protected static Map<String, Object> search(String index, QueryBuilder query, Boolean ignoreThrottled) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_search");
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().trackTotalHits(true).query(query);
-        if (true) {
+        if (randomBoolean()) {
             // ensures we can always access sequence numbers, even on source-only mounted snapshots
             searchSourceBuilder.sort(SeqNoFieldMapper.NAME, SortOrder.ASC);
         }

@@ -586,8 +586,8 @@ template for all indexes that hold data that needs pre-index processing.
 The `if` conditional is implemented as a Painless script. If the
 <<script-painless-regex-enabled,`script.painless.regex.enabled`>> cluster
 setting is enabled, you can use regular expressions in your `if` condition
-scripts. For other supported syntax, see
-{painless}/painless-regexes.html[Painless regular expressions].
+scripts. For supported syntax, see {painless}/painless-regexes.html[Painless
+regular expressions].
 
 [source,console]
 --------------------------------------------------

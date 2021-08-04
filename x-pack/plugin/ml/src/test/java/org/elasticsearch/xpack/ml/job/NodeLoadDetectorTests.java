@@ -97,7 +97,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
                                     "model1",
                                     "_node_id1",
                                     new RoutingStateAndReason(
-                                        randomFrom(RoutingState.STOPPED, RoutingState.STOPPED, RoutingState.STOPPING),
+                                        randomFrom(RoutingState.STOPPED, RoutingState.FAILED),
                                         "test"
                                     )
                                 )
@@ -129,7 +129,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
         load = nodeLoadDetector.detectNodeLoad(cs, true, nodes.get("_node_id4"), 5, 30, false);
         assertThat(load.getAssignedJobMemory(), equalTo(429916160L));
         assertThat(load.getNumAllocatingJobs(), equalTo(0L));
-        assertThat(load.getNumAssignedJobs(), equalTo(2L));
+        assertThat(load.getNumAssignedJobs(), equalTo(1L));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
     }

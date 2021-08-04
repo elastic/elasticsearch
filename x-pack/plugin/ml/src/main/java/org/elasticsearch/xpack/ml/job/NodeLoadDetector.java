@@ -112,7 +112,6 @@ public class NodeLoadDetector {
                     .orElse(RoutingState.STOPPED)
                     .consumesMemory()) {
                     nodeLoad.incAssignedJobMemory(allocation.getTaskParams().estimateMemoryUsageBytes());
-                    nodeLoad.incNumAssignedJobs();
                 }
             }
         }

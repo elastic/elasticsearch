@@ -542,7 +542,7 @@ public class MetadataCreateIndexService {
                 isDataStream ? Collections.emptySet() : request.aliases(),
                 isDataStream ?
                     Collections.emptyList() :
-                    MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName, false),
+                    MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName),
                 currentState.metadata(),
                 aliasValidator,
                 xContentRegistry,

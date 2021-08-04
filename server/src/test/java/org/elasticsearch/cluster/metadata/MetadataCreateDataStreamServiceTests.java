@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
@@ -129,14 +130,14 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
         List<String> ctNames = new ArrayList<>();
         List<Map<String, AliasMetadata>> allAliases = new ArrayList<>();
-        var metadataBuilder = Metadata.builder();
+        Metadata.Builder metadataBuilder = Metadata.builder();
         final List<ComponentTemplate> componentTemplates = new ArrayList<>(componentTemplateCount);
         for (int k = 0; k < componentTemplateCount; k++) {
             final String ctName = randomAlphaOfLength(5);
             ctNames.add(ctName);
             final int ctAliasCount = randomIntBetween(0, 3);
             totalAliasCount += ctAliasCount;
-            final var ctAliasMap = new HashMap<String, AliasMetadata>(ctAliasCount);
+            final Map<String, AliasMetadata> ctAliasMap = new HashMap<>(ctAliasCount);
             allAliases.add(ctAliasMap);
             for (int m = 0; m < ctAliasCount; m++) {
                 final AliasMetadata am = randomAlias(ctName);
@@ -147,7 +148,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         allAliases.add(aliases);
 
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
-            .indexPatterns(List.of(dataStreamName + "*"))
+            .indexPatterns(org.elasticsearch.core.List.of(dataStreamName + "*"))
             .dataStreamTemplate(new DataStreamTemplate())
             .template(new Template(null, null, aliases))
             .componentTemplates(ctNames)
@@ -165,9 +166,9 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isHidden(), is(false));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isReplicated(), is(false));
         assertThat(newState.metadata().dataStreamAliases().size(), is(totalAliasCount));
-        for (var aliasMap : allAliases) {
-            for (var alias : aliasMap.values()) {
-                var actualAlias = newState.metadata().dataStreamAliases().get(alias.alias());
+        for (Map<String, AliasMetadata> aliasMap : allAliases) {
+            for (AliasMetadata alias : aliasMap.values()) {
+                DataStreamAlias actualAlias = newState.metadata().dataStreamAliases().get(alias.alias());
                 assertThat(actualAlias, is(notNullValue()));
                 assertThat(actualAlias.getName(), equalTo(alias.alias()));
                 assertThat(actualAlias.getFilter(), equalTo(alias.filter()));
@@ -184,9 +185,12 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     private static AliasMetadata randomAlias(String prefix) {
         final String aliasName = (Strings.isNullOrEmpty(prefix) ? "" : prefix + "-") + randomAlphaOfLength(6);
-        var builder = AliasMetadata.newAliasMetadataBuilder(aliasName);
+        AliasMetadata.Builder builder = AliasMetadata.newAliasMetadataBuilder(aliasName);
         if (randomBoolean()) {
-            builder.filter(Map.of("term", Map.of("user", Map.of("value", randomAlphaOfLength(5)))));
+            builder.filter(org.elasticsearch.core.Map.of(
+                "term",
+                org.elasticsearch.core.Map.of("user", org.elasticsearch.core.Map.of("value", randomAlphaOfLength(5)))
+            ));
         }
         builder.writeIndex(randomBoolean());
         return builder.build();

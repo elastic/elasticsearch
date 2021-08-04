@@ -228,9 +228,10 @@ public class MetadataCreateDataStreamService {
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
 
         List<String> aliases = new ArrayList<>();
-        var resolvedAliases = MetadataIndexTemplateService.resolveAliases(currentState.metadata(), template);
-        for (var resolvedAliasMap : resolvedAliases) {
-            for (var alias : resolvedAliasMap.values()) {
+        List<Map<String, AliasMetadata>> resolvedAliases =
+            MetadataIndexTemplateService.resolveAliases(currentState.metadata(), template, false);
+        for (Map<String, AliasMetadata> resolvedAliasMap : resolvedAliases) {
+            for (AliasMetadata alias : resolvedAliasMap.values()) {
                 aliases.add(alias.getAlias());
                 builder.put(alias.getAlias(), dataStreamName, alias.writeIndex(), alias.filter() == null ? null : alias.filter().string());
             }

@@ -1,7 +1,7 @@
 {
   "indices.field_usage_stats": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-field-usage-stats.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/field-usage-stats.html",
       "description": "Returns the field usage stats for each field of an index"
     },
     "stability": "experimental",

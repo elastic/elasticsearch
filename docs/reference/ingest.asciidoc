@@ -323,7 +323,7 @@ template's index pattern should match `logs-<dataset-name>-*`.
 --
 You can create this template using {kib}'s <<manage-index-templates,**Index
 Management**>> feature or the <<indices-put-template,create index template
-API>>. 
+API>>.
 
 For example, the following request creates a template matching `logs-my_app-*`.
 The template uses a component template that contains the
@@ -550,7 +550,7 @@ PUT _ingest/pipeline/my-pipeline
         "description": "Use geo_point dynamic template for address field",
         "field": "_dynamic_templates",
         "value": {
-          "address": "geo_point"       
+          "address": "geo_point"
         }
       }
     }
@@ -560,8 +560,8 @@ PUT _ingest/pipeline/my-pipeline
 
 The set processor above tells ES to use the dynamic template named `geo_point`
 for the field `address` if this field is not defined in the mapping of the index
-yet. This processor overrides the dynamic template for the field `address` if 
-already defined in the bulk request, but has no effect on other dynamic 
+yet. This processor overrides the dynamic template for the field `address` if
+already defined in the bulk request, but has no effect on other dynamic
 templates defined in the bulk request.
 
 WARNING: If you <<create-document-ids-automatically,automatically generate>>
@@ -710,6 +710,32 @@ PUT _ingest/pipeline/my-pipeline
         "description": "Index document to 'failed-<index>'",
         "field": "_index",
         "value": "failed-{{{ _index }}}"
+      }
+    }
+  ]
+}
+----
+// TEST[s/\.\.\./{"lowercase": {"field":"my-keyword-field"}}/]
+
+Additional information about the pipeline failure may be available in the
+document metadata fields `on_failure_message`, `on_failure_processor_type`,
+`on_failure_processor_tag`, and `on_failure_pipeline`. These fields are
+accessible only from within an `on_failure` block.
+
+The following example uses the metadata fields to include information about
+pipeline failures in documents.
+
+[source,console]
+----
+PUT _ingest/pipeline/my-pipeline
+{
+  "processors": [ ... ],
+  "on_failure": [
+    {
+      "set": {
+        "description": "Record error information",
+        "field": "error_information",
+        "value": "Processor {{ _ingest.on_failure_processor_type }} with tag {{ _ingest.on_failure_processor_tag }} in pipeline {{ _ingest.on_failure_pipeline }} failed with message {{ _ingest.on_failure_message }}"
       }
     }
   ]

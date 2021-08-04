@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPURL;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -45,9 +47,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
@@ -63,8 +63,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
+import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -198,7 +200,7 @@ public class LdapRealmTests extends LdapTestCase {
         assertThat(future.actionGet().getStatus(), is(AuthenticationResult.Status.SUCCESS));
 
         //verify one and only one session -> caching is working
-        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), anyActionListener());
     }
 
     public void testAuthenticateCachingRefresh() throws Exception {
@@ -225,7 +227,7 @@ public class LdapRealmTests extends LdapTestCase {
         future.actionGet();
 
         //verify one and only one session -> caching is working
-        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), anyActionListener());
 
         roleMapper.notifyRefresh();
 
@@ -234,7 +236,7 @@ public class LdapRealmTests extends LdapTestCase {
         future.actionGet();
 
         //we need to session again
-        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), anyActionListener());
     }
 
     public void testAuthenticateNoncaching() throws Exception {
@@ -262,7 +264,7 @@ public class LdapRealmTests extends LdapTestCase {
         future.actionGet();
 
         //verify two and only two binds -> caching is disabled
-        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), anyActionListener());
     }
 
     public void testDelegatedAuthorization() throws Exception {
@@ -323,7 +325,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .putList(getFullSettingKey(identifier.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), userTemplate)
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
-                .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+                .put(getFullSettingKey(identifier, VERIFICATION_MODE_SETTING_REALM), SslVerificationMode.CERTIFICATE)
                 .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = getRealmConfig(identifier, settings);
@@ -345,7 +347,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, identifier, PASSWORD))
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
-                .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+                .put(getFullSettingKey(identifier, VERIFICATION_MODE_SETTING_REALM), SslVerificationMode.CERTIFICATE)
                 .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         final RealmConfig config = getRealmConfig(identifier, settings);
@@ -367,7 +369,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(getFullSettingKey(identifier.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), "cn=bar")
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), "")
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
-                .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+                .put(getFullSettingKey(identifier, VERIFICATION_MODE_SETTING_REALM), SslVerificationMode.CERTIFICATE)
                 .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = getRealmConfig(identifier, settings);
@@ -387,7 +389,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .putList(getFullSettingKey(identifier, URLS_SETTING), ldapUrls())
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), "")
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
-                .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+                .put(getFullSettingKey(identifier, VERIFICATION_MODE_SETTING_REALM), SslVerificationMode.CERTIFICATE)
                 .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = getRealmConfig(identifier, settings);
@@ -537,7 +539,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
                 .put(getFullSettingKey(identifier.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), "--")
-                .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE);
+                .put(getFullSettingKey(identifier, VERIFICATION_MODE_SETTING_REALM), SslVerificationMode.CERTIFICATE);
 
         int order = randomIntBetween(0, 10);
         settings.put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), order);

@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
+import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.util.Collection;
@@ -84,7 +85,6 @@ class ClientTransformIndexer extends TransformIndexer {
         Client client,
         TransformIndexerStats initialStats,
         TransformConfig transformConfig,
-        Map<String, String> fieldMappings,
         TransformProgress transformProgress,
         TransformCheckpoint lastCheckpoint,
         TransformCheckpoint nextCheckpoint,
@@ -97,7 +97,6 @@ class ClientTransformIndexer extends TransformIndexer {
             transformServices,
             checkpointProvider,
             transformConfig,
-            fieldMappings,
             ExceptionsHelper.requireNonNull(initialState, "initialState"),
             initialPosition,
             initialStats == null ? new TransformIndexerStats() : initialStats,
@@ -246,6 +245,15 @@ class ClientTransformIndexer extends TransformIndexer {
             SearchAction.INSTANCE,
             request,
             responseListener
+        );
+    }
+
+    @Override
+    void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener) {
+        SchemaUtil.getDestinationFieldMappings(
+            client,
+            getConfig().getDestination().getIndex(),
+            fieldMappingsListener
         );
     }
 
@@ -572,6 +580,7 @@ class ClientTransformIndexer extends TransformIndexer {
                         searchRequest,
                         listener
                     );
+                    return;
                 }
                 listener.onFailure(e);
             })

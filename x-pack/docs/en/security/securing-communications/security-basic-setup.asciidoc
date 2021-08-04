@@ -91,6 +91,10 @@ generate a CA for your cluster.
 ----
 ./bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
 ----
++
+   `--ca <ca_file>`:: Name of the CA file used to sign your certificates. The
+   default file name from the `elasticsearch-certutil` tool is `elastic-stack-ca.p12`.
++
 
    a. Enter the password for your CA, or press *Enter* if you did not configure one in the previous step.
 
@@ -98,9 +102,6 @@ generate a CA for your cluster.
 +
 The output file is a keystore named `elastic-certificates.p12`. This file
 contains a node certificate, node key, and CA certificate.
-+
-   `--ca <ca_file>`:: Name of the CA file used to sign your certificates. The
-   default file name from the `elasticsearch-certutil` tool is `elastic-stack-ca.p12`.
 
 . Copy the `elastic-certificates.p12` file to the `ES_PATH_CONF`
    directory on every node in your cluster.

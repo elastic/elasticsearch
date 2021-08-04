@@ -14,7 +14,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
@@ -295,10 +295,10 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             || threadName.contains('[' + ThreadPool.Names.SEARCH_THROTTLED + ']')
 
             // Cache asynchronous fetching runs on a dedicated thread pool.
-            || threadName.contains('[' + SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME + ']')
+            || threadName.contains('[' + SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME + ']')
 
             // Cache prewarming also runs on a dedicated thread pool.
-            || threadName.contains('[' + SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME + ']')
+            || threadName.contains('[' + SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME + ']')
 
             // Unit tests access the blob store on the main test thread; simplest just to permit this rather than have them override this
             // method somehow.
@@ -308,7 +308,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     }
 
     protected static boolean isCacheFetchAsyncThread(final String threadName) {
-        return threadName.contains('[' + SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME + ']');
+        return threadName.contains('[' + SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME + ']');
     }
 
     protected static boolean assertCurrentThreadIsNotCacheFetchAsync() {

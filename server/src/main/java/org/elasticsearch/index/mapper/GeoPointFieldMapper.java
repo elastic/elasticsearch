@@ -19,11 +19,13 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.SimpleFeatureFactory;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
@@ -243,7 +245,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         @Override
         protected  Function<List<GeoPoint>, List<Object>> getFormatter(String format) {
-            return GeometryFormatterFactory.getFormatter(format, p -> new Point(p.lon(), p.lat()));
+            return GeoFormatterFactory.getFormatter(format, p -> new Point(p.getLon(), p.getLat()),
+                (z, x, y, extent) -> {
+                    final SimpleFeatureFactory featureFactory = new SimpleFeatureFactory(z, x, y, extent);
+                    return points -> List.of(featureFactory.points(points));
+                });
         }
 
         @Override

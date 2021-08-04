@@ -12,9 +12,11 @@ import com.wdtinc.mapbox_vector_tile.adapt.jts.IGeometryFilter;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.IUserDataConverter;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.JtsAdapter;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.TileGeomResult;
+import com.wdtinc.mapbox_vector_tile.adapt.jts.UserDataIgnoreConverter;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerParams;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 
+import org.elasticsearch.common.geo.SphericalMercatorUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -32,7 +34,9 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.simplify.TopologyPreservingSimplifier;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -41,6 +45,7 @@ import java.util.List;
 public class FeatureFactory {
 
     private final IGeometryFilter acceptAllGeomFilter = geometry -> true;
+    private final IUserDataConverter userDataIgnoreConverter = new UserDataIgnoreConverter();
     private final MvtLayerParams layerParams;
     private final GeometryFactory geomFactory = new GeometryFactory();
     private final MvtLayerProps layerProps = new MvtLayerProps();
@@ -53,15 +58,21 @@ public class FeatureFactory {
         final Rectangle r = SphericalMercatorUtils.recToSphericalMercator(GeoTileUtils.toBoundingBox(x, y, z));
         this.tileEnvelope = new Envelope(r.getMinX(), r.getMaxX(), r.getMinY(), r.getMaxY());
         this.clipEnvelope = new Envelope(tileEnvelope);
-        this.clipEnvelope.expandBy(tileEnvelope.getWidth() * 0.1d, tileEnvelope.getHeight() * 0.1d);
-        this.builder = new JTSGeometryBuilder(geomFactory);
+        // pixel precision of the tile in the mercator projection.
+        final double pixelPrecision = 2 * SphericalMercatorUtils.MERCATOR_BOUNDS / ((1L << z) * extent);
+        this.clipEnvelope.expandBy(pixelPrecision, pixelPrecision);
+        this.builder = new JTSGeometryBuilder(geomFactory, geomFactory.toGeometry(tileEnvelope), pixelPrecision);
         // TODO: Not sure what is the difference between extent and tile size?
         this.layerParams = new MvtLayerParams(extent, extent);
     }
 
-    public List<VectorTile.Tile.Feature> getFeatures(Geometry geometry, IUserDataConverter userData) {
-        TileGeomResult tileGeom = JtsAdapter.createTileGeom(
-            JtsAdapter.flatFeatureList(geometry.visit(builder)),
+    public List<byte[]> getFeatures(Geometry geometry) {
+        final org.locationtech.jts.geom.Geometry jtsGeometry = geometry.visit(builder);
+        if (jtsGeometry.isValid() == false) {
+            return List.of();
+        }
+        final TileGeomResult tileGeom = JtsAdapter.createTileGeom(
+            JtsAdapter.flatFeatureList(jtsGeometry),
             tileEnvelope,
             clipEnvelope,
             geomFactory,
@@ -69,18 +80,21 @@ public class FeatureFactory {
             acceptAllGeomFilter
         );
         // MVT tile geometry to MVT features
-        return JtsAdapter.toFeatures(tileGeom.mvtGeoms, layerProps, userData);
-    }
-
-    public MvtLayerProps getLayerProps() {
-        return layerProps;
+        final List<VectorTile.Tile.Feature> features = JtsAdapter.toFeatures(tileGeom.mvtGeoms, layerProps, userDataIgnoreConverter);
+        final List<byte[]> byteFeatures = new ArrayList<>(features.size());
+        features.forEach(f -> byteFeatures.add(f.toByteArray()));
+        return byteFeatures;
     }
 
     private static class JTSGeometryBuilder implements GeometryVisitor<org.locationtech.jts.geom.Geometry, IllegalArgumentException> {
 
         private final GeometryFactory geomFactory;
+        private final org.locationtech.jts.geom.Geometry tile;
+        private final double pixelPrecision;
 
-        JTSGeometryBuilder(GeometryFactory geomFactory) {
+        JTSGeometryBuilder(GeometryFactory geomFactory, org.locationtech.jts.geom.Geometry tile, double pixelPrecision) {
+            this.pixelPrecision = pixelPrecision;
+            this.tile = tile;
             this.geomFactory = geomFactory;
         }
 
@@ -91,8 +105,11 @@ public class FeatureFactory {
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(GeometryCollection<?> collection) {
-            // TODO: Geometry collections are not supported by the vector tile specification.
-            throw new IllegalArgumentException("GeometryCollection is not supported");
+            final org.locationtech.jts.geom.Geometry[] geometries = new org.locationtech.jts.geom.Geometry[collection.size()];
+            for (int i = 0; i < collection.size(); i++) {
+                geometries[i] = collection.get(i).visit(this);
+            }
+            return geomFactory.createGeometryCollection(geometries);
         }
 
         @Override
@@ -127,7 +144,7 @@ public class FeatureFactory {
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(MultiLine multiLine) throws RuntimeException {
-            LineString[] lineStrings = new LineString[multiLine.size()];
+            final LineString[] lineStrings = new LineString[multiLine.size()];
             for (int i = 0; i < multiLine.size(); i++) {
                 lineStrings[i] = buildLine(multiLine.get(i));
             }
@@ -146,16 +163,26 @@ public class FeatureFactory {
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(Polygon polygon) throws RuntimeException {
-            return buildPolygon(polygon);
+            final org.locationtech.jts.geom.Polygon jtsPolygon = buildPolygon(polygon);
+            if (jtsPolygon.contains(tile)) {
+                // shortcut, we return the tile
+                return tile;
+            }
+            return TopologyPreservingSimplifier.simplify(jtsPolygon, pixelPrecision);
         }
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(MultiPolygon multiPolygon) throws RuntimeException {
-            org.locationtech.jts.geom.Polygon[] polygons = new org.locationtech.jts.geom.Polygon[multiPolygon.size()];
+            final org.locationtech.jts.geom.Polygon[] polygons = new org.locationtech.jts.geom.Polygon[multiPolygon.size()];
             for (int i = 0; i < multiPolygon.size(); i++) {
-                polygons[i] = buildPolygon(multiPolygon.get(i));
+                final org.locationtech.jts.geom.Polygon jtsPolygon = buildPolygon(multiPolygon.get(i));
+                if (jtsPolygon.contains(tile)) {
+                    // shortcut, we return the tile
+                    return tile;
+                }
+                polygons[i] = jtsPolygon;
             }
-            return geomFactory.createMultiPolygon(polygons);
+            return TopologyPreservingSimplifier.simplify(geomFactory.createMultiPolygon(polygons), pixelPrecision);
         }
 
         private org.locationtech.jts.geom.Polygon buildPolygon(Polygon polygon) {
@@ -163,7 +190,7 @@ public class FeatureFactory {
             if (polygon.getNumberOfHoles() == 0) {
                 return geomFactory.createPolygon(outerShell);
             }
-            org.locationtech.jts.geom.LinearRing[] holes = new org.locationtech.jts.geom.LinearRing[polygon.getNumberOfHoles()];
+            final org.locationtech.jts.geom.LinearRing[] holes = new org.locationtech.jts.geom.LinearRing[polygon.getNumberOfHoles()];
             for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
                 holes[i] = buildLinearRing(polygon.getHole(i));
             }

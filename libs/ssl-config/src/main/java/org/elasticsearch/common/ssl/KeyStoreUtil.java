@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -87,6 +88,17 @@ public final class KeyStoreUtil {
         KeyStore keyStore = buildNewKeyStore();
         keyStore.setKeyEntry("key", privateKey, password, certificateChain.toArray(new Certificate[0]));
         return keyStore;
+    }
+
+    /**
+     * Filters a keystore using a predicate.
+     * The provided keystore is modified in place.
+     */
+    public static KeyStore filter(KeyStore store, Predicate<KeyStoreEntry> filter) {
+        stream(store, e -> new SslConfigException("Failed to apply filter to existing keystore", e))
+            .filter(filter.negate())
+            .forEach(e -> e.delete());
+        return store;
     }
 
     /**
@@ -170,7 +182,7 @@ public final class KeyStoreUtil {
         return createTrustManager(store, TrustManagerFactory.getDefaultAlgorithm());
     }
 
-    static Stream<KeyStoreEntry> stream(KeyStore keyStore,
+    public static Stream<KeyStoreEntry> stream(KeyStore keyStore,
                                         Function<GeneralSecurityException, ? extends RuntimeException> exceptionHandler) {
         try {
             return Collections.list(keyStore.aliases()).stream().map(a -> new KeyStoreEntry(keyStore, a, exceptionHandler));
@@ -179,7 +191,7 @@ public final class KeyStoreUtil {
         }
     }
 
-    static class KeyStoreEntry {
+    public static class KeyStoreEntry {
         private final KeyStore store;
         private final String alias;
         private final Function<GeneralSecurityException, ? extends RuntimeException> exceptionHandler;
@@ -265,6 +277,17 @@ public final class KeyStoreUtil {
                     .filter(c -> c instanceof X509Certificate)
                     .map(X509Certificate.class::cast)
                     .collect(Collectors.toUnmodifiableList());
+            } catch (KeyStoreException e) {
+                throw exceptionHandler.apply(e);
+            }
+        }
+
+        /**
+         * Remove this entry from the underlying keystore
+         */
+        public void delete() {
+            try {
+                store.deleteEntry(alias);
             } catch (KeyStoreException e) {
                 throw exceptionHandler.apply(e);
             }

@@ -205,35 +205,4 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
         assertEquals("1:15: second argument of [stringContains(process_name, 1)] must be [string], found value [1] type [integer]",
                 error("process where stringContains(process_name, 1)"));
     }
-
-    public void testWildcardNotEnoughArguments() {
-        ParsingException e = expectThrows(ParsingException.class,
-                () -> plan("process where wildcard(process_name)"));
-        String msg = e.getMessage();
-        assertEquals("line 1:16: error building [wildcard]: expects at least two arguments", msg);
-    }
-
-    public void testWildcardAgainstVariable() {
-        VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where wildcard(process_name, parent_process_name)"));
-        String msg = e.getMessage();
-        assertEquals("Found 1 problem\nline 1:15: second argument of [wildcard(process_name, parent_process_name)] " +
-                "must be a constant, received [parent_process_name]", msg);
-    }
-
-    public void testWildcardWithNumericPattern() {
-        VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where wildcard(process_name, 1)"));
-        String msg = e.getMessage();
-        assertEquals("Found 1 problem\n" +
-                "line 1:15: second argument of [wildcard(process_name, 1)] must be [string], found value [1] type [integer]", msg);
-    }
-
-    public void testWildcardWithNumericField() {
-        VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where wildcard(pid, \"*.exe\")"));
-        String msg = e.getMessage();
-        assertEquals("Found 1 problem\n" +
-                "line 1:15: first argument of [wildcard(pid, \"*.exe\")] must be [string], found value [pid] type [long]", msg);
-    }
 }

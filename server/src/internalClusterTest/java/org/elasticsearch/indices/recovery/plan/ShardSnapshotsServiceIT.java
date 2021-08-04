@@ -18,6 +18,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -39,6 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -152,7 +154,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         List<String> repositories = new ArrayList<>(numberOfRepos);
         for (int i = 0; i < numberOfRepos; i++) {
             String repositoryName = "repo-" + i;
-            createRepository(repositoryName, "fs");
+            createRepository(repositoryName, "fs", randomRepoPath());
             repositories.add(repositoryName);
             createSnapshot(repositoryName, snapshotName, indexName);
         }
@@ -183,31 +185,36 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         String snapshotName = "snap";
 
         int numberOfFailingRepos = randomIntBetween(1, 3);
-        List<String> failingRepos = new ArrayList<>();
+        List<Tuple<String, Path>> failingRepos = new ArrayList<>();
         for (int i = 0; i < numberOfFailingRepos; i++) {
             String repositoryName = "failing-repo-" + i;
-            createRepository(repositoryName, FailingRepoPlugin.TYPE);
+            Path repoPath = randomRepoPath();
+            createRepository(repositoryName, FailingRepoPlugin.TYPE, repoPath);
             createSnapshot(repositoryName, snapshotName, indexName);
-            failingRepos.add(repositoryName);
+            failingRepos.add(Tuple.tuple(repositoryName, repoPath));
         }
 
         int numberOfWorkingRepositories = randomIntBetween(0, 4);
         List<String> workingRepos = new ArrayList<>();
         for (int i = 0; i < numberOfWorkingRepositories; i++) {
             String repositoryName = "repo-" + i;
-            createRepository(repositoryName, "fs");
+            createRepository(repositoryName, "fs", randomRepoPath());
             workingRepos.add(repositoryName);
             createSnapshot(repositoryName, snapshotName, indexName);
         }
 
-        for (String failingRepo : failingRepos) {
+        for (Tuple<String, Path> failingRepo : failingRepos) {
             // Update repository settings to fail fetching the repository information at any stage
             String repoFailureType =
                 randomFrom(FailingRepo.FAIL_GET_REPOSITORY_DATA_SETTING_KEY,
                     FailingRepo.FAIL_LOAD_SHARD_SNAPSHOT_SETTING_KEY,
                     FailingRepo.FAIL_LOAD_SHARD_SNAPSHOTS_SETTING_KEY
                 );
-            createRepository(failingRepo, FailingRepoPlugin.TYPE, Settings.builder().put(repoFailureType, true).build());
+
+            assertAcked(client().admin().cluster().preparePutRepository(failingRepo.v1())
+                .setType(FailingRepoPlugin.TYPE)
+                .setVerify(false)
+                .setSettings(Settings.builder().put(repoFailureType, true).put("location", randomRepoPath())));
         }
 
         List<ShardSnapshot> shardSnapshotDataForShard = getShardSnapshotShard(shardId);
@@ -265,15 +272,11 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         return state.routingTable().index(indexName).shard(0).shardId();
     }
 
-    private void createRepository(String repositoryName, String type) {
-        createRepository(repositoryName, type, Settings.EMPTY);
-    }
-
-    private void createRepository(String repositoryName, String type, Settings settings) {
+    private void createRepository(String repositoryName, String type, Path location) {
         assertAcked(client().admin().cluster().preparePutRepository(repositoryName)
             .setType(type)
             .setVerify(false)
-            .setSettings(Settings.builder().put(settings).put("location", randomRepoPath())));
+            .setSettings(Settings.builder().put("location", location)));
     }
 
     private void createSnapshot(String repoName, String snapshotName, String index) {

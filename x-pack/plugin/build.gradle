@@ -145,6 +145,10 @@ def v7compatibilityNotSupportedTests = {
     'rollup/start_job/Test start job twice',
     'service_accounts/10_basic/Test service account tokens', // https://github.com/elastic/elasticsearch/pull/75200
 
+    // temporarily muted awaiting backport of https://github.com/elastic/elasticsearch/pull/76010
+    'ml/delete_job_force/Test force delete job that is referred by a datafeed',
+    'ml/jobs_crud/Test delete job that is referred by a datafeed',
+
     // a type field was added to cat.ml_trained_models #73660, this is a backwards compatible change.
     // still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)
     'ml/trained_model_cat_apis/Test cat trained models'

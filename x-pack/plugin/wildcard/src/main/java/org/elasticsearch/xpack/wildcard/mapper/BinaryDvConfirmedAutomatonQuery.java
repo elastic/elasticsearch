@@ -13,7 +13,9 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -28,8 +30,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Query that runs an Automaton across all binary doc values.
- * Expensive to run so normally used in conjunction with more selective query clauses.
+ * Query that runs an Automaton across all binary doc values (but only for docs that also 
+ * match a provided approximation query which is key to getting good performance).
  */
 public class BinaryDvConfirmedAutomatonQuery extends Query {
 
@@ -43,6 +45,9 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
         this.field = field;
         this.matchPattern = matchPattern;
         bytesMatcher = new ByteRunAutomaton(automaton);
+    }
+    public BinaryDvConfirmedAutomatonQuery(String field, String matchPattern, Automaton automaton) {
+        this(new MatchAllDocsQuery(), field, matchPattern, automaton);
     }
     
     private BinaryDvConfirmedAutomatonQuery(Query approximation, String field, String matchPattern, ByteRunAutomaton bytesMatcher) {
@@ -63,15 +68,27 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+        final Weight approxWeight = approxQuery.createWeight(searcher, scoreMode, boost);
+        
         return new ConstantScoreWeight(this, boost) {
 
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 ByteArrayDataInput badi = new ByteArrayDataInput();
                 final BinaryDocValues values = DocValues.getBinary(context.reader(), field);
-                TwoPhaseIterator twoPhase = new TwoPhaseIterator(values) {
+                Scorer approxScorer = approxWeight.scorer(context);
+                if (approxScorer == null) {
+                    // No matches to be had
+                    return null;
+                }
+                DocIdSetIterator approxDisi = approxScorer.iterator();
+                TwoPhaseIterator twoPhase = new TwoPhaseIterator(approxDisi) {
                     @Override
                     public boolean matches() throws IOException {
+                        if (values.advanceExact(approxDisi.docID()) == false)
+                        {                            
+                            return false;
+                        }
                         BytesRef arrayOfValues = values.binaryValue();
                         badi.reset(arrayOfValues.bytes);
                         badi.setPosition(arrayOfValues.offset);
@@ -121,6 +138,10 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
     @Override
     public int hashCode() {
         return Objects.hash(classHash(), field, matchPattern, bytesMatcher, approxQuery);
+    }
+    
+    Query getApproximationQuery() {
+        return approxQuery;
     }
 
 }

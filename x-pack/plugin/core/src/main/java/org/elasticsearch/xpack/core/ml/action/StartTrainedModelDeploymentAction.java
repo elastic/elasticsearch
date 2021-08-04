@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
@@ -23,7 +24,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -122,13 +122,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
     }
 
-    public static class TaskParams implements PersistentTaskParams, MlTaskParams {
+    public static class TaskParams implements MlTaskParams, Writeable, ToXContentObject {
 
         // TODO add support for other roles? If so, it may have to be an instance method...
         // NOTE, whatever determines allocation should not be dynamically set on the node
         // Otherwise allocation logic might fail
         public static boolean mayAllocateToNode(DiscoveryNode node) {
-            return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE);
+            return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE) && node.getVersion().onOrAfter(VERSION_INTRODUCED);
         }
 
         public static final Version VERSION_INTRODUCED = Version.V_8_0_0;
@@ -187,12 +187,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return MEMORY_OVERHEAD.getBytes() + 2 * modelBytes;
         }
 
-        @Override
-        public String getWriteableName() {
-            return MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME;
-        }
-
-        @Override
         public Version getMinimalSupportedVersion() {
             return VERSION_INTRODUCED;
         }

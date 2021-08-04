@@ -182,7 +182,12 @@ public class FeatureFactory {
                 }
                 polygons[i] = jtsPolygon;
             }
-            return TopologyPreservingSimplifier.simplify(geomFactory.createMultiPolygon(polygons), pixelPrecision);
+            org.locationtech.jts.geom.MultiPolygon jtsMultiPolygon = geomFactory.createMultiPolygon(polygons);
+            if (jtsMultiPolygon.isValid() == false) {
+                // we only simplify the multi-polygon if is valid, otherwise algorithm might fail.
+                return jtsMultiPolygon;
+            }
+            return TopologyPreservingSimplifier.simplify(jtsMultiPolygon, pixelPrecision);
         }
 
         private org.locationtech.jts.geom.Polygon buildPolygon(Polygon polygon) {

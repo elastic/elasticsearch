@@ -1085,14 +1085,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
             }
             out.writeOptionalLong(resultsRetentionDays);
-<<<<<<< HEAD
-            if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
-                out.writeOptionalLong(systemAnnotationsRetentionDays);
-=======
-            if (out.getVersion().onOrAfter(Version.V_7_15_0) && out.getVersion().before(Version.V_8_0_0)) {
-                out.writeOptionalLong(resultsRetentionDays);
->>>>>>> 7ac5ea3... [ML] Use results retention time for deleting system annotations (#76096)
-            }
             out.writeMap(customSettings);
             out.writeOptionalString(modelSnapshotId);
             if (out.getVersion().onOrAfter(Version.V_7_0_0)) {

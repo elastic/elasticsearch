@@ -188,6 +188,11 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+    public void awaitIdle() {
+        in.awaitIdle();
+    }
+
+    @Override
     public Lifecycle.State lifecycleState() {
         return in.lifecycleState();
     }

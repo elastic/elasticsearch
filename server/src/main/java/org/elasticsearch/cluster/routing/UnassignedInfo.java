@@ -240,6 +240,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * @param delayed              if allocation of this shard is delayed due to INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.
      * @param lastAllocationStatus the result of the last allocation attempt for this shard
      * @param failedNodeIds        a set of nodeIds that failed to complete allocations for this shard
+     * @param lastAllocatedNodeId  the ID of the node this shard was last allocated to
      */
     public UnassignedInfo(Reason reason, @Nullable String message, @Nullable Exception failure, int failedAllocations,
                           long unassignedTimeNanos, long unassignedTimeMillis, boolean delayed, AllocationStatus lastAllocationStatus,
@@ -399,12 +400,14 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         final Settings indexSettings,
         final Map<String, SingleNodeShutdownMetadata> nodesShutdownMap
     ) {
+        final long indexLevelDelay = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexSettings).nanos();
         long delayTimeoutNanos = Optional.ofNullable(lastAllocatedNodeId)
             .map(nodesShutdownMap::get)
             .filter(shutdownMetadata -> SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownMetadata.getType()))
             .map(SingleNodeShutdownMetadata::getShardReallocationDelay)
             .map(TimeValue::nanos)
-            .orElse(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexSettings).nanos());
+            .map(knownRestartDelay -> Math.max(indexLevelDelay, knownRestartDelay))
+            .orElse(indexLevelDelay);
         assert nanoTimeNow >= unassignedTimeNanos;
         return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
     }

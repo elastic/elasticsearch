@@ -105,6 +105,44 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         ensureGreen("test");
     }
 
+    public void testIndexLevelAllocationDelayWillBeUsedIfLongerThanShutdownDelay() throws Exception {
+        internalCluster().startNodes(3);
+        prepareCreate("test").setSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "3h") // Use a long timeout we definitely won't hit
+        ).get();
+        ensureGreen("test");
+        indexRandomData();
+
+        final String nodeToRestartId = findIdOfNodeWithShard();
+        final String nodeToRestartName = findNodeNameFromId(nodeToRestartId);
+
+        // Mark the node for shutdown
+        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            nodeToRestartId,
+            SingleNodeShutdownMetadata.Type.RESTART,
+            this.getTestName(),
+            TimeValue.timeValueMillis(0) // No delay for reallocating these shards, IF this timeout is used.
+        );
+        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
+        assertTrue(putShutdownResponse.isAcknowledged());
+
+        internalCluster().restartNode(nodeToRestartName, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                assertBusy(
+                    () -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); }
+                );
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
+        // And the index should turn green again
+        ensureGreen("test");
+    }
+
     public void testShardAllocationTimeoutCanBeChanged() throws Exception {
         String nodeToRestartId = setupLongTimeoutTestCase();
 

@@ -582,15 +582,12 @@ template for all indexes that hold data that needs pre-index processing.
 
 [[conditionals-with-regex]]
 === Conditionals with the Regular Expressions
-The `if` conditional is implemented as a Painless script, which requires
-{painless}//painless-regexes.html[explicit support for regular expressions].
 
-`script.painless.regex.enabled: true` must be set in `elasticsearch.yml` to use regular
-expressions in the `if` condition.
-
-If regular expressions are enabled, operators such as `=~` can be used against a `/pattern/` for conditions.
-
-For example:
+The `if` conditional is implemented as a Painless script. If the
+<<script-painless-regex-enabled,`script.painless.regex.enabled`>> cluster
+setting is enabled, you can use regular expressions in your `if` condition
+scripts. For other supported syntax, see
+{painless}/painless-regexes.html[Painless regular expressions].
 
 [source,console]
 --------------------------------------------------

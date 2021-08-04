@@ -318,6 +318,9 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
+        public void awaitIdle() {}
+
+        @Override
         public Lifecycle.State lifecycleState() {
             return null;
         }

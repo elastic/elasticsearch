@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.querydsl.container.AttributeSort;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
@@ -532,6 +534,33 @@ public class QueryFolderTests extends ESTestCase {
             assertEquals(pivotQueryContainer.aggs(), groupByQueryContainer.aggs());
             assertEquals(pivotPlan.toString(), groupByPlan.toString());
         }
+    }
+
+    public void testFoldRedundantOrderBy() {
+        PhysicalPlan p = plan("SELECT * FROM (SELECT * FROM test ORDER BY int LIMIT 10) ORDER BY int");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(10, ee.queryContainer().limit());
+        assertEquals(1, ee.queryContainer().sort().size());
+        AttributeSort as = (AttributeSort) ee.queryContainer().sort().values().toArray()[0];
+        assertEquals("test.int", as.attribute().qualifiedName());
+    }
+
+    public void testFoldShadowedOrderBy() {
+        PhysicalPlan p = plan(
+            "SELECT * FROM (SELECT * FROM test ORDER BY int ASC, keyword NULLS LAST) ORDER BY keyword NULLS FIRST, int DESC"
+        );
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(2, ee.queryContainer().sort().size());
+
+        AttributeSort as1 = (AttributeSort) ee.queryContainer().sort().values().toArray()[0];
+        assertEquals("test.keyword", as1.attribute().qualifiedName());
+        assertEquals(Sort.Missing.FIRST, as1.missing());
+
+        AttributeSort as2 = (AttributeSort) ee.queryContainer().sort().values().toArray()[1];
+        assertEquals("test.int", as2.attribute().qualifiedName());
+        assertEquals(Sort.Direction.DESC, as2.direction());
     }
 
     private static String randomOrderByAndLimit(int noOfSelectArgs) {

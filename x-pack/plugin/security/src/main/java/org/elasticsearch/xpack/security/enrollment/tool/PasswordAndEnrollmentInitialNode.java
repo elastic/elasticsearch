@@ -99,7 +99,7 @@ public class PasswordAndEnrollmentInitialNode extends BaseClientAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         if (options.nonOptionArguments().contains("--explicitly-acknowledge-execution") == false) {
-            throw new UserException(ExitCodes.NOOP, "This command is not intended for end users");
+            throw new UserException(ExitCodes.CONFIG, "This command is not intended for end users");
         }
         if (env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey()) && false ==
             XPackSettings.ENROLLMENT_ENABLED.get(env.settings())) {
@@ -158,7 +158,7 @@ public class PasswordAndEnrollmentInitialNode extends BaseClientAwareCommand {
                 terminal.errorPrintln("");
                 terminal.errorPrintln(
                     "Unexpected response code [" + response.getHttpStatus() + "] from calling PUT " + passwordChangeUrl.toString());
-                final String cause = client.getErrorCause(response);
+                final String cause = CommandLineHttpClient.getErrorCause(response);
                 if (cause != null) {
                     terminal.errorPrintln("Cause: " + cause);
                     terminal.errorPrintln("");

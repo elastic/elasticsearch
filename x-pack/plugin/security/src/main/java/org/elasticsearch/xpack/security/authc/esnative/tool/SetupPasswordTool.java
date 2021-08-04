@@ -418,7 +418,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                 terminal.errorPrintln("Failed to determine the health of the cluster running at " + url);
                 terminal.errorPrintln("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " +
                     route.toString());
-                final String cause = client.getErrorCause(httpResponse);
+                final String cause = CommandLineHttpClient.getErrorCause(httpResponse);
                 if (cause != null) {
                     terminal.errorPrintln("Cause: " + cause);
                 }
@@ -477,7 +477,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     terminal.errorPrintln("");
                     terminal.errorPrintln(
                             "Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling PUT " + route.toString());
-                    String cause = client.getErrorCause(httpResponse);
+                    String cause = CommandLineHttpClient.getErrorCause(httpResponse);
                     if (cause != null) {
                         terminal.errorPrintln("Cause: " + cause);
                         terminal.errorPrintln("");

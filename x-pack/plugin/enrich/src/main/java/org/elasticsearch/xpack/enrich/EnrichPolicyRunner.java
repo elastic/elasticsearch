@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.enrich;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.document.FieldType;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -62,9 +61,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
@@ -248,7 +247,7 @@ public class EnrichPolicyRunner implements Runnable {
                 List<String> types = response.mappings().values().stream()
                     .map(Map::values)
                     .flatMap(Collection::stream)
-                    .map(data -> ((Map<String,String>)data.sourceAsMap().getOrDefault(policy.getMatchField(), Map.of("type", "unknown"))).get("type"))
+                    .map(toFieldMappingType(policy.getMatchField()))
                     .distinct()
                     .collect(Collectors.toList());
                 if(types.isEmpty()) {
@@ -274,6 +273,11 @@ public class EnrichPolicyRunner implements Runnable {
         } else {
             resultListener.onFailure(new ElasticsearchException("Unrecognized enrich policy type [{}]", policy.getType()));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Function<GetFieldMappingsResponse.FieldMappingMetadata, String> toFieldMappingType(String field) {
+        return data -> ((Map<String,String>) data.sourceAsMap().getOrDefault(field, Map.of("type", "unknown"))).get("type");
     }
 
     private String resolveMatchType(String type) {

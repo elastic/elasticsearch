@@ -185,9 +185,10 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testStdinInputWithLineBreaks() throws Exception {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
-        terminal.addSecretInput(password);
-        terminal.addSecretInput("Typedthisandhitenter\n");
-        execute("-x", "foo");
+        Terminal.SystemTerminal systemTerminal = new Terminal.SystemTerminal(
+            new ByteArrayInputStream((password + System.lineSeparator() + "Typedthisandhitenter\n").getBytes(Charset.defaultCharset()))
+        );
+        newCommand().mainWithoutErrorHandling(new String[] { "-x", "foo" }, systemTerminal);
         assertSecureString("foo", "Typedthisandhitenter", password);
     }
 

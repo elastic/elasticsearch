@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.cli.Terminal.EMPTY_LINE_EXCEPTION;
+
 /**
  * A subcommand for the keystore cli which adds a string setting.
  */
@@ -50,7 +52,17 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
 
         final CheckedFunction<String, char[], IOException> valueSupplier;
         if (options.has(stdinOption)) {
-            valueSupplier = s -> terminal.readSecret("");
+            valueSupplier = s -> {
+                try {
+                    return terminal.readSecret("");
+                } catch (Exception e) {
+                    if (e == EMPTY_LINE_EXCEPTION) {
+                        return new char[0];
+                    } else {
+                        throw e;
+                    }
+                }
+            };
         } else {
             valueSupplier = s -> terminal.readSecret("Enter value for " + s + ": ");
         }

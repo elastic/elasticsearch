@@ -37,6 +37,9 @@ public abstract class Terminal {
     /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
     public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();
 
+    public static final RuntimeException EMPTY_LINE_EXCEPTION =
+                    new IllegalStateException("unable to read from standard input; is standard input open and a tty attached?");
+
     @SuppressForbidden(reason = "Writer for System.err")
     private static PrintWriter newErrorWriter() {
         return new PrintWriter(System.err);
@@ -267,7 +270,7 @@ public abstract class Terminal {
             try {
                 final String line = getReader().readLine();
                 if (line == null) {
-                    throw new IllegalStateException("unable to read from standard input; is standard input open and a tty attached?");
+                    throw EMPTY_LINE_EXCEPTION;
                 }
                 return line;
             } catch (IOException ioe) {

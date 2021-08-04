@@ -201,10 +201,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size() + 1);
                     for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
                         if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
-                            if (newRepositoryMetadata.isNoopUpdate(repositoryMetadata)) {
-                                // Previous version is the same as this one no update is needed.
-                                return currentState;
-                            }
                             Repository existing = RepositoriesService.this.repositories.get(request.name());
                             if (existing == null) {
                                 existing = RepositoriesService.this.internalRepositories.get(request.name());
@@ -213,6 +209,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             assert existing.getMetadata() == repositoryMetadata;
                             final RepositoryMetadata updatedMetadata;
                             if (canUpdateInPlace(newRepositoryMetadata, existing)) {
+                                if (repositoryMetadata.settings().equals(newRepositoryMetadata.settings())) {
+                                    // Previous version is the same as this one no update is needed.
+                                    return currentState;
+                                }
                                 // we're updating in place so the updated metadata must point at the same uuid and generations
                                 updatedMetadata = repositoryMetadata.withSettings(newRepositoryMetadata.settings());
                             } else {

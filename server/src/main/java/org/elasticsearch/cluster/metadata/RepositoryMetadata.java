@@ -167,18 +167,6 @@ public class RepositoryMetadata implements Writeable {
         return name.equals(other.name) && uuid.equals(other.uuid()) && type.equals(other.type()) && settings.equals(other.settings());
     }
 
-    /**
-     * Checks if this instance contains the same data as the updated instance, ignoring {@link #uuid}, {@link #generation} and
-     * {@link #pendingGeneration}.
-     * @param updated the metadata with the updated type and settings.
-     * @return true if it is a noop update, false if data changed.
-     */
-    public boolean isNoopUpdate(RepositoryMetadata updated) {
-        assert name.equals(updated.name);
-        //noinspection ConstantConditions
-        return name.equals(updated.name) && type.equals(updated.type()) && settings.equals(updated.settings());
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

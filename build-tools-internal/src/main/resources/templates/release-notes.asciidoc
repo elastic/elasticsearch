@@ -1,0 +1,45 @@
+<% for (version in changelogsByVersionByTypeByArea.keySet()) {
+%>[[release-notes-$version]]
+== {es} version $version
+<% if (version.qualifier == "SNAPSHOT") { %>
+coming[$version]
+<% } %>
+Also see <<breaking-changes-${ version.major }.${ version.minor },Breaking changes in ${ version.major }.${ version.minor }>>.
+<% if (changelogsByVersionByTypeByArea[version]["security"] != null) { %>
+[discrete]
+[[security-updates-${version}]]
+=== Security updates
+
+<% for (change in changelogsByVersionByTypeByArea[version].remove("security").remove("_all_")) {
+    print "* ${change.summary}\n"
+}
+}
+if (changelogsByVersionByTypeByArea[version]["known-issue"] != null) { %>
+[discrete]
+[[known-issues-${version}]]
+=== Known issues
+
+<% for (change in changelogsByVersionByTypeByArea[version].remove("known-issue").remove("_all_")) {
+    print "* ${change.summary}\n"
+}
+}
+for (changeType in changelogsByVersionByTypeByArea[version].keySet()) { %>
+[[${ changeType }-${ version }]]
+[float]
+=== ${ TYPE_LABELS[changeType] }
+<% for (team in changelogsByVersionByTypeByArea[version][changeType].keySet()) {
+    print "\n${team}::\n";
+
+    for (change in changelogsByVersionByTypeByArea[version][changeType][team]) {
+        print "* ${change.summary} {es-pull}${change.pr}[#${change.pr}]"
+        if (change.issues != null && change.issues.empty == false) {
+            print change.issues.size() == 1 ? " (issue: " : " (issues: "
+            print change.issues.collect { "{es-issue}${it}[#${it}]" }.join(", ")
+            print ")"
+        }
+        print "\n"
+    }
+}
+}
+}
+%>

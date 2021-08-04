@@ -148,7 +148,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
     private void assertSameCertificate(String cert, Path original, char[] originalPassword, boolean isCa) throws Exception{
         Map<Certificate, Key> originalKeysAndCerts = CertParsingUtils.readPkcs12KeyPairs(original, originalPassword, p -> originalPassword);
         Certificate deserializedCert = CertParsingUtils.readCertificates(
-            new ByteArrayInputStream(Base64.getUrlDecoder().decode(cert.getBytes(StandardCharsets.UTF_8)))).get(0);
+            new ByteArrayInputStream(Base64.getDecoder().decode(cert.getBytes(StandardCharsets.UTF_8)))).get(0);
         assertThat(originalKeysAndCerts, hasKey(deserializedCert));
         assertThat(deserializedCert, instanceOf(X509Certificate.class));
         if (isCa) {

@@ -77,7 +77,8 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
             StringBuilders.escapeJson(sb, start);
             sb.append(Chars.DQUOTE).append(':').append(Chars.DQUOTE);
             start = sb.length();
-            sb.append((Object) getIndexedReadOnlyStringMap().getValueAt(i));
+            Object value = getIndexedReadOnlyStringMap().getValueAt(i);
+            sb.append(value);
             StringBuilders.escapeJson(sb, start);
             sb.append(Chars.DQUOTE);
         }

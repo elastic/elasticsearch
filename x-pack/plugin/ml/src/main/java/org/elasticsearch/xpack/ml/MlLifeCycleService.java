@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
@@ -74,12 +73,6 @@ public class MlLifeCycleService {
     }
 
     static boolean isNodeSafeToShutdown(String nodeId, ClusterState state) {
-        // If we are in a mixed version cluster that doesn't support locally aborting persistent tasks then
-        // we cannot perform graceful shutdown, so just revert to the behaviour of previous versions where
-        // the node shutdown API didn't exist
-        if (PersistentTasksService.isLocalAbortSupported(state) == false) {
-            return true;
-        }
         PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         // TODO: currently only considering anomaly detection jobs - could extend in the future
         // Ignore failed jobs - the persistent task still exists to remember the failure (because no
@@ -101,14 +94,6 @@ public class MlLifeCycleService {
     }
 
     void signalGracefulShutdown(ClusterState state, Collection<String> shutdownNodeIds) {
-
-        // If we are in a mixed version cluster that doesn't support locally aborting persistent tasks then
-        // we cannot perform graceful shutdown, so just revert to the behaviour of previous versions where
-        // the node shutdown API didn't exist
-        if (PersistentTasksService.isLocalAbortSupported(state) == false) {
-            return;
-        }
-
         if (shutdownNodeIds.contains(state.nodes().getLocalNodeId())) {
 
             datafeedRunner.vacateAllDatafeedsOnThisNode(

@@ -466,7 +466,9 @@ POST _reindex
 [[docs-reindex-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+`refresh`::
+(Optional, Boolean) If `true`, the request refreshes affected shards to make
+this operation visible to search. Defaults to `false`.
 
 `timeout`::
 +

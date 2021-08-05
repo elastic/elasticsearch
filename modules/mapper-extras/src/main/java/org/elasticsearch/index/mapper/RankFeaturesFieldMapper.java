@@ -116,7 +116,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public void parse(DocumentParserContext context) throws IOException {
 
         if (context.parser().currentToken() != Token.START_OBJECT) {
             throw new IllegalArgumentException("[rank_features] fields must be json objects, expected a START_OBJECT but got: " +
@@ -148,7 +148,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) {
+    protected void parseCreateField(DocumentParserContext context) {
         throw new AssertionError("parse is implemented directly");
     }
 

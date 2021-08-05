@@ -119,6 +119,7 @@ import org.elasticsearch.painless.symbol.Decorations.StandardPainlessInstanceBin
 import org.elasticsearch.painless.symbol.Decorations.StandardPainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.StaticType;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ThisPainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.TypeParameters;
 import org.elasticsearch.painless.symbol.Decorations.UnaryType;
 import org.elasticsearch.painless.symbol.Decorations.UpcastPainlessCast;
@@ -1714,6 +1715,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         ScriptScope scriptScope = semanticScope.getScriptScope();
 
         FunctionTable.LocalFunction localFunction = null;
+        PainlessMethod thisMethod = null;
         PainlessMethod importedMethod = null;
         PainlessClassBinding classBinding = null;
         int classBindingOffset = 0;
@@ -1728,44 +1730,47 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             localFunction = null;
         }
 
-        if (localFunction != null) {
-            semanticScope.setUsesInstanceMethod();
-        } else {
-            importedMethod = scriptScope.getPainlessLookup().lookupImportedPainlessMethod(methodName, userArgumentsSize);
+        if (localFunction == null) {
+            thisMethod = scriptScope.getPainlessLookup().lookupPainlessMethod(
+                    scriptScope.getScriptClassInfo().getBaseClass(), false, methodName, userArgumentsSize);
 
-            if (importedMethod == null) {
-                classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, userArgumentsSize);
+            if (thisMethod == null) {
+                importedMethod = scriptScope.getPainlessLookup().lookupImportedPainlessMethod(methodName, userArgumentsSize);
 
-                // check to see if this class binding requires an implicit this reference
-                if (classBinding != null && classBinding.typeParameters.isEmpty() == false &&
-                        classBinding.typeParameters.get(0) == scriptScope.getScriptClassInfo().getBaseClass()) {
-                    classBinding = null;
-                }
+                if (importedMethod == null) {
+                    classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, userArgumentsSize);
 
-                if (classBinding == null) {
-                    // This extra check looks for a possible match where the class binding requires an implicit this
-                    // reference.  This is a temporary solution to allow the class binding access to data from the
-                    // base script class without need for a user to add additional arguments.  A long term solution
-                    // will likely involve adding a class instance binding where any instance can have a class binding
-                    // as part of its API.  However, the situation at run-time is difficult and will modifications that
-                    // are a substantial change if even possible to do.
-                    classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, userArgumentsSize + 1);
-
-                    if (classBinding != null) {
-                        if (classBinding.typeParameters.isEmpty() == false &&
-                                classBinding.typeParameters.get(0) == scriptScope.getScriptClassInfo().getBaseClass()) {
-                            classBindingOffset = 1;
-                        } else {
-                            classBinding = null;
-                        }
+                    // check to see if this class binding requires an implicit this reference
+                    if (classBinding != null && classBinding.typeParameters.isEmpty() == false &&
+                            classBinding.typeParameters.get(0) == scriptScope.getScriptClassInfo().getBaseClass()) {
+                        classBinding = null;
                     }
 
                     if (classBinding == null) {
-                        instanceBinding = scriptScope.getPainlessLookup().lookupPainlessInstanceBinding(methodName, userArgumentsSize);
+                        // This extra check looks for a possible match where the class binding requires an implicit this
+                        // reference.  This is a temporary solution to allow the class binding access to data from the
+                        // base script class without need for a user to add additional arguments.  A long term solution
+                        // will likely involve adding a class instance binding where any instance can have a class binding
+                        // as part of its API.  However, the situation at run-time is difficult and will modifications that
+                        // are a substantial change if even possible to do.
+                        classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, userArgumentsSize + 1);
 
-                        if (instanceBinding == null) {
-                            throw userCallLocalNode.createError(new IllegalArgumentException(
-                                    "Unknown call [" + methodName + "] with [" + userArgumentNodes + "] arguments."));
+                        if (classBinding != null) {
+                            if (classBinding.typeParameters.isEmpty() == false &&
+                                    classBinding.typeParameters.get(0) == scriptScope.getScriptClassInfo().getBaseClass()) {
+                                classBindingOffset = 1;
+                            } else {
+                                classBinding = null;
+                            }
+                        }
+
+                        if (classBinding == null) {
+                            instanceBinding = scriptScope.getPainlessLookup().lookupPainlessInstanceBinding(methodName, userArgumentsSize);
+
+                            if (instanceBinding == null) {
+                                throw userCallLocalNode.createError(new IllegalArgumentException(
+                                        "Unknown call [" + methodName + "] with [" + userArgumentNodes + "] arguments."));
+                            }
                         }
                     }
                 }
@@ -1775,10 +1780,18 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         List<Class<?>> typeParameters;
 
         if (localFunction != null) {
+            semanticScope.setUsesInstanceMethod();
             semanticScope.putDecoration(userCallLocalNode, new StandardLocalFunction(localFunction));
 
             typeParameters = new ArrayList<>(localFunction.getTypeParameters());
             valueType = localFunction.getReturnType();
+        } else if (thisMethod != null) {
+            semanticScope.setUsesInstanceMethod();
+            semanticScope.putDecoration(userCallLocalNode, new ThisPainlessMethod(thisMethod));
+
+            scriptScope.markNonDeterministic(thisMethod.annotations.containsKey(NonDeterministicAnnotation.class));
+            typeParameters = new ArrayList<>(thisMethod.typeParameters);
+            valueType = thisMethod.returnType;
         } else if (importedMethod != null) {
             semanticScope.putDecoration(userCallLocalNode, new StandardPainlessMethod(importedMethod));
 

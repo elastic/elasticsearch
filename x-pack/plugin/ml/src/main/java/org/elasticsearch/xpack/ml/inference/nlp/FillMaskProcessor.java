@@ -22,8 +22,8 @@ public class FillMaskProcessor implements NlpTask.Processor {
 
     private final BertRequestBuilder bertRequestBuilder;
 
-    FillMaskProcessor(BertTokenizer tokenizer) {
-        this.bertRequestBuilder = new BertRequestBuilder(tokenizer);
+    FillMaskProcessor(BertTokenizer tokenizer, NlpTaskConfig config) {
+        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config);
     }
 
     @Override

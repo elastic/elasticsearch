@@ -69,7 +69,6 @@ public class ReadOnlyEngine extends Engine {
     private final ElasticsearchReaderManager readerManager;
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
-    private final RamAccountingRefreshListener refreshListener;
     private final SafeCommitInfo safeCommitInfo;
     private final CompletionStatsCache completionStatsCache;
     private final boolean requireCompleteHistory;
@@ -77,6 +76,7 @@ public class ReadOnlyEngine extends Engine {
 
     protected volatile TranslogStats translogStats;
     private final String commitId;
+    private final Function<DirectoryReader, DirectoryReader> readerWrapperFunction;
 
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
@@ -96,7 +96,6 @@ public class ReadOnlyEngine extends Engine {
                           Function<DirectoryReader, DirectoryReader> readerWrapperFunction, boolean requireCompleteHistory,
                           boolean lazilyLoadSoftDeletes) {
         super(config);
-        this.refreshListener = new RamAccountingRefreshListener(engineConfig.getCircuitBreakerService());
         this.requireCompleteHistory = requireCompleteHistory;
         try {
             Store store = config.getStore();
@@ -118,8 +117,9 @@ public class ReadOnlyEngine extends Engine {
                 this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 this.lazilyLoadSoftDeletes = lazilyLoadSoftDeletes;
-                reader = wrapReader(open(indexCommit), readerWrapperFunction);
-                readerManager = new ElasticsearchReaderManager(reader, refreshListener);
+                this.readerWrapperFunction = readerWrapperFunction;
+                reader = wrapReader(open(indexCommit));
+                readerManager = new ElasticsearchReaderManager(reader);
                 assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
@@ -194,8 +194,7 @@ public class ReadOnlyEngine extends Engine {
         // reopened as an internal engine, which would be the path to fix the issue.
     }
 
-    protected final ElasticsearchDirectoryReader wrapReader(DirectoryReader reader,
-                                                    Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
+    protected final ElasticsearchDirectoryReader wrapReader(DirectoryReader reader) throws IOException {
         reader = readerWrapperFunction.apply(reader);
         return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
     }
@@ -487,10 +486,6 @@ public class ReadOnlyEngine extends Engine {
 
     }
 
-    protected void processReader(ElasticsearchDirectoryReader reader) {
-        refreshListener.accept(reader, null);
-    }
-
     @Override
     public boolean refreshNeeded() {
         return false;
@@ -566,7 +561,7 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
         final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope);
-        return new SearcherSupplier(Function.identity()) {
+        return new SearcherSupplier(wrapper) {
             @Override
             protected void doClose() {
                 delegate.close();

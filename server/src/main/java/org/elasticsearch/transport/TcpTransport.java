@@ -243,8 +243,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
+            // We compress if total transport compression is enabled or if indexing_data transport compression
+            // is enabled and the request is a RawIndexingDataTransportRequest which indicates it should be
+            // compressed.
             boolean shouldCompress = compress == Compression.Enabled.TRUE ||
-                (compress == Compression.Enabled.INDEXING_DATA && request instanceof RawIndexingDataTransportRequest);
+                (compress == Compression.Enabled.INDEXING_DATA
+                    && request instanceof RawIndexingDataTransportRequest
+                    && ((RawIndexingDataTransportRequest) request).isRawIndexingData());
             outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), shouldCompress, false);
         }
 

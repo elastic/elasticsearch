@@ -40,6 +40,7 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+        @SuppressWarnings({"rawtypes", "unchecked"})
         InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
@@ -87,6 +88,7 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
             this.sortValues = resolveAndCacheSortValues();
         }
 
+        @SuppressWarnings("unchecked")
         private Map<FieldSortBuilder, Comparable<Object>> resolveAndCacheSortValues() {
             Map<FieldSortBuilder, Comparable<Object>> resolved = new HashMap<>();
             for (FieldSortBuilder sort : sorts) {

@@ -442,7 +442,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateParse1]
 [NOTE]
 ====
 The resulting `date` will have the time zone specified by the user through the 
-<<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
+<<sql-search-api-time-zone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
 with no conversion applied.
 
 [source, sql]
@@ -533,7 +533,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeParse2]
 [NOTE]
 ====
 If timezone is not specified in the datetime string expression and the parsing pattern, the resulting `datetime` will have the
-time zone specified by the user through the <<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
+time zone specified by the user through the <<sql-search-api-time-zone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
 with no conversion applied.
 
 [source, sql]
@@ -583,7 +583,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse2]
 ====
 If timezone is not specified in the time string expression and the parsing pattern,
 the resulting `time` will have the offset of the time zone specified by the user through the
- <<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver
+ <<sql-search-api-time-zone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver
 parameters at the Unix epoch date (`1970-01-01`) with no conversion applied.
 
 [source, sql]

@@ -21,12 +21,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
 import java.util.List;
@@ -469,7 +470,12 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
     protected static Map<String, Object> search(String index, QueryBuilder query, Boolean ignoreThrottled) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_search");
-        request.setJsonEntity(new SearchSourceBuilder().trackTotalHits(true).query(query).toString());
+        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().trackTotalHits(true).query(query);
+        if (randomBoolean()) {
+            // ensures we can always access sequence numbers, even on source-only mounted snapshots
+            searchSourceBuilder.sort(SeqNoFieldMapper.NAME, SortOrder.ASC);
+        }
+        request.setJsonEntity(searchSourceBuilder.toString());
         if (ignoreThrottled != null) {
             request.addParameter("ignore_throttled", ignoreThrottled.toString());
         }
@@ -522,8 +528,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     @SuppressWarnings("unchecked")
     protected static void waitForIdlingSearchableSnapshotsThreadPools() throws Exception {
         final Set<String> searchableSnapshotsThreadPools = Set.of(
-            SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
-            SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+            SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME
         );
         assertBusy(() -> {
             final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "/_nodes/stats/thread_pool"));

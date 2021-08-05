@@ -160,7 +160,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
                 "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
         }
         final GeoShapeQueryable ft = (GeoShapeQueryable) fieldType;
-        return new ConstantScoreQuery(ft.geoShapeQuery(shape, fieldName, strategy, relation, context));
+        return new ConstantScoreQuery(ft.geoShapeQuery(shape, fieldType.name(), strategy, relation, context));
     }
 
     @Override

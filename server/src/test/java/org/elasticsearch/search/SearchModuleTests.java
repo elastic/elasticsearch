@@ -8,6 +8,7 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,12 +16,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TypeQueryV7Builder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -237,11 +242,14 @@ public class SearchModuleTests extends ESTestCase {
         List<String> allSupportedQueries = new ArrayList<>();
         Collections.addAll(allSupportedQueries, NON_DEPRECATED_QUERIES);
         Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);
+        Collections.addAll(allSupportedQueries, REST_COMPATIBLE_QUERIES);
+
         SearchModule module = new SearchModule(Settings.EMPTY, emptyList());
 
         Set<String> registeredNonDeprecated = module.getNamedXContents().stream()
                 .filter(e -> e.categoryClass.equals(QueryBuilder.class))
-                .filter(e -> e.name.getDeprecatedNames().length == 0)
+                .filter(e -> e.name.getAllReplacedWith() == null)
+                .filter(e -> RestApiVersion.current().matches(e.restApiCompatibility))
                 .map(e -> e.name.getPreferredName())
                 .collect(toSet());
         Set<String> registeredAll = module.getNamedXContents().stream()
@@ -342,7 +350,6 @@ public class SearchModuleTests extends ESTestCase {
             "combined_fields",
             "dis_max",
             "exists",
-            "field_masking_span",
             "function_score",
             "fuzzy",
             "geo_bounding_box",
@@ -367,6 +374,7 @@ public class SearchModuleTests extends ESTestCase {
             "script_score",
             "simple_query_string",
             "span_containing",
+            "span_field_masking",
             "span_first",
             "span_gap",
             "span_multi",
@@ -384,7 +392,8 @@ public class SearchModuleTests extends ESTestCase {
     };
 
     //add here deprecated queries to make sure we log a deprecation warnings when they are used
-    private static final String[] DEPRECATED_QUERIES = new String[] {"geo_polygon"};
+    private static final String[] DEPRECATED_QUERIES = new String[] {"field_masking_span", "geo_polygon"};
+    private static final String[] REST_COMPATIBLE_QUERIES = new String[] {TypeQueryV7Builder.NAME_V7.getPreferredName()};
 
     /**
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.
@@ -606,5 +615,75 @@ public class SearchModuleTests extends ESTestCase {
         public String getWriteableName() {
             return "test";
         }
+    }
+
+    static class CompatQueryBuilder extends AbstractQueryBuilder<CompatQueryBuilder> {
+        public static final String NAME = "compat_name";
+        public static final ParseField NAME_OLD = new ParseField(NAME)
+            .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported()));
+
+        public static CompatQueryBuilder fromXContent(XContentParser parser) throws IOException {
+            return null;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+        }
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        }
+
+        @Override
+        protected Query doToQuery(SearchExecutionContext context) throws IOException {
+            return null;
+        }
+
+        @Override
+        protected boolean doEquals(CompatQueryBuilder other) {
+            return false;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+    }
+
+    public void testRegisterRestApiCompatibleQuery() {
+        SearchPlugin registerCompatQuery = new SearchPlugin() {
+            @Override
+            public List<SearchPlugin.QuerySpec<?>> getQueries() {
+                return singletonList(new QuerySpec<>(CompatQueryBuilder.NAME_OLD,
+                    (streamInput) -> new CompatQueryBuilder(), CompatQueryBuilder::fromXContent));
+            }
+        };
+
+        final SearchModule searchModule = new SearchModule(Settings.EMPTY, singletonList(registerCompatQuery));
+
+        // all entries can be used for current and previous versions except for compatible entry
+        assertThat(searchModule.getNamedXContents().stream()
+                .filter(e ->
+                    // filter out compatible entry
+                    e.name.match(CompatQueryBuilder.NAME_OLD.getPreferredName(), LoggingDeprecationHandler.INSTANCE) == false)
+                .filter(e -> RestApiVersion.minimumSupported().matches(e.restApiCompatibility))
+                .filter(e -> RestApiVersion.current().matches(e.restApiCompatibility))
+                .collect(toSet()),
+            hasSize(searchModule.getNamedXContents().size()- REST_COMPATIBLE_QUERIES.length - 1 ));
+
+
+        final List<NamedXContentRegistry.Entry> compatEntry = searchModule.getNamedXContents().stream()
+            .filter(e -> e.categoryClass.equals(QueryBuilder.class) &&
+                RestApiVersion.minimumSupported().matches(e.name.getForRestApiVersion()) // v7 compatbile
+                && RestApiVersion.current().matches(e.name.getForRestApiVersion()) == false) // but not v8 compatible
+            .collect(toList());
+        assertThat(compatEntry, hasSize(REST_COMPATIBLE_QUERIES.length + 1));//+1 because of registered in the test
+        assertTrue(RestApiVersion.minimumSupported().matches(compatEntry.get(0).restApiCompatibility));
+        assertFalse(RestApiVersion.current().matches(compatEntry.get(0).restApiCompatibility));
     }
 }

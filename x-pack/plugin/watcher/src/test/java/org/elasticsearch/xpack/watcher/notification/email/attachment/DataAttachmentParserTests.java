@@ -26,7 +26,7 @@ import static org.hamcrest.core.Is.is;
 public class DataAttachmentParserTests extends ESTestCase {
 
     public void testSerializationWorks() throws Exception {
-        Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
+        Map<String, EmailAttachmentParser<?>> attachmentParsers = new HashMap<>();
         attachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
 

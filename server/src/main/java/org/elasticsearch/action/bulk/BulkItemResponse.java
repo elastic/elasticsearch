@@ -319,7 +319,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(INDEX_FIELD, index);
             if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+                builder.field("type", MapperService.SINGLE_MAPPING_NAME);
             }
             if (id != null) {
                 builder.field(ID_FIELD, id);
@@ -451,6 +451,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
      * The actual response ({@link IndexResponse} or {@link DeleteResponse}). {@code null} in
      * case of failure.
      */
+    @SuppressWarnings("unchecked")
     public <T extends DocWriteResponse> T getResponse() {
         return (T) response;
     }

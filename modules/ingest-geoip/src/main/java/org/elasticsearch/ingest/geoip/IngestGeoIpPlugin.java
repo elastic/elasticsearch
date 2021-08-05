@@ -64,6 +64,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 
@@ -167,7 +168,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                 .build())
-            .setOrigin("geoip")
+            .setOrigin(INGEST_ORIGIN)
             .setVersionMetaKey("version")
             .setPrimaryIndex(DATABASES_INDEX)
             .setNetNew()

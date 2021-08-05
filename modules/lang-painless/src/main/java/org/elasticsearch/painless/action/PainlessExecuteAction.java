@@ -34,9 +34,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -51,7 +51,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -70,6 +69,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.DateFieldScript;
+import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.GeoPointFieldScript;
@@ -82,6 +82,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -519,9 +520,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else if (scriptContext == FilterScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     FilterScript.Factory factory = scriptService.compile(request.script, FilterScript.CONTEXT);
-                    FilterScript.LeafFactory leafFactory =
-                            factory.newFactory(request.getScript().getParams(), context.lookup());
-                    FilterScript filterScript = leafFactory.newInstance(leafReaderContext);
+                    SearchLookup lookup = context.lookup();
+                    FilterScript.LeafFactory leafFactory = factory.newFactory(request.getScript().getParams(), lookup);
+                    FilterScript filterScript = leafFactory.newInstance(new DocValuesDocReader(lookup, leafReaderContext));
                     filterScript.setDocument(0);
                     boolean result = filterScript.execute();
                     return new Response(result);
@@ -529,9 +530,10 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else if (scriptContext == ScoreScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     ScoreScript.Factory factory = scriptService.compile(request.script, ScoreScript.CONTEXT);
+                    SearchLookup lookup = context.lookup();
                     ScoreScript.LeafFactory leafFactory =
-                            factory.newFactory(request.getScript().getParams(), context.lookup());
-                    ScoreScript scoreScript = leafFactory.newInstance(leafReaderContext);
+                            factory.newFactory(request.getScript().getParams(), lookup);
+                    ScoreScript scoreScript = leafFactory.newInstance(new DocValuesDocReader(lookup, leafReaderContext));
                     scoreScript.setDocument(0);
 
                     if (request.contextSetup.query != null) {
@@ -588,12 +590,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     List<GeoPoint> points = new ArrayList<>();
                     geoPointFieldScript.runGeoPointForDoc(0, gp -> points.add(new GeoPoint(gp)));
                     // convert geo points to the standard format of the fields api
-                    Function<Geometry, Object> format = GeoFormatterFactory.getFormatter(GeoFormatterFactory.GEOJSON);
-                    List<Object> objects = new ArrayList<>();
-                    for (GeoPoint gp : points) {
-                        objects.add(format.apply(new Point(gp.getLon(), gp.getLat())));
-                    }
-                    return new Response(objects);
+                    Function<List<GeoPoint>, List<Object>> format =
+                        GeometryFormatterFactory.getFormatter(GeometryFormatterFactory.GEOJSON, p -> new Point(p.lon(), p.lat()));
+                    return new Response(format.apply(points));
                 }, indexService);
             } else if (scriptContext == IpFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {

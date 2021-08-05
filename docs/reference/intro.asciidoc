@@ -164,7 +164,7 @@ embroidery_ needles.
 ===== But wait, there’s more
 
 Want to automate the analysis of your time series data? You can use
-{ml-docs}/ml-overview.html[machine learning] features to create accurate
+{ml-docs}/ml-ad-overview.html[machine learning] features to create accurate
 baselines of normal behavior in your data and identify anomalous patterns. With
 machine learning, you can detect:
 

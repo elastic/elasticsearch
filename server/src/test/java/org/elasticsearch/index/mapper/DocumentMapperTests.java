@@ -76,18 +76,18 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
     public void testMergeObjectAndNested() throws Exception {
         DocumentMapper objectMapper = createDocumentMapper(mapping(b -> b.startObject("obj").field("type", "object").endObject()));
-        DocumentMapper nestedMapper = createDocumentMapper((mapping(b -> b.startObject("obj").field("type", "nested").endObject())));
+        DocumentMapper nestedMapper = createDocumentMapper(mapping(b -> b.startObject("obj").field("type", "nested").endObject()));
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
 
         {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> MapperService.mergeMappings(objectMapper, nestedMapper.mapping(), reason));
-            assertThat(e.getMessage(), containsString("cannot change object mapping from non-nested to nested"));
+            assertThat(e.getMessage(), containsString("can't merge a nested mapping [obj] with a non-nested mapping"));
         }
         {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> MapperService.mergeMappings(nestedMapper, objectMapper.mapping(), reason));
-            assertThat(e.getMessage(), containsString("cannot change object mapping from nested to non-nested"));
+            assertThat(e.getMessage(), containsString("can't merge a non nested mapping [obj] with a nested mapping"));
         }
     }
 
@@ -286,5 +286,18 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertNotNull(documentMapper.IndexFieldMapper());
         assertEquals(10, documentMapper.mappers().getMapping().getMetadataMappersMap().size());
         assertEquals(10, documentMapper.mappers().getMatchingFieldNames("*").size());
+    }
+
+    public void testTooManyDimensionFields() {
+        // By default no more than 16 dimensions per document are supported
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(mapping(b -> {
+            for (int i = 0; i < 17; i++) {
+                b.startObject("field" + i)
+                    .field("type", randomFrom("ip", "keyword", "long", "integer", "byte", "short"))
+                    .field("dimension", true)
+                    .endObject();
+            }
+        })));
+        assertThat(e.getMessage(), containsString("Limit of total dimension fields [16] has been exceeded"));
     }
 }

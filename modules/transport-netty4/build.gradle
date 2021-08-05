@@ -49,31 +49,13 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /netty-.*/, to: 'netty'
 }
 
-tasks.named("test").configure {
-  /*
-   * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
-   * other if we allow them to set the number of available processors as it's set-once in Netty.
-   */
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
-tasks.named("internalClusterTest").configure {
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
-tasks.named("javaRestTest").configure {
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
 TaskProvider<Test> pooledTest = tasks.register("pooledTest", Test) {
   include '**/*Tests.class'
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
   systemProperty 'es.use_unpooled_allocator', 'false'
 }
 
 TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClusterTest", Test) {
   include '**/*IT.class'
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
   systemProperty 'es.use_unpooled_allocator', 'false'
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
@@ -82,7 +64,6 @@ TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClu
 }
 
 TaskProvider<RestIntegTestTask> pooledJavaRestTest = tasks.register("pooledJavaRestTest", RestIntegTestTask) {
-    systemProperty 'es.set.netty.runtime.available.processors', 'false'
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
     SourceSet javaRestTestSourceSet = sourceSets.getByName(JavaRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(javaRestTestSourceSet.getOutput().getClassesDirs())
@@ -101,6 +82,12 @@ tasks.named("check").configure {
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // classes are missing
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
 
     // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
     'com.google.protobuf.ExtensionRegistry',
@@ -161,6 +148,7 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.protobuf.MessageLiteOrBuilder',
     'com.google.protobuf.nano.CodedOutputByteBufferNano',
     'com.google.protobuf.nano.MessageNano',
+    'com.github.luben.zstd.Zstd',
     'com.jcraft.jzlib.Deflater',
     'com.jcraft.jzlib.Inflater',
     'com.jcraft.jzlib.JZlib$WrapperType',
@@ -173,6 +161,8 @@ tasks.named("thirdPartyAudit").configure {
     'com.ning.compress.lzf.util.ChunkDecoderFactory',
     'com.ning.compress.lzf.util.ChunkEncoderFactory',
     'lzma.sdk.lzma.Encoder',
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
     'io.netty.internal.tcnative.CertificateCallback',
     'io.netty.internal.tcnative.CertificateVerifier',
     'io.netty.internal.tcnative.SessionTicketKey',
@@ -180,6 +170,7 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.internal.tcnative.SSL',
     'io.netty.internal.tcnative.SSLSession',
     'io.netty.internal.tcnative.SSLSessionCache',
+    'io.netty.internal.tcnative.ResultCallback',
     'org.eclipse.jetty.alpn.ALPN$ClientProvider',
     'org.eclipse.jetty.alpn.ALPN$ServerProvider',
     'org.eclipse.jetty.alpn.ALPN',

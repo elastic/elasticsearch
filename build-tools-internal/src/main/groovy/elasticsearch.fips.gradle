@@ -76,6 +76,7 @@ if (BuildParams.inFipsJvm) {
         }
       }
       project.tasks.withType(Test).configureEach { Test task ->
+        dependsOn 'fipsResources'
         task.systemProperty('javax.net.ssl.trustStorePassword', 'password')
         task.systemProperty('javax.net.ssl.keyStorePassword', 'password')
         task.systemProperty('javax.net.ssl.trustStoreType', 'BCFKS')

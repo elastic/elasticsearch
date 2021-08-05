@@ -137,6 +137,17 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * @see ReplaceKeyInDo
      * @param oldKeyName   the key name directly under do to replace.
      * @param newKeyName   the new key name directly under do.
+     * @param testName the testName to apply replacement
+     */
+    public void replaceKeyInDo(String oldKeyName, String newKeyName, String testName) {
+        transformations.add(new ReplaceKeyInDo(oldKeyName, newKeyName, testName));
+    }
+
+    /**
+     * A transformation to replace the key in a do section for given REST test.
+     * @see ReplaceKeyInDo
+     * @param oldKeyName   the key name directly under do to replace.
+     * @param newKeyName   the new key name directly under do.
      */
     public void replaceKeyInDo(String oldKeyName, String newKeyName) {
         transformations.add(new ReplaceKeyInDo(oldKeyName, newKeyName, null));

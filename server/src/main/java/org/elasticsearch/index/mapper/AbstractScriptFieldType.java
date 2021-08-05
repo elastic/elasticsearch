@@ -214,18 +214,32 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
 
         @Override
-        protected final RuntimeField createRuntimeField(MappingParserContext parserContext,
+        protected RuntimeField createRuntimeField(MappingParserContext parserContext) {
+            if (script.get() == null) {
+                return new LeafRuntimeField(
+                    name,
+                    createFieldType(name, getParseFromSourceFactory(), getScript(), meta()),
+                    getParameters()
+                );
+            }
+            Factory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
+            return new LeafRuntimeField(name, createFieldType(name, factory, getScript(), meta()), getParameters());
+        }
+
+        @Override
+        protected final RuntimeField createChildRuntimeField(MappingParserContext parserContext,
                                                         String parent,
                                                         Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
-            if (script.get() == null) {
-                if (parentScriptFactory == null) {
-                    return createRuntimeField(parent, getParseFromSourceFactory());
-                }
-                return createRuntimeField(parent, getCompositeLeafFactory(parentScriptFactory));
+            if (script.isConfigured()) {
+                throw new IllegalArgumentException("Cannot use [script] parameter on sub-field [" + name +
+                    "] of composite field [" + parent + "]");
             }
-            assert parent == null && parentScriptFactory == null : "a script is set, hence we can't be parsing sub-fields";
-            Factory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
-            return createRuntimeField(null, factory);
+            String fullName = parent + "." + name;
+            return new LeafRuntimeField(
+                name,
+                createFieldType(fullName, getCompositeLeafFactory(parentScriptFactory), getScript(), meta()),
+                getParameters()
+            );
         }
 
         final RuntimeField createRuntimeField(String parent, Factory scriptFactory) {

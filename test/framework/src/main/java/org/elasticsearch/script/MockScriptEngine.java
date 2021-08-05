@@ -291,7 +291,8 @@ public class MockScriptEngine implements ScriptEngine {
             CompositeFieldScript.Factory objectFieldScript = (f, p, s) -> ctx -> new CompositeFieldScript(f, p, s, ctx) {
                 @Override
                 public void execute() {
-                    emit("field", "value");
+                    emit("field1", "value1");
+                    emit("field2", "value2");
                 }
             };
             return context.factoryClazz.cast(objectFieldScript);

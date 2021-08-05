@@ -20,7 +20,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A runtime field of type object. Defines a script at the top level, which emits multiple sub-fields.
@@ -65,18 +65,22 @@ public class CompositeRuntimeField implements RuntimeField {
             }
 
             @Override
-            protected RuntimeField createRuntimeField(MappingParserContext parserContext,
+            protected RuntimeField createChildRuntimeField(MappingParserContext parserContext,
                                                       String parent,
                                                       Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
-                if (parent != null) {
-                    throw new IllegalArgumentException(
-                        "Runtime field [" + name + "] of type [composite] cannot be nested within field [" + parent + "]"
-                    );
-                }
-                assert parentScriptFactory == null : "parent is null, we can't be parsing subfields";
+                throw new IllegalArgumentException("Composite field [" + name + "] cannot be a child of composite field [" + parent + "]");
+            }
+
+            @Override
+            protected RuntimeField createRuntimeField(MappingParserContext parserContext) {
                 CompositeFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.get(), CompositeFieldScript.CONTEXT);
-                Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(fields.getValue(),
-                    parserContext, name, searchLookup -> factory.newFactory(name, script.get().getParams(), searchLookup), false);
+                Function<RuntimeField.Builder, RuntimeField> builder = b -> b.createChildRuntimeField(
+                    parserContext,
+                    name,
+                    lookup -> factory.newFactory(name, script.get().getParams(), lookup)
+                );
+                Map<String, RuntimeField> runtimeFields
+                    = RuntimeField.parseRuntimeFields(fields.getValue(), parserContext, builder, false);
                 return new CompositeRuntimeField(name, getParameters(), runtimeFields.values());
             }
         });
@@ -97,8 +101,8 @@ public class CompositeRuntimeField implements RuntimeField {
     }
 
     @Override
-    public Collection<MappedFieldType> asMappedFieldTypes() {
-        return subfields.stream().flatMap(runtimeField -> runtimeField.asMappedFieldTypes().stream()).collect(Collectors.toList());
+    public Stream<MappedFieldType> asMappedFieldTypes() {
+        return subfields.stream().flatMap(RuntimeField::asMappedFieldTypes);
     }
 
     @Override

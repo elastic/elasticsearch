@@ -2003,14 +2003,21 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 "test-composite",
                 new RuntimeField.Parser(n -> new RuntimeField.Builder(n) {
                     @Override
-                    protected RuntimeField createRuntimeField(MappingParserContext parserContext,
-                                                              String parent,
-                                                              Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory)
+                    protected RuntimeField createRuntimeField(MappingParserContext parserContext)
                     {
                         return new TestRuntimeField(n, List.of(
                             new KeywordFieldMapper.KeywordFieldType(n + ".foo"),
                             new KeywordFieldMapper.KeywordFieldType(n + ".bar")
                         ));
+                    }
+
+                    @Override
+                    protected RuntimeField createChildRuntimeField(
+                        MappingParserContext parserContext,
+                        String parentName,
+                        Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+                    ) {
+                        throw new UnsupportedOperationException();
                     }
                 })
             );

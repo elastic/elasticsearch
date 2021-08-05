@@ -80,7 +80,6 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         assertEquals(org.elasticsearch.core.List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76059")
     public void testFetchVectorTile() throws IOException {
         fetchVectorTile(GeometryTestUtils.randomPoint());
         fetchVectorTile(GeometryTestUtils.randomMultiPoint(false));
@@ -112,7 +111,14 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         }
 
         final List<?> sourceValue = fetchSourceValue(mapper, WellKnownText.toWKT(geometry), mvtString);
-        final List<byte[]> features = featureFactory.getFeatures(geometry);
+        List<byte[]> features;
+        try {
+            features = featureFactory.getFeatures(geometry);
+        } catch (IllegalArgumentException iae) {
+            // if parsing fails means that we must be ignoring malformed values. In case of mvt might
+            // happen that the geometry is out of range (close to the poles).
+            features = org.elasticsearch.core.List.of();
+        }
         assertThat(features.size(), Matchers.equalTo(sourceValue.size()));
         for (int i = 0; i < features.size(); i++) {
             assertThat(sourceValue.get(i), Matchers.equalTo(features.get(i)));

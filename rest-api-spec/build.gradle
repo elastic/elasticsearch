@@ -86,7 +86,10 @@ def v7compatibilityNotSupportedTests = {
 
           'indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set', //#44761 bug fix,
 
-          'search/340_type_query/type query' //#47207 type query throws exception in compatible mode
+          'search/340_type_query/type query', //#47207 type query throws exception in compatible mode
+          'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers', // #42809 the use nested path and filter sort throws an exception
+          'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //#42654 cutoff_frequency, common terms are not supported. Throwing an exception
+
 
   ]
 }
@@ -95,12 +98,7 @@ tasks.named("yamlRestCompatTest").configure {
     // Skip these tests on Windows since the blacklist exceeds Windows CLI limits
     OS.current() != OS.WINDOWS
   }
-  systemProperty 'tests.rest.blacklist', ([
-    'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
-    'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
-  ] + v7compatibilityNotSupportedTests())
-    .join(',')
-
+  systemProperty 'tests.rest.blacklist',  v7compatibilityNotSupportedTests().join(',')
 }
 
 tasks.named("transformV7RestTests").configure({ task ->

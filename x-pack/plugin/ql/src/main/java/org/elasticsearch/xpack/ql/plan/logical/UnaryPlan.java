@@ -31,7 +31,7 @@ public abstract class UnaryPlan extends LogicalPlan {
         return replaceChild(newChildren.get(0));
     }
 
-    protected abstract UnaryPlan replaceChild(LogicalPlan newChild);
+    public abstract UnaryPlan replaceChild(LogicalPlan newChild);
 
     public LogicalPlan child() {
         return child;

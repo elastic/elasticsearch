@@ -34,6 +34,13 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+
     // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
     'com.google.protobuf.ExtensionRegistry',
     'com.google.protobuf.MessageLite$Builder',
@@ -86,6 +93,7 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.protobuf.MessageLiteOrBuilder',
     'com.google.protobuf.nano.CodedOutputByteBufferNano',
     'com.google.protobuf.nano.MessageNano',
+    'com.github.luben.zstd.Zstd',
     'com.jcraft.jzlib.Deflater',
     'com.jcraft.jzlib.Inflater',
     'com.jcraft.jzlib.JZlib$WrapperType',
@@ -108,6 +116,8 @@ tasks.named("thirdPartyAudit").configure {
     'org.conscrypt.HandshakeListener',
 
     // from io.netty.handler.ssl.OpenSslEngine (netty)
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
     'io.netty.internal.tcnative.Buffer',
     'io.netty.internal.tcnative.Library',
     'io.netty.internal.tcnative.SSL',
@@ -115,6 +125,7 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.internal.tcnative.SSLPrivateKeyMethod',
     'io.netty.internal.tcnative.CertificateCallback',
     'io.netty.internal.tcnative.CertificateVerifier',
+    'io.netty.internal.tcnative.ResultCallback',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
     'io.netty.internal.tcnative.SSLSession',

@@ -27,6 +27,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
+import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
@@ -482,6 +483,12 @@ public class SearchModule {
                 .setAggregatorRegistrar(CompositeAggregationBuilder::registerAggregators),
             builder
         );
+
+        if(RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
+            registerQuery(new QuerySpec<>(CommonTermsQueryBuilder.NAME_V7,
+                (streamInput) -> new CommonTermsQueryBuilder(), CommonTermsQueryBuilder::fromXContent));
+        }
+
         registerFromPlugin(plugins, SearchPlugin::getAggregations, (agg) -> this.registerAggregation(agg, builder));
 
         // after aggs have been registered, see if there are any new VSTypes that need to be linked to core fields

@@ -5,7 +5,7 @@ beta::[This functionality is in alpha and is subject to change. The design and c
 
 Before you start {es} for the first time, run the `elasticsearch-security-config`
 tool. This tool generates certificates and keys for the transport and HTTP
-layers of your, and writes the TLS configuration settings to `elasticsearch.yml`.
+layers of {es}, and writes the TLS configuration settings to `elasticsearch.yml`.
 
 [discrete]
 === Prerequisites
@@ -34,10 +34,10 @@ The CA certificate that is used to sign the certificates for the HTTP layer of
 this {es} cluster.
 
 `http_keystore_local_node.p12`::
-Keystore for the first {es} node in your cluster.
+Keystore that contains the key and certificate for the HTTP layer for the this node.
 
 `transport_keystore_all_nodes.p12`::
-Keystore for adding additional nodes to your cluster.
+Keystore that contains the key and certificate for the transport layer for all the nodes in your cluster.
 --
 +
 NOTE: The `ES_PATH_CONF` variable is the path for the {es}

@@ -34,7 +34,7 @@ The CA certificate that is used to sign the certificates for the HTTP layer of
 this {es} cluster.
 
 `http_keystore_local_node.p12`::
-Keystore that contains the key and certificate for the HTTP layer for the this node.
+Keystore that contains the key and certificate for the HTTP layer for this node.
 
 `transport_keystore_all_nodes.p12`::
 Keystore that contains the key and certificate for the transport layer for all the nodes in your cluster.

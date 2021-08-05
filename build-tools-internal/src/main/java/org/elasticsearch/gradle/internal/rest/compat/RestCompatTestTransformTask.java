@@ -209,7 +209,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
-     * Replaces all the values of a given key/value pairs for for given REST test.
+     * Replaces all the values of a given key/value pairs for given REST test.
      * For example "foo": "bar" can replaced as "foo": "baz"
      *
      * @param key the key to find

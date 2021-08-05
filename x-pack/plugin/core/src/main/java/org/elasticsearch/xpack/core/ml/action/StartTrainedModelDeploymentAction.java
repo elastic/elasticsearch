@@ -25,7 +25,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -34,6 +33,8 @@ import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.xpack.core.ml.MlTasks.trainedModelDeploymentTaskId;
 
 public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedModelAllocationAction.Response> {
 
@@ -237,7 +238,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 if (Strings.isAllOrWildcard(expectedId)) {
                     return true;
                 }
-                String expectedDescription = MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX + expectedId;
+                String expectedDescription = trainedModelDeploymentTaskId(expectedId);
                 return expectedDescription.equals(task.getDescription());
             }
             return false;

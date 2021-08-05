@@ -935,6 +935,29 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(targetRoutingNumberOfShards, is(9));
     }
 
+    public void testGetIndexNumberOfRoutingShardsNullVsNotDefined() {
+        int numberOfPrimaryShards = randomIntBetween(1, 16);
+        Settings indexSettings = settings(Version.CURRENT)
+            .put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), (String) null)
+            .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numberOfPrimaryShards)
+            .build();
+        int targetRoutingNumberOfShardsWithNull = getIndexNumberOfRoutingShards(indexSettings, null);
+        indexSettings = settings(Version.CURRENT)
+            .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numberOfPrimaryShards)
+            .build();
+        int targetRoutingNumberOfShardsWithNotDefined = getIndexNumberOfRoutingShards(indexSettings, null);
+        assertThat(targetRoutingNumberOfShardsWithNull, is(targetRoutingNumberOfShardsWithNotDefined));
+    }
+
+    public void testGetIndexNumberOfRoutingShardsNull() {
+        Settings indexSettings = settings(Version.CURRENT)
+            .put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), (String) null)
+            .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
+            .build();
+        int targetRoutingNumberOfShardsWithNull = getIndexNumberOfRoutingShards(indexSettings, null);
+        assertThat(targetRoutingNumberOfShardsWithNull, is(1024));
+    }
+
     public void testGetIndexNumberOfRoutingShardsYieldsSourceNumberOfShards() {
         Settings indexSettings = Settings.builder()
             .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
